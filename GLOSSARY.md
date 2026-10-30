@@ -130,6 +130,26 @@ The panel of the function editor that shows the selected box: its catalogue docu
 fidelity, its box parameters, its context and its display queue.
 _Avoid_: properties panel
 
+**Working copy**:
+The mapping model as the author is editing it in the editor, saved or not. Compile and test run
+on it.
+_Avoid_: draft, local model
+
+**Baseline**:
+The mapping model as the service last saved it, in canonical form. The working copy has unsaved
+changes when it differs from the baseline.
+_Avoid_: original, server copy
+
+**Unreachable box**:
+A function box or source-field box that the target field mapping's `result` does not reach. It
+is kept on save and dimmed on the canvas, and compiling ignores it with a warning (ADR-0013).
+_Avoid_: dead box, orphaned box (orphaned is for references)
+
+**Dev host**:
+The thin standalone page that opens one mapping in the editor for development and tests, before
+Flottila embeds the editor (ADR-0013).
+_Avoid_: app, shell (reserved for Flottila's)
+
 **Standard function**:
 A built-in function of the graphical editor (concat, if, formatDate, removeContexts …).
 _Avoid_: built-in, node function

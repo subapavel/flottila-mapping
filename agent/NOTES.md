@@ -53,3 +53,15 @@ Module notes by section, read on demand.
     W3C sources read from `raw.githubusercontent.com/w3c/qtspecs`. Maven Central reachable:
     Saxon-HE 12.5 and 13.1 fetched into a scratch dir and run — VERIFIED_PASS. learning.sap.com:
     ENVIRONMENT_BLOCKED (proxy). help.sap.com/docs content via its own `/http.svc/*` JSON endpoints.
+- UI toolchain trial for #11 (2026-10-30, scratch dir, verifier):
+  - Preinstalled `playwright` 1.63.0 resolves from `/opt/node-tools/node_modules` (via `NODE_PATH`);
+    browsers in `/opt/pw-browsers` (`chromium-1243`, `PLAYWRIGHT_BROWSERS_PATH` set).
+    `@playwright/test` is not global: pin it to exactly 1.63.0 in `ui/` and it finds the browser
+    with no install and no `executablePath` (VERIFIED_PASS). Latest 1.64.1 would not match.
+  - Vite 8.3.5 `build` and `tsc` (TS 6.0.3) with React 19.3.1 + PF 6.7.0 + React Flow 12.12 +
+    Query 5.105 + Zustand 5.0.16 + Immer 11.2.9: VERIFIED_PASS. Side-effect CSS imports need
+    `"types": ["vite/client"]` in tsconfig.
+  - Vitest 5.0.5 node mode and browser mode (`@vitest/browser-playwright` 5.0.5) on the
+    preinstalled Chromium: VERIFIED_PASS. Exclude `e2e/` from Vitest.
+  - jsdom 30 needs Node ≥ 22.22.2 (VM: 22.22.0). TypeScript 7 is blocked by typescript-eslint
+    8.72 (`typescript <6.1.0`). `@tanstack/react-router` depends on `isbot` (Unlicense).

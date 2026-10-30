@@ -14,10 +14,11 @@ on one commit of `main`; each check names the command and the evidence it needs.
 2. **Edit.** In the editor (ADR-0012: structure overview on top, function editor below) a
    person maps fields by drag and drop, inserts standard functions and constants, and saves;
    the mapping model passes its schema (ADR-0011) and round-trips byte-identical in canonical
-   form (ADR-0010).
+   form (ADR-0010). Shown by the `@stack` Playwright suite against the service (ADR-0013).
 3. **Run.** `POST /mappings/{id}/test` with an input returns the target message; the editor's test
    panel shows it. The display queue at any function shows contexts and SUPPRESS. At a target
-   field it also shows the occurrences created per parent slot (ADR-0012).
+   field it also shows the occurrences created per parent slot (ADR-0012). The test runs on the
+   unsaved working copy; shown by the `@stack` Playwright suite (ADR-0013).
 4. **Semantics.** The milestone-1 functions of issue #3 (ADR-0002, ADR-0003) pass their
    golden-corpus cases: all PO 7.5 node functions (`removeContexts`, `splitByValue` in all three
    modes, `collapseContexts`, `useOneAsMany`, `createIf`, `exists`, `mapWithDefault`,
@@ -34,7 +35,11 @@ on one commit of `main`; each check names the command and the evidence it needs.
    _(Phase 0: targets)_
 8. **Quality.** Coverage and mutation floors on the class-C modules met on the gate commit, by
    CI _(Phase 0: floors)_; ratchet green; every spec of the milestone merged through `/run-spec`
-   with its review.
+   with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
+   (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
+   coverage of `ui/src/model/` and `ui/src/editor/store/` at its floor _(Phase 0, #14: proposed
+   ≥ 90 %)_; generated types with an empty diff; the 20,128-field tree scenario within its
+   `bench/RESULTS.md` threshold. No mutation testing on `ui/` in milestone 1.
 9. **Hand-over.** `HANDOVER.md`: how to start the stack, how to draw and run a mapping, how to run
    the tests and the benchmarks, open findings, ADRs to revisit, the next three specs.
 
