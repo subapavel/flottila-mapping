@@ -1,6 +1,6 @@
 # One structure model, normalised at import to fields with effective occurrences
 
-Status: accepted (2026-10-30, grilling #8); amended by F-1 (json-sKema also validates mapping models, ADR-0011)
+Status: accepted (2026-10-30, grilling #8); amended by F-1 (json-sKema also validates mapping models, ADR-0011) and F-3 (no `--add-modules` under Maven)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §6 ("one structure model with types and
 cardinalities, shared by editor and compiler") for milestone 1 and fills its gaps. XSD, WSDL and
@@ -107,8 +107,8 @@ These are design-time errors, raised only for a field that a mapping refers to o
 
 - Changing a reader changes no other module. The fingerprint (ADR-0009) detects when a reader
   upgrade produces a different structure.
-- On the module path, json-sKema needs `--add-modules kotlin.stdlib`: observed on Java 25. It
-  runs without it on the class path. This is input for #12. FOUNDING §11's single "structure
+- On a hand-built module path, json-sKema needs `--add-modules kotlin.stdlib`: observed on
+  Java 25. Under Maven it needs no flag, and the flag breaks the build (F-3). FOUNDING §11's single "structure
   import" module becomes `structure` plus `structure-import`.
 - OData metadata (FOUNDING §6) is not in milestone 1. It can be added later as another reader.
 - Assumed readings until observed cases confirm them (ADR-0002, #14):

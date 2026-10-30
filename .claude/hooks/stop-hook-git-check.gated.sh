@@ -9,7 +9,7 @@ input=$(cat)
 top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 # Gate 1 — a batch is under review (architect: touch on hand-off to the reviewer, rm in the commit command).
-[[ -f "$top/target/.batch-in-review" ]] && exit 0
+[[ -f "$top/.logs/.batch-in-review" ]] && exit 0
 
 # Gate 2 — autonomous branch (claude/*, spec/*, t/*) with a dirty tree: the normal mid-batch state. A clean tree falls through.
 b=$(git branch --show-current 2>/dev/null); if [[ "$b" == claude/* || "$b" == spec/* || "$b" == t/* ]]; then

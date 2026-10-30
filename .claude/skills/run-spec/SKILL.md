@@ -57,7 +57,7 @@ Take hand-backs in the order they arrive; refill a freed slot from the frontier 
    (`git worktree add .claude/worktrees/verify-<ticket> t/<ticket>-<slug>`), the checks of
    `docs/WORKFLOW.md` §6. Any `EXECUTED_FAIL`: a fix packet (file, line, evidence, the sentence)
    to the same implementer.
-3. **Class C review** — `touch target/.batch-in-review`, then call the Skill tool with
+3. **Class C review** — `mkdir -p .logs && touch .logs/.batch-in-review`, then call the Skill tool with
    `code-review`, fixed point = the ticket branch's merge-base with the integration branch, the
    ticket as the spec; spawn the `reviewer-standards` and `reviewer-spec` agents at xhigh. FAIL →
    every reason in one fix packet to the same implementer, re-gate, re-review the fix list only.
@@ -76,7 +76,7 @@ When every ticket is closed (or the frontier is empty and only `ready-for-human`
 then stop with `IDLE_NO_FRONTIER`, see §5):
 
 1. **Spec gate** — verifier, full checks on the integration branch.
-2. **Review** — `touch target/.batch-in-review`; call the Skill tool with `code-review`, fixed
+2. **Review** — `mkdir -p .logs && touch .logs/.batch-in-review`; call the Skill tool with `code-review`, fixed
    point `main`, the spec issue as the spec, reviewers `reviewer-standards` and `reviewer-spec`
    at high. Keep the two reports separate.
 3. **Fix** — one implementer (Opus 5.5, high) on a worktree branch `t/<spec>-review` with every
@@ -85,7 +85,7 @@ then stop with `IDLE_NO_FRONTIER`, see §5):
 4. **PR** — call the Skill tool with `pr` for the body (summary, evidence lines, merge danger),
    `gh pr create --base main --head spec/<spec>-<slug>`, the body closing the spec. Wait for CI in
    the foreground (`gh pr checks --watch`, with a timeout). Red CI is a fix packet, not a retry.
-5. **Merge** — `rm -f target/.batch-in-review && gh pr merge --merge` (never squash, never
+5. **Merge** — `rm -f .logs/.batch-in-review && gh pr merge --merge` (never squash, never
    rebase, never force). Rewrite `agent/HANDOFF.md` on `main` with state `SPEC_DONE` and the next
    action. `git worktree prune`.
 6. Suggest `/retro` to the owner in one line.

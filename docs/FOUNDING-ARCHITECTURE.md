@@ -200,6 +200,11 @@ JPMS modules along the pipeline: `xdm`, `xpath`, `xslt-compiler`, `runtime`, `se
 Refined by ADR-0014: the engine modules are JPMS; the service is a Quarkus application on the
 class path over them, its module rules enforced by ArchUnit.
 
+Settled by ADR-0016 (grilling #13) for milestone 1. The engine has nine JPMS modules under
+`engine/`: `xdm`, `structure`, `structure-import`, `ir`, `serializer`, `runtime`, `mapping`,
+`xslt-export`, and the facade `api` that the service uses. `xpath`, `xslt-compiler` and
+`jaxp-adapter` come with their specs. The build, CI and gates are in ADR-0017.
+
 ## 12. UI
 
 React + PatternFly (also Flottila's future UI). Editor shape decided by the prototype ticket

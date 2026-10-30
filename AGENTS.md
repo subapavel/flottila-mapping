@@ -13,7 +13,7 @@ loop itself is `docs/WORKFLOW.md`.
 | test-author | `.claude/agents/test-author.md` | by class | tests and fixtures in its worktree | red tests of class-C tickets, observed red |
 | implementer | `.claude/agents/implementer.md` | by class | code (and tests for A/B) in its worktree | one ticket, green, scoped checks run, integration tip merged in |
 | merger | `.claude/agents/merger.md` | Opus 5.5 · medium | the integration branch | merging one finished ticket branch at a time; mechanical conflicts only |
-| verifier | `.claude/agents/verifier.md` | Sonnet 5.5 · low | `target/`, `ui/.logs/`, `ratchet/` (regeneration only) | running named checks, reporting observed results |
+| verifier | `.claude/agents/verifier.md` | Sonnet 5.5 · low | `.logs/`, `ui/.logs/`, `ratchet/` (regeneration only) | running named checks, reporting observed results |
 | scout | `.claude/agents/scout.md` | Haiku 5.5 · medium | nothing | locating code, decisions, prior evidence |
 | reviewer-standards | `.claude/agents/reviewer-standards.md` | by class | nothing | the Standards axis of `/code-review` |
 | reviewer-spec | `.claude/agents/reviewer-spec.md` | by class | nothing | the Spec axis of `/code-review` |
@@ -55,7 +55,12 @@ integration branch (`docs/WORKFLOW.md` §5).
 - At most **one merger** at a time: merges into the integration branch are serialised.
 - Readers (scout, verifier, reviewers, designer) run beside the writers, at most two at once.
 - `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4` (`.claude/settings.json`). The VM has 4 vCPU; a
-  fourth Maven build in parallel makes every build slower, not the batch faster.
+  fourth Maven build in parallel makes every build slower, not the batch faster. Measured
+  (ADR-0017): an engine scoped build takes 4 s alone and 9–10 s with three in parallel; a service
+  build takes 14 s alone and 35 s with three.
+- The verifier runs at most one build of `service` at a time; engine scoped builds may overlap.
+  Worktrees share `~/.m2/repository` (file locking in `.mvn/maven.config`). No agent starts dev
+  mode (`quarkus:dev`, `npm run dev`) in a gate.
 - No nested delegation: subagents do not start subagents, except `/code-review` started by the
   architect, which starts its two reviewers.
 - When the architect has nothing else to do while one agent runs, it waits in the foreground

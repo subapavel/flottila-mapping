@@ -84,3 +84,37 @@ Module notes by section, read on demand.
     discriminatorMapping)`; required needs `requiredProperties` / `required=true` / `@NotNull`;
     external ref must start with `./`. openapi-typescript 7.13.0 resolves it (ADR-0015).
   - Never `pkill -f` a pattern that matches your own shell (it killed the verifier's shell).
+- Build trial for #13 (2026-10-30, scratch reactor, agents; decisions in ADR-0016, ADR-0017):
+  - Maven: until the owner pastes the new `deploy/claude-cloud/setup.sh`, use a scratch
+    `settings.xml` with the Google mirror and `-Dmaven.repo.local=<scratch>/m2` (never `~/.m2` of
+    the VM for trials). `MVNW_REPOURL=<mirror> ./mvnw -v` downloads Maven from the mirror.
+    Running `setup.sh` on the VM itself was refused by the session's permission classifier;
+    it was checked with a scratch `HOME` (VERIFIED_PASS).
+  - Versions observed working on JDK 25: compiler 3.16.0, surefire 3.6.1, enforcer 3.6.3,
+    license-maven-plugin 2.7.1, Spotless 3.10.4 + google-java-format 1.36.1 (1.37.0 fails:
+    `NoSuchMethodError JavaFormatterOptions$Style.valueOf`), JUnit 6.1.3 (Quarkus 3.40.1.1 BOM),
+    AssertJ 3.27.7, ArchUnit 1.5.1, JMH 1.37 + shade 3.6.2, wrapper 3.3.4.
+  - Maven 4 is RC only (4.0.0-rc-7); the latest Maven 3 is 3.10.0; we pin 3.9.11.
+  - json-sKema: no `--add-modules kotlin.stdlib` under Maven; it breaks compile and surefire
+    (F-3). javac lint category for the automatic module is `requires-automatic`; the
+    "filename-based automodules" banner is maven-compiler's own, non-fatal.
+  - `quarkus:dev` needs `-am` (`-pl service` alone: "Could not find artifact
+    …flottila-mapping-xdm:jar:0.1.0-SNAPSHOT"); no `install` needed. `kill <mvn pid>` stops the
+    app too. Plain `./mvnw quarkus:dev` from the root needs `quarkus-maven-plugin` in the root
+    `pluginManagement`.
+  - Two `@QuarkusTest` builds at once clash on the test port: `quarkus.http.test-port=0`.
+  - `store-schema-directory=../contract` resolves against `service/`; it always writes
+    `openapi.yaml` as well (gitignored).
+  - license plugin: `add-third-party` skips itself when THIRD-PARTY.txt is newer than the pom:
+    `force=true`. Per-artifact exceptions via `artifactFiltersUrl` (`exclude gaPattern
+    group:artifact`, full regex match); `excludedArtifacts`/`excludedGroups` match one part only.
+    Each module needs `<licenses>` (inherit Apache-2.0 from the root) or it is "Unknown license".
+    With `-q` a licence failure shows only the generic error: read the log without `-q`.
+  - enforcer `bannedDependencies`: a bare groupId pattern also matched test scope (docs say
+    compile only).
+  - `-Pui` copies `ui/dist` into `target/classes`; without `clean` it leaks into the next jar.
+  - Quinoa 2.9.3 (rejected): dev proxy loop on `/api` (`QuinoaDevProxyHandler … HttpClosedException`)
+    until `ignored-path-prefixes=/api`; runs `npm install` on every fresh `target/`.
+  - `/usr/bin/time` is not installed; time with `date +%s.%N`.
+  - The installed stop hook (`~/.claude/stop-hook-git-check.sh`) is copied at session start; this
+    session's copy still checks `target/.batch-in-review`, new sessions get `.logs/`.

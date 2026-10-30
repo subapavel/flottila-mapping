@@ -18,7 +18,7 @@ the ticket id. You run alone; nobody else writes to the integration branch while
    Resolve it and say how in the hand-back.
 3. Any other conflict is **semantic**: `git merge --abort`, hand back the conflicting files and
    hunks (at most 30 lines). The architect sends it back to the ticket's implementer.
-4. Run the build of the touched modules (`target/<ticket>-merge.log`); push the integration branch
+4. Run the build of the touched modules (`.logs/<ticket>-merge.log`); push the integration branch
    only on `VERIFIED_PASS`. On a failure, reset to the remote tip and hand back the failing section.
 
 Never edit code beyond a mechanical resolution, never force-push, never merge two tickets in one run.

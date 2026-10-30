@@ -20,7 +20,7 @@ Rules:
   test compile by doing nothing is not allowed.
 - Every test asserts observable behaviour at a seam and would fail if the code were wrong;
   expected values come from an oracle, a worked example or the spec, never recomputed.
-- Observe the red: run the test classes with output to `target/<ticket>-red.log` and quote the
+- Observe the red: run the test classes with output to `.logs/<ticket>-red.log` and quote the
   failing assertion, not the exit code.
 - Do not commit to any branch but yours, do not touch issues, `agent/`, `docs/`, `ratchet/`,
   `.claude/`. Push your branch before handing back.

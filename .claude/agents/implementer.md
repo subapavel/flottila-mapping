@@ -23,7 +23,7 @@ How:
 - Smallest correct change. No speculative hooks. No edits outside the allowed paths, no edits to
   `ratchet/`, `agent/`, `docs/adr/`, `.claude/`.
 - Library APIs: Context7, then `javap` on the resolved jar or the package's `.d.ts`.
-- Output of every build or test run to `target/<ticket>-<check>.log` or
+- Output of every build or test run to `.logs/<ticket>-<check>.log` or
   `ui/.logs/<ticket>-<check>.log`; read the tail.
 - Before hand-back: run the ticket's scoped checks; `git merge` the integration branch tip into
   your branch and re-run them if anything came in; commit (Conventional Commits, trailers in

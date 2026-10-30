@@ -9,7 +9,7 @@ You are the architect. The gate is a `class:G` ticket; its body links `docs/GATE
 1. Pin the gate commit: the current tip of `main` unless the owner names one. Every check runs on
    that commit; a later commit is a new gate run.
 2. For each check in `docs/GATE.md`, have the verifier run its command on that commit (output to
-   `target/gate-<n>.log`), or point at the CI run id of that commit for CI-measured numbers.
+   `.logs/gate-<n>.log`), or point at the CI run id of that commit for CI-measured numbers.
    Numbers go to `bench/RESULTS.md` with machine, date, configuration and commit.
 3. Write `HANDOVER.md` as `docs/GATE.md` asks, from evidence only, on a branch `gate/<milestone>`.
 4. Run the `gate-reviewer` agent in the foreground with the gate commit, the ticket, and the paths

@@ -1,6 +1,6 @@
 # The service is a Quarkus application over a JPMS engine, and it keeps mappings as files in a workspace
 
-Status: accepted (2026-10-30, grilling #12)
+Status: accepted (2026-10-30, grilling #12); amended by F-3 (no `--add-modules` under Maven) and refined by ADR-0016 (modules, ArchUnit rules)
 
 FOUNDING §11 sketches JPMS modules for everything, "the service" included. The owner wants the
 service in Quarkus, the same as Flottila's future backend. Quarkus builds and runs an
@@ -20,7 +20,7 @@ application on the class path. So the engine stays JPMS and the service does not
 - On the class path JPMS does not enforce `exports`, so ArchUnit does:
   - the service uses only the engine's exported packages;
   - no engine module depends on the service, `io.quarkus`, `jakarta` or `com.fasterxml`.
-  #13 writes these rules.
+  ADR-0016 writes these rules.
 - This refines FOUNDING §11. "The service" is not a JPMS module.
 
 ## Workspace and persistence
@@ -88,8 +88,8 @@ application on the class path. So the engine stays JPMS and the service does not
   - Quarkus 3.40.1.1 on Java 25 starts a test app in 4.1 s, the packaged app in 0.9 s
     (RSS 126 MB) and dev mode in about 26 s (app RSS about 454 MB);
   - an engine jar with `module-info` on the class path gives no warning;
-  - json-sKema 0.32.0 runs in test and dev mode with the BOM's kotlin-stdlib 2.4.10. On the
-    module path it still needs `--add-modules kotlin.stdlib` (ADR-0008).
+  - json-sKema 0.32.0 runs in test and dev mode with the BOM's kotlin-stdlib 2.4.10. Under Maven the
+    engine modules need no `--add-modules kotlin.stdlib` either (F-3).
 - The Quarkus dependency tree adds MIT-0 (`reactive-streams`) and EDL 1.0 (`jakarta.activation`,
   `jakarta.xml.bind`; the text is BSD-3-Clause). The owner added both to the licence list in
   `CLAUDE.md`. Dual licences (EPL-2.0 OR GPL-2.0 with CPE, EPL-1.0 OR Apache-2.0) are taken

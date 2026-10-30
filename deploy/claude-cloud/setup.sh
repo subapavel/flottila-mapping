@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Flottila Mapping — Claude Code Cloud environment setup script (v2, 2026-10-18).
+# Flottila Mapping — Claude Code Cloud environment setup script (v3, 2026-10-30).
 # Runs as root on the Ubuntu 24.04 VM before Claude Code starts. Must finish in ~5 minutes to
-# be snapshotted, so it does two things: install JDK 25 beside the pre-installed JDK 21, and
-# pre-approve the project's Context7 MCP server in the user settings (project settings cannot).
+# be snapshotted, so it does three things: install JDK 25 beside the pre-installed JDK 21, point
+# Maven and the Maven Wrapper at the Google mirror of Central (Central answers HTTP 429 to the VM,
+# ADR-0017), and pre-approve the project's Context7 MCP server in the user settings.
 # Docker images, apt extras and Maven dependencies are fetched by the agent on first use.
 # Self-contained (no repository paths), idempotent, reports every step.
 # Paste this file's contents into the environment's "Setup script" field.
@@ -71,6 +72,30 @@ export PATH="$JAVA_HOME/bin:$PATH"
 EOF
 
 log "installed: $("$JDK/bin/java" -version 2>&1 | head -1)"
+
+# Maven: Central rate-limits the VM (HTTP 429); the Google mirror of Central serves the same
+# artefacts. The repository itself points at Central, so people outside the VM need nothing.
+MIRROR=https://maven-central.storage-download.googleapis.com/maven2
+m2="$HOME/.m2/settings.xml"
+mkdir -p "$(dirname "$m2")"
+if [ -f "$m2" ] && ! grep -q storage-download.googleapis.com "$m2"; then
+  log "keeping existing $m2 (no Google mirror in it; add one by hand)"
+else
+  cat > "$m2" <<EOF
+<settings>
+  <mirrors>
+    <mirror>
+      <id>google-maven-central</id>
+      <mirrorOf>central</mirrorOf>
+      <url>$MIRROR</url>
+    </mirror>
+  </mirrors>
+</settings>
+EOF
+  log "maven mirror written to $m2"
+fi
+echo "export MVNW_REPOURL=$MIRROR" > /etc/profile.d/mvnw-mirror.sh
+log "MVNW_REPOURL exported in /etc/profile.d/mvnw-mirror.sh"
 
 # Context7: `.mcp.json` servers stay "Pending approval" in a cloud session (nobody can approve
 # them interactively), and `enabledMcpjsonServers` is honoured only in the user settings.

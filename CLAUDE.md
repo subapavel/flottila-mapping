@@ -31,13 +31,16 @@ tickets with native blocking edges. There is no backlog file.
 - Writers work only inside their worktree and the paths their ticket names.
 - Library APIs: Context7 first, then `javap` / the package's `.d.ts`. Never an API from memory.
 - Dependencies: Apache 2.0, MIT, MIT-0, BSD, EDL 1.0, ISC, 0BSD, MPL 2.0, EPL only (ISC, 0BSD: ADR-0012;
-  MIT-0, EDL 1.0: ADR-0014); a dual licence counts under its allowed alternative. Saxon-HE only at test scope (oracle).
+  MIT-0, EDL 1.0: ADR-0014); a dual licence counts under its allowed alternative. The list covers every
+  compile, runtime and test dependency and all of `ui/package.json`. Exceptions are per artifact, listed in
+  the root POM and ADR-0017: Saxon-HE at test scope (oracle), JMH in `bench/jmh` only, and the Quarkus
+  test framework's own dependencies. Maven plugins are tools, not dependencies (any OSI licence).
 - No secret, customer payload or real partner data in the repo; corpora are synthetic.
 - When practice contradicts an ADR or the architecture: write the finding (`docs/WORKFLOW.md` §7).
 
 ## Context hygiene
 
-- Build and test output goes to `target/<ticket>-<check>.log` (backend) or
+- Build and test output goes to `.logs/<ticket>-<check>.log` (backend) or
   `ui/.logs/<ticket>-<check>.log` (frontend); read the tail or the failing section only.
 - Large reads go to the scout. A hand-back is at most 40 lines.
 - After a compaction: re-read `agent/HANDOFF.md`, run `git status` and `git log -3`, and treat

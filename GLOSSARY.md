@@ -292,6 +292,22 @@ A stage that runs IR: the interpreter, the bytecode generator, the XSLT exporter
 **Projection**:
 Reading only the source fields a compiled mapping uses and skipping the rest of the input.
 
+**Engine module**:
+A JPMS module of the engine, tested on the module path. The service is not one; it uses the
+engine through the engine facade.
+_Avoid_: library, package (a Java package is something else)
+
+**Engine facade**:
+The one engine module the service calls to compile, test run and export a mapping. It carries no
+compatibility promise and is not the embedding API for Flottila.
+_Avoid_: engine API (sounds public and stable), SDK
+
+**Contract**:
+The files the service and the editor must agree on: the mapping-model schema, the
+function-catalogue schema and the committed OpenAPI document. Both sides' types are generated
+from or checked against them.
+_Avoid_: API spec, interface definition
+
 ## Verification
 
 **Oracle**:
@@ -336,6 +352,16 @@ The open, unblocked, unclaimed tickets of a spec or map.
 
 **Integration branch**:
 `spec/<issue>-<slug>`, where a spec's tickets are merged one by one before one PR to `main`.
+
+**Ticket gate**:
+The automatic checks the verifier runs on one ticket's worktree before it merges: the scoped
+build of the touched modules, a compile of the whole build, and the ratchet check.
+_Avoid_: CI (that runs the spec gate's checks), pre-merge review
+
+**Spec gate**:
+The full checks the verifier runs on an integration branch before the spec's PR: every build,
+test, oracle and UI suite, the ratchet regeneration and the benchmarks.
+_Avoid_: full build (only one part of it)
 
 **Gate**:
 A milestone check list in `docs/GATE.md`, verified by the gate-reviewer on one commit.

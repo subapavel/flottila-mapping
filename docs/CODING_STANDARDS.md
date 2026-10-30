@@ -40,8 +40,9 @@ Rules marked _(Phase 0)_ wait for the decision named and may change with it.
 
 ## Module boundaries
 
-- Dependency direction is enforced by ArchUnit _(Phase 0: module layout ADR)_. Changing a rule is
-  an architecture change: finding first.
+- Dependency direction is enforced by JPMS between engine modules, by ArchUnit for the service
+  and by the enforcer for artefacts (ADR-0016). Changing a rule is an architecture change:
+  finding first.
 - No central registry file that every ticket edits (function lists, routing tables, i18n bundles).
   Families register themselves (one file per family, ServiceLoader or generated index), so three
   parallel tickets never conflict on one file.

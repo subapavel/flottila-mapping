@@ -40,16 +40,27 @@ on one commit of `main`; each check names the command and the evidence it needs.
 7. **Speed.** JMH on the corpus: compiled-mapping latency and throughput for a small (≤ 10 kB)
    and a large (≥ 10 MB) message, recorded in `bench/RESULTS.md` with machine, date and commit.
    _(Phase 0: targets)_
-8. **Quality.** Coverage and mutation floors on the class-C modules met on the gate commit, by
-   CI _(Phase 0: floors)_; ratchet green; every spec of the milestone merged through `/run-spec`
-   with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
+8. **Quality.** The CI run of the gate commit is green in all three required jobs, `backend`,
+   `ui` and `stack` (ADR-0017). That covers the build with `-Xlint:all -Werror`, Spotless, the
+   enforcer bans, the licence check with only the per-artifact exceptions of ADR-0017, the
+   ArchUnit rules A–C (ADR-0016) and an empty `contract/` diff. The spec gate
+   (`scripts/gate-spec.sh`) passes on the VM. Coverage and mutation floors on the class-C modules
+   are met on the gate commit, by CI and the nightly PIT run _(Phase 0, #14: floors)_. The ratchet
+   is green. Every spec of the milestone was merged through `/run-spec` with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
    (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
    coverage of `ui/src/model/` and `ui/src/editor/store/` at its floor _(Phase 0, #14: proposed
    ≥ 90 %)_; generated types with an empty diff; the 20,128-field tree scenario within its
    `bench/RESULTS.md` threshold. No mutation testing on `ui/` in milestone 1.
-9. **Hand-over.** `HANDOVER.md`: how to start the stack (the Quarkus service over a workspace,
-   bound to `127.0.0.1`, ADR-0014), how to draw and run a mapping, how to run
-   the tests and the benchmarks, open findings, ADRs to revisit, the next three specs.
+9. **Hand-over.** `HANDOVER.md` covers:
+   - starting the stack from a clean clone with only JDK 25 and Node 22 installed:
+     `./mvnw -pl service -am quarkus:dev` with `npm run dev` for development, and the `-Pui` jar
+     for one origin (ADR-0017). The Quarkus service runs over a workspace and is bound to
+     `127.0.0.1` (ADR-0014);
+   - how to draw and run a mapping;
+   - how to run the ticket gate, the spec gate and the benchmarks (`-Pbench`);
+   - open findings, ADRs to revisit and the next three specs.
+
+   The gate-reviewer follows the start instructions on a fresh worktree and records the result.
 
 ## Out of the gate
 
