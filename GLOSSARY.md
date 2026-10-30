@@ -314,17 +314,35 @@ _Avoid_: API spec, interface definition
 An independent source of the expected output for a case: the W3C test suites, Saxon-HE running
 the exported XSLT, or the golden corpus.
 
-**Differential case**:
-A case whose expected output is whatever Saxon-HE produces from the exported XSLT of the same
-mapping.
+**Differential oracle**:
+Running a corpus case's mapping both in our runtime and, exported to XSLT, in Saxon-HE, and
+requiring the same output. It applies to every case whose functions are all portable.
+_Avoid_: differential case (it is a second oracle over the same cases, not a kind of case)
 
 **Golden corpus**:
 Synthetic mappings with inputs and the outputs SAP PO semantics demand, kept in the repo.
 _Avoid_: test data, samples
 
+**Corpus case**:
+One input of one synthetic mapping with its expectation (an output, an error, or none), named by
+a permanent case id such as `fn/removeContexts/001`.
+
+**Provenance**:
+Where a corpus case's expected output comes from: observed, documented (the SAP documentation),
+assumed (an assumed reading) or decided (our own rule or a deviation).
+
 **Observed case**:
 A golden-corpus case whose expected output was recorded by running the same synthetic mapping
-on SAP PO and SAP Cloud Integration.
+on SAP PO 7.5 and SAP Cloud Integration. When the two differ, PO 7.5's output is expected and
+the difference is a deviation.
+
+**Observation request**:
+An owner issue describing a synthetic mapping and its inputs to run on PO 7.5 and CPI, and the
+question each input decides.
+
+**Metamorphic variant**:
+Another way of running the same corpus case that must give a byte-identical output: optimised or
+unoptimised IR, with or without a tracer, and later the bytecode tier.
 
 **Assumed reading**:
 Our interpretation of a PO behaviour the SAP documentation leaves open, used until an observed
@@ -332,8 +350,13 @@ case confirms or corrects it.
 _Avoid_: default, guess
 
 **Ratchet**:
-A committed record of what passes (oracle cases, coverage, benchmark baselines). Merges may only
-keep or raise it; the verifier regenerates it, nobody edits it by hand.
+A committed record of what passes (oracle cases, coverage, mutation scores, benchmark
+baselines). Merges into `main` may only keep or raise it; the verifier regenerates it once per
+spec, nobody edits it by hand.
+
+**Floor**:
+A fixed minimum of coverage or mutation score below which the build fails, whatever the ratchet
+says.
 
 ## Way of working
 

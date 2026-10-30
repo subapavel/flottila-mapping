@@ -1,6 +1,6 @@
 # One Maven reactor with a wrapper, a separate npm build for `ui/`, three CI jobs and scripted gates
 
-Status: accepted (2026-10-30, grilling #13)
+Status: accepted (2026-10-30, grilling #13); refined by ADR-0019 (ratchet commands, floors, PIT scope, ticket-gate budget) and ADR-0018 (`engine/oracle` in ticket-gate step 1, no jqwik)
 
 ADR-0016 fixes the modules. This ADR fixes how they build, where the UI is built and served,
 what CI runs, and the exact commands of the ticket gate and the spec gate (WORKFLOW §6). Nothing
@@ -47,7 +47,7 @@ and this ADR is its specification.
     dependencies: any OSI licence, never bundled.
 - **Tests**: JUnit **6.1.3**, the version the Quarkus 3.40.1.1 BOM manages, imported through
   `junit-bom` in the root. Also AssertJ 3.27.7 and ArchUnit 1.5.1. There is no mocking library:
-  ports have hand-written fakes. jqwik and PIT on JUnit 6 are #14's to prove.
+  ports have hand-written fakes. PIT runs on JUnit 6 (ADR-0019); jqwik is not used (ADR-0018).
 - **`engine/pom.xml`**: surefire 3.6.1 on the module path (its default), plus the
   `io.quarkus*`, `jakarta.*` and `com.fasterxml*` bans. No `--add-modules kotlin.stdlib` (F-3).
 - **`service/pom.xml`**: imports the Quarkus 3.40.1.1 BOM (the only place), `quarkus-junit`

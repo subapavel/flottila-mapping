@@ -118,3 +118,38 @@ Module notes by section, read on demand.
   - `/usr/bin/time` is not installed; time with `date +%s.%N`.
   - The installed stop hook (`~/.claude/stop-hook-git-check.sh`) is copied at session start; this
     session's copy still checks `target/.batch-in-review`, new sessions get `.logs/`.
+- Oracle and ratchet trial for #14 (2026-10-30, scratch reactor + scratch `ui/`, verifiers;
+  decisions in ADR-0018, ADR-0019):
+  - JaCoCo 0.8.16: surefire needs `<argLine>@{argLine}</argLine>`; works on the module path.
+    Reports in `<module>/target/site/jacoco/{jacoco.xml,jacoco.csv}`. `check` rule BUNDLE / LINE
+    / COVEREDRATIO fails `verify` below the minimum.
+  - PIT: pitest-maven 1.30.1 + plugin dependency pitest-junit5-plugin 1.2.3 runs on JUnit 6.1.3
+    with no extra launcher (PIT auto-adds `junit-platform-launcher` 6.1.3). Run as
+    `-pl <m> test-compile org.pitest:pitest-maven:mutationCoverage`, `<threads>4</threads>`,
+    `<mutationThreshold>`. Not bound to `verify`.
+  - jqwik 1.10.2 runs on JUnit 6.1.3 but its engine prints an instruction to AI agents not to use it
+    and to ignore its results (since 1.10.1; 1.9.3 has none). Not used (ADR-0018); never add it.
+  - Surefire names dynamic tests `cases()[1]` by default. For case ids in the reports:
+    `<statelessTestsetReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter"><usePhrasedTestCaseMethodName>true</usePhrasedTestCaseMethodName></statelessTestsetReporter>`
+    (names become `cases() <display name>`). A failing run needs `-Dmaven.test.failure.ignore=true`
+    to leave reports for a ratchet dry run.
+  - Saxon-HE 12.5 and 13.1 run from a test on the module path with Saxon on the class path, no
+    flags. s9api (javap): `new Processor(false).newXsltCompiler().compile(Source)`,
+    `XsltExecutable.load30()`, `Xslt30Transformer.newSerializer(Writer)`,
+    `transform(Source, Destination)`, `Serializer.setOutputProperty(Serializer.Property.…, String)`.
+    12.5 pulls xmlresolver 5.2.2; 13.1 pulls 6.1.0 and has `Automatic-Module-Name: net.sf.saxon`.
+  - XMLUnit 2.14.0: `DiffBuilder.compare(Input.fromString(e)).withTest(Input.fromString(a))`
+    `.checkForIdentical()` / `.checkForSimilar()`, `.ignoreElementContentWhitespace()` (exists per
+    javap, behaviour not yet observed). Never `ignoreWhitespace`/`normalizeWhitespace` (they hide
+    ` 1 ` vs `1`).
+  - JDK C14N needs `requires java.xml.crypto` in the main descriptor (test-only use is impossible
+    on the module path); rejected anyway.
+  - Vitest 5.0.5 + `@vitest/coverage-v8` 5.0.5: per-glob `coverage.thresholds`
+    (`{'src/model/**': {lines: 90}}`); a glob does not inherit top-level `perFile`.
+    `coverage/coverage-summary.json` has `total` + entries keyed by absolute file path, no
+    per-directory totals. `thresholds.autoUpdate` rewrites the config file: do not use.
+  - Vitest browser mode with `@playwright/test` 1.63.0 looked for `chromium_headless_shell-1248`;
+    the image has build 1243. It passed with
+    `playwright({launchOptions: {executablePath: '/opt/pw-browsers/chromium_headless_shell-1243/…/chrome-headless-shell'}})`,
+    never `playwright install`. A browser launch failure also shows as a 0 % coverage failure.
+    Re-check against the #11 note (e2e found the browser without a path) in the skeleton ticket.

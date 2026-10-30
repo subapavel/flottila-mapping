@@ -25,3 +25,23 @@ two runs each.
 | `-pl service -am verify` from an empty local repo, 3 in parallel (Google mirror) | 75–76 each | |
 
 Budget: an engine ticket gate under 10 s with three in parallel; one that builds `service` under 40 s.
+
+## Oracle and ratchet trial (grilling #14)
+
+Machine `claude-cloud-4vcpu`, 2026-10-30, JDK 25.0.5, Maven 3.9.11, warm scratch repo. Scratch
+reactor with two small modules (`engine/demo`, `engine/oracle`), not a repo commit. Wall seconds,
+`clean verify`, not comparable with the table above (that one was without `clean`).
+
+| Command | Time |
+| --- | --- |
+| `-q -pl engine/demo -am clean verify`, JaCoCo on | 8.5 |
+| same, `-Djacoco.skip=true` | 6.9 |
+| full `clean verify`, JaCoCo on | 12.5 |
+| full `clean verify`, JaCoCo off | 10.5 |
+| PIT `mutationCoverage` on `engine/demo` (14 mutants), mvn wall / PIT itself | 9.3 / 5 |
+| `java ratchet.java check` (prototype) | 0.9–1.1 |
+| `vitest run` vs `vitest run --coverage`, tiny `ui/` project | 1.1–1.2 vs 1.2–1.4 |
+
+Budget (ADR-0019): an engine ticket gate including `engine/oracle` under 30 s with three in
+parallel; one that builds `service` under 60 s. Not yet measured on the real modules: the skeleton
+ticket measures it here.

@@ -32,9 +32,14 @@ on one commit of `main`; each check names the command and the evidence it needs.
    `formatByExample`, `sort`, `sortByKey`, `replaceValue`), statistics, arithmetic, `FormatNum`,
    text, boolean, `Constant`, `CopyValue`, `FixValues` and date functions. No shipped function has
    fidelity _assumed_; every _deviation_ is in the function catalogue and shown in the editor.
+   Evidence (ADR-0018): every corpus case of these functions is in `ratchet/oracle/corpus.txt`
+   on the gate commit, passing in all metamorphic variants, and none has `provenance: assumed`.
+   The observation requests for the assumed readings of ADR-0004, ADR-0006, ADR-0008 and #2 §7
+   are answered, and their cases are `observed`.
 5. **Export.** Every corpus mapping whose functions are all portable exports to XSLT 3.0
    (portable profile); the differential run (our runtime vs
-   Saxon-HE on the exported XSLT) agrees on every corpus input.
+   Saxon-HE 12.5 on the exported XSLT, XMLUnit identical) agrees on every corpus input: every
+   such case id is in `ratchet/oracle/differential.txt` (ADR-0018).
 6. **UDF.** A Java UDF of each kind (single value, context, queue) compiles, runs and shows in the
    display queue.
 7. **Speed.** JMH on the corpus: compiled-mapping latency and throughput for a small (≤ 10 kB)
@@ -44,12 +49,15 @@ on one commit of `main`; each check names the command and the evidence it needs.
    `ui` and `stack` (ADR-0017). That covers the build with `-Xlint:all -Werror`, Spotless, the
    enforcer bans, the licence check with only the per-artifact exceptions of ADR-0017, the
    ArchUnit rules A–C (ADR-0016) and an empty `contract/` diff. The spec gate
-   (`scripts/gate-spec.sh`) passes on the VM. Coverage and mutation floors on the class-C modules
-   are met on the gate commit, by CI and the nightly PIT run _(Phase 0, #14: floors)_. The ratchet
-   is green. Every spec of the milestone was merged through `/run-spec` with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
+   (`scripts/gate-spec.sh`) passes on the VM. Floors on the gate commit (ADR-0019): JaCoCo lines
+   ≥ 90 % and branches ≥ 80 % on `xdm`, `ir`, `runtime`, `serializer`, `mapping`, `xslt-export`,
+   `api`, lines ≥ 80 % on `structure`, `structure-import`, `service` (CI `backend`), and PIT
+   ≥ 80 % on the seven class-C modules (the nightly run of the gate commit). The ratchet is green
+   (`java scripts/ratchet.java check` on the gate commit). The drift tests (ADR-0011, ADR-0015),
+   the workspace-escape test (ADR-0014) and the diagnostic-catalogue test (ADR-0018) are green. Every spec of the milestone was merged through `/run-spec` with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
    (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
-   coverage of `ui/src/model/` and `ui/src/editor/store/` at its floor _(Phase 0, #14: proposed
-   ≥ 90 %)_; generated types with an empty diff; the 20,128-field tree scenario within its
+   coverage of `ui/src/model/` and `ui/src/editor/store/` ≥ 90 % each (per-glob Vitest
+   thresholds, ADR-0019); generated types with an empty diff; the 20,128-field tree scenario within its
    `bench/RESULTS.md` threshold. No mutation testing on `ui/` in milestone 1.
 9. **Hand-over.** `HANDOVER.md` covers:
    - starting the stack from a clean clone with only JDK 25 and Node 22 installed:

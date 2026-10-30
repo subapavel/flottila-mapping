@@ -19,8 +19,16 @@ Rules marked _(Phase 0)_ wait for the decision named and may change with it.
   fake clock drives time.
 - The test name states the behaviour it protects, in glossary terms.
 - A negative case ("never reads", "not emitted") has a witness that cannot be vacuous.
-- Property tests (jqwik) for queue operations and anything with an algebra (context functions
-  compose, export ∘ run = run).
+- Property tests for queue operations and anything with an algebra (context functions compose,
+  block invariants hold, `Lift` equals a reference implementation): JUnit 6 parameterised or
+  dynamic tests over a seeded `RandomGenerator` in the module's test sources, the seed in the
+  case name; a counterexample once found becomes an explicit case. No jqwik: from 1.10.1 it tells
+  AI agents not to use it (ADR-0018).
+- A corpus case states its provenance honestly: an expected output typed in from our own reading
+  is `assumed`, never `documented` or `observed`. A case is never deleted or renamed; a corrected
+  expectation cites the observation or ADR that corrected it (ADR-0018).
+- A mapping-level behaviour is tested as a corpus case in `engine/oracle`, not as a hand-built
+  IR test, unless the ticket names an IR seam.
 
 ## Java (25)
 
