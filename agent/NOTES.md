@@ -19,17 +19,18 @@ Module notes by section, read on demand.
   - `CONTEXT7_API_KEY` in the environment: VERIFIED_PASS (set; value never printed).
   - Direct POST `resolve-library-id` "vert.x" with the key header: VERIFIED_PASS — returns the
     library list (`/eclipse-vertx/vert.x`, versions 5.1.8), no quota error.
-  - Context7 MCP tools in the session (ToolSearch "context7"): EXECUTED_FAIL — none attached,
-    and the server is not even listed as failed. Likely cause: the session started with
-    `/home/user` (multi-repo root) as working directory, so no repo's `.mcp.json` was read.
-    Saxon `resolve-library-id` / `query-docs` via MCP: NOT_RUN (no tools).
-  - `.mcp.json` already carries `"headers": {"CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"}` on
-    `main` (fe59d68): nothing to change. Next: a new session opened on this repo.
-  - Root cause (`claude mcp list` from the repo): context7 "Pending approval". Approval via
-    `enabledMcpjsonServers` in `.claude/settings.json` or `.claude/settings.local.json`:
-    EXECUTED_FAIL (still pending). In user `~/.claude/settings.json`: VERIFIED_PASS ("Connected").
-  - Fix: `deploy/claude-cloud/setup.sh` writes that user setting before Claude Code starts. Owner
-    action: paste the script into the environment, open a new session on this repo only.
-  - Until the tools attach, Context7 is usable by direct `curl` POST to the endpoint (above).
+  - Context7 MCP tools: earlier sessions ran from `/home/user` and the server sat at "Pending
+    approval"; fixed by 90ffa60 (`deploy/claude-cloud/setup.sh` writes `enabledMcpjsonServers`
+    into `~/.claude/settings.json`). `.mcp.json` carries the key header (fe59d68).
+- Context7, session check 2026-10-30 (new session on this repo only, issue #20):
+  1. `pwd` = `/home/user/flottila-mapping`: VERIFIED_PASS.
+  2. `~/.claude/settings.json` `enabledMcpjsonServers` = `['context7']`: VERIFIED_PASS.
+  3. `CONTEXT7_API_KEY` set (value never printed): VERIFIED_PASS.
+  4. `claude mcp list`: `context7: https://mcp.context7.com/mcp (HTTP) - √ Connected`: VERIFIED_PASS.
+  5. ToolSearch "context7" → `resolve-library-id`, `query-docs` attached: VERIFIED_PASS.
+     `resolve-library-id` "Saxon-HE" → `/websites/saxonica_documentation12` (Saxon 12 docs);
+     `query-docs` "s9api XsltCompiler compile stylesheet" → real snippets, no quota error:
+     VERIFIED_PASS. Caveat: that library has only 4 snippets (overview pages), none on s9api;
+     for Saxon Java API signatures use `javap` on the test-scope Saxon-HE jar.
 - `curl https://help.sap.com/` and `https://community.sap.com/`: ENVIRONMENT_BLOCKED — proxy
   refuses the CONNECT tunnel (403, http_code 000); the hosts are outside the network policy.
