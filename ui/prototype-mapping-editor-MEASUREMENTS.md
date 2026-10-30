@@ -45,6 +45,28 @@ Boxes are inserted in sorted AuthoringId order; positions are never written into
 more than doubles the frame rate at 1,630 nodes, at the price of occasional long frames when
 many nodes mount at once while zooming out.
 
+## Round 2: link gutter of the CPI-style split (variant d)
+
+Measured by `node scripts/prototype-measure.mjs --only-round2 --no-screens` on commit `e43a237`,
+same machine and browser, same date. Both trees fully expanded (source 5,105 or 20,128 fields,
+target 1,675). The gutter recomputes all 45 links of the 43 target field mappings on every scroll
+event and draws the ones whose ends are on screen; ends scrolled away are counted at the edge.
+"Drawn" = SVG link paths plus fx markers in the gutter.
+
+| Scenario, 3 s each | Source fields | fps | Longest frame | Frames > 50 ms | Drawn at start / mid-run |
+|---|---:|---:|---:|---:|---:|
+| Scroll source tree top → bottom | 5,105 | 60 | 16.8 ms | 0 | 21 / 12 |
+| Scroll back and forth over the mapped rows (0–700 px) | 5,105 | 60 | 16.8 ms | 0 | 21 / 13 |
+| Same, bottom half collapsed (trees fill the page) | 5,105 | 60 | 16.8 ms | 0 | 54 / 29 |
+| Scroll source tree top → bottom | 20,128 | 60 | 16.8 ms | 0 | 21 / 12 |
+| Scroll back and forth over the mapped rows | 20,128 | 60 | 16.8 ms | 0 | 21 / 13 |
+| Same, bottom half collapsed | 20,128 | 60 | 16.8 ms | 0 | 54 / 29 |
+| Drag the top/bottom splitter between ~170 and ~770 px | 5,105 | 60 | 16.8 ms | 0 | – / 21 |
+
+Every scenario reached the 60 Hz ceiling, so the gutter is not the bottleneck at this mapping
+size. An earlier run had one 83 ms frame when scrolling the 5,105-field tree top to bottom.
+The canvas does not re-fit after the splitter moves: the graph keeps its zoom.
+
 ## Checks (from the screenshot run, `ui/.logs/10-screens.log`)
 
 - Dragging a box in variant (a) leaves the model JSON byte-identical; the position goes to
