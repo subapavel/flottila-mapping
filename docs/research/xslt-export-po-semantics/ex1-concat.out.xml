@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<out>
+   <grp>
+      <v>1a</v>
+      <v>2b</v>
+      <v>3b</v>
+   </grp>
+   <grp>
+      <v>4c</v>
+      <v>5d</v>
+      <v>6d</v>
+   </grp>
+   <displayQueue of="out/grp/v">1a,2b,3b|4c,5d,6d</displayQueue>
+</out>

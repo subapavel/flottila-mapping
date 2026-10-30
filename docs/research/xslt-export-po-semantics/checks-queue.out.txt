@@ -1,0 +1,14 @@
+ok   removeContexts: a,b,c  expected a,b,c
+ok   splitByValue: a|b|c  expected a|b|c
+ok   splitByValueChange: a,a|b|b,b  expected a,a|b|b,b
+ok   collapseContexts: 3,,7,  expected 3,,7,
+ok   formatByExample: 1||2,3  expected 1||2,3
+ok   mapWithDefault: A|B1,B2|Default|C|Default|D  expected A|B1,B2|Default|C|Default|D
+ok   exists: true,true|false  expected true,true|false
+ok   createIf: ,S,  expected ,S,
+ok   ifWithoutElse keep: a,S,c  expected a,S,c
+ok   ifWithoutElse drop: a,c  expected a,c
+ok   lift SUPPRESS: 1a,S,3a  expected 1a,S,3a
+ok   lift constant: 1-x,2-x|3-x  expected 1-x,2-x|3-x
+ok   sum per context: 4|0|0.3  expected 4|0|0.3
+ok   sort stable desc: b,c,a,d  expected b,c,a,d

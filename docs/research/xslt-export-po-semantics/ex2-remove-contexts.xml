@@ -1,0 +1,5 @@
+<Debitors>
+  <Debitor><name>D1</name><payment><id>p1</id></payment><payment><id>p2</id></payment></Debitor>
+  <Debitor><name>D2</name><payment><id>p3</id></payment><payment><id>p4</id></payment><payment><id>p5</id></payment></Debitor>
+  <Debitor><name>D3</name><payment><id>p6</id></payment><payment><id>p7</id></payment></Debitor>
+</Debitors>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<items>
+   <group>
+      <item>
+         <name>n1</name>
+         <type>external</type>
+      </item>
+      <item>
+         <name>n2</name>
+         <type>external</type>
+      </item>
+   </group>
+   <group>
+      <item>
+         <name>n3</name>
+         <type>external</type>
+      </item>
+   </group>
+   <group>
+      <item>
+         <name>n4</name>
+         <type>internal</type>
+      </item>
+      <item>
+         <name>n5</name>
+         <type>internal</type>
+      </item>
+   </group>
+   <group>
+      <item>
+         <name>n6</name>
+         <type>external</type>
+      </item>
+   </group>
+   <displayQueue of="useOneAsMany">external,external|external|internal,internal|external</displayQueue>
+   <displayQueue of="name[context=order]">n1,n2,n3|n4,n5|n6</displayQueue>
+   <displayQueue of="name">n1,n2|n3|n4,n5|n6</displayQueue>
+</items>

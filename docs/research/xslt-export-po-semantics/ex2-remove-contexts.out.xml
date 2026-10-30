@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<result>
+   <debtsDefault>
+      <debt>
+         <id>p1</id>
+      </debt>
+      <debt>
+         <id>p2</id>
+      </debt>
+   </debtsDefault>
+   <debtsRemoved>
+      <debt>
+         <id>p1</id>
+      </debt>
+      <debt>
+         <id>p2</id>
+      </debt>
+      <debt>
+         <id>p3</id>
+      </debt>
+      <debt>
+         <id>p4</id>
+      </debt>
+      <debt>
+         <id>p5</id>
+      </debt>
+      <debt>
+         <id>p6</id>
+      </debt>
+      <debt>
+         <id>p7</id>
+      </debt>
+   </debtsRemoved>
+</result>

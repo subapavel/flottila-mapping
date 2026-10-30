@@ -1,0 +1,4 @@
+<requests>
+  <request><type>internal</type><creator> creator1 </creator></request>
+  <request><type> external</type><creator>creator2</creator></request>
+</requests>

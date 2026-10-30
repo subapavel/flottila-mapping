@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<summary>
+   <order>
+      <id>A</id>
+      <note>rush</note>
+      <total>4</total>
+      <lines>2</lines>
+      <sku>b2</sku>
+      <sku>z9</sku>
+      <byAmount>z9</byAmount>
+      <byAmount>b2</byAmount>
+   </order>
+   <order>
+      <id>B</id>
+      <note>none</note>
+      <total>15</total>
+      <lines>3</lines>
+      <sku>a1</sku>
+      <sku>c3</sku>
+      <sku>m1</sku>
+      <byAmount>m1</byAmount>
+      <byAmount>c3</byAmount>
+      <byAmount>a1</byAmount>
+   </order>
+   <order>
+      <id>C</id>
+      <note>none</note>
+      <total>0</total>
+      <lines>0</lines>
+   </order>
+</summary>

@@ -1,0 +1,10 @@
+<orders>
+  <order><id>A</id><note>rush</note>
+    <line><sku>z9</sku><amount>4.2</amount></line>
+    <line><sku>b2</sku><amount>-0.2</amount></line></order>
+  <order><id>B</id>
+    <line><sku>m1</sku><amount>10</amount></line>
+    <line><sku>c3</sku><amount>2.5</amount></line>
+    <line><sku>a1</sku><amount>2.5</amount></line></order>
+  <order><id>C</id></order>
+</orders>

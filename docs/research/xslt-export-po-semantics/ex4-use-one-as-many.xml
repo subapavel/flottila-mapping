@@ -1,0 +1,9 @@
+<orders>
+  <order><type>external</type>
+    <itemGroup><name>n1</name><name>n2</name></itemGroup>
+    <itemGroup><name>n3</name></itemGroup></order>
+  <order><type>internal</type>
+    <itemGroup><name>n4</name><name>n5</name></itemGroup></order>
+  <order><type>external</type>
+    <itemGroup><name>n6</name></itemGroup></order>
+</orders>

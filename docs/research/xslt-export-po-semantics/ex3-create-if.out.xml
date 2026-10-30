@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<out>
+   <internalRequest>
+      <initiator>creator1</initiator>
+   </internalRequest>
+   <externalRequest>
+      <initiator>creator2</initiator>
+   </externalRequest>
+   <displayQueue of="out/internalRequest">,S</displayQueue>
+   <displayQueue of="out/externalRequest">S,</displayQueue>
+</out>
