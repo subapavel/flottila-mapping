@@ -128,7 +128,7 @@ most one gate that builds `service` at a time.
   diff, `typecheck`, `lint`, `test`, `test:browser`, `e2e`, `build` → artefact;
 - `stack` (after both): `-Pui` jar, `npm run e2e:stack`.
 - `nightly.yml`: PIT on `main` over the class-C modules `xdm`, `ir`, `runtime`, `serializer`,
-  `mapping`, `xslt-export`, `api`, failing below 80 % (ADR-0019); it commits nothing. `bench.yml`: manual JMH,
+  `mapping`, `xslt-export`, `api`, `udf-api`, `udf`, failing below 80 % (ADR-0019); it commits nothing. `bench.yml`: manual JMH,
   informative only; benchmark regression is a spec-gate check on the VM, never on CI.
 - Runners use Temurin 25 and Node 22 and fetch Maven artefacts through the Google mirror of
   Central with the Maven cache (ADR-0017).
@@ -139,8 +139,8 @@ copy, which equals `main`'s during a spec; the spec gate regenerates it and the 
 it. A drop is a failure; a rise is recorded at regeneration. Writers never touch it.
 
 **Floors** (fixed in the build, ADR-0019): JaCoCo lines ≥ 90 % and branches ≥ 80 % on `xdm`, `ir`,
-`runtime`, `serializer`, `mapping`, `xslt-export`, `api`; lines ≥ 80 % on `structure`,
-`structure-import`, `service`; PIT ≥ 80 % on the seven class-C modules; Vitest per-glob lines
+`runtime`, `serializer`, `mapping`, `xslt-export`, `api`, `udf-api`, `udf`; lines ≥ 80 % on `structure`,
+`structure-import`, `service`; PIT ≥ 80 % on the nine class-C modules; Vitest per-glob lines
 ≥ 90 % on `ui/src/model/**` and `ui/src/editor/store/**` (`npm run test` = `vitest run --coverage`).
 
 ## 7. Decisions, findings, owner questions

@@ -153,3 +153,27 @@ Module notes by section, read on demand.
     `playwright({launchOptions: {executablePath: '/opt/pw-browsers/chromium_headless_shell-1243/…/chrome-headless-shell'}})`,
     never `playwright install`. A browser launch failure also shows as a 0 % coverage failure.
     Re-check against the #11 note (e2e found the browser without a path) in the skeleton ticket.
+- UDF trial for #16 (2026-10-30, scratch reactors, agents; decisions in ADR-0020, numbers in
+  `bench/RESULTS.md`):
+  - `/usr/bin/javap` is JDK 21 and shows old API shapes: use `/opt/temurin-25/bin/javap`.
+  - Context7 has JDK 25 docs; javap confirmed: `ToolProvider.getSystemJavaCompiler()`,
+    `ForwardingJavaFileManager`, `SimpleJavaFileObject(URI, Kind)`, `Lookup.findStatic`,
+    `defineHiddenClass(byte[], boolean, ClassOption...)`, `ModuleLayer.defineModulesWithOneLoader`,
+    `java.lang.classfile` (`ClassFile.of().parse`, `transformClass`, `CodeTransform.ofStateful`).
+  - `ScopedValue` and the Class-File API are final in 25; `StructuredTaskScope` is preview
+    ("is a preview API and is disabled by default" without `--enable-preview`).
+  - `Thread.stop()` throws `UnsupportedOperationException`; `interrupt()` does not stop
+    `while(true){}`. A spinning virtual thread holds its carrier.
+  - javac class path for UDFs: use the `CodeSource` of an `udf-api` class (or a file manager over
+    the class loader). `java.class.path` fails in the Quarkus fast-jar (only `quarkus-run.jar`) and
+    on the module path. `SimpleJavaFileObject` rejects `jar:file:…!/X.class` URIs ("URI must have a
+    path"): give each class a synthetic `loader:///pkg/Name.class` URI.
+  - A host API exposing `javax.tools.Diagnostic` needs `requires transitive java.compiler` under
+    `-Werror`. `-proc` makes no difference on 25 (no notes). Without `-parameters` names are `arg0`.
+  - Allow-list: a constant-pool scan false-flags clean UDFs (string concatenation adds
+    `MethodHandles` entries); walk instructions incl. `invokedynamic` bootstrap arguments.
+  - `invokeExact` with a `?:` argument throws `WrongMethodTypeException` at run time (exact types).
+  - Surefire 3.5.3 silently falls back to the class path on Java 25 (ASM 9.7.1 cannot read a
+    major-69 `module-info`); 3.5.4+ fixes it. The repo pins 3.6.1.
+  - Regex `(a+)+\1b` on 30 chars does not stop on interrupt (JDK code, not instrumented); classic
+    `(a+)+b` finishes in ms on 25.

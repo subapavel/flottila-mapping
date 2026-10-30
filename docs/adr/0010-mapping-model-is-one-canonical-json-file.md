@@ -1,6 +1,6 @@
 # A mapping model is one canonical JSON file that references its schemas and UDF sources
 
-Status: accepted (2026-10-30, grilling #6); refines ADR-0009; amended by F-2 (`result` may be `null`)
+Status: accepted (2026-10-30, grilling #6); refines ADR-0009; amended by F-2 (`result` may be `null`); refined by ADR-0020 (how UDFs are written, compiled, verified and isolated; `deterministic` lives in the annotation)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §6 ("mapping model is data, never generated
 code: declarative, versioned, diffable, validated by a schema") and fills its gaps. Flottila is

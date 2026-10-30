@@ -1,6 +1,6 @@
 # Oracles run in one test-only module over a file-based golden corpus; observed cases come from the owner
 
-Status: accepted (2026-10-30, grilling #14)
+Status: accepted (2026-10-30, grilling #14); corpus layout gains `udfs/` (ADR-0020)
 
 FOUNDING §10 names three oracles: the golden corpus, the differential run against Saxon-HE and
 the W3C suites. ADR-0002 adds observed cases from SAP PO 7.5 and SAP Cloud Integration. This
@@ -22,6 +22,7 @@ observed, and how a difference is reported. The ratchet over their results is AD
 corpus/
   structures/                 schema bundles (GATE check 1)
   mappings/<name>.mapping.json  synthetic mapping models (ADR-0010)
+  udfs/<package path>/<Class>.java  UDF sources, optional <Class>.xsl bodies (ADR-0020)
   cases/<area>/<topic>/<nnn>/   one case
     case.json                 {mapping, provenance, ref, expect, note}
     input.xml | input.json

@@ -1,6 +1,6 @@
 # Milestone 1 has nine JPMS engine modules behind one facade, a Quarkus service and a separate `ui/`
 
-Status: accepted (2026-10-30, grilling #13); `engine/oracle` added by ADR-0018
+Status: accepted (2026-10-30, grilling #13); `engine/oracle` added by ADR-0018; `engine/udf-api` and `engine/udf` added by ADR-0020
 
 FOUNDING §11 sketches modules along the pipeline. ADR-0008 split structure import into two, and
 ADR-0014 took the service off the module path. This ADR fixes the modules milestone 1 builds,
@@ -16,10 +16,12 @@ the JAXP adapter and the bytecode back end are added by the specs that build the
 | `engine/structure-import` | `flottila-mapping-structure-import` | `io.flottila.mapping.structure.importer` | structure |
 | `engine/ir` | `flottila-mapping-ir` | `io.flottila.mapping.ir` | xdm |
 | `engine/serializer` | `flottila-mapping-serializer` | `io.flottila.mapping.serializer` | xdm |
-| `engine/runtime` | `flottila-mapping-runtime` | `io.flottila.mapping.runtime` | ir, xdm, serializer |
+| `engine/udf-api` | `flottila-mapping-udf-api` | `io.flottila.mapping.udf` | — (UDF authors compile against it, ADR-0020) |
+| `engine/udf` | `flottila-mapping-udf` | `io.flottila.mapping.udf.compiler` | udf-api, `java.compiler` |
+| `engine/runtime` | `flottila-mapping-runtime` | `io.flottila.mapping.runtime` | ir, xdm, serializer, udf-api |
 | `engine/mapping` | `flottila-mapping-mapping` | `io.flottila.mapping.mapping` | ir, xdm, structure |
 | `engine/xslt-export` | `flottila-mapping-xslt-export` | `io.flottila.mapping.xslt.export` | mapping, ir, structure |
-| `engine/api` | `flottila-mapping-api` | `io.flottila.mapping.api` | mapping, runtime, structure-import, xslt-export (transitive where its types are exposed) |
+| `engine/api` | `flottila-mapping-api` | `io.flottila.mapping.api` | mapping, runtime, structure-import, xslt-export, udf (transitive where its types are exposed) |
 | `engine/oracle` | `flottila-mapping-oracle` | none (tests only, class path; Saxon-HE and XMLUnit at test scope, ADR-0018) | api |
 | `service` | `flottila-mapping-service` | none (class path) | api |
 | `bench/jmh` | `flottila-mapping-bench` | none (class path), profile `bench` only | as #17 needs |

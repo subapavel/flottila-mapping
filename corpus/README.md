@@ -9,6 +9,8 @@ data, nothing extracted from a real system, ever (ADR-0002). Decided in ADR-0018
 corpus/
   structures/                    schema bundles (XSD, WSDL, JSON Schema 2020-12)
   mappings/<name>.mapping.json   synthetic mapping models (ADR-0010), referencing ../structures/
+  udfs/<package path>/<Class>.java  UDF sources (ADR-0020), referenced as ../udfs/…#method;
+                                 optional <Class>.xsl with hand-written XSLT bodies
   cases/<area>/<topic>/<nnn>/    one case
     case.json                    {mapping, provenance, ref, expect, note}
     input.xml | input.json
@@ -35,6 +37,18 @@ corpus/
   whitespace ignored) in four metamorphic variants (optimised / unoptimised IR, with / without
   tracer). A case whose mapping is all portable also runs against Saxon-HE 12.5 on the exported
   XSLT (XMLUnit identical): the differential oracle.
+
+## UDF cases
+
+- UDF sources live in `udfs/`. The engine compiles them in-process, as in production; the
+  reactor does not.
+- UDFs are never portable, so their cases are golden-corpus cases. A case also runs in the
+  differential oracle when an `<Class>.xsl` beside the source supplies XSLT bodies that override
+  the export's `po:UDF-NOT-EXPORTED` stubs.
+- Provenance is `assumed` until an observation request confirms it, otherwise `decided`
+  (ADR-0020).
+- The corpus keeps two witnesses: a deterministic UDF that the optimised variant folds, and a
+  stateful UDF (`MappingRun`) whose output would change if its calls were reordered or merged.
 
 ## Observed cases
 

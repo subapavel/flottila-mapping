@@ -1,6 +1,6 @@
 # The ratchet is line-based text checked per ticket and regenerated per spec; fixed floors sit under it
 
-Status: accepted (2026-10-30, grilling #14)
+Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`)
 
 FOUNDING §10 says the ratchet holds committed pass lists, coverage and benchmark baselines, and a
 merge may only keep or raise them. ADR-0017 makes the ratchet check ticket-gate step 5 and the
@@ -61,7 +61,7 @@ was reached above them.
 
 | Modules | Coverage floor (fails `verify`) | Mutation floor |
 | --- | --- | --- |
-| `xdm`, `ir`, `runtime`, `serializer`, `mapping`, `xslt-export`, `api` | JaCoCo 0.8.16 `check`, BUNDLE: lines ≥ 90 %, branches ≥ 80 % | PIT ≥ 80 % mutation score |
+| `xdm`, `ir`, `runtime`, `serializer`, `mapping`, `xslt-export`, `api`, `udf-api`, `udf` | JaCoCo 0.8.16 `check`, BUNDLE: lines ≥ 90 %, branches ≥ 80 % | PIT ≥ 80 % mutation score |
 | `structure`, `structure-import`, `service` | lines ≥ 80 % | — |
 | `engine/oracle` | none, it has no main code | — |
 | `ui/src/model/**`, `ui/src/editor/store/**` | Vitest v8 per-glob `thresholds`, lines ≥ 90 % | none in milestone 1 (ADR-0013) |
@@ -70,7 +70,7 @@ was reached above them.
 - In `ui/`, `npm run test` is `vitest run --coverage`. The floor uses per-glob thresholds, because
   a global threshold lets a weak directory hide behind a strong one (observed).
 - PIT (pitest-maven 1.30.1 with pitest-junit5-plugin 1.2.3) is not bound to `verify`. It runs:
-  - in `nightly.yml` on `main`, over all seven class-C modules, failing below the floor;
+  - in `nightly.yml` on `main`, over all nine class-C modules, failing below the floor;
   - in **spec-gate step 1b**, over the class-C modules the spec touched, which feeds
     `mutation.tsv`.
 

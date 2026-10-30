@@ -160,8 +160,28 @@ A built-in function of the graphical editor (concat, if, formatDate, removeConte
 _Avoid_: built-in, node function
 
 **User-defined function (UDF)**:
-A Java method a mapping author adds, with one execution kind.
+A static Java method a mapping author writes in a source file of the workspace and declares in
+the mapping, with one execution kind (ADR-0020).
 _Avoid_: custom function, extension (reserved for XSLT extension functions)
+
+**UDF library**:
+The UDF source files of one mapping that share a source root and are compiled and loaded
+together. Two versions of a UDF are two libraries.
+_Avoid_: UDF jar, UDF package (a shared package is something else)
+
+**UDF declaration**:
+A mapping's entry in `udfs` that names a UDF, its execution kind, inputs, box parameters and
+source method. Compiling checks it against the method.
+_Avoid_: UDF signature (that is the Java method's)
+
+**Mapping run**:
+One transformation of one input message by a compiled mapping. The state a UDF keeps lives for
+one mapping run and is shared by all its UDFs.
+_Avoid_: global container, session
+
+**Allow-list**:
+The Java APIs a UDF may call. A call outside it is a design-time error.
+_Avoid_: sandbox, security manager
 
 **Execution kind**:
 What one call of a standard function or UDF sees: _single value_ (one value at a time),

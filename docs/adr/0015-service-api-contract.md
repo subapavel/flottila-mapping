@@ -1,6 +1,6 @@
 # The service API: stateless compile and test on the working copy, one diagnostic shape, code-first OpenAPI
 
-Status: accepted (2026-10-30, grilling #12)
+Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`)
 
 ADR-0013 makes the editor reach the service only through `ApiClient`, with compile and test
 on the unsaved working copy, and generated wire types only. This ADR fixes the contract and
@@ -20,6 +20,7 @@ contract, and the editor ships with the service.
 | `POST /api/mappings/{id}/compile` | working copy → diagnostics |
 | `POST /api/mappings/{id}/test` | working copy, input message → output or runtime error, diagnostics, trace |
 | `POST /api/mappings/{id}/refresh` | working copy → working copy with new fingerprints, orphaned references |
+| `POST /api/mappings/{id}/udfs/scan` | `{source}` → the declarations of the file's `@Udf` methods, or diagnostics (ADR-0020) |
 | `POST /api/structures` | `{bundle, root, base}` → structure graph, fingerprint |
 | `GET /api/catalogue` | → function catalogue |
 
@@ -48,7 +49,7 @@ contract, and the editor ships with the service.
 - Test:
   - with compile errors, it answers 200 with the diagnostics and no output;
   - with a runtime error, it answers 200 with `error {code, message, authoringId?}` and no
-    output. `code` is the error QName (`po:MINOCCURS`, `err:FORG0001`, `flottila:TIMEOUT`).
+    output. `code` is the error QName (`po:MINOCCURS`, `err:FORG0001`, `flottila:TIMEOUT`, `flottila:UDF-ERROR`).
     The output was buffered and is dropped (ADR-0006). The trace up to the error is returned.
 - Transport errors (malformed JSON, unknown id, 409, 413) answer `application/problem+json`
   (RFC 9457).
@@ -65,6 +66,7 @@ contract, and the editor ships with the service.
 - A target field mapping's entry adds `occurrences`: per parent slot, the list of slots
   `{slot, status: created|suppressed|truncated}` (`truncated` = cut by `maxOccurs`), and any
   `minOccurs {created, min}` that raised `po:MINOCCURS` (ADR-0012).
+- A box whose UDF called `run.log` adds `messages: [string]`, limited like values (ADR-0020).
 - `po:show` text (`1a,2b|S,3c`) is derived from this shape for oracle diffs and logs only. It
   cannot tell a value `S` or a comma from the markers.
 - Limits, both configurable: a test input up to 10 MB (413 above), and up to 10,000 values per

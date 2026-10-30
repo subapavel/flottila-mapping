@@ -118,6 +118,8 @@ relational model over row store, column store and index):
   (§10).
 - UDFs in Java via the same mechanism as extension functions (annotation + `MethodHandle`) with a
   signature that declares its kind.
+  Settled by ADR-0020 (grilling #16): static methods over `engine/udf-api`, compiled in-process
+  from the workspace, guarded in-process (class loader per library, allow-list, interruption guard).
 - Later: import SAP PO message mappings from ESR exports (same context semantics, near 1:1);
   UDFs ported separately.
 - Implementation order agreed: core (XDM, IR, F&O subset, interpreter) → **mapping front end
@@ -203,7 +205,8 @@ class path over them, its module rules enforced by ArchUnit.
 Settled by ADR-0016 (grilling #13) for milestone 1. The engine has nine JPMS modules under
 `engine/`: `xdm`, `structure`, `structure-import`, `ir`, `serializer`, `runtime`, `mapping`,
 `xslt-export`, and the facade `api` that the service uses. `xpath`, `xslt-compiler` and
-`jaxp-adapter` come with their specs. The build, CI and gates are in ADR-0017.
+`jaxp-adapter` come with their specs. The build, CI and gates are in ADR-0017. ADR-0020 adds `udf-api` and
+`udf` (eleven engine modules).
 
 ## 12. UI
 

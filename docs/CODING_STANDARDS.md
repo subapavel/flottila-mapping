@@ -45,6 +45,10 @@ Rules marked _(Phase 0)_ wait for the decision named and may change with it.
 - Sizes and counts are `long` where they can exceed 2³¹; every input has a finite limit, never an
   unlimited default.
 - Errors carry the mapping location (target field, function, source path) a person can act on.
+- UDFs (ADR-0020): only `engine/udf` compiles, scans, instruments and loads UDF classes, and only
+  the runtime's adapter calls their handles. No other code reflects on a UDF class. A cache of UDF
+  libraries or handles is bounded and never sits in a static field, so a dropped library unloads.
+  A test of the guard or the allow-list has a UDF that would otherwise loop or escape as its witness.
 
 ## Module boundaries
 

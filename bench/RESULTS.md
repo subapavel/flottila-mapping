@@ -45,3 +45,27 @@ reactor with two small modules (`engine/demo`, `engine/oracle`), not a repo comm
 Budget (ADR-0019): an engine ticket gate including `engine/oracle` under 30 s with three in
 parallel; one that builds `service` under 60 s. Not yet measured on the real modules: the skeleton
 ticket measures it here.
+
+## UDF trial (grilling #16, ADR-0020)
+
+Machine `claude-cloud-4vcpu`, 2026-10-30, JDK 25.0.5, scratch reactors (not a repo commit), test
+JVMs with `-Xmx512m`. Rough `System.nanoTime` timings, no JMH: these are orders of magnitude, not
+baselines.
+
+| Measurement | Result |
+| --- | --- |
+| in-process javac, first compile in a fresh JVM (engine module path) | 581–780 ms |
+| in-process javac, warm, median of compiles 2–10 | 60–71 ms |
+| warm compile of a 10-method UDF file | 111–147 ms |
+| load a library + link 4 `MethodHandle`s | 1–3 ms |
+| single-value UDF call via `invokeExact`, 1M calls warm | ~17 ns/call (direct call ~25 ns, noise) |
+| Quarkus 3.40.1.1 fast-jar, first compile after start (server / client wall) | 604 / 655 ms |
+| Quarkus fast-jar, warm, median of 10 (server / client wall) | 55 / 76 ms |
+| ModuleLayer alternative: resolve + define + link, two layers | 14–22 ms |
+| Class-File API instrumentation (guard at entry + back edges), per class | 1.2–1.6 ms |
+| tight loop, per iteration: none / interrupt-check guard / ThreadLocal+nanoTime deadline | 0.95 / 0.95 / 28 ns |
+| interrupted instrumented loop stops after | 0.6 ms |
+| allow-list instruction walk, per class | 28–390 µs |
+| child JVM start, run one UDF, exit (median of 5; `TieredStopAtLevel=1` same) | 64–75 ms |
+| `destroyForcibly` on a spinning child JVM | 4–6 ms |
+| class loader unload after the last reference (5× `System.gc()`) | ~340 ms |

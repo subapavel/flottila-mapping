@@ -25,7 +25,9 @@ on one commit of `main`; each check names the command and the evidence it needs.
    on the unsaved working copy; shown by the `@stack` Playwright suite (ADR-0013). A runtime
    error (`po:MINOCCURS`) returns its QName, the `AuthoringId` and the trace up to the error,
    and diagnostics carry their stable codes (ADR-0015). `openapi.json` and the generated
-   `ui/src/generated/` types have an empty diff.
+   `ui/src/generated/` types have an empty diff. A UDF box shows in the display queue like any
+   function box, with its `run.log` messages; a UDF exception returns `flottila:UDF-ERROR` with the
+   `AuthoringId` (ADR-0020).
 4. **Semantics.** The milestone-1 functions of issue #3 (ADR-0002, ADR-0003) pass their
    golden-corpus cases: all PO 7.5 node functions (`removeContexts`, `splitByValue` in all three
    modes, `collapseContexts`, `useOneAsMany`, `createIf`, `exists`, `mapWithDefault`,
@@ -40,8 +42,13 @@ on one commit of `main`; each check names the command and the evidence it needs.
    (portable profile); the differential run (our runtime vs
    Saxon-HE 12.5 on the exported XSLT, XMLUnit identical) agrees on every corpus input: every
    such case id is in `ratchet/oracle/differential.txt` (ADR-0018).
-6. **UDF.** A Java UDF of each kind (single value, context, queue) compiles, runs and shows in the
-   display queue.
+6. **UDF.** Java UDFs from `corpus/udfs/` of each kind (single value, context, queue) and one
+   stateful UDF (`MappingRun`) compile in-process, run and pass their golden-corpus cases, which are
+   in `ratchet/oracle/corpus.txt` (all metamorphic variants, including the deterministic-fold and
+   call-order witnesses). The `@stack` suite shows a UDF box with its messages in the display queue
+   and adds a UDF through the scan endpoint. A looping UDF in the corpus ends in `flottila:TIMEOUT`
+   within the timeout, and a UDF calling a forbidden API fails to compile with `udf-forbidden-api`
+   (ADR-0020).
 7. **Speed.** JMH on the corpus: compiled-mapping latency and throughput for a small (≤ 10 kB)
    and a large (≥ 10 MB) message, recorded in `bench/RESULTS.md` with machine, date and commit.
    _(Phase 0: targets)_
@@ -51,8 +58,8 @@ on one commit of `main`; each check names the command and the evidence it needs.
    ArchUnit rules A–C (ADR-0016) and an empty `contract/` diff. The spec gate
    (`scripts/gate-spec.sh`) passes on the VM. Floors on the gate commit (ADR-0019): JaCoCo lines
    ≥ 90 % and branches ≥ 80 % on `xdm`, `ir`, `runtime`, `serializer`, `mapping`, `xslt-export`,
-   `api`, lines ≥ 80 % on `structure`, `structure-import`, `service` (CI `backend`), and PIT
-   ≥ 80 % on the seven class-C modules (the nightly run of the gate commit). The ratchet is green
+   `api`, `udf-api`, `udf`, lines ≥ 80 % on `structure`, `structure-import`, `service` (CI `backend`), and PIT
+   ≥ 80 % on the nine class-C modules (the nightly run of the gate commit). The ratchet is green
    (`java scripts/ratchet.java check` on the gate commit). The drift tests (ADR-0011, ADR-0015),
    the workspace-escape test (ADR-0014) and the diagnostic-catalogue test (ADR-0018) are green. Every spec of the milestone was merged through `/run-spec` with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
    (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
