@@ -84,10 +84,10 @@ working here, use these REST forms; `{owner}/{repo}` is filled in by `gh api` in
 
 | Operation | REST form |
 | --- | --- |
-| create issue | `gh api repos/{owner}/{repo}/issues -f title=… -f body=@body.md -f 'labels[]=spec'` |
+| create issue | `gh api repos/{owner}/{repo}/issues -f title=… -F body=@body.md -f 'labels[]=spec'` |
 | read issue / comments | `gh api repos/{owner}/{repo}/issues/<n>` · `…/issues/<n>/comments` |
 | list open issues | `gh api 'repos/{owner}/{repo}/issues?state=open&labels=<l>&per_page=100' --paginate` |
-| comment | `gh api repos/{owner}/{repo}/issues/<n>/comments -f body=@c.md` |
+| comment | `gh api repos/{owner}/{repo}/issues/<n>/comments -F body=@c.md` |
 | labels | `gh api repos/{owner}/{repo}/issues/<n>/labels -f 'labels[]=<l>'` · `-X DELETE …/labels/<l>` |
 | assign (claim) | `gh api repos/{owner}/{repo}/issues/<n>/assignees -f 'assignees[]=<login>'` |
 | close | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed` |
@@ -95,9 +95,9 @@ working here, use these REST forms; `{owner}/{repo}` is filled in by `gh api` in
 | list sub-issues | `gh api repos/{owner}/{repo}/issues/<parent>/sub_issues` |
 | blocked by | `gh api repos/{owner}/{repo}/issues/<n>/dependencies/blocked_by -F issue_id=<blocker db id>` |
 | open blockers | `gh api repos/{owner}/{repo}/issues/<n> --jq .issue_dependencies_summary.blocked_by` |
-| create PR | `gh api repos/{owner}/{repo}/pulls -f title=… -f head=<branch> -f base=main -f body=@pr.md` |
+| create PR | `gh api repos/{owner}/{repo}/pulls -f title=… -f head=<branch> -f base=main -F body=@pr.md` |
 | PR checks | `gh api repos/{owner}/{repo}/commits/<sha>/check-runs --jq '.check_runs[] | {name,status,conclusion}'` |
 | merge PR | `gh api -X PUT repos/{owner}/{repo}/pulls/<n>/merge -f merge_method=merge` |
 
-The db id of an issue: `gh api repos/{owner}/{repo}/issues/<n> --jq .id`. Use a body file (`@file`)
+The db id of an issue: `gh api repos/{owner}/{repo}/issues/<n> --jq .id`. Use a body file with `-F body=@file` (`-f` sends the literal text `@file`)
 for anything multi-line. The first session in the cloud records in `agent/NOTES.md` which form works.

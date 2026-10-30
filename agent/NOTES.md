@@ -47,3 +47,9 @@ Module notes by section, read on demand.
   - `curl https://community.sap.com/` → CONNECT tunnel established, origin (Cloudflare) answers
     403 to GET (HEAD 200): ENVIRONMENT_BLOCKED by the site's bot protection, not by the proxy.
     Do not work around it; cite community posts only via search excerpts, tagged [COMM].
+  - `gh api … -f body=@file` posts the literal text `@file`; only `-F body=@file` reads the file
+    (EXECUTED_FAIL then VERIFIED_PASS on #1, #2, #20 — repaired). Fixed in `docs/agents/issue-tracker.md`.
+  - Research #15 agent: www.w3.org and saxonica.com: ENVIRONMENT_BLOCKED by the egress proxy;
+    W3C sources read from `raw.githubusercontent.com/w3c/qtspecs`. Maven Central reachable:
+    Saxon-HE 12.5 and 13.1 fetched into a scratch dir and run — VERIFIED_PASS. learning.sap.com:
+    ENVIRONMENT_BLOCKED (proxy). help.sap.com/docs content via its own `/http.svc/*` JSON endpoints.
