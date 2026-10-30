@@ -89,6 +89,15 @@ _Avoid_: group, partition
 **Context change**:
 The boundary between two contexts of a queue.
 
+**Slot**:
+One position of a queue: a value or SUPPRESS. Target occurrences and child contexts are counted
+in slots.
+_Avoid_: entry, element, item (reserved for XDM)
+
+**Empty context**:
+A context with no slots, as under a parent occurrence without children. A queue with no contexts
+at all (the parent is absent) is a different thing.
+
 **SUPPRESS**:
 The marker for a value that is present as a slot but produces no target field.
 _Avoid_: null, empty (both are different things)
@@ -107,6 +116,11 @@ arrays (XPath 3.1 data model).
 A physical form of an XDM value chosen by the compiler (tiny tree, queue block, projected buffer,
 persistent map). Several exist; the XDM contract is one.
 _Avoid_: implementation (too vague)
+
+**Queue block**:
+The runtime representation of a queue: its values, where each context starts, and which slots
+are SUPPRESS.
+_Avoid_: queue (for the physical form), result list
 
 **IR**:
 The front-end-independent intermediate representation every mapping and stylesheet compiles to,
