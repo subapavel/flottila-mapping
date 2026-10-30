@@ -25,6 +25,11 @@ Module notes by section, read on demand.
     Saxon `resolve-library-id` / `query-docs` via MCP: NOT_RUN (no tools).
   - `.mcp.json` already carries `"headers": {"CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"}` on
     `main` (fe59d68): nothing to change. Next: a new session opened on this repo.
+  - Root cause (`claude mcp list` from the repo): context7 "Pending approval". Approval via
+    `enabledMcpjsonServers` in `.claude/settings.json` or `.claude/settings.local.json`:
+    EXECUTED_FAIL (still pending). In user `~/.claude/settings.json`: VERIFIED_PASS ("Connected").
+  - Fix: `deploy/claude-cloud/setup.sh` writes that user setting before Claude Code starts. Owner
+    action: paste the script into the environment, open a new session on this repo only.
   - Until the tools attach, Context7 is usable by direct `curl` POST to the endpoint (above).
 - `curl https://help.sap.com/` and `https://community.sap.com/`: ENVIRONMENT_BLOCKED — proxy
   refuses the CONNECT tunnel (403, http_code 000); the hosts are outside the network policy.

@@ -9,7 +9,7 @@ Ubuntu 24.04, 4 vCPU, 16 GB; JDK 21, Maven, Node and Docker pre-installed).
 | --- | --- |
 | Name | `flottila-mapping` |
 | Network access | Custom, "include the default list of common package managers" checked, plus `mcp.context7.com` and `*.blob.core.windows.net` (GitHub Actions artifacts) |
-| Setup script | contents of `deploy/claude-cloud/setup.sh` (installs JDK 25 beside JDK 21, prints the Node version) |
+| Setup script | contents of `deploy/claude-cloud/setup.sh` (installs JDK 25 beside JDK 21, approves the Context7 MCP server in `~/.claude/settings.json`, prints the Node version) |
 | Permission mode | Auto |
 
 Environment variables:
@@ -26,13 +26,15 @@ Environment variables:
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `400000` | compact early; decisions degrade long before the limit |
 | `GIT_AUTHOR_NAME` / `GIT_COMMITTER_NAME` | owner's name | commits and DCO sign-off are the owner's |
 | `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_EMAIL` | owner's e-mail | |
+| `CONTEXT7_API_KEY` | owner's Context7 key | `.mcp.json` sends it as a header; without it the free quota runs out |
 
 Not set: `CLAUDE_CODE_EFFORT_LEVEL` (overrides every per-call effort),
-`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. No secrets in the environment.
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. The only secret is `CONTEXT7_API_KEY`; never print it.
 
 ## Starting a session
 
 1. Code → Cloud → environment `flottila-mapping` → repository `subapavel/flottila-mapping` → new session.
+   Only this repository: with several, the session starts in `/home/user` and no `.mcp.json` loads.
 2. `/model claude-opus-5-5`, then `/effort medium` (two messages).
 3. First message of a session: what to run (`/wayfinder …`, `/run-spec #<spec>`, `/gate`).
 

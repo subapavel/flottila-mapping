@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Flottila Mapping — Claude Code Cloud environment setup script (v2, 2026-10-18).
 # Runs as root on the Ubuntu 24.04 VM before Claude Code starts. Must finish in ~5 minutes to
-# be snapshotted, so it does one thing only: install JDK 25 beside the pre-installed JDK 21.
+# be snapshotted, so it does two things: install JDK 25 beside the pre-installed JDK 21, and
+# pre-approve the project's Context7 MCP server in the user settings (project settings cannot).
 # Docker images, apt extras and Maven dependencies are fetched by the agent on first use.
 # Self-contained (no repository paths), idempotent, reports every step.
 # Paste this file's contents into the environment's "Setup script" field.
@@ -70,5 +71,24 @@ export PATH="$JAVA_HOME/bin:$PATH"
 EOF
 
 log "installed: $("$JDK/bin/java" -version 2>&1 | head -1)"
+
+# Context7: `.mcp.json` servers stay "Pending approval" in a cloud session (nobody can approve
+# them interactively), and `enabledMcpjsonServers` is honoured only in the user settings.
+settings="$HOME/.claude/settings.json"
+mkdir -p "$(dirname "$settings")"
+if python3 -I - "$settings" <<'PY'
+import json, os, sys
+p = sys.argv[1]
+d = json.load(open(p)) if os.path.exists(p) and os.path.getsize(p) else {}
+servers = d.setdefault("enabledMcpjsonServers", [])
+if "context7" not in servers:
+    servers.append("context7")
+json.dump(d, open(p, "w"), indent=2)
+PY
+then
+  log "context7 approved in $settings"
+else
+  log "could not write $settings (continuing; context7 stays pending approval)"
+fi
 log "node: $(node --version 2>/dev/null || echo missing) · npm: $(npm --version 2>/dev/null || echo missing)"
 log "done"
