@@ -34,3 +34,16 @@ Module notes by section, read on demand.
      for Saxon Java API signatures use `javap` on the test-scope Saxon-HE jar.
 - `curl https://help.sap.com/` and `https://community.sap.com/`: ENVIRONMENT_BLOCKED — proxy
   refuses the CONNECT tunnel (403, http_code 000); the hosts are outside the network policy.
+- Session check 2026-10-30 (Phase 0 continuation):
+  - ToolSearch "context7" → `resolve-library-id`, `query-docs` attached: VERIFIED_PASS.
+  - `resolve-library-id` "saxon" → `/websites/saxonica_documentation12` (4 snippets) and
+    `/websites/saxonica_saxonjs_documentation2`: VERIFIED_PASS.
+  - `query-docs` on the Saxon 12 library ("xsl:iterate and grouping in Saxon-HE") → overview
+    snippets only (editions, XSLT 3.0 conformance, HE under MPL 2.0), no quota error:
+    VERIFIED_PASS. Same caveat: no element-level Saxon docs in Context7; read the W3C specs or
+    saxonica.com directly.
+  - `curl https://help.sap.com/` → 301 to `/docs`, then 200 (Akamai): VERIFIED_PASS — the host is
+    now inside the network policy.
+  - `curl https://community.sap.com/` → CONNECT tunnel established, origin (Cloudflare) answers
+    403 to GET (HEAD 200): ENVIRONMENT_BLOCKED by the site's bot protection, not by the proxy.
+    Do not work around it; cite community posts only via search excerpts, tagged [COMM].
