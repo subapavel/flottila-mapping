@@ -14,8 +14,23 @@ _Avoid_: map, transformation, message mapping (except when quoting SAP PO)
 
 **Mapping model**:
 The stored, declarative form of a graphical mapping, the one the editor reads and writes and the
-compiler reads. It is data, never generated code. _(open: format and schema)_
+compiler reads: one file that holds everything deciding the mapping's result and refers to its
+schema bundles and UDF sources. It is data, never generated code.
 _Avoid_: mapping file, mapping definition
+
+**Canonical form**:
+The one way the writer spells a mapping model. Diffs and round trips compare it.
+_Avoid_: pretty print, normalised form
+
+**Format version**:
+The version of the mapping model's own format. A newer one is refused, and an older one is
+migrated on load.
+_Avoid_: schema version, model version
+
+**Refresh**:
+Re-reading a mapping's schema bundles to take a changed structure: the fingerprint is
+re-derived and the orphaned references are listed.
+_Avoid_: re-import (for an unchanged mapping), sync
 
 **Structure**:
 The tree of fields a message may have, with names, types and cardinalities, read from an XSD,
@@ -23,8 +38,14 @@ WSDL, JSON Schema or similar.
 _Avoid_: schema (for the in-memory tree), message type, data type
 
 **Schema bundle**:
-The schema files a structure was read from, stored with the mapping together with the chosen root.
+The schema files a structure was read from, which the mapping refers to together with the chosen
+root: files in the same repository, or in a shared package at a fixed version.
 _Avoid_: schema set, schema snapshot
+
+**Shared package**:
+A versioned package of artefacts (schemas, UDF sources) that several mappings refer to at a fixed
+version.
+_Avoid_: library (for the package itself), common folder
 
 **Orphaned reference**:
 A field path in a mapping that the mapping's current structure no longer has.
@@ -59,8 +80,34 @@ The function graph that produces the values of one target field.
 _Avoid_: rule, assignment, line
 
 **Function graph**:
-The tree of source fields, constants and functions wired into one target field mapping.
-_Avoid_: expression (reserved for XPath), formula
+The acyclic graph of source-field boxes and function boxes wired into one target field mapping;
+one box's output may feed several inputs.
+_Avoid_: expression (reserved for XPath), formula, tree
+
+**Function box**:
+One call in a function graph (a standard function, a UDF, a constant or an unresolved function)
+with its inputs and box parameters.
+_Avoid_: node, brick
+
+**Source-field box**:
+The box of a function graph that reads one source field's queue in one context.
+_Avoid_: source node
+
+**Box parameter**:
+A constant setting of a function box (a string or a table of strings), named as in the function
+catalogue, such as a date pattern or the mode of `splitByValue`.
+_Avoid_: argument, input
+
+**Unresolved function**:
+A function box whose function is neither in the function catalogue nor among the mapping's UDFs.
+It keeps the original name, its inputs and its parameters, and compiling it is a design-time
+error.
+_Avoid_: unknown function, missing function
+
+**Layout**:
+Where the editor draws boxes and how the view is zoomed or collapsed. It is computed from the
+mapping model or kept as the viewer's own state, and never stored with the mapping.
+_Avoid_: diagram, view data
 
 **Standard function**:
 A built-in function of the graphical editor (concat, if, formatDate, removeContexts …).

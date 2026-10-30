@@ -1,11 +1,11 @@
 # A mapping stores its schema bundle; the structure is re-derived and guarded by a fingerprint
 
-Status: accepted (2026-10-30, grilling #8)
+Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied)
 
 A mapping stores three things for each side:
 
 - the **schema bundle**: the XSD, WSDL or JSON Schema files the structure was read from,
-  verbatim;
+  verbatim (since ADR-0010 as references to files pinned by git or a package version);
 - the **root selector**: an XML root element, a WSDL operation with its direction (and fault),
   or the JSON root;
 - a **fingerprint**: SHA-256 over a canonical form of exactly what the compiler reads. That is
@@ -23,7 +23,11 @@ Re-importing a new schema version compares the two structures by field path (ADR
   uses it.
 - A changed occurrence or value type is a warning.
 
-How the bundle sits inside the mapping model (inline, side files or by hash) is decided by #6.
+How the bundle sits inside the mapping model is decided by ADR-0010 (#6). The mapping refers to
+the bundle files by a path relative to the mapping file, or by a file in a shared package at a
+fixed version. A git commit and the pinned versions keep the bundle verbatim and the deploy
+reproducible, and the model holds no copy. A *refresh* re-derives the fingerprint and lists the
+orphaned references.
 
 ## Considered options
 

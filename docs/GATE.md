@@ -12,7 +12,8 @@ on one commit of `main`; each check names the command and the evidence it needs.
    JSON target is a design-time error in milestone 1 (ADR-0008). A schema construct ADR-0008
    refuses gives an error with file, line and column.
 2. **Edit.** In the editor a person maps fields by drag and drop, inserts standard functions and
-   constants, and saves; the mapping model passes its schema and round-trips unchanged.
+   constants, and saves; the mapping model passes its schema (ADR-0011) and round-trips
+   byte-identical in canonical form (ADR-0010).
 3. **Run.** `POST /mappings/{id}/test` with an input returns the target message; the editor's test
    panel shows it, and the display queue at any function shows contexts and SUPPRESS.
 4. **Semantics.** The milestone-1 functions of issue #3 (ADR-0002, ADR-0003) pass their
