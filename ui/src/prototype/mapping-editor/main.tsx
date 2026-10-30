@@ -2,6 +2,7 @@
 import '@patternfly/react-core/dist/styles/base.css';
 import '@xyflow/react/dist/style.css';
 import './prototype.css';
+import './prototype-round2.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PrototypeMappingEditor } from './PrototypeMappingEditor';

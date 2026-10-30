@@ -23,7 +23,7 @@ export function SidePanel() {
   );
 }
 
-function TestPanel() {
+export function TestPanel() {
   const { inputXml, setInputXml, run, rerun, runCount, model, select } = useEditor();
   return (
     <div className="testpanel" data-testid="test-panel">

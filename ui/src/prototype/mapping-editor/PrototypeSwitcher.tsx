@@ -1,7 +1,7 @@
 // PROTOTYPE (#10, throwaway): floating variant switcher (prototype skill, UI.md). Dev builds only.
 import { useEffect } from 'react';
 
-export type VariantKey = 'a' | 'b' | 'c';
+export type VariantKey = 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
 
 export function PrototypeSwitcher({ variants, current, onChange }: {
   variants: { key: VariantKey; name: string }[];

@@ -1,0 +1,89 @@
+/* PROTOTYPE (#10, throwaway): round 2, split variants d, e, f. */
+.ftree__namecell { display: flex; gap: 6px; align-items: center; min-width: 0; overflow: hidden; flex: 1 1 auto; }
+.ftree__row.is-droptarget { background: #fff8e5; box-shadow: inset 0 0 0 2px #f0ab00; }
+.vsplit { height: 100%; }
+.split { display: flex; height: 100%; width: 100%; min-height: 0; min-width: 0; }
+.split--vertical { flex-direction: column; }
+.split--horizontal { flex-direction: row; }
+.split__pane { min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+.split__pane--first { flex: 0 0 auto; }
+.split__pane--second { flex: 1 1 0; }
+.split__handle { flex: 0 0 8px; background: #e6e6e6; display: flex; align-items: center; justify-content: center; gap: 6px; user-select: none; }
+.split--vertical > .split__handle { cursor: row-resize; flex-direction: row; }
+.split--horizontal > .split__handle { cursor: col-resize; flex-direction: column; }
+.split__handle:hover { background: #bee1f4; }
+.split__handle button { border: 0; background: transparent; font-size: 8px; line-height: 8px; padding: 0 4px; cursor: pointer; color: #4f5255; }
+.split__grip { width: 36px; height: 3px; border-radius: 2px; background: #8a8d90; }
+.split--horizontal > .split__handle .split__grip { width: 3px; height: 36px; }
+
+.lt__right { display: flex; height: 100%; min-width: 0; }
+.lt__right > .ftree { flex: 1; min-width: 0; }
+.lt__gutter { flex: none; position: relative; background: #fbfbfb; border-left: 1px solid #eee; border-right: 1px solid #eee; }
+.lt__gutter svg { position: absolute; inset: 0; overflow: visible; }
+.lk { fill: none; stroke: #0066cc; stroke-width: 1.3; opacity: .8; cursor: pointer; }
+.lk--dim { opacity: .18; }
+.lk--sel { stroke: #0066cc; stroke-width: 2.6; opacity: 1; }
+.lk--dashed { stroke-dasharray: 4 3; }
+.lk--orphan { stroke: #ec7a08; }
+.lk-tick { stroke: #b8bbbe; stroke-width: 1.5; }
+.fx { cursor: pointer; }
+.fx rect { fill: #e7f1fa; stroke: #0066cc; }
+.fx text { font: 700 9px monospace; text-anchor: middle; fill: #004080; }
+.fx.is-sel rect { fill: #0066cc; } .fx.is-sel text { fill: #fff; }
+.fx--error rect, .fx--unmapped-mandatory rect { stroke: #c9190b; fill: #faeae8; }
+.fx--orphaned rect { stroke: #ec7a08; fill: #fff6ec; }
+.lt__count { position: absolute; font-size: 10px; background: #151515; color: #fff; border-radius: 8px; padding: 0 5px; }
+.lt__count--st { top: 2px; left: 2px; } .lt__count--sb { bottom: 2px; left: 2px; }
+.lt__count--tt { top: 2px; right: 2px; } .lt__count--tb { bottom: 2px; right: 2px; }
+
+.lower { display: flex; flex-direction: column; height: 100%; }
+.lower__tabs { flex: none; }
+.lower__tabbar { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-bottom: 1px solid #d2d2d2; }
+.lower__tabbar .lower__tabs { flex: 1; min-width: 0; }
+.lower__body { flex: 1; min-height: 0; position: relative; }
+.lower__scroll { height: 100%; overflow: auto; padding: 8px 12px; box-sizing: border-box; }
+.aq { padding: 4px 6px; border-bottom: 1px solid #eee; cursor: pointer; }
+.aq.is-selected { background: #e7f1fa; }
+
+.gc { display: flex; flex-direction: column; height: 100%; }
+.gc__toolbar { display: flex; gap: 8px; align-items: center; padding: 2px 8px; border-bottom: 1px solid #eee; font-size: 12px; flex: none; }
+.gc__title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gc__work { flex: 1; display: flex; min-height: 0; }
+.gc__canvas { flex: 1; position: relative; min-width: 0; }
+.gc__palette { width: 118px; overflow: auto; border-right: 1px solid #eee; background: #fafafa; padding: 2px; flex: none; }
+.gc__pitem { font-size: 11px; padding: 2px 4px; margin: 1px 0; border: 1px solid #d2d2d2; background: #fff; border-radius: 3px; cursor: grab; display: flex; justify-content: space-between; }
+.gc__queue { flex: none; height: 130px; overflow: auto; border-top: 2px solid #d2d2d2; padding: 4px 8px; background: #fcfcfc; }
+.qi { position: absolute; z-index: 20; width: 340px; background: #fff; border: 1px solid #0066cc; box-shadow: 0 4px 16px rgba(0,0,0,.2); border-radius: 4px; }
+.qi input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid #d2d2d2; padding: 6px 8px; font-size: 13px; outline: none; }
+.qi ul { list-style: none; margin: 0; padding: 2px 0; max-height: 240px; overflow: auto; }
+.qi li { padding: 3px 8px; display: flex; gap: 6px; align-items: center; cursor: pointer; font-size: 12px; }
+.qi li.is-active { background: #e7f1fa; }
+
+.insp { height: 100%; overflow: auto; padding: 8px 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; font-size: 12px; border-left: 1px solid #eee; }
+.insp__kind { font-size: 10px; text-transform: uppercase; color: #6a6e73; display: flex; gap: 8px; }
+.insp__back { margin-left: auto; text-transform: none; }
+.insp__title { margin: 0; font-size: 16px; font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.insp__path { font-size: 11px; word-break: break-all; color: #4f5255; }
+.insp__section { font-weight: 700; margin-top: 4px; border-bottom: 1px solid #eee; }
+.insp__param { display: flex; gap: 8px; align-items: center; }
+.insp__param > span:first-child { min-width: 90px; color: #6a6e73; }
+.insp__param input, .insp__param select { flex: 1; font-size: 12px; }
+.insp__table { display: flex; flex-direction: column; gap: 2px; }
+.insp__fid { padding: 6px 8px; border-radius: 3px; }
+.insp__fid--deviation { background: #fdf0e7; border-left: 3px solid #ec7a08; }
+.insp__fid--assumed { background: #f2f0fc; border-left: 3px solid #8a4baf; }
+.insp__errs { margin: 0; padding-left: 16px; }
+
+.f__filter { flex: 1 1 100%; margin-top: 2px; }
+.f__filter .pf-v6-c-toggle-group__button { font-size: 11px; padding: 2px 6px; }
+.fcols__head { display: flex; gap: 6px; font-size: 11px; font-weight: 700; background: #f0f0f0; padding: 2px 6px; border-top: 1px solid #ddd; }
+.fcol--name { flex: 1 1 auto; }
+.fcol { flex: none; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcol--occ { width: 38px; color: #6a6e73; }
+.fcol--type { width: 70px; color: #3c6e1e; }
+.fcol--status { width: 126px; }
+.fcol--chain { width: 300px; font-family: monospace; font-size: 10px; color: #151515; }
+.lt__target .ftree__namecell { flex: 1 1 140px; }
+.crumb { flex: none; display: flex; align-items: center; gap: 12px; padding: 4px 12px; border-bottom: 1px solid #d2d2d2; background: #fafafa; }
+.lt__tree .ftree__tools > :first-child, .lt__target .ftree__tools > :first-child { flex: 1 1 200px !important; width: auto !important; }
+.lt__tree .ftree__count, .lt__target .ftree__count { padding-bottom: 2px; }
