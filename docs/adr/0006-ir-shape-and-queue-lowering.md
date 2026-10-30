@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5)
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,

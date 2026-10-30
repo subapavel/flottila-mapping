@@ -22,12 +22,37 @@ The tree of fields a message may have, with names, types and cardinalities, read
 WSDL, JSON Schema or similar.
 _Avoid_: schema (for the in-memory tree), message type, data type
 
+**Schema bundle**:
+The schema files a structure was read from, stored with the mapping together with the chosen root.
+_Avoid_: schema set, schema snapshot
+
+**Orphaned reference**:
+A field path in a mapping that the mapping's current structure no longer has.
+_Avoid_: broken link, dangling field
+
 **Source structure** / **Target structure**:
 The structure a mapping reads from / writes to.
 
 **Field**:
 A node of a structure: an element, an attribute or a JSON property.
 _Avoid_: node (reserved for XDM), element (too narrow)
+
+**Structure field** / **Leaf field**:
+A field with child fields and no value of its own, whose queue holds one empty string per
+occurrence / a field with a value, whose queue holds that value. An element with a simple value
+and attributes is a leaf field; its attributes are fields of their own.
+_Avoid_: node, segment, complex element
+
+**Effective occurrence**:
+A field's minimum and maximum number of occurrences under one occurrence of its parent field,
+after every enclosing sequence, choice and all is taken into account; a branch of a choice has
+minimum 0.
+_Avoid_: cardinality (for the declared value)
+
+**Field path**:
+The identity of a field: the name and namespace of every field from the root down to it, with
+attributes marked. A mapping refers to source and target fields only by their field paths.
+_Avoid_: XPath, field id, node path
 
 **Target field mapping**:
 The function graph that produces the values of one target field.
@@ -83,7 +108,8 @@ The values a function graph sees for one source field, split into contexts.
 _Avoid_: list, stream, array (for the logical concept)
 
 **Context**:
-One segment of a queue: the values under one occurrence of the parent field.
+One segment of a queue: the values under one occurrence of the context field. The context field
+is the parent field by default (an attribute's own element) and can be set to any ancestor.
 _Avoid_: group, partition
 
 **Context change**:

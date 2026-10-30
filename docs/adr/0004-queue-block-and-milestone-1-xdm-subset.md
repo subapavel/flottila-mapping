@@ -1,6 +1,6 @@
 # Queue block and the milestone-1 XDM subset
 
-Status: accepted (2026-10-30, grilling #4); refined by ADR-0006
+Status: accepted (2026-10-30, grilling #4); refined by ADR-0006 and ADR-0008 (a structure field's queue holds `""` per occurrence)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §3, §6 and §7.1/§7.4 for milestone 1. A queue is
 logically `array(item()*)`: one member per context, `xs:string` values, SUPPRESS a marker in the

@@ -6,8 +6,11 @@ on one commit of `main`; each check names the command and the evidence it needs.
 
 ## Checks
 
-1. **Import.** Two XSDs (and one JSON Schema) from `corpus/structures/` load as source and target
-   structures; the editor shows both trees with types and cardinalities.
+1. **Import.** Two XSDs and one JSON Schema (draft 2020-12) from `corpus/structures/` load as
+   source and as target structures; the editor shows the trees
+   with types and effective occurrences. A mapping with a JSON source runs; compiling one with a
+   JSON target is a design-time error in milestone 1 (ADR-0008). A schema construct ADR-0008
+   refuses gives an error with file, line and column.
 2. **Edit.** In the editor a person maps fields by drag and drop, inserts standard functions and
    constants, and saves; the mapping model passes its schema and round-trips unchanged.
 3. **Run.** `POST /mappings/{id}/test` with an input returns the target message; the editor's test
