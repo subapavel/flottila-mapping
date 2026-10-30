@@ -13,7 +13,18 @@ Module notes by section, read on demand.
   "Cloud VM: REST only" table in `docs/agents/issue-tracker.md` for every issue operation.
 - `gh auth status` reports the GH_TOKEN invalid; ignore it, the proxy authenticates REST calls.
 - Labels from `scripts/bootstrap-github.sh` exist on `subapavel/flottila-mapping`.
-- Context7 (`.mcp.json`, https://mcp.context7.com/mcp): host reachable (initialize → 200), but
-  `resolve-library-id` returns "Monthly quota exceeded" without an API key, and no context7
-  tools are attached to the session → ENVIRONMENT_BLOCKED. Fallback: `javap` on the jar in
-  `~/.m2` / the package's `.d.ts`. Owner action: add a Context7 API key to the environment.
+- Context7, first check: without a key `resolve-library-id` returned "Monthly quota exceeded"
+  → ENVIRONMENT_BLOCKED. Fixed by the owner (env key) and fe59d68 (`.mcp.json` header).
+- Context7, re-check 2026-10-30:
+  - `CONTEXT7_API_KEY` in the environment: VERIFIED_PASS (set; value never printed).
+  - Direct POST `resolve-library-id` "vert.x" with the key header: VERIFIED_PASS — returns the
+    library list (`/eclipse-vertx/vert.x`, versions 5.1.8), no quota error.
+  - Context7 MCP tools in the session (ToolSearch "context7"): EXECUTED_FAIL — none attached,
+    and the server is not even listed as failed. Likely cause: the session started with
+    `/home/user` (multi-repo root) as working directory, so no repo's `.mcp.json` was read.
+    Saxon `resolve-library-id` / `query-docs` via MCP: NOT_RUN (no tools).
+  - `.mcp.json` already carries `"headers": {"CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"}` on
+    `main` (fe59d68): nothing to change. Next: a new session opened on this repo.
+  - Until the tools attach, Context7 is usable by direct `curl` POST to the endpoint (above).
+- `curl https://help.sap.com/` and `https://community.sap.com/`: ENVIRONMENT_BLOCKED — proxy
+  refuses the CONNECT tunnel (403, http_code 000); the hosts are outside the network policy.
