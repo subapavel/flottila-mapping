@@ -102,9 +102,19 @@ at all (the parent is absent) is a different thing.
 The marker for a value that is present as a slot but produces no target field.
 _Avoid_: null, empty (both are different things)
 
+**Slot number**:
+The position of a slot counted across all contexts of a queue, starting at 1. A target
+occurrence's slot number is the index of the context its children read.
+_Avoid_: index, position (both are per context)
+
+**Generating function**:
+A function graph with no source field, such as a constant or `concat` of two constants. On a
+target field it gives `max(1, minOccurs)` occurrences per parent occurrence.
+_Avoid_: constant (for the general case)
+
 **Display queue**:
-The view that shows a queue with its contexts and SUPPRESS markers at any point of a function
-graph, for a given test input.
+The view that shows the queue (or single value) one function box, source field or target field
+produces, with its contexts and SUPPRESS markers, for a given test input.
 
 ## Engine
 
@@ -126,6 +136,17 @@ _Avoid_: queue (for the physical form), result list
 The front-end-independent intermediate representation every mapping and stylesheet compiles to,
 and the only input of the optimiser and the back ends.
 _Avoid_: AST (that is a front end's own tree), bytecode
+
+**Lift**:
+Applying a single-value function to queues slot by slot: contexts are paired by position,
+shorter inputs reuse their last value inside a context, and SUPPRESS passes through.
+_Avoid_: map, broadcast, loop
+
+**Authoring id**:
+The stable id of the authoring element (target field mapping, function box, source-field box,
+later an XSLT instruction) that a piece of compiled mapping came from. Tracing, the display
+queue and design-time errors refer to it.
+_Avoid_: node id, element id
 
 **Front end**:
 A compiler stage that turns one authoring form (mapping model, XSLT, XPath) into IR.
