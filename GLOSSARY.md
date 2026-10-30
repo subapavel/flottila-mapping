@@ -12,6 +12,11 @@ marked _(open)_ is waiting for a Phase 0 decision.
 A named, versioned transformation from one source structure to one target structure.
 _Avoid_: map, transformation, message mapping (except when quoting SAP PO)
 
+**Workspace**:
+The directory, usually a git working tree, whose mapping models the service lists, opens and
+saves. A mapping's id is its path in the workspace without the file suffix (ADR-0014).
+_Avoid_: project, repository (for the directory the service serves)
+
 **Mapping model**:
 The stored, declarative form of a graphical mapping, the one the editor reads and writes and the
 compiler reads: one file that holds everything deciding the mapping's result and refers to its
@@ -225,6 +230,21 @@ _Avoid_: index, position (both are per context)
 A function graph with no source field, such as a constant or `concat` of two constants. On a
 target field it gives `max(1, minOccurs)` occurrences per parent occurrence.
 _Avoid_: constant (for the general case)
+
+**Test run**:
+Running a mapping's working copy on one input message in the editor. It returns the target
+message or a runtime error, the diagnostics and the trace (ADR-0015).
+_Avoid_: simulation, preview
+
+**Trace**:
+What a test run records: the queue or value each evaluated box produced, by authoring id, and
+the occurrences of each target field per parent slot. The display queue shows it.
+_Avoid_: log, debug output
+
+**Diagnostic**:
+A design-time error or warning, with a stable code and one location: an authoring id, a JSON
+pointer into the mapping model, a field path, or a schema file position (ADR-0015).
+_Avoid_: validation message, problem (reserved for HTTP problem details)
 
 **Display queue**:
 The view that shows the queue (or single value) one function box, source field or target field

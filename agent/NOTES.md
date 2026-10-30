@@ -65,3 +65,22 @@ Module notes by section, read on demand.
     preinstalled Chromium: VERIFIED_PASS. Exclude `e2e/` from Vitest.
   - jsdom 30 needs Node ≥ 22.22.2 (VM: 22.22.0). TypeScript 7 is blocked by typescript-eslint
     8.72 (`typescript <6.1.0`). `@tanstack/react-router` depends on `isbot` (Unlicense).
+- Service trial for #12 (2026-10-30, scratch dir, verifier):
+  - Maven Central (`repo1.maven.org`, `repo.maven.apache.org`) answered HTTP 429 to the VM:
+    ENVIRONMENT_BLOCKED, intermittent. The Google mirror of Central
+    (`https://maven-central.storage-download.googleapis.com/maven2`) served every artefact via a
+    scratch `settings.xml` mirror (`mirrorOf central`) and `-Dmaven.repo.local=<scratch>/m2`:
+    VERIFIED_PASS.
+  - quarkus.io: DNS ENOTFOUND from the session; Quarkus guides via Context7
+    (`/websites/quarkus_io_guides`) and raw quarkusio.github.io files.
+  - Quarkus 3.40.1.1 (LTS 3.40) on Java 25: `mvn verify` with `@QuarkusTest` VERIFIED_PASS
+    (test app start 4.1 s); packaged start 0.9 s, RSS 126 MB; `quarkus:dev` listening after
+    ~26 s, app RSS ~454 MB (needs the engine SNAPSHOT installed first). Vert.x 4.5.35,
+    Jackson 2.21.7, smallrye-open-api 4.3.5, kotlin-stdlib 2.4.10 (BOM) inside.
+  - json-sKema 0.32.0 has no module descriptor (derived automatic module). Real API (javap):
+    `new SchemaLoader(String).load()`, `Validator.forSchema(s).validate(new JsonParser(doc).parse())`
+    → `ValidationFailure` or null; pointer `failure.getInstance().getLocation().getPointer()`.
+  - smallrye-openapi: sealed records need explicit `@Schema(oneOf, discriminatorProperty,
+    discriminatorMapping)`; required needs `requiredProperties` / `required=true` / `@NotNull`;
+    external ref must start with `./`. openapi-typescript 7.13.0 resolves it (ADR-0015).
+  - Never `pkill -f` a pattern that matches your own shell (it killed the verifier's shell).
