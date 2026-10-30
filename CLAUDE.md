@@ -9,6 +9,7 @@ This file is loaded into every context, so it holds only pointers and the rules 
 
 ## Read before work
 
+- `docs/FOUNDING-ARCHITECTURE.md` — the owner's agreed direction; grilling confirms it, never re-asks it.
 - `GLOSSARY.md` — the project's language. Use its terms in code, tests, tickets and hand-backs.
 - `AGENTS.md` — roles, ticket classes (A/B/C/G → model and effort), concurrency, evidence words.
 - `docs/WORKFLOW.md` — how a spec goes from idea to `main`; read the section you are in.

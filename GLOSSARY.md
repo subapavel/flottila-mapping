@@ -42,9 +42,19 @@ A built-in function of the graphical editor (concat, if, formatDate, removeConte
 _Avoid_: built-in, node function
 
 **User-defined function (UDF)**:
-A Java method a mapping author adds, with one of three kinds: single value, all values of a
-context, all values of a queue.
+A Java method a mapping author adds, with one execution kind.
 _Avoid_: custom function, extension (reserved for XSLT extension functions)
+
+**Execution kind**:
+What one call of a standard function or UDF sees: _single value_ (one value at a time),
+_context_ (all values of one context) or _queue_ (all values of the queue).
+_Avoid_: function type, UDF type, cache (SAP PO's UI word)
+
+**Context function**:
+A standard function of execution kind _context_ or _queue_: it sees whole contexts and may change
+their boundaries or the number of values (removeContexts, splitByValue, sort, sum …). SAP PO
+files most of them under "Node functions".
+_Avoid_: node function
 
 ## Queues and contexts
 
@@ -105,6 +115,15 @@ mapping.
 **Golden corpus**:
 Synthetic mappings with inputs and the outputs SAP PO semantics demand, kept in the repo.
 _Avoid_: test data, samples
+
+**Observed case**:
+A golden-corpus case whose expected output was recorded by running the same synthetic mapping
+on SAP PO and SAP Cloud Integration.
+
+**Assumed reading**:
+Our interpretation of a PO behaviour the SAP documentation leaves open, used until an observed
+case confirms or corrects it.
+_Avoid_: default, guess
 
 **Ratchet**:
 A committed record of what passes (oracle cases, coverage, benchmark baselines). Merges may only
