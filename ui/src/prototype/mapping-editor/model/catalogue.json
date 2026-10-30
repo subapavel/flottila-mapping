@@ -1,0 +1,23 @@
+{
+  "_comment": "PROTOTYPE (#10, throwaway): a mini function catalogue as data. Fidelity entries are invented for the prototype.",
+  "functions": [
+    { "name": "constant", "poName": "Constant", "executionKind": "single", "inputs": [], "params": [{ "name": "value", "type": "string", "default": "" }], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "concat", "poName": "concat", "executionKind": "single", "inputs": ["string1", "string2"], "params": [{ "name": "delimiter", "type": "string", "default": "" }], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "toUpperCase", "poName": "toUpperCase", "executionKind": "single", "inputs": ["string"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "equalsS", "poName": "equalsS", "executionKind": "single", "inputs": ["string1", "string2"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "if", "poName": "if", "executionKind": "single", "inputs": ["condition", "then", "else"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "multiply", "poName": "mul", "executionKind": "single", "inputs": ["a", "b"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "formatDate", "poName": "DateTrans", "executionKind": "single", "inputs": ["date"], "params": [{ "name": "inputPattern", "type": "string", "default": "yyyy-MM-dd" }, { "name": "outputPattern", "type": "string", "default": "yyyyMMdd" }], "portable": false, "fidelity": { "level": "deviation", "deviationId": "DEV-0001", "example": "PO parses 2026-2-30 leniently as 2026-03-02; Flottila raises a cast error" } },
+    { "name": "FixValues", "poName": "FixValues", "executionKind": "single", "inputs": ["key"], "params": [{ "name": "table", "type": "table", "default": "" }, { "name": "behaviour", "type": "string", "default": "useKey" }], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "mapWithDefault", "poName": "mapWithDefault", "executionKind": "context", "inputs": ["value"], "params": [{ "name": "default", "type": "string", "default": "" }], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "exists", "poName": "exists", "executionKind": "context", "inputs": ["value"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "createIf", "poName": "createIf", "executionKind": "context", "inputs": ["condition"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "ifWithoutElse", "poName": "ifWithoutElse", "executionKind": "context", "inputs": ["condition", "then"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "removeContexts", "poName": "removeContexts", "executionKind": "context", "inputs": ["value"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "splitByValue", "poName": "SplitByValue", "executionKind": "context", "inputs": ["value"], "params": [{ "name": "mode", "type": "string", "default": "eachValue" }], "portable": true, "fidelity": { "level": "assumed", "example": "mode emptyValue on a trailing empty value: assumed to open an empty last context" } },
+    { "name": "collapseContexts", "poName": "collapseContexts", "executionKind": "context", "inputs": ["value"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "useOneAsMany", "poName": "useOneAsMany", "executionKind": "queue", "inputs": ["value", "repeat", "context"], "params": [], "portable": true, "fidelity": { "level": "assumed", "example": "input 1 shorter than the contexts of input 2: assumed to reuse the last value" } },
+    { "name": "sum", "poName": "sum", "executionKind": "context", "inputs": ["values"], "params": [], "portable": true, "fidelity": { "level": "exact" } },
+    { "name": "count", "poName": "count", "executionKind": "context", "inputs": ["values"], "params": [], "portable": true, "fidelity": { "level": "exact" } }
+  ]
+}
