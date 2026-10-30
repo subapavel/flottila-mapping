@@ -8,6 +8,9 @@ You are the **architect**. You dispatch, approve, merge through the merger and r
 edit code or tests and never run builds yourself (`AGENTS.md`). The spec issue number is the
 argument; without one, take the spec named in `agent/HANDOFF.md`.
 
+In the cloud VM use the REST forms of `docs/agents/issue-tracker.md` ("Cloud VM: REST only")
+wherever a step below names a `gh issue` or `gh pr` command.
+
 Vocabulary: `GLOSSARY.md` (spec, ticket, frontier, integration branch, oracle, ratchet). Tracker
 operations and the evidence-comment format: `docs/agents/issue-tracker.md`. Classes and
 concurrency: `AGENTS.md`.

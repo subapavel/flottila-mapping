@@ -75,3 +75,29 @@ These extend the upstream conventions above; `/run-spec` and `/gate` rely on the
   in flight with their branches, merged tickets, blocked tickets with reasons.
 - **Owner questions**: a comment starting `owner:` plus the `ready-for-human` label; the run
   continues with the next frontier ticket.
+
+## Cloud VM: REST only
+
+In Flottila's Claude Code Cloud environment (2026-10-17) `gh issue …` and `gh pr …` failed because
+the proxy blocked GraphQL, while `gh api` (REST) worked. Until a session observes `gh issue list`
+working here, use these REST forms; `{owner}/{repo}` is filled in by `gh api` inside a clone.
+
+| Operation | REST form |
+| --- | --- |
+| create issue | `gh api repos/{owner}/{repo}/issues -f title=… -f body=@body.md -f 'labels[]=spec'` |
+| read issue / comments | `gh api repos/{owner}/{repo}/issues/<n>` · `…/issues/<n>/comments` |
+| list open issues | `gh api 'repos/{owner}/{repo}/issues?state=open&labels=<l>&per_page=100' --paginate` |
+| comment | `gh api repos/{owner}/{repo}/issues/<n>/comments -f body=@c.md` |
+| labels | `gh api repos/{owner}/{repo}/issues/<n>/labels -f 'labels[]=<l>'` · `-X DELETE …/labels/<l>` |
+| assign (claim) | `gh api repos/{owner}/{repo}/issues/<n>/assignees -f 'assignees[]=<login>'` |
+| close | `gh api -X PATCH repos/{owner}/{repo}/issues/<n> -f state=closed` |
+| sub-issue | `gh api repos/{owner}/{repo}/issues/<parent>/sub_issues -F sub_issue_id=<child db id>` |
+| list sub-issues | `gh api repos/{owner}/{repo}/issues/<parent>/sub_issues` |
+| blocked by | `gh api repos/{owner}/{repo}/issues/<n>/dependencies/blocked_by -F issue_id=<blocker db id>` |
+| open blockers | `gh api repos/{owner}/{repo}/issues/<n> --jq .issue_dependencies_summary.blocked_by` |
+| create PR | `gh api repos/{owner}/{repo}/pulls -f title=… -f head=<branch> -f base=main -f body=@pr.md` |
+| PR checks | `gh api repos/{owner}/{repo}/commits/<sha>/check-runs --jq '.check_runs[] | {name,status,conclusion}'` |
+| merge PR | `gh api -X PUT repos/{owner}/{repo}/pulls/<n>/merge -f merge_method=merge` |
+
+The db id of an issue: `gh api repos/{owner}/{repo}/issues/<n> --jq .id`. Use a body file (`@file`)
+for anything multi-line. The first session in the cloud records in `agent/NOTES.md` which form works.

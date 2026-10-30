@@ -30,4 +30,4 @@ label wayfinder:prototype "c5def5" "Decision ticket: prototype (HITL)"
 label wayfinder:grilling  "c5def5" "Decision ticket: grilling (HITL)"
 label wayfinder:task      "c5def5" "Decision ticket: task"
 
-echo "Done. Remaining by hand: Settings → General → enable Issues; Branches → protect main (no force push, no deletion, PR required)."
+echo "Done. Remaining by hand: Settings → General → enable Issues; Branches → protect main (block force pushes and deletion; no PR requirement — Phase 0 commits ADRs to main, specs land by PR)."
