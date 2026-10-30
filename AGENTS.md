@@ -1,0 +1,101 @@
+# Agents, ticket classes, evidence
+
+Every agent working here (Claude Code, its subagents, any other tool) follows `CLAUDE.md`. This
+file says who does what, with which model, how many at once, and what counts as evidence. The
+loop itself is `docs/WORKFLOW.md`.
+
+## Roles
+
+| Role | Definition | Default model · effort | Writes | Owns |
+| --- | --- | --- | --- | --- |
+| architect | the main session | Opus 5.5 · medium | issues, `agent/`, `docs/`, merges via the merger | specs, tickets, approval of red tests and designs, dispatch, decisions, findings, the spec PR |
+| designer | `.claude/agents/designer.md` | Opus 5.5 · xhigh | nothing (read-only) | class-C design drafts: public types, model formats, IR shapes, ADR drafts, spec rewrites after a second FAIL |
+| test-author | `.claude/agents/test-author.md` | by class | tests and fixtures in its worktree | red tests of class-C tickets, observed red |
+| implementer | `.claude/agents/implementer.md` | by class | code (and tests for A/B) in its worktree | one ticket, green, scoped checks run, integration tip merged in |
+| merger | `.claude/agents/merger.md` | Opus 5.5 · medium | the integration branch | merging one finished ticket branch at a time; mechanical conflicts only |
+| verifier | `.claude/agents/verifier.md` | Sonnet 5.5 · low | `target/`, `ui/.logs/`, `ratchet/` (regeneration only) | running named checks, reporting observed results |
+| scout | `.claude/agents/scout.md` | Haiku 5.5 · medium | nothing | locating code, decisions, prior evidence |
+| reviewer-standards | `.claude/agents/reviewer-standards.md` | by class | nothing | the Standards axis of `/code-review` |
+| reviewer-spec | `.claude/agents/reviewer-spec.md` | by class | nothing | the Spec axis of `/code-review` |
+| gate-reviewer | `.claude/agents/gate-reviewer.md` | Fable 5.1 · high | nothing | milestone gates only |
+
+The architect never edits `src/`, `ui/src/` or a test, and never runs Maven or npm itself: the
+verifier does. It reads hand-backs, the red tests it approves and `git diff --stat`, not whole
+patches.
+
+## Ticket classes
+
+Every ticket carries one `class:*` label, set when `/to-tickets` writes it. The class sets the
+model and effort of every call on that ticket. Raise a class with a reason in a ticket comment;
+never lower it mid-ticket.
+
+| Class | Typical tickets | Red tests by | Implementer | Per-ticket review | Designer |
+| --- | --- | --- | --- | --- | --- |
+| `class:A` mechanical | docs, CI, fixtures, scripts, a UI component from an agreed design, a standard function with an oracle | implementer (`/tdd`) or the oracle | Sonnet 5.5 · medium | none — automatic gate only | — |
+| `class:B` standard | a function family, a REST endpoint, an editor feature, an importer, a fix | implementer (`/tdd`) or the oracle | Opus 5.5 · high | none — automatic gate only | — |
+| `class:C` hard path | XDM / IR / queue representation, compiler and code generator, mapping-model format, public API, concurrency, security boundary | test-author (Opus 5.5 · xhigh) | Opus 5.5 · xhigh | both axes, Opus 5.5 · xhigh, before merge | before the tests, xhigh |
+| `class:G` gate | milestone gate rows | — | — | gate-reviewer (Fable 5.1 · high) | — |
+
+Modifier labels:
+
+- `oracle:differential` — acceptance is a set of cases where our runtime and the exported XSLT
+  run in Saxon-HE must agree. No test-author; the cases are the red.
+- `oracle:corpus` — acceptance is a set of golden-corpus cases (input, mapping, expected output).
+- `oracle:w3c` — acceptance is a set of W3C QT3 / XSLT 3.0 test-set ids (later milestones).
+
+An oracle ticket names its cases in the ticket body. The ratchet then keeps them green forever.
+
+Every spec, whatever its tickets' classes, ends with one full two-axis `/code-review` of the
+integration branch (`docs/WORKFLOW.md` §5).
+
+## Concurrency
+
+- At most **three writers** at once (implementers and test-authors), each in its own git
+  worktree (`isolation: "worktree"`) on its own branch cut from the integration branch.
+- At most **one merger** at a time: merges into the integration branch are serialised.
+- Readers (scout, verifier, reviewers, designer) run beside the writers, at most two at once.
+- `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4` (`.claude/settings.json`). The VM has 4 vCPU; a
+  fourth Maven build in parallel makes every build slower, not the batch faster.
+- No nested delegation: subagents do not start subagents, except `/code-review` started by the
+  architect, which starts its two reviewers.
+- When the architect has nothing else to do while one agent runs, it waits in the foreground
+  (`run_in_background: false`). Background only with two or more agents in flight.
+
+## Hand-offs
+
+**Design draft (designer → architect, class C)** — at most 40 lines: proposal (types, formats,
+signatures), proposed test names, rejected alternatives with one line each, what is expensive to
+reverse (→ ADR draft), conflicts with ADRs or the glossary, open questions.
+
+**Acceptance spec (architect → test-author, class C)** — ticket id, worktree branch, allowed test
+paths, behaviours one line each with test names, fixtures, what counts as red.
+
+**Ticket packet (architect → implementer)** — ticket id and URL, worktree branch and its base
+(integration branch tip), allowed paths, the red that defines done (test names, oracle case ids),
+the ADRs and glossary terms that govern it, checks to run, constraints. Pointers, not copies:
+the implementer reads the ticket, the ADRs and the code itself.
+
+**Hand-back (any agent → architect)** — at most 40 lines: changed paths, one line per path group,
+commands run with evidence word and log path, remaining uncertainty, proposed next action. A
+failure quotes the failing test and at most 10 lines of its section. A turn cap returns partial
+work, marked partial. No agent other than the architect comments on, labels or closes issues.
+
+## Evidence vocabulary
+
+Every check reported anywhere (hand-back, issue comment, PR body) carries one of:
+
+- `VERIFIED_PASS` — ran, observed green, log path given;
+- `EXECUTED_FAIL` — ran, observed red, log path and failing section given;
+- `NOT_RUN` — not executed, with the reason;
+- `ENVIRONMENT_BLOCKED` — could not run here, with the exact error.
+
+A claim without observed output behind it is not evidence. A skeleton is not the feature. A
+number not in `bench/RESULTS.md` does not exist.
+
+## Memory
+
+Implementer, test-author, merger, reviewers and designer keep
+`.claude/agent-memory/<name>/MEMORY.md` (committed; durable facts only — build quirks, verified
+APIs, review findings that came back twice; never ticket state; under 120 lines). When a review
+FAIL repeats a lesson, the lesson goes into the reviewer's memory and the writers' self-check
+lists in the same commit.

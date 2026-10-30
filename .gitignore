@@ -1,0 +1,9 @@
+target/
+ui/node_modules/
+ui/dist/
+ui/.logs/
+.idea/
+*.iml
+.DS_Store
+.claude/settings.local.json
+.claude/worktrees/
