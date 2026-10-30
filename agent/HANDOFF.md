@@ -3,8 +3,8 @@
 state: PHASE_0_HITL — #13 closed (repo layout + build, ADR-0016, ADR-0017, F-3); the map frontier is HITL
 spec: none · integration branch: none · tickets in flight: none
 closed: #18 env · #9 · #7 · #20 · #2 · #15 · #3 · #4 · #5 · #8 · #6 · #10 · #11 · #12 service (ADR-0014/15) · #13 layout + build (ADR-0016/17)
-frontier (map order, re-check via REST): #16 UDFs (grilling) · #17 interpreter/bytecode + speed (grilling); #14 oracles + ratchet once its blocker closes
-next exact action (architect + owner): #16 UDFs (grilling + domain-modeling) unless the owner picks #17; read the carry lines and the #13 resolution comment
+frontier (map order, 0 open blockers after #13, unassigned): #14 oracles + ratchet (grilling) · #16 UDFs (grilling) · #17 interpreter/bytecode + speed (grilling)
+next exact action (architect + owner): #14 oracles + ratchet (grilling + domain-modeling) unless the owner picks #16/#17; re-check the frontier via REST; read the carry lines and the #13 comment
 owner action pending: paste deploy/claude-cloud/setup.sh (v3, Maven mirror + MVNW_REPOURL) into the cloud environment setup script; until then scratch settings.xml
 carry into #14 (from #13): ratchet check = ticket-gate step 5, regeneration = spec-gate step 4 (WORKFLOW §6); PIT nightly.yml on class-C modules; jqwik 1.10.2 and pitest-junit5-plugin 1.2.3 are built on JUnit 5 platform, unproven on JUnit 6.1.3 (Quarkus BOM) — observe before choosing; JaCoCo 0.8.16 in backend job
 carry into #16 (from #13): a UDF module/class loader is #16's — add it to ADR-0016's table; javac -Xlint:all -Werror, no --enable-preview in M1; licence exceptions only per artifact (ADR-0017)
