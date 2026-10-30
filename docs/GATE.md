@@ -12,10 +12,14 @@ on one commit of `main`; each check names the command and the evidence it needs.
    constants, and saves; the mapping model passes its schema and round-trips unchanged.
 3. **Run.** `POST /mappings/{id}/test` with an input returns the target message; the editor's test
    panel shows it, and the display queue at any function shows contexts and SUPPRESS.
-4. **Semantics.** Context functions (`removeContexts`, `splitByValue`, `collapseContexts`,
-   `useOneAsMany`, `createIf`, `exists`) and the standard function families agreed in Phase 0 pass
-   their golden-corpus cases.
-5. **Export.** Every corpus mapping exports to XSLT 3.0; the differential run (our runtime vs
+4. **Semantics.** The milestone-1 functions of issue #3 (ADR-0002, ADR-0003) pass their
+   golden-corpus cases: all PO 7.5 node functions (`removeContexts`, `splitByValue` in all three
+   modes, `collapseContexts`, `useOneAsMany`, `createIf`, `exists`, `mapWithDefault`,
+   `formatByExample`, `sort`, `sortByKey`, `replaceValue`), statistics, arithmetic, `FormatNum`,
+   text, boolean, `Constant`, `CopyValue`, `FixValues` and date functions. No shipped function has
+   fidelity _assumed_; every _deviation_ is in the function catalogue and shown in the editor.
+5. **Export.** Every corpus mapping whose functions are all portable exports to XSLT 3.0
+   (portable profile); the differential run (our runtime vs
    Saxon-HE on the exported XSLT) agrees on every corpus input.
 6. **UDF.** A Java UDF of each kind (single value, context, queue) compiles, runs and shows in the
    display queue.

@@ -56,6 +56,26 @@ their boundaries or the number of values (removeContexts, splitByValue, sort, su
 files most of them under "Node functions".
 _Avoid_: node function
 
+**Function catalogue**:
+The data that lists every standard function: its name, its SAP PO/CPI name, execution kind,
+parameters, whether it is portable, and its fidelity. The editor's palette, the function
+documentation and migration tools read it.
+_Avoid_: function registry, function list
+
+**Fidelity**:
+How a standard function relates to SAP PO/CPI behaviour: _exact_, _deviation_ (a documented
+difference with an id and an example) or _assumed_ (an assumed reading waiting for an observed
+case).
+_Avoid_: compatibility level
+
+**Portable function**:
+A function whose exported XSLT 3.0 runs on any conforming processor without Flottila's own Java
+functions. Only portable functions are covered by the differential oracle.
+
+**Export profile**:
+The target of an XSLT export: _portable_ (pure XSLT 3.0) or, later, _flottila_ (may call
+Flottila's Java functions).
+
 ## Queues and contexts
 
 **Queue**:
