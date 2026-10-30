@@ -1,6 +1,6 @@
 # The mapping-model schema is the source: generated TS types, hand-written Java records, three-stage validation
 
-Status: accepted (2026-10-30, grilling #6)
+Status: accepted (2026-10-30, grilling #6); amended by F-2
 
 FOUNDING §12 says the editor's model types are generated from the mapping-model schema. This
 ADR records that and fills the gaps for the Java side and for validation.
@@ -34,7 +34,7 @@ there is one.
    - an unknown function, a wrong arity, or a parameter that cannot be cast;
    - a pattern that does not translate;
    - an unresolved box;
-   - an unconnected input;
+   - an unconnected input, or an unconnected target field (`result` is `null`, F-2);
    - a UDF that does not match its declaration;
    - a fingerprint mismatch.
 

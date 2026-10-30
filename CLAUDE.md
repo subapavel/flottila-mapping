@@ -30,7 +30,7 @@ tickets with native blocking edges. There is no backlog file.
   on the integration branch.
 - Writers work only inside their worktree and the paths their ticket names.
 - Library APIs: Context7 first, then `javap` / the package's `.d.ts`. Never an API from memory.
-- Dependencies: Apache 2.0, MIT, BSD, MPL 2.0, EPL only. Saxon-HE only at test scope (oracle).
+- Dependencies: Apache 2.0, MIT, BSD, ISC, 0BSD, MPL 2.0, EPL only (ISC, 0BSD: ADR-0012). Saxon-HE only at test scope (oracle).
 - No secret, customer payload or real partner data in the repo; corpora are synthetic.
 - When practice contradicts an ADR or the architecture: write the finding (`docs/WORKFLOW.md` §7).
 

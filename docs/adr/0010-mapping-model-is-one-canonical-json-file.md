@@ -1,6 +1,6 @@
 # A mapping model is one canonical JSON file that references its schemas and UDF sources
 
-Status: accepted (2026-10-30, grilling #6); refines ADR-0009
+Status: accepted (2026-10-30, grilling #6); refines ADR-0009; amended by F-2 (`result` may be `null`)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §6 ("mapping model is data, never generated
 code: declarative, versioned, diffable, validated by a schema") and fills its gaps. Flottila is
@@ -20,8 +20,8 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
     `{wsdl: {interface, operation, direction: input|output|fault, fault?}}` or `{json: "$"}`;
   - `fingerprint`: `sha256:<hex>` (ADR-0009).
 - `targetFieldMappings` is an object keyed by target field path (ADR-0007). Each entry is
-  `{id, result, boxes}`. `result` is the id of the box whose output feeds the field. An unmapped
-  field has no entry.
+  `{id, result, boxes}`. `result` is the id of the box whose output feeds the field, or `null`
+  while it is not wired yet (F-2). An unmapped field has no entry.
 - `boxes` is an object keyed by `AuthoringId`. A box has one `kind`:
   - `source {field, context?}`: a source-field box;
   - `function {fn, inputs?, params?}`: a standard function from the function catalogue;
@@ -137,7 +137,8 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
 - Every new member costs a `formatVersion` bump and a migration.
 - #12 decides the mapping's identity and name, whether milestone 1 resolves package references,
   and the self-contained transport export (an analogue of `.mmap`).
-- #10 lays out graphs automatically and generates fresh ids on paste.
+- #10 lays out graphs automatically and generates fresh ids on paste (ADR-0012: dagre, stable
+  layout, "Arrange").
 - #14 needs an observed case: does PO evaluate a box shared by two target fields once?
 - #16 decides how UDFs are written, compiled and isolated, and whether the editor fills `udfs`
   from annotations.

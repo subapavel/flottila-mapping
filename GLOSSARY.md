@@ -105,9 +105,30 @@ error.
 _Avoid_: unknown function, missing function
 
 **Layout**:
-Where the editor draws boxes and how the view is zoomed or collapsed. It is computed from the
-mapping model or kept as the viewer's own state, and never stored with the mapping.
+Where the editor draws boxes and how the view is zoomed, collapsed or split. It is computed from
+the mapping model when a mapping opens (dagre), then kept stable as the viewer's own state, and
+it is never stored with the mapping (ADR-0012).
 _Avoid_: diagram, view data
+
+**Structure overview**:
+The top half of the editor. The source tree and the target tree stand side by side, with field
+links drawn between them.
+_Avoid_: mapping overview, tree view
+
+**Field link**:
+The line in the structure overview from a source field to a target field whose target field
+mapping reads it. A pair of fields has one link, however many source-field boxes stand behind it.
+_Avoid_: edge (reserved for the function graph), connection, line
+
+**Function editor**:
+The bottom half of the editor. It holds the canvas with the function graph of the selected
+target field mapping, the palette, quick insert and the inspector.
+_Avoid_: data-flow editor, mapping expression
+
+**Inspector**:
+The panel of the function editor that shows the selected box: its catalogue documentation and
+fidelity, its box parameters, its context and its display queue.
+_Avoid_: properties panel
 
 **Standard function**:
 A built-in function of the graphical editor (concat, if, formatDate, removeContexts …).
@@ -187,7 +208,8 @@ _Avoid_: constant (for the general case)
 
 **Display queue**:
 The view that shows the queue (or single value) one function box, source field or target field
-produces, with its contexts and SUPPRESS markers, for a given test input.
+produces, with its contexts and SUPPRESS markers, for a given test input. For a target field it
+also shows the occurrences created per parent slot, and why a slot created none (ADR-0012).
 
 ## Engine
 
