@@ -62,7 +62,7 @@ there is one.
   - `duplicate-authoring-id`: target field mappings and boxes share one id space;
   - `unknown-box-reference`;
   - `cross-target-field-reference`;
-  - `box-cycle`: reported once per cycle, at its smallest id;
+  - `box-cycle`: reported once per strongly connected component, at its smallest id;
   - `context-not-ancestor`;
   - `undeclared-udf`.
 - `Diagnostic`, its `Location` and the load result live in `engine/mapping`. `engine/api`
