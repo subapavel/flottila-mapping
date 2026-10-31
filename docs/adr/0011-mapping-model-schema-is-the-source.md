@@ -57,6 +57,9 @@ there is one.
   - any other keyword → `schema-violation`, so stage 1 still fails closed.
 - A box whose `kind` matches no branch gives `unknown-box-kind` at its `kind`. Otherwise the
   failures of the matched branch are reported.
+- A parameter value is resolved the same way: an object reports the table branch's failures
+  (a non-string row is `wrong-type` at that row), anything else that is not a string is
+  `wrong-type` at the value. Other `oneOf`s (the root selector) stay `schema-violation`.
 - Stage 2 codes are located at the consuming box's `{authoringId}`, or at the target field
   mapping's for `result`:
   - `duplicate-authoring-id`: target field mappings and boxes share one id space;
