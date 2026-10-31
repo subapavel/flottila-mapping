@@ -1,7 +1,7 @@
 # Handoff
 
 state: RUNNING — /run-spec #21 "Walking skeleton"
-spec: #21 · integration branch: spec/21-walking-skeleton · merged: #22 · in flight: #23, #24 (designer), #25
+spec: #21 · integration branch: spec/21-walking-skeleton · merged: #22, #23 · in flight: #24 (designer), #25 · observation requests open: #31–#38 (owner)
 closed (map #1): #2–#20 — decisions indexed on the map; specs and post-M1 order in docs/GATE.md "Specs in build order"
 next exact action (architect): resume /run-spec #21 — reconcile in-flight tickets against spec/21-walking-skeleton, then fill the frontier
 spec 1 decisions (#21): full formatVersion 1 schema, other box kinds → `unsupported-box-kind`; flat XSD with one required field; observation kit ticket + 6–8 grouped requests; `po-owner-local` in spec 5; owner protects main after first green CI; empty udf modules with PIT `failWhenNoMutations=false`; `PW_CHROMIUM_EXECUTABLE`; 4 seams
