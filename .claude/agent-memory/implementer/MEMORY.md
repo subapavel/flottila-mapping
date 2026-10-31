@@ -14,6 +14,10 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - A `\u` in a Java comment is a Unicode escape and breaks compilation; spell it `\`{@code u}.
 - `scripts/gate-ticket.sh` steps 3 and 4 run `git diff` (worktree against index): an untracked
   new file passes them unseen. Stage new contract/generated files before the gate.
+- Its first argument only names the logs: `gate-ticket.sh 24f ...` writes `.logs/24f-*.log`.
+- Timing a load stage: run a scratch `java -cp <target/classes:~/.m2 jars> Probe.java` against
+  the public `internal` classes; JFR (`-XX:StartFlightRecording`) plus `jfr print` for hot spots.
+  Surefire's per-test `time` includes a cold JIT and the JaCoCo agent.
 
 ## json-sKema 0.32.0 (observed, engine/mapping)
 
@@ -26,7 +30,13 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   document carries the contract's `$defs` and refs `#/$defs/<name>`.
 - A keyword's schema location is taken from its key's `SourceLocation`: in a hand-built tree a
   member key must carry the member's pointer, not the parent's.
-- `Validator` keeps mutable state: one per validation, not shared across threads.
+- `Validator` keeps the instance in a public field: never share one across threads. Sequential
+  reuse is safe (`validate` resets `instance`; `DynamicPath` push/pop is balanced, javap).
+- Throughput (observed, 100 000 function boxes): about 3-4 us per box against one branch, warm;
+  a 4-branch `oneOf` costs about 4x. A cold JVM roughly doubles it. Dispatch boxes by `kind`.
+- `oneOf` failure: causes are per branch; `flatten()` returns leaves only. An
+  `additionalProperties` wrapper sits at the object, its row failures at the rows.
+- Loading a 7.5 MB model (tree, stage 1, records) held a live set of about 600 MB (GC log).
 
 ## JaCoCo
 
