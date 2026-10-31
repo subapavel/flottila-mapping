@@ -105,3 +105,48 @@ Toy numbers: the shapes and ratios inform ADR-0021, they are not baselines.
 
 Parsing takes about 85 % of the small message end to end. The large parse + map + serialise run
 is GC-bound (bimodal iterations), so its error stays large even with 4 s iterations.
+
+## Build skeleton (#22, ADR-0017, ADR-0019)
+
+Machine `claude-cloud-4vcpu` (4 vCPU, JDK 25.0.5, Maven 3.9.11 via `./mvnw`, warm `~/.m2`), 2026-10-31.
+Built from branch `t/22-build-skeleton` on top of `16ca7c2`; the skeleton has no production code, so
+these are build-overhead baselines (plugins, Spotless, enforcer, licences, JaCoCo, Quarkus augmentation),
+not test times. The first real tests will move them. Wall seconds, `-B -q`.
+
+| Command | Time |
+| --- | --- |
+| ticket gate step 1, engine: `-pl engine/xdm,engine/oracle -am verify` (whole engine), single | 8.9, 9.6 |
+| same, 3 copies of the repo in parallel (3 worktrees) | 21.0, 21.8, 21.8 |
+| ticket gate step 1, service: `-pl service,engine/oracle -am verify`, single | 20.2, 20.8 |
+| same, 3 copies in parallel | 53.6, 54.3, 54.3 |
+| ticket gate step 2: `-DskipTests verify` (whole reactor incl. Quarkus build) | 14.8, 15.4 |
+| full `-Pbench clean verify` | 19.6, 20.6 |
+| `java scripts/ratchet.java check` | 0.9, 0.9 |
+| `scripts/gate-spec.sh` end to end (all steps, JMH not run) | 99.9 |
+
+Budget (ADR-0019): engine ticket gate under 30 s with three in parallel: 21.8 s, met. Service ticket gate
+under 60 s with three in parallel: 54.3 s, met with 6 s to spare and with no `@QuarkusTest` yet, so the first
+service tickets will probably break it. Step 2 is 15 s, not the "about 8 s" of ADR-0019: the real reactor has
+13 modules and a Quarkus augmentation (about 10 s of it).
+
+## Playwright 1.63.0 and the cloud image's Chromium (#22)
+
+Checked 2026-10-31 on `claude-cloud-4vcpu` (and on the GitHub runner, see below).
+
+| | Expected by `playwright-core` 1.63.0 (`browsers.json`) | Installed in `/opt/pw-browsers` |
+| --- | --- | --- |
+| chromium | build 1243 (Chrome for Testing 153.0.8010.12) | `chromium-1243` (153.0.8010.12) |
+| chromium headless shell | build 1243 | `chromium_headless_shell-1243` (153.0.8010.12) |
+| ffmpeg | 1011 | `ffmpeg-1011` |
+
+Playwright 1.63.0 and the image match. The "mismatch" seen in the #14 trial (Vitest browser mode wanting
+build 1248) came from a second Playwright copy: `@vitest/browser-playwright` 5.0.5 takes `playwright` as a
+peer dependency (`*`), and with only `@playwright/test` 1.63.0 declared npm resolved the peer to **1.64.1**
+and hoisted it, so the Vitest provider launched the 1248 headless shell. Observed in `npm ls playwright-core`
+and in the CI log of the first run (`npx playwright install` fetched 1243, Vitest looked for 1248).
+
+Resolution: `ui/package.json` declares `playwright` 1.63.0 as an exact devDependency, so there is one
+Playwright copy. Then Vitest browser mode, `npm run e2e` and `npm run e2e:stack` all find the image's
+Chromium with no path and no environment variable, and CI's `npx playwright install chromium` fetches the
+same 1243. The optional `PW_CHROMIUM_EXECUTABLE` that #22 allowed for a mismatch is therefore not needed and
+not added; `deploy/claude-cloud/setup.sh` is unchanged. Playwright is not downgraded.

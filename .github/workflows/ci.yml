@@ -1,0 +1,124 @@
+name: ci
+
+# ADR-0017. Required on main: backend, ui, stack.
+# Pushes to ticket branches (t/**) run it too, so a ticket's CI can be observed before the spec PR.
+on:
+  pull_request:
+  push:
+    branches: [main, 't/**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Central rate-limits shared IPs; the Google mirror of Central serves the same artefacts (ADR-0017).
+  MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Maven mirror
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+      - name: Build, test, floors, licences, bans
+        run: ./mvnw -B -Pbench verify
+      - name: contract/ is up to date
+        run: git diff --exit-code contract/
+
+  ui:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      # The pinned @playwright/test (1.63.0) decides the Chromium build.
+      - run: npx playwright install --with-deps chromium
+      - name: Generated types are up to date
+        run: |
+          npm run gen:types
+          git diff --exit-code src/generated
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run test:browser
+      - run: npm run e2e
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          if-no-files-found: error
+
+  stack:
+    needs: [backend, ui]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Maven mirror
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+      - name: Jar with the UI inside
+        run: ./mvnw -B -Pui -pl service -am package -DskipTests
+      - name: Playwright
+        working-directory: ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      # --pass-with-no-tests is in the e2e:stack script until #30 adds the first @stack scenario and removes it.
+      - name: '@stack suite against the jar'
+        working-directory: ui
+        run: npm run e2e:stack
