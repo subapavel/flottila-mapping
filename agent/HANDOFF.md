@@ -1,10 +1,11 @@
 # Handoff
 
-state: SPEC_1_SPECIFIED — spec #21 "Walking skeleton" published (grilled 2026-10-31); no tickets yet
-spec: #21 · integration branch: none yet · tickets in flight: none
+state: SPEC_1_TICKETED — spec #21 "Walking skeleton" sliced into #22–#30 (sub-issues, native blocking edges)
+spec: #21 · integration branch: none yet (cut `spec/21-walking-skeleton` from main at /run-spec) · tickets in flight: none
 closed (map #1): #2–#20 — decisions indexed on the map; specs and post-M1 order in docs/GATE.md "Specs in build order"
-next exact action (architect + owner): `/to-tickets` for #21 — owner approves the breakdown and the `obs-id` list of the observation kit
+next exact action (architect): `/run-spec` for #21 — frontier is #22 (build skeleton); then #23 ∥ #24 ∥ #25; after #23 merges, open the 8 observation-request issues it lists
 spec 1 decisions (#21): full formatVersion 1 schema, other box kinds → `unsupported-box-kind`; flat XSD with one required field; observation kit ticket + 6–8 grouped requests; `po-owner-local` in spec 5; owner protects main after first green CI; empty udf modules with PIT `failWhenNoMutations=false`; `PW_CHROMIUM_EXECUTABLE`; 4 seams
+tickets (#21): #22 skeleton A · #23 observation kit A · #24 model format C · #25 flat XSD B · #26 compile+run C corpus · #27 export C differential · #28 service C · #29 editor B · #30 @stack A
 spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 speed · 6 editor · 7 UDFs
 rule (#19): a function ticket carries runtime + export + corpus + differential cases; no export spec; requests never block a spec
 after M1: JSON output → bytecode tier → formatVersion 2 + PO importer → XSLT front end
