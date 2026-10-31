@@ -65,7 +65,8 @@ structures, behind `StructureReader.read(SchemaBundle, RootSelector)`. The mappi
 uses json-sKema to validate mapping models (F-1, ADR-0011). XSD uses Apache XmlSchema 2.3.3
 (Apache-2.0), and JSON Schema uses json-sKema 0.32.0 (MIT). Loading is offline: references
 resolve inside the schema bundle. A namespace-only import resolves to the one bundle file with
-that `targetNamespace`. Load errors carry file, line and column.
+that `targetNamespace`. Load errors carry file, line and column; XmlSchema keeps no positions,
+so a JDK SAX pass (DOCTYPE refused) runs first and supplies them (F-7).
 
 ## JSON as a target
 

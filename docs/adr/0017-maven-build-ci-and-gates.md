@@ -25,7 +25,7 @@ and this ADR is its specification.
   does the same in a workflow step.
 - **Root POM**, the parent of everything:
   - maven-compiler 3.16.0 with `release 25`, `-Xlint:all -Werror`. Only the modules that read
-    json-sKema (an automatic module) add `-Xlint:-requires-automatic`. No `--enable-preview`
+    json-sKema or XmlSchema (automatic modules, F-7) add `-Xlint:-requires-automatic`. No `--enable-preview`
     in milestone 1;
   - maven-enforcer 3.6.3: Java and Maven versions, `dependencyConvergence`,
     `bannedDependencies`. It bans `org.openjdk.jmh` everywhere but `bench/jmh`, `net.sf.saxon`
