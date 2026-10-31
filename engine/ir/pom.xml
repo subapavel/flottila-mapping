@@ -12,9 +12,9 @@
   <name>Flottila Mapping ir</name>
 
   <properties>
-    <!-- No production code yet: PIT skips such a module, and fails "No mutations found" on a first
-         class without mutable bytecode. The first ticket that adds production code (#26) removes
-         this line. The mutation floor is not lowered. -->
+    <!-- The only production code is AuthoringId (#24), a record without logic of its own and
+         without a test in this module. #26, which adds the IR and its tests, removes this line.
+         The mutation floor is not lowered. -->
     <pit.failWhenNoMutations>false</pit.failWhenNoMutations>
   </properties>
 

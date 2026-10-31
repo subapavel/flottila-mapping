@@ -88,7 +88,7 @@ public final class ModelReader {
   private static Box box(IJsonValue value) {
     IJsonObject box = (IJsonObject) value;
     return switch (text(box, "kind")) {
-      case "source" -> new SourceFieldBox(text(box, "field"), optionalText(box, "context"));
+      case "source" -> sourceFieldBox(text(box, "field"), optionalText(box, "context"));
       case "function" -> new StandardFunctionBox(text(box, "fn"), inputs(box), params(box));
       case "udf" -> new UdfBox(text(box, "udf"), inputs(box), params(box));
       // stage 1 lets no other kind through
@@ -99,6 +99,15 @@ public final class ModelReader {
               inputs(box),
               params(box));
     };
+  }
+
+  /**
+   * The parent is a source box's default context: a {@code context} naming it is dropped, as the
+   * writer leaves it out, so that a loaded model equals the same model loaded after a save.
+   */
+  private static SourceFieldBox sourceFieldBox(String field, Optional<String> context) {
+    return new SourceFieldBox(
+        field, context.filter(given -> !FieldPathText.isParent(given, field)));
   }
 
   private static List<Optional<AuthoringId>> inputs(IJsonObject box) {

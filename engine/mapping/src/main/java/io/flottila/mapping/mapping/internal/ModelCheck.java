@@ -11,11 +11,10 @@ import io.flottila.mapping.mapping.StandardFunctionBox;
 import io.flottila.mapping.mapping.TargetFieldMapping;
 import io.flottila.mapping.mapping.UdfBox;
 import io.flottila.mapping.mapping.UnresolvedFunctionBox;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -141,67 +140,122 @@ public final class ModelCheck {
    */
   private final class Cycles {
 
-    private final TargetFieldMapping mapping;
-    private final Map<AuthoringId, Integer> index = new HashMap<>();
-    private final Map<AuthoringId, Integer> low = new HashMap<>();
-    private final Deque<AuthoringId> stack = new ArrayDeque<>();
-    private final Set<AuthoringId> onStack = new HashSet<>();
+    /** The boxes by number. */
+    private final List<AuthoringId> ids;
+
+    /** For each box, the numbers of the boxes of this target field mapping it reads. */
+    private final int[][] reads;
+
+    /** Tarjan's numbers: the order of discovery, -1 before it, and the lowest number reached. */
+    private final int[] index;
+
+    private final int[] low;
+    private final boolean[] onStack;
+
+    /** The boxes of the components not yet closed, in discovery order. */
+    private final int[] stack;
+
+    private int stacked;
+    private int discovered;
+
+    /** The search path: a box, and how many of its inputs are followed. */
+    private final int[] pathBox;
+
+    private final int[] pathNext;
 
     Cycles(TargetFieldMapping mapping) {
-      this.mapping = mapping;
+      ids = List.copyOf(mapping.boxes().keySet());
+      int n = ids.size();
+      Map<AuthoringId, Integer> numbers = new HashMap<>();
+      for (int k = 0; k < n; k++) {
+        numbers.put(ids.get(k), k);
+      }
+      reads = new int[n][];
+      for (int k = 0; k < n; k++) {
+        reads[k] =
+            inputs(mapping.boxes().get(ids.get(k))).stream()
+                .flatMap(Optional::stream)
+                .filter(numbers::containsKey)
+                .mapToInt(numbers::get)
+                .toArray();
+      }
+      index = new int[n];
+      Arrays.fill(index, -1);
+      low = new int[n];
+      onStack = new boolean[n];
+      stack = new int[n];
+      pathBox = new int[n];
+      pathNext = new int[n];
     }
 
     void report() {
-      for (AuthoringId box : mapping.boxes().keySet()) {
-        if (!index.containsKey(box)) {
-          visit(box);
+      for (int box = 0; box < ids.size(); box++) {
+        if (index[box] < 0) {
+          search(box);
         }
       }
     }
 
-    /** The boxes of this target field mapping that {@code box} reads. */
-    private Set<AuthoringId> inputsOf(AuthoringId box) {
-      return inputs(mapping.boxes().get(box)).stream()
-          .flatMap(Optional::stream)
-          .filter(mapping.boxes()::containsKey)
-          .collect(Collectors.toSet());
-    }
-
-    private void visit(AuthoringId box) {
-      index.put(box, index.size());
-      low.put(box, index.get(box));
-      stack.push(box);
-      onStack.add(box);
-      Set<AuthoringId> inputs = inputsOf(box);
-      for (AuthoringId input : inputs) {
-        if (!index.containsKey(input)) {
-          visit(input);
-          low.put(box, Math.min(low.get(box), low.get(input)));
-        } else if (onStack.contains(input)) {
-          low.put(box, Math.min(low.get(box), index.get(input)));
+    /**
+     * Tarjan's depth-first search from {@code root}, on an explicit path instead of the call stack:
+     * a chain of boxes is as deep as it is long.
+     */
+    private void search(int root) {
+      int depth = 0;
+      depth = enter(root, depth);
+      while (depth > 0) {
+        int box = pathBox[depth - 1];
+        if (pathNext[depth - 1] < reads[box].length) {
+          int input = reads[box][pathNext[depth - 1]++];
+          if (index[input] < 0) {
+            depth = enter(input, depth);
+          } else if (onStack[input]) {
+            low[box] = Math.min(low[box], index[input]);
+          }
+        } else {
+          depth--;
+          if (low[box] == index[box]) {
+            component(box);
+          }
+          if (depth > 0) {
+            int parent = pathBox[depth - 1];
+            low[parent] = Math.min(low[parent], low[box]);
+          }
         }
       }
-      if (low.get(box).equals(index.get(box))) {
-        List<AuthoringId> component = new ArrayList<>();
-        AuthoringId member;
-        do {
-          member = stack.pop();
-          onStack.remove(member);
-          component.add(member);
-        } while (!member.equals(box));
-        if (component.size() > 1 || inputs.contains(box)) {
-          AuthoringId smallest =
-              Collections.min(component, Comparator.comparing(AuthoringId::value));
-          add(
-              "box-cycle",
-              smallest,
-              "the boxes "
-                  + component.stream()
-                      .map(AuthoringId::value)
-                      .sorted()
-                      .collect(Collectors.joining(", "))
-                  + " form a cycle");
-        }
+    }
+
+    /** Numbers {@code box}, stacks it and puts it on the path; the path's new depth. */
+    private int enter(int box, int depth) {
+      index[box] = discovered;
+      low[box] = discovered++;
+      stack[stacked++] = box;
+      onStack[box] = true;
+      pathBox[depth] = box;
+      pathNext[depth] = 0;
+      return depth + 1;
+    }
+
+    /** Pops the component whose root is {@code box} and reports it if it is a cycle. */
+    private void component(int box) {
+      List<AuthoringId> component = new ArrayList<>();
+      int member;
+      do {
+        member = stack[--stacked];
+        onStack[member] = false;
+        component.add(ids.get(member));
+      } while (member != box);
+      if (component.size() > 1 || Arrays.stream(reads[box]).anyMatch(input -> input == box)) {
+        AuthoringId smallest = Collections.min(component, Comparator.comparing(AuthoringId::value));
+        add(
+            "box-cycle",
+            smallest,
+            "the boxes "
+                + component.stream()
+                    .map(AuthoringId::value)
+                    .sorted()
+                    .collect(Collectors.joining(", "))
+                + " form a cycle");
       }
     }
   }

@@ -4,6 +4,7 @@ import com.github.erosb.jsonsKema.IJsonNumber;
 import com.github.erosb.jsonsKema.IJsonObject;
 import com.github.erosb.jsonsKema.IJsonString;
 import com.github.erosb.jsonsKema.IJsonValue;
+import com.github.erosb.jsonsKema.JsonBoolean;
 import com.github.erosb.jsonsKema.JsonObject;
 import com.github.erosb.jsonsKema.JsonPointer;
 import com.github.erosb.jsonsKema.JsonString;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,10 @@ public final class SchemaStage {
 
   /** Where the contract holds the {@code oneOf} of the box kinds. */
   private static final JsonPointer BOX_KINDS = new JsonPointer("$defs", "box", "oneOf");
+
+  /** Where the contract holds the {@code oneOf} of a parameter value: a string or a table. */
+  private static final JsonPointer PARAM_VALUE_KINDS =
+      new JsonPointer("$defs", "paramValue", "oneOf");
 
   private static final Schemas SCHEMAS = Schemas.load();
 
@@ -55,15 +61,15 @@ public final class SchemaStage {
               new AtPointer("/formatVersion"),
               "formatVersion is newer than " + FORMAT_VERSION + ", the newest this engine reads"));
     }
+    // json-sKema 0.32.0 keeps only the first member's result of a patternProperties map (it takes
+    // firstOrNull of the members' results, observed), so a later member's failure is lost (F-8).
+    // The schemas see every map value as true, and each member is validated on its own, once.
     Findings found = new Findings();
     found.add(SCHEMAS.document(), document);
-    // json-sKema 0.32.0 keeps only the first member's result of a patternProperties map (it takes
-    // firstOrNull of the members' results, observed), so a later member's failure is lost. Every
-    // member of every map is validated again on its own; Findings drops the repeats.
     for (IJsonValue mapping : members(document, "targetFieldMappings")) {
       found.add(SCHEMAS.targetFieldMapping(), mapping);
       for (IJsonValue box : members(mapping, "boxes")) {
-        found.add(SCHEMAS.box(), box);
+        found.add(SCHEMAS.box(box), box);
         for (IJsonValue param : members(box, "params")) {
           found.add(SCHEMAS.paramValue(), param);
         }
@@ -111,8 +117,15 @@ public final class SchemaStage {
 
     private final Map<Key, Diagnostic> found = new LinkedHashMap<>();
 
+    /**
+     * One validator per schema, reused value after value within this document. A validator keeps
+     * the instance it is validating in a field, so it is never shared between documents.
+     */
+    private final Map<Schema, Validator> validators = new IdentityHashMap<>();
+
     void add(Schema schema, IJsonValue value) {
-      ValidationFailure failure = Validator.forSchema(schema).validate(value);
+      ValidationFailure failure =
+          validators.computeIfAbsent(schema, Validator::forSchema).validate(value);
       if (failure != null) {
         translate(failure);
       }
@@ -124,10 +137,17 @@ public final class SchemaStage {
 
     private void translate(ValidationFailure failure) {
       if (failure instanceof OneOfValidationFailure oneOf) {
-        if (BOX_KINDS.equals(oneOf.getSchema().getLocation().getPointer())) {
-          box(oneOf);
+        JsonPointer schema = oneOf.getSchema().getLocation().getPointer();
+        if (BOX_KINDS.equals(schema)) {
+          // only a box whose kind names no branch meets the oneOf (Schemas.box)
+          put(
+              "unknown-box-kind",
+              text(pointerOf(oneOf).plus("kind")),
+              "kind is none of source, function, udf and unresolved");
+        } else if (PARAM_VALUE_KINDS.equals(schema)) {
+          paramValue(oneOf);
         } else {
-          leaf(oneOf); // a root selector or a parameter value that is neither kind
+          leaf(oneOf); // the root selector: oneOf has no code of its own
         }
       } else if (failure.getCauses().isEmpty()) {
         leaf(failure);
@@ -137,20 +157,21 @@ public final class SchemaStage {
     }
 
     /**
-     * A box no branch accepts. A branch whose {@code const} fits the box's {@code kind} has no
-     * failure at {@code kind}; when exactly one such branch exists its failures are reported,
-     * otherwise the kind matches no branch.
+     * A parameter value that is neither a string nor a table. An object fails the string branch at
+     * the value and the table branch only at its rows, so the table branch's failures are reported;
+     * any other value fails both branches at the value, and is the wrong type.
      */
-    private void box(OneOfValidationFailure oneOf) {
-      JsonPointer kind = pointerOf(oneOf).plus("kind");
-      List<ValidationFailure> matched =
+    private void paramValue(OneOfValidationFailure oneOf) {
+      JsonPointer value = pointerOf(oneOf);
+      List<ValidationFailure> table =
           oneOf.getCauses().stream()
-              .filter(branch -> branch.flatten().stream().noneMatch(f -> kind.equals(pointerOf(f))))
+              .filter(
+                  branch -> branch.flatten().stream().noneMatch(f -> value.equals(pointerOf(f))))
               .toList();
-      if (matched.size() == 1) {
-        translate(matched.getFirst());
+      if (table.isEmpty()) {
+        put("wrong-type", text(value), "a parameter value is a string or a table");
       } else {
-        put("unknown-box-kind", text(kind), "kind is none of source, function, udf and unresolved");
+        table.forEach(this::translate);
       }
     }
 
@@ -177,11 +198,19 @@ public final class SchemaStage {
     }
   }
 
-  /** The contract's schema, and the schemas of the map values it validates one by one. */
+  /**
+   * The contract's schema and the schemas of the map values, all with every {@code
+   * patternProperties} value opened to {@code true}: a map checks its keys, and its values are
+   * validated one by one.
+   *
+   * @param boxKinds the branch of the box {@code oneOf} for each {@code kind}
+   * @param anyBox the box {@code oneOf}, for a box whose kind names no branch
+   */
   private record Schemas(
       Schema document,
       Schema targetFieldMapping,
-      Schema box,
+      Map<String, Schema> boxKinds,
+      Schema anyBox,
       Schema paramValue,
       Schema udfDeclaration,
       Schema udfParamType) {
@@ -189,17 +218,57 @@ public final class SchemaStage {
     static Schemas load() {
       IJsonObject contract;
       try (InputStream in = SchemaStage.class.getResourceAsStream("mapping-model.schema.json")) {
-        contract = (IJsonObject) StrictJsonReader.read(in.readAllBytes());
+        contract = openMapValues((IJsonObject) StrictJsonReader.read(in.readAllBytes()));
       } catch (IOException | MalformedJsonException e) {
         throw new IllegalStateException("the packed mapping-model schema cannot be read", e);
       }
       return new Schemas(
           new SchemaLoader(contract).load(),
           definition(contract, "targetFieldMapping"),
+          Map.of(
+              "source", definition(contract, "sourceFieldBox"),
+              "function", definition(contract, "standardFunctionBox"),
+              "udf", definition(contract, "udfBox"),
+              "unresolved", definition(contract, "unresolvedFunctionBox")),
           definition(contract, "box"),
           definition(contract, "paramValue"),
           definition(contract, "udfDeclaration"),
           definition(contract, "udfParamType"));
+    }
+
+    /**
+     * The schema for {@code box}: the branch its {@code kind} names, which a valid box of that kind
+     * alone satisfies, so the box is validated against one branch rather than four.
+     */
+    Schema box(IJsonValue box) {
+      return box instanceof IJsonObject object && object.get("kind") instanceof IJsonString kind
+          ? boxKinds.getOrDefault(kind.getValue(), anyBox)
+          : anyBox;
+    }
+
+    /**
+     * {@code schema} with the value schema of every {@code patternProperties} replaced by {@code
+     * true}, locations kept. The contract has no {@code patternProperties} inside an array.
+     */
+    private static IJsonObject openMapValues(IJsonObject schema) {
+      Map<IJsonString, IJsonValue> members = new LinkedHashMap<>();
+      schema
+          .getProperties()
+          .forEach(
+              (key, value) -> {
+                if (!(value instanceof IJsonObject object)) {
+                  members.put(key, value);
+                } else if (key.getValue().equals("patternProperties")) {
+                  Map<IJsonString, IJsonValue> open = new LinkedHashMap<>();
+                  object
+                      .getProperties()
+                      .forEach((p, s) -> open.put(p, new JsonBoolean(true, s.getLocation())));
+                  members.put(key, new JsonObject(open, object.getLocation()));
+                } else {
+                  members.put(key, openMapValues(object));
+                }
+              });
+      return new JsonObject(members, schema.getLocation());
     }
 
     /**
