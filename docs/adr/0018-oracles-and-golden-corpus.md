@@ -115,8 +115,10 @@ also checks the suites' licence.
 
 The diagnostic catalogue is not a central file. Each engine module declares its codes as
 constants in one class, `<Module>Diagnostics`. A test in `engine/api` collects them through the
-modules' public API. It checks that every code is kebab-case and unique across modules, that at
-least one corpus case raises each code, and that no case expects a code that does not exist.
+modules' public API. It checks that every code is kebab-case and unique across modules, and that
+every code-shaped string in the engine's classes is a catalogue code. `engine/oracle` checks that
+no case expects a code that does not exist, and, from spec 2 on, that at least one corpus case
+raises each runtime error code (F-9).
 
 Property tests cover the algebra of queues in `xdm` and `runtime`: context functions, block
 invariants, and `Lift` against a reference implementation in the test. They are JUnit 6

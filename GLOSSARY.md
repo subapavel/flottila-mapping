@@ -261,6 +261,11 @@ What a test run records: the queue or value each evaluated box produced, by auth
 the occurrences of each target field per parent slot. The display queue shows it.
 _Avoid_: log, debug output
 
+**Diagnostic catalogue**:
+The stable codes of design-time errors and warnings, declared as constants in one
+`<Module>Diagnostics` class per engine module.
+_Avoid_: error list, message catalogue
+
 **Diagnostic**:
 A design-time error or warning, with a stable code and one location: an authoring id, a JSON
 pointer into the mapping model, a field path, or a schema file position (ADR-0015).
