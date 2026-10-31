@@ -3,11 +3,20 @@ package io.flottila.mapping.mapping;
 import static io.flottila.mapping.mapping.Fixtures.assertBytes;
 import static io.flottila.mapping.mapping.Fixtures.utf8;
 import static io.flottila.mapping.mapping.LoadResults.loaded;
+import static io.flottila.mapping.mapping.Models.boxes;
+import static io.flottila.mapping.mapping.Models.function;
+import static io.flottila.mapping.mapping.Models.inputs;
+import static io.flottila.mapping.mapping.Models.model;
+import static io.flottila.mapping.mapping.Models.params;
+import static io.flottila.mapping.mapping.Models.targetFieldMapping;
+import static io.flottila.mapping.mapping.Models.targetFieldMappings;
+import static io.flottila.mapping.mapping.Models.text;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -156,6 +165,54 @@ class MappingModelRoundTripTest {
 
     assertThat(once).isNotEqualTo(utf8(NON_CANONICAL));
     assertBytes(once, twice);
+  }
+
+  /** A constant whose value is the lone low surrogate U+DE00, in canonical form. */
+  static final String LONE_LOW_SURROGATE =
+      MappingModelWriterTest.HEADER
+          + """
+            "targetFieldMappings": {
+              "/Invoice/Currency": {
+                "boxes": {
+                  "c1": {
+                    "fn": "constant",
+                    "kind": "function",
+                    "params": {
+                      "value": "\\ude00"
+                    }
+                  }
+                },
+                "id": "t1",
+                "result": "c1"
+              }
+            }
+          }
+          """;
+
+  /**
+   * json-sKema 0.32.0 decodes this escape as U+00DE (see StrictJsonReader); the reader must not.
+   * The bytes come first: the writer spells U+00DE literally, so a wrong decode fails with a
+   * readable diff, where a report of the lone surrogate itself is cut off.
+   */
+  @Test
+  void loneLowSurrogateEscapeRoundTripsAsItself() throws Exception {
+    MappingModel read = loaded(MappingModelFormat.load(utf8(LONE_LOW_SURROGATE)));
+
+    assertBytes(LONE_LOW_SURROGATE, MappingModelFormat.save(read));
+    assertThat(read)
+        .isEqualTo(
+            model(
+                MappingModelWriterTest.ORDER,
+                MappingModelWriterTest.INVOICE,
+                targetFieldMappings(
+                    "/Invoice/Currency",
+                    targetFieldMapping(
+                        "t1",
+                        "c1",
+                        boxes(
+                            "c1",
+                            function("constant", inputs(), params("value", text("\ude00")))))),
+                Map.of()));
   }
 
   static LongStream seeds() {

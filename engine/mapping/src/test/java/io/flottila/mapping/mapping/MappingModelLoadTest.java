@@ -110,7 +110,23 @@ class MappingModelLoadTest {
         Arguments.of(
             "UTF-8 encoded surrogate",
             badUtf8("CH", new byte[] {(byte) 0xED, (byte) 0xA0, (byte) 0x80}, "F")),
-        Arguments.of("lone continuation byte", badUtf8("CH", new byte[] {(byte) 0x80}, "F")));
+        Arguments.of("lone continuation byte", badUtf8("CH", new byte[] {(byte) 0x80}, "F")),
+        // RFC 8259 rules json-sKema 0.32.0's own parser does not enforce (StrictJsonReader)
+        Arguments.of("raw control character U+0001 in a string", inEur("E\u0001UR")),
+        Arguments.of("raw control character U+001F in a string", inEur("E\u001fUR")),
+        Arguments.of("unknown escape \\q", inEur("E\\qUR")),
+        Arguments.of("bad hex digit in a \\u escape", inEur("E\\u12g4UR")),
+        Arguments.of("misspelt literal tru", asResult("tru")),
+        Arguments.of("misspelt literal nul", asResult("nul")),
+        Arguments.of("misspelt literal fals", asResult("fals")),
+        Arguments.of(
+            "trailing comma in an object",
+            utf8(VALID.replace("\"euro\": \"EUR\"", "\"euro\": \"EUR\","))),
+        Arguments.of(
+            "trailing comma in an array", utf8(VALID.replace("\"order.xsd\"", "\"order.xsd\","))),
+        Arguments.of(
+            "leading zero in formatVersion",
+            utf8(VALID.replace("\"formatVersion\": 1,", "\"formatVersion\": 01,"))));
   }
 
   @ParameterizedTest(name = "{0}")
@@ -118,6 +134,20 @@ class MappingModelLoadTest {
   void loadThrowsMalformedOnSyntaxBomDuplicateKeyOrBadUtf8(String why, byte[] json) {
     assertThatThrownBy(() -> MappingModelFormat.load(json))
         .as(why)
+        .isInstanceOf(MalformedJsonException.class);
+  }
+
+  /**
+   * The reader stops at its depth limit (StrictJsonReader.MAX_DEPTH, 64; a mapping model nests
+   * seven) instead of recursing into the document: far beyond the limit it is a transport error,
+   * never a {@link StackOverflowError}.
+   */
+  @Test
+  void loadThrowsMalformedNotStackOverflowOnNestingFarBeyondTheDepthLimit() {
+    int levels = 100_000;
+    byte[] deep = utf8(VALID.replace("\"t1\"", "[".repeat(levels) + "]".repeat(levels)));
+
+    assertThatThrownBy(() -> MappingModelFormat.load(deep))
         .isInstanceOf(MalformedJsonException.class);
   }
 
@@ -158,6 +188,21 @@ class MappingModelLoadTest {
     assertThat(refused(MappingModelFormat.load(utf8(foreign))))
         .isNotEmpty()
         .noneMatch(d -> d.contains("format-version-unsupported"));
+  }
+
+  /**
+   * {@link #VALID} with the table value {@code "EUR"} spelt as the JSON string body {@code body}.
+   */
+  private static byte[] inEur(String body) {
+    return utf8(VALID.replace("\"EUR\"", "\"" + body + "\""));
+  }
+
+  /**
+   * {@link #VALID} with {@code word} as the value of {@code result}, followed by a line break: a
+   * reader that skipped the literal's length unchecked would read the document as well-formed.
+   */
+  private static byte[] asResult(String word) {
+    return utf8(VALID.replace("\"result\": \"b1\"", "\"result\": " + word));
   }
 
   /** {@link #VALID} with {@code bad} spliced into the table key {@code "CHF"}. */
