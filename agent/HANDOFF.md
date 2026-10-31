@@ -1,9 +1,9 @@
 # Handoff
 
-state: SPEC_1_TICKETED — spec #21 "Walking skeleton" sliced into #22–#30 (sub-issues, native blocking edges)
-spec: #21 · integration branch: none yet (cut `spec/21-walking-skeleton` from main at /run-spec) · tickets in flight: none
+state: RUNNING — /run-spec #21 "Walking skeleton"
+spec: #21 · integration branch: spec/21-walking-skeleton · tickets in flight: #22 (t/22-build-skeleton)
 closed (map #1): #2–#20 — decisions indexed on the map; specs and post-M1 order in docs/GATE.md "Specs in build order"
-next exact action (architect): `/run-spec` for #21 — frontier is #22 (build skeleton); then #23 ∥ #24 ∥ #25; after #23 merges, open the 8 observation-request issues it lists
+next exact action (architect): resume /run-spec #21 — reconcile in-flight tickets against spec/21-walking-skeleton, then fill the frontier
 spec 1 decisions (#21): full formatVersion 1 schema, other box kinds → `unsupported-box-kind`; flat XSD with one required field; observation kit ticket + 6–8 grouped requests; `po-owner-local` in spec 5; owner protects main after first green CI; empty udf modules with PIT `failWhenNoMutations=false`; `PW_CHROMIUM_EXECUTABLE`; 4 seams
 tickets (#21): #22 skeleton A · #23 observation kit A · #24 model format C · #25 flat XSD B · #26 compile+run C corpus · #27 export C differential · #28 service C · #29 editor B · #30 @stack A
 spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 speed · 6 editor · 7 UDFs
