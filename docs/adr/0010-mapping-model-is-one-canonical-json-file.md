@@ -75,7 +75,8 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
 - There is one writer. It sorts keys by UTF-16 code unit and indents as
   `JSON.stringify(value, null, 2)` does. It writes LF line endings, a final LF, and UTF-8 without
   a BOM.
-- It leaves out members equal to their default, and empty objects and arrays. A `context` equal
+- It leaves out members equal to their default, and empty objects and arrays, except an empty
+  table parameter, which is a value and is written `{}` (#24, F-6). A `context` equal
   to the field's parent is left out.
 - Values are strings. `formatVersion` is the only number.
 - Unordered collections are objects keyed by id or field path. Arrays appear only where order

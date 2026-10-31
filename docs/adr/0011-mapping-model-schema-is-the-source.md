@@ -24,7 +24,8 @@ ADR records that and fills the gaps for the Java side and for validation.
 There are three stages. Each error carries the `AuthoringId` of the element it concerns, where
 there is one.
 
-1. **Schema**: json-sKema 0.32.0 validates the file. It checks shape, kinds, id patterns and
+1. **Schema**: json-sKema 0.32.0 validates the file, behind the engine's own strict JSON reader
+   and with every map member validated on its own (F-8). It checks shape, kinds, id patterns and
    unknown members, and fails closed. A failure names the JSON pointer of the instance.
 2. **Model check, on load**: it checks that ids are unique, that references resolve inside
    their target field mapping, that the graph is acyclic, and that a context is a proper
@@ -56,12 +57,15 @@ there is one.
   - any other keyword → `schema-violation`, so stage 1 still fails closed.
 - A box whose `kind` matches no branch gives `unknown-box-kind` at its `kind`. Otherwise the
   failures of the matched branch are reported.
+- A parameter value is resolved the same way: an object reports the table branch's failures
+  (a non-string row is `wrong-type` at that row), anything else that is not a string is
+  `wrong-type` at the value. Other `oneOf`s (the root selector) stay `schema-violation`.
 - Stage 2 codes are located at the consuming box's `{authoringId}`, or at the target field
   mapping's for `result`:
   - `duplicate-authoring-id`: target field mappings and boxes share one id space;
   - `unknown-box-reference`;
   - `cross-target-field-reference`;
-  - `box-cycle`: reported once per cycle, at its smallest id;
+  - `box-cycle`: reported once per strongly connected component, at its smallest id;
   - `context-not-ancestor`;
   - `undeclared-udf`.
 - `Diagnostic`, its `Location` and the load result live in `engine/mapping`. `engine/api`
