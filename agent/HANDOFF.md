@@ -1,10 +1,10 @@
 # Handoff
 
-state: PHASE_0_DONE — #19 closed (GATE.md final, 7 specs in build order); map #1 closed, destination met
-spec: none · integration branch: none · tickets in flight: none
+state: SPEC_1_SPECIFIED — spec #21 "Walking skeleton" published (grilled 2026-10-31); no tickets yet
+spec: #21 · integration branch: none yet · tickets in flight: none
 closed (map #1): #2–#20 — decisions indexed on the map; specs and post-M1 order in docs/GATE.md "Specs in build order"
-next exact action (architect + owner): `/grill-with-docs` for spec 1 "Walking skeleton" (docs/GATE.md row 1), then `/to-spec`
-spec 1 must: build skeleton ticket first (carry-over comments on #19); open the observation requests of ADR-0004/6/8 + #2 §7
+next exact action (architect + owner): `/to-tickets` for #21 — owner approves the breakdown and the `obs-id` list of the observation kit
+spec 1 decisions (#21): full formatVersion 1 schema, other box kinds → `unsupported-box-kind`; flat XSD with one required field; observation kit ticket + 6–8 grouped requests; `po-owner-local` in spec 5; owner protects main after first green CI; empty udf modules with PIT `failWhenNoMutations=false`; `PW_CHROMIUM_EXECUTABLE`; 4 seams
 spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 speed · 6 editor · 7 UDFs
 rule (#19): a function ticket carries runtime + export + corpus + differential cases; no export spec; requests never block a spec
 after M1: JSON output → bytecode tier → formatVersion 2 + PO importer → XSLT front end
