@@ -1,0 +1,12 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "flottila-mapping-service API",
+    "version" : "0.1.0-SNAPSHOT"
+  },
+  "paths" : { },
+  "servers" : [ {
+    "url" : "http://127.0.0.1:8080",
+    "description" : "Auto generated value"
+  } ]
+}
