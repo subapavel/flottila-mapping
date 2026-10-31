@@ -115,15 +115,5 @@ then
 else
   log "could not write $settings (continuing; context7 stays pending approval)"
 fi
-# Playwright: the image carries a Chromium build older than the one @playwright/test 1.63.0 expects
-# (1243 vs 1248, bench/RESULTS.md). Vitest browser mode launches the headless shell by its expected
-# revision and fails, so ui/playwright.chromium.ts reads this optional variable. Elsewhere it is unset.
-shell="$(ls -d /opt/pw-browsers/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | sort | tail -1)"
-if [ -n "$shell" ] && [ -x "$shell" ]; then
-  echo "export PW_CHROMIUM_EXECUTABLE=$shell" > /etc/profile.d/pw-chromium.sh
-  log "PW_CHROMIUM_EXECUTABLE=$shell"
-else
-  log "no Chromium headless shell under /opt/pw-browsers (PW_CHROMIUM_EXECUTABLE not set)"
-fi
 log "node: $(node --version 2>/dev/null || echo missing) · npm: $(npm --version 2>/dev/null || echo missing)"
 log "done"

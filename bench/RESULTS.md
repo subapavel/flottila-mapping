@@ -131,24 +131,22 @@ service tickets will probably break it. Step 2 is 15 s, not the "about 8 s" of A
 
 ## Playwright 1.63.0 and the cloud image's Chromium (#22)
 
-Checked 2026-10-31 on `claude-cloud-4vcpu`, `ui/` installed with `npm ci`-equivalent (`npm install`).
+Checked 2026-10-31 on `claude-cloud-4vcpu` (and on the GitHub runner, see below).
 
-| | Expected by `@playwright/test` 1.63.0 (`playwright-core/browsers.json`) | Installed in `/opt/pw-browsers` |
+| | Expected by `playwright-core` 1.63.0 (`browsers.json`) | Installed in `/opt/pw-browsers` |
 | --- | --- | --- |
-| chromium | build 1248 (Chrome for Testing 156.0.8078.4) | `chromium-1243` (153.0.8010.12) |
-| chromium headless shell | build 1248 | `chromium_headless_shell-1243` (153.0.8010.12) |
-| ffmpeg | 1013 | 1011 |
+| chromium | build 1243 (Chrome for Testing 153.0.8010.12) | `chromium-1243` (153.0.8010.12) |
+| chromium headless shell | build 1243 | `chromium_headless_shell-1243` (153.0.8010.12) |
+| ffmpeg | 1011 | `ffmpeg-1011` |
 
-Mismatch. Observed effects:
+Playwright 1.63.0 and the image match. The "mismatch" seen in the #14 trial (Vitest browser mode wanting
+build 1248) came from a second Playwright copy: `@vitest/browser-playwright` 5.0.5 takes `playwright` as a
+peer dependency (`*`), and with only `@playwright/test` 1.63.0 declared npm resolved the peer to **1.64.1**
+and hoisted it, so the Vitest provider launched the 1248 headless shell. Observed in `npm ls playwright-core`
+and in the CI log of the first run (`npx playwright install` fetched 1243, Vitest looked for 1248).
 
-- Vitest browser mode (`@vitest/browser-playwright` 5.0.5) launches the headless shell by its expected
-  revision and fails: `Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1248/...`.
-  With `executablePath` set to the 1243 headless shell it passes.
-- Playwright's own test runner (`npm run e2e`, `e2e:stack`) falls back to `chromium-1243`
-  (`chromium.executablePath()` returns `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`) and passes
-  without any path. It also passes with the override.
-
-Resolution: `ui/playwright.chromium.ts` exports an optional `PW_CHROMIUM_EXECUTABLE`, read by
-`playwright.config.ts`, `playwright.stack.config.ts` and `vitest.browser.config.ts`. Only
-`deploy/claude-cloud/setup.sh` sets it (to the 1243 headless shell). CI and laptops leave it unset.
-Playwright is not downgraded.
+Resolution: `ui/package.json` declares `playwright` 1.63.0 as an exact devDependency, so there is one
+Playwright copy. Then Vitest browser mode, `npm run e2e` and `npm run e2e:stack` all find the image's
+Chromium with no path and no environment variable, and CI's `npx playwright install chromium` fetches the
+same 1243. The optional `PW_CHROMIUM_EXECUTABLE` that #22 allowed for a mismatch is therefore not needed and
+not added; `deploy/claude-cloud/setup.sh` is unchanged. Playwright is not downgraded.
