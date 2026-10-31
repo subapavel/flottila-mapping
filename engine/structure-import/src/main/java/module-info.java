@@ -1,3 +1,8 @@
+/** Reads schema bundles into the structure model (ADR-0008). */
 module io.flottila.mapping.structure.importer {
-  requires io.flottila.mapping.structure;
+  requires transitive io.flottila.mapping.structure;
+  requires java.xml;
+  requires xmlschema.core;
+
+  exports io.flottila.mapping.structure.importer;
 }

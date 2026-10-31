@@ -17,6 +17,8 @@
     <jacoco.min.branches>0.00</jacoco.min.branches>
     <!-- no mutation floor (ADR-0019) -->
     <pit.skip>true</pit.skip>
+    <!-- the XSD reader library (ADR-0008) -->
+    <xmlschema.version>2.3.3</xmlschema.version>
   </properties>
 
   <dependencies>
@@ -25,5 +27,35 @@
       <artifactId>flottila-mapping-structure</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.ws.xmlschema</groupId>
+      <artifactId>xmlschema-core</artifactId>
+      <version>${xmlschema.version}</version>
+    </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <compilerArgs combine.children="append">
+            <!-- xmlschema-core 2.3.3 has no module descriptor: an automatic module (ADR-0017) -->
+            <arg>-Xlint:-requires-automatic</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- the golden corpus at the repository root (ADR-0018): the skeleton schema bundle -->
+            <flottila.corpus>${maven.multiModuleProjectDirectory}/corpus</flottila.corpus>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
