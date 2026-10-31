@@ -100,8 +100,8 @@ directories, comma-separated, e.g. `engine/xdm,engine/ir`):
 | 5 | `java scripts/ratchet.java check` | `.logs/<t>-ratchet.log` | always: no listed case failing or missing, no coverage below `ratchet/` of the integration branch; unbuilt modules print `NOT_RUN` (ADR-0019) |
 
 Budget on the VM (4 vCPU), three gates in parallel: an engine ticket under 30 s for step 1 (it
-builds the whole engine because of `engine/oracle`), a service ticket under 60 s; step 2 about 8 s
-(ADR-0019; the skeleton ticket measures it into `bench/RESULTS.md`). The verifier runs at
+builds the whole engine because of `engine/oracle`), a service ticket under 60 s; step 2 about 15 s
+(measured by #22 in `bench/RESULTS.md`, F-5). The verifier runs at
 most one gate that builds `service` at a time.
 
 **Spec gate** (verifier, integration branch, one at a time):
@@ -109,7 +109,8 @@ most one gate that builds `service` at a time.
 1. `./mvnw -B clean verify -Pbench` (all tests, oracles, JaCoCo floors, bench compiles) and
    `git diff --exit-code contract/`;
    1b. PIT on the class-C modules the spec touched:
-   `./mvnw -B -pl <class-C modules> org.pitest:pitest-maven:mutationCoverage` (floor 80 %,
+   `./mvnw -B -pl <class-C modules> -am test-compile org.pitest:pitest-maven:mutationCoverage`
+   (`pit.skip` skips the modules without a mutation floor, F-5) (floor 80 %,
    ADR-0019) → `.logs/<spec>-pit.log`; above 10 minutes it narrows to the modules class-C tickets
    touched;
 2. in `ui/`: `npm ci`, every step of ticket-gate row 4, `npm run build`;

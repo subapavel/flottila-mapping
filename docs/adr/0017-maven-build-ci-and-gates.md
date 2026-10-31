@@ -74,7 +74,7 @@ and this ADR is its specification.
 
 ## CI (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on `pull_request` and on `push` to `main`, with `concurrency`
+`.github/workflows/ci.yml` runs on `pull_request` and on `push` to `main` and to `t/**` (F-4), with `concurrency`
 per ref and `cancel-in-progress`. It runs on `ubuntu-24.04`, with `actions/checkout@v7`,
 `setup-java@v6` (Temurin 25, `cache: maven`, mirror step) and `setup-node@v7` (Node 22, npm
 cache).
