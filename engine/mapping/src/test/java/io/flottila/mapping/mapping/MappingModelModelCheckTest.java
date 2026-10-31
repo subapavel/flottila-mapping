@@ -246,6 +246,35 @@ class MappingModelModelCheckTest {
         .containsEntry(Models.id("a2"), source("/Order/Item/@id", "/Order"));
   }
 
+  /**
+   * 100 000 function boxes in one chain, listed head first: {@code b000000} (the result) reads
+   * {@code b000001}, and so on down to a source box. A check that recursed once per box would
+   * overflow the stack long before the end.
+   */
+  @Test
+  void loadAcceptsALongAcyclicChainWithoutOverflowingTheStack() throws Exception {
+    int functions = 100_000;
+    StringBuilder boxes = new StringBuilder();
+    for (int k = 0; k < functions; k++) {
+      boxes.append(
+          "\"b%06d\": {\"kind\": \"function\", \"fn\": \"concat\", \"inputs\": [\"b%06d\"]},\n"
+              .formatted(k, k + 1));
+    }
+    boxes.append(
+        "\"b%06d\": {\"kind\": \"source\", \"field\": \"/Order/Number\"}".formatted(functions));
+    String mappings =
+        "{\"/Invoice/Number\": {\"id\": \"t1\", \"result\": \"b000000\", \"boxes\": {"
+            + boxes
+            + "}}}";
+
+    MappingModel model = loaded(MappingModelFormat.load(utf8(document(mappings))));
+
+    assertThat(model.targetFieldMappings().get("/Invoice/Number").boxes())
+        .hasSize(100_001)
+        .containsEntry(Models.id("b000000"), function("concat", inputs("b000001"), noParams()))
+        .containsEntry(Models.id("b100000"), source("/Order/Number"));
+  }
+
   @Test
   void loadReportsUndeclaredUdf() throws Exception {
     String mappings =

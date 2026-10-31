@@ -15,9 +15,10 @@ import java.util.stream.Stream;
 
 /**
  * Files the tests read from the repository: the committed canonical fixtures under {@code
- * corpus/mapping-model} and the contract under {@code contract/}. Surefire runs in the module
- * directory, so the repository root is the nearest ancestor holding {@code mvnw} and {@code
- * contract/}.
+ * engine/mapping/src/test/resources/mapping-model} (not in {@code corpus/}, the service's dev
+ * workspace, which lists every mapping file in it) and the contract under {@code contract/}.
+ * Surefire runs in the module directory, so the repository root is the nearest ancestor holding
+ * {@code mvnw} and {@code contract/}.
  */
 final class Fixtures {
 
@@ -32,17 +33,17 @@ final class Fixtures {
     throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
   }
 
-  static Path mappingModelCorpus() {
-    return repoRoot().resolve("corpus/mapping-model");
+  static Path mappingModelFixtures() {
+    return repoRoot().resolve("engine/mapping/src/test/resources/mapping-model");
   }
 
   static Path schemaFile() {
     return repoRoot().resolve("contract/mapping-model.schema.json");
   }
 
-  /** Every {@code *.mapping.json} under {@code corpus/mapping-model}, sorted by name. */
+  /** Every {@code *.mapping.json} of {@link #mappingModelFixtures}, sorted by name. */
   static List<Path> canonicalFixtures() {
-    try (Stream<Path> files = Files.list(mappingModelCorpus())) {
+    try (Stream<Path> files = Files.list(mappingModelFixtures())) {
       return files
           .filter(p -> p.getFileName().toString().endsWith(".mapping.json"))
           .sorted()
@@ -54,7 +55,7 @@ final class Fixtures {
 
   static byte[] fixture(String fileName) {
     try {
-      return Files.readAllBytes(mappingModelCorpus().resolve(fileName));
+      return Files.readAllBytes(mappingModelFixtures().resolve(fileName));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

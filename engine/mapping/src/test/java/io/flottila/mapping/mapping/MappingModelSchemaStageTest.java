@@ -406,4 +406,93 @@ class MappingModelSchemaStageTest {
       String what, String json, String expected) throws Exception {
     assertThat(refused(MappingModelFormat.load(utf8(json)))).containsExactly(expected);
   }
+
+  static final String TFM_DATE = "/targetFieldMappings/~1Invoice~1Date";
+
+  /**
+   * {@code /Invoice/Number} as in {@link #withBoxes}, then {@code /Invoice/Date} with {@code tail}.
+   */
+  static String withSecondMapping(String tail) {
+    return withMappings(
+        """
+        {"/Invoice/Number": {"id": "t1", "result": null, "boxes": {
+           "a1": {"kind": "source", "field": "/Order/Number"}}},
+         "/Invoice/Date": {%s, "boxes": {
+           "a2": {"kind": "source", "field": "/Order/Date"}}}}"""
+            .formatted(tail));
+  }
+
+  /**
+   * json-sKema 0.32.0 keeps only the first member's result of a {@code patternProperties} map
+   * (F-8), so each failure sits in a later member of a map of at least two, after a valid first.
+   */
+  static Stream<Arguments> laterMembers() {
+    return Stream.of(
+        Arguments.of(
+            "an unknown member on the second target field mapping",
+            withSecondMapping("\"id\": \"t2\", \"result\": null, \"switchedOff\": \"true\""),
+            errorAtPointer("unknown-member", TFM_DATE + "/switchedOff")),
+        Arguments.of(
+            "a bad id on the second target field mapping",
+            withSecondMapping("\"id\": \"t 2\", \"result\": null"),
+            errorAtPointer("pattern-mismatch", TFM_DATE + "/id")),
+        Arguments.of(
+            "an unknown member on the second box",
+            withBoxes(
+                """
+                {"a1": {"kind": "source", "field": "/Order/Number"},
+                 "a2": {"kind": "source", "field": "/Order/Date", "fn": "concat"}}"""),
+            errorAtPointer("unknown-member", BOX + "a2/fn")),
+        Arguments.of(
+            "an unknown member on the second UDF declaration",
+            withUdfs(
+                """
+                {"fmt": {"executionKind": "single", "inputs": ["value"], "params": {"scale": "int"},
+                         "source": "udf/Udfs.java#fmt"},
+                 "pad": {"executionKind": "single", "deterministic": "true",
+                         "source": "udf/Udfs.java#pad"}}"""),
+            errorAtPointer("unknown-member", "/udfs/pad/deterministic")),
+        Arguments.of(
+            "a number as the second box parameter",
+            withBoxes(
+                "{\"c1\": {\"kind\": \"function\", \"fn\": \"constant\","
+                    + " \"params\": {\"a\": \"x\", \"b\": 5}}}"),
+            errorAtPointer("wrong-type", BOX + "c1/params/b")),
+        Arguments.of(
+            "a number as the second value of a table that is the second box parameter",
+            withBoxes(
+                "{\"f1\": {\"kind\": \"function\", \"fn\": \"fixValues\","
+                    + " \"params\": {\"mode\": \"x\", \"table\": {\"k\": \"v\", \"l\": 1}}}}"),
+            errorAtPointer("wrong-type", BOX + "f1/params/table/l")),
+        Arguments.of(
+            "a type outside string and int as the second UDF parameter",
+            withUdfs(
+                UDFS.replace("{\"scale\": \"int\"}", "{\"scale\": \"int\", \"width\": \"long\"}")),
+            errorAtPointer("invalid-value", "/udfs/fmt/params/width")));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("laterMembers")
+  void loadReportsAFailureInALaterMemberOfAMap(String what, String json, String expected)
+      throws Exception {
+    assertThat(refused(MappingModelFormat.load(utf8(json)))).containsExactly(expected);
+  }
+
+  /**
+   * ADR-0011 maps no stage-1 code to {@code oneOf}, so a root selector that is none of its three
+   * kinds (here an element root and a JSON root at once) fails closed with {@code schema-violation}
+   * at the selector.
+   */
+  @Test
+  void loadFailsClosedWithSchemaViolationOnAKeywordWithoutACode() throws Exception {
+    String json =
+        document(
+            SOURCE.replace("{\"element\": \"Order\"}", "{\"element\": \"Order\", \"json\": \"$\"}"),
+            TARGET,
+            VALID_MAPPINGS,
+            UDFS);
+
+    assertThat(refused(MappingModelFormat.load(utf8(json))))
+        .containsExactly(errorAtPointer("schema-violation", "/source/root"));
+  }
 }

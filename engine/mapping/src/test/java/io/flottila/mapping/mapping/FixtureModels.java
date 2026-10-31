@@ -25,8 +25,8 @@ import io.flottila.mapping.structure.WsdlDirection;
 import java.util.Map;
 
 /**
- * The models the committed fixtures under {@code corpus/mapping-model} describe, written by hand
- * from the files: the worked examples a load is compared with.
+ * The models the committed fixtures under {@code engine/mapping/src/test/resources/mapping-model}
+ * describe, written by hand from the files: the worked examples a load is compared with.
  */
 final class FixtureModels {
 

@@ -8,6 +8,7 @@ import static io.flottila.mapping.mapping.Models.function;
 import static io.flottila.mapping.mapping.Models.inputs;
 import static io.flottila.mapping.mapping.Models.model;
 import static io.flottila.mapping.mapping.Models.params;
+import static io.flottila.mapping.mapping.Models.source;
 import static io.flottila.mapping.mapping.Models.targetFieldMapping;
 import static io.flottila.mapping.mapping.Models.targetFieldMappings;
 import static io.flottila.mapping.mapping.Models.text;
@@ -213,6 +214,50 @@ class MappingModelRoundTripTest {
                             "c1",
                             function("constant", inputs(), params("value", text("\ude00")))))),
                 Map.of()));
+  }
+
+  static Stream<Arguments> contextsOnTheParent() {
+    return Stream.of(
+        Arguments.of("/Order/Header/Date", "/Order/Header"),
+        Arguments.of("/Order/Header/@date", "/Order/Header"),
+        // the last step's namespace holds a '/', so the parent is not the text before the last '/'
+        Arguments.of("/Order/Q{urn:x/y}Date", "/Order"));
+  }
+
+  /**
+   * The parent is a source box's default context, and the writer leaves it out; a loaded model has
+   * no {@code context} equal to the field's parent either, so load agrees with load after save.
+   */
+  @ParameterizedTest(name = "{0} in context {1}")
+  @MethodSource("contextsOnTheParent")
+  void loadDropsAContextEqualToTheFieldsParentAsSaveDoes(String field, String parent)
+      throws Exception {
+    String json =
+        MappingModelWriterTest.HEADER
+            + """
+              "targetFieldMappings": {
+                "/Invoice/Date": {
+                  "boxes": {
+                    "s1": {
+                      "context": "%s",
+                      "field": "%s",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t1",
+                  "result": "s1"
+                }
+              }
+            }
+            """
+                .formatted(parent, field);
+
+    MappingModel once = loaded(MappingModelFormat.load(utf8(json)));
+    MappingModel again = loaded(MappingModelFormat.load(MappingModelFormat.save(once)));
+
+    assertThat(once).isEqualTo(again);
+    assertThat(once.targetFieldMappings().get("/Invoice/Date").boxes())
+        .isEqualTo(boxes("s1", source(field)));
   }
 
   static LongStream seeds() {

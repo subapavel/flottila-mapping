@@ -53,7 +53,7 @@ class EngineFacadeTest {
       """;
 
   @Test
-  void loadAndSaveDelegate() throws Exception {
+  void facadeSavesWhatItLoadsByteIdenticalAndRefusesANewerFormatVersion() throws Exception {
     EngineFacade facade = new EngineFacade();
     byte[] canonical = CANONICAL.getBytes(UTF_8);
 
