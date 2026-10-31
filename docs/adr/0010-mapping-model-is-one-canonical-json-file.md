@@ -15,7 +15,7 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
   runs on load, before validation, and its result is written on the next save. Each migration
   has one golden input/output pair.
 - `source` and `target` each hold:
-  - `bundle`: the schema files, as references;
+  - `bundle`: the schema files, as references; a non-empty set, written sorted (#24);
   - `root`: the root selector, one of `{element: EQName}`,
     `{wsdl: {interface, operation, direction: input|output|fault, fault?}}` or `{json: "$"}`;
   - `fingerprint`: `sha256:<hex>` (ADR-0009).
@@ -37,7 +37,7 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
   the catalogue's parameter name. A value is a string or a table (an object from string to
   string, for `FixValues`).
 - `udfs` is keyed by UDF name. Each entry is
-  `{executionKind: single|context|queue, inputs: [name], params?: {name: string|int}, source}`.
+  `{executionKind: single|context|queue, inputs?: [name], params?: {name: string|int}, source}` (`inputs` optional, F-6).
   `source` points at a Java method, for example `udf/Udfs.java#formatPartner`. Compiling checks
   that the method matches the declaration. Java source is never inline. How UDFs are written,
   compiled and isolated is #16's decision.
