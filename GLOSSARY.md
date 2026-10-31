@@ -307,7 +307,27 @@ _Avoid_: node id, element id
 A compiler stage that turns one authoring form (mapping model, XSLT, XPath) into IR.
 
 **Back end**:
-A stage that runs IR: the interpreter, the bytecode generator, the XSLT exporter.
+A stage that runs IR: the interpreter, the bytecode tier, the XSLT exporter.
+
+**Tier**:
+One of the back ends that execute a mapping: tier 0 is the interpreter, tier 1 the bytecode tier.
+Every tier gives byte-identical output.
+_Avoid_: engine, mode
+
+**Interpreter**:
+Tier 0. It runs a compiled mapping as a tree of executable nodes built once from the IR, over
+frames with slots. It is milestone 1's only tier and always the editor's.
+_Avoid_: evaluator, tree walker
+
+**Bytecode tier**:
+Tier 1. It generates one hidden JVM class per mapping from the IR and unloads it with the
+mapping. It comes after milestone 1.
+_Avoid_: JIT, code generator (alone), compiled mode
+
+**Traced compile**:
+A compile of a mapping that reports every box's value to a tracer for the display queue. An
+untraced compile has no trace hooks at all.
+_Avoid_: debug mode, instrumented run
 
 **Projection**:
 Reading only the source fields a compiled mapping uses and skipping the rest of the input.
@@ -362,7 +382,8 @@ question each input decides.
 
 **Metamorphic variant**:
 Another way of running the same corpus case that must give a byte-identical output: optimised or
-unoptimised IR, with or without a tracer, and later the bytecode tier.
+unoptimised IR, with or without a tracer, and from the bytecode tier on, interpreter against
+bytecode tier (the fifth variant).
 
 **Assumed reading**:
 Our interpretation of a PO behaviour the SAP documentation leaves open, used until an observed
@@ -377,6 +398,17 @@ spec, nobody edits it by hand.
 **Floor**:
 A fixed minimum of coverage or mutation score below which the build fails, whatever the ratchet
 says.
+
+**Benchmark scenario**:
+One measured quantity of one benchmark mapping on one message size, such as the latency of
+`orders` on a small message. It is named `<mapping>/<size>/<metric>`, and its baseline is a line
+of the ratchet.
+_Avoid_: benchmark (alone), test case
+
+**Speed target**:
+An absolute bound a benchmark scenario must meet at the milestone gate, independent of its
+baseline.
+_Avoid_: SLA, budget
 
 ## Way of working
 

@@ -1,6 +1,6 @@
 # The ratchet is line-based text checked per ticket and regenerated per spec; fixed floors sit under it
 
-Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`)
+Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`) and ADR-0021 (`bytecode`); `bench.tsv` rules set by ADR-0021
 
 FOUNDING §10 says the ratchet holds committed pass lists, coverage and benchmark baselines, and a
 merge may only keep or raise them. ADR-0017 makes the ratchet check ticket-gate step 5 and the
@@ -23,9 +23,17 @@ without conflicts on unrelated lines.
 
 - Percentages are whole numbers, **rounded down**. A refactor that moves coverage by a fraction of
   a point does not fail unless it crosses a whole percent.
-- `bench.tsv` holds the baseline the spec gate compares with. Its scenarios, units and tolerance
-  are #17's, and the 20,128-field tree scenario (ADR-0013) is one of them. `bench/RESULTS.md` stays
-  the log of every measurement.
+- `bench.tsv` holds the baseline the spec gate compares with. ADR-0021 sets it:
+  - scenarios are `<mapping>/<size>/<metric>`, `compile/<mapping>` and `ui/tree-20128/scroll`;
+  - the score is the median of three JMH forks;
+  - the direction comes from the unit: `us/op`, `ms/op`, `B/op`, `ms` lower is better, `MB/s`
+    higher is better, and an unknown unit fails;
+  - the tolerance is 20 % for time and throughput and 10 % for B/op. A regression is measured
+    twice before the gate fails;
+  - `regen` moves a baseline only on a gain beyond the tolerance, and lowering one takes a
+    finding.
+  `check` (ticket gate) ignores `bench.tsv`. Benchmarks run only in spec-gate step 5.
+  `bench/RESULTS.md` stays the log of every measurement.
 
 ## Commands
 
@@ -62,6 +70,7 @@ was reached above them.
 | Modules | Coverage floor (fails `verify`) | Mutation floor |
 | --- | --- | --- |
 | `xdm`, `ir`, `runtime`, `serializer`, `mapping`, `xslt-export`, `api`, `udf-api`, `udf` | JaCoCo 0.8.16 `check`, BUNDLE: lines ≥ 90 %, branches ≥ 80 % | PIT ≥ 80 % mutation score |
+| `bytecode` (after milestone 1, ADR-0021) | as above, on the generator; generated hidden classes are not instrumented, the fifth metamorphic variant covers them | PIT ≥ 80 % |
 | `structure`, `structure-import`, `service` | lines ≥ 80 % | — |
 | `engine/oracle` | none, it has no main code | — |
 | `ui/src/model/**`, `ui/src/editor/store/**` | Vitest v8 per-glob `thresholds`, lines ≥ 90 % | none in milestone 1 (ADR-0013) |

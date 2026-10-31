@@ -11,6 +11,8 @@ corpus/
   mappings/<name>.mapping.json   synthetic mapping models (ADR-0010), referencing ../structures/
   udfs/<package path>/<Class>.java  UDF sources (ADR-0020), referenced as ../udfs/…#method;
                                  optional <Class>.xsl with hand-written XSLT bodies
+  bench/<mapping>/               JMH mappings (`orders`, `wide`, `contexts`) and seeded input
+                                 generators; large inputs are generated, never committed (ADR-0021)
   cases/<area>/<topic>/<nnn>/    one case
     case.json                    {mapping, provenance, ref, expect, note}
     input.xml | input.json

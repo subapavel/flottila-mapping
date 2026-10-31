@@ -57,7 +57,7 @@ and this ADR is its specification.
   because it cannot be switched off. `quarkus-maven-plugin` is in the root's
   `pluginManagement`, so `./mvnw quarkus:dev` also works from the root.
 - **`bench/jmh`**: only in profile `bench`. JMH 1.37 is shaded into `benchmarks.jar`
-  (`org.openjdk.jmh.Main`). #17 writes the benchmarks.
+  (`org.openjdk.jmh.Main`). ADR-0021 sets the benchmarks.
 
 ## UI
 
@@ -115,7 +115,7 @@ scripts.
 2. the whole `ui` job, including `build`;
 3. the stack: `-Pui` jar and `e2e:stack`;
 4. ratchet regeneration (#14);
-5. the JMH scenarios (#17) into `bench/RESULTS.md`, machine label `claude-cloud-4vcpu`.
+5. the JMH scenarios (ADR-0021) into `bench/RESULTS.md`, machine label `claude-cloud-4vcpu`.
    Regression is checked there against the baseline with the same label, never on CI.
 
 ## Concurrency (`AGENTS.md`)

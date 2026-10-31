@@ -1,11 +1,12 @@
 # Milestone 1 has nine JPMS engine modules behind one facade, a Quarkus service and a separate `ui/`
 
-Status: accepted (2026-10-30, grilling #13); `engine/oracle` added by ADR-0018; `engine/udf-api` and `engine/udf` added by ADR-0020
+Status: accepted (2026-10-30, grilling #13); `engine/oracle` added by ADR-0018; `engine/udf-api` and `engine/udf` added by ADR-0020; `engine/bytecode` (after milestone 1) and `bench/jmh` requires set by ADR-0021
 
 FOUNDING §11 sketches modules along the pipeline. ADR-0008 split structure import into two, and
 ADR-0014 took the service off the module path. This ADR fixes the modules milestone 1 builds,
 their names and the direction of their dependencies. Modules for the XPath and XSLT front ends,
-the JAXP adapter and the bytecode back end are added by the specs that build them.
+the JAXP adapter and the bytecode back end are added by the specs that build them. The bytecode
+module's row is fixed now (ADR-0021); its spec comes after milestone 1.
 
 ## Modules
 
@@ -21,10 +22,11 @@ the JAXP adapter and the bytecode back end are added by the specs that build the
 | `engine/runtime` | `flottila-mapping-runtime` | `io.flottila.mapping.runtime` | ir, xdm, serializer, udf-api |
 | `engine/mapping` | `flottila-mapping-mapping` | `io.flottila.mapping.mapping` | ir, xdm, structure |
 | `engine/xslt-export` | `flottila-mapping-xslt-export` | `io.flottila.mapping.xslt.export` | mapping, ir, structure |
+| `engine/bytecode` (after milestone 1, ADR-0021) | `flottila-mapping-bytecode` | `io.flottila.mapping.bytecode` | ir, runtime, xdm; `api` adds it when the spec lands |
 | `engine/api` | `flottila-mapping-api` | `io.flottila.mapping.api` | mapping, runtime, structure-import, xslt-export, udf (transitive where its types are exposed) |
 | `engine/oracle` | `flottila-mapping-oracle` | none (tests only, class path; Saxon-HE and XMLUnit at test scope, ADR-0018) | api |
 | `service` | `flottila-mapping-service` | none (class path) | api |
-| `bench/jmh` | `flottila-mapping-bench` | none (class path), profile `bench` only | as #17 needs |
+| `bench/jmh` | `flottila-mapping-bench` | none (class path), profile `bench` only | api, and the `corpus/bench/` mappings and generators (ADR-0021) |
 | `ui/` | npm project | — | `contract/` files only |
 
 - groupId `io.flottila.mapping`. artifactIds carry the `flottila-mapping-` prefix so the jars do
@@ -34,7 +36,7 @@ the JAXP adapter and the bytecode back end are added by the specs that build the
 - `ir` holds the whole sealed `Expr` hierarchy and `xdm` the whole sealed atomic hierarchy. In
   a named module, `permits` cannot reach into another module.
 - `mapping` does not depend on `runtime`. The facade `engine/api` joins them. It runs the chain
-  load → three-stage validation (ADR-0011) → lowering → interpreter with a tracer → output or
+  load → three-stage validation (ADR-0011) → lowering → closure compile in `runtime` (ADR-0021) → interpreter with a tracer → output or
   runtime error with the trace, and it applies the test timeout (ADR-0014). The service
   translates between the facade and the wire DTOs and holds no engine logic. The facade is not
   the embedding API for Flottila, which is still out of milestone 1 (ADR-0014). It carries no

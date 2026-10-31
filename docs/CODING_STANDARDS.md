@@ -38,7 +38,14 @@ Rules marked _(Phase 0)_ wait for the decision named and may change with it.
 - An interface exists where a second implementation exists on day 1 (a port and its fake, two
   runtime representations). Nowhere else.
 - Hot paths allocate deliberately: no boxing, no streams, no lambdas capturing per-item state in
-  the runtime's inner loops; the bytecode back end and JMH decide, not taste.
+  the runtime's inner loops; JMH decides, not taste.
+- Hot paths (ADR-0021):
+  - the closure compiler builds a mapping's node tree once. Per-item code does no lookup, no
+    name, no map and no boxing, and its dynamic context is frame slots;
+  - traced and untraced are two compiles. An untraced node holds no hook and tests no
+    `tracer != null`;
+  - every loop over slots or contexts checks for interruption. This is not optional;
+  - a performance claim in a ticket or PR counts only with a JMH number in `bench/RESULTS.md`.
 - The logical XDM contract and the physical runtime representations are separate types; code
   generated for a hot path uses the concrete representation, generic code uses the contract
   _(Phase 0: XDM and representation ADRs)_.

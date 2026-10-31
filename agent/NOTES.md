@@ -177,3 +177,26 @@ Module notes by section, read on demand.
     major-69 `module-info`); 3.5.4+ fixes it. The repo pins 3.6.1.
   - Regex `(a+)+\1b` on 30 chars does not stop on interrupt (JDK code, not instrumented); classic
     `(a+)+b` finishes in ms on 25.
+- Interpreter and bytecode trial for #17 (2026-10-31, scratch reactor, agent; decisions in
+  ADR-0021, numbers in `bench/RESULTS.md`):
+  - javap (JDK 25): `ClassFile.of(Option...)`, `build(ClassDesc, Consumer<? super ClassBuilder>)`;
+    `Lookup.defineHiddenClassWithClassData(byte[], Object, boolean, ClassOption...)`, `ClassOption`
+    = {`NESTMATE`, `STRONG`}; `MethodHandles.classDataAt(Lookup, String, Class<T>, int)`;
+    `DynamicConstantDesc.ofNamed(DirectMethodHandleDesc, String, ClassDesc, ConstantDesc...)` with
+    `ConstantDescs.BSM_CLASS_DATA_AT`; `ClassHierarchyResolver.ofClassLoading(Lookup)`;
+    `CodeBuilder.allocateLocal(TypeKind)`. Context7 has nothing on the Class-File API; JMH and the
+    `java` AOT flags are there.
+  - Hidden-class frames are missing from stack traces (an NPE showed no generated frame):
+    `-XX:+ShowHiddenFrames` to debug.
+  - Leyden on JDK 25 without preview: `java -XX:AOTCacheOutput=app.aot …` (training run, then an
+    assembly child JVM), then `java -XX:AOTCache=app.aot …`. Flags `AOTCache`, `AOTCacheOutput`,
+    `AOTConfiguration`, `AOTMode`, `AOTClassLinking` exist. The assembly child picks up
+    `JAVA_TOOL_OPTIONS` and overwrites the training run's `-Xlog` file. Hidden classes from
+    `Lookup.defineHiddenClass` (the generated mapping) are not cached; lambdas and
+    `java.lang.classfile` classes are. `unset JAVA_TOOL_OPTIONS` for start-time measurements.
+  - `ProcessHandle.startInstant()` gave ~500 ms against ~110 ms wall: time start-up by wall clock.
+  - JMH 1.37 prints an `sun.misc.Unsafe::objectFieldOffset` deprecation warning on JDK 25
+    (harmless). One fork's error on the VM reaches ±100 %; use `-f 3` and the median (ADR-0021).
+  - Licences pulled: JUnit 6.1.3 (EPL-2.0), opentest4j / apiguardian / jspecify (Apache-2.0),
+    JMH 1.37 (GPL-2.0 + CPE, ADR-0017 exception in `bench/jmh`), jopt-simple 5.0.4 (MIT),
+    commons-math3 3.6.1 (Apache-2.0). Nothing new for the repo.

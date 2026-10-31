@@ -116,9 +116,16 @@ most one gate that builds `service` at a time.
 3. the stack: `./mvnw -B -Pui -pl service -am clean package -DskipTests`, then `npm run e2e:stack`;
 4. `java scripts/ratchet.java regen --all`: every report must be present, a drop fails, the
    verifier alone commits `ratchet/` to the integration branch;
-5. the JMH scenarios (#17): `java -jar bench/jmh/target/benchmarks.jar …` → `bench/RESULTS.md`
-   with machine label `claude-cloud-4vcpu`, date, commit; a regression against the baseline with
-   the same label fails the gate.
+5. the JMH scenarios (ADR-0021):
+   `java -jar bench/jmh/target/benchmarks.jar -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
+   (about 5–6 minutes), plus the `ui/tree-20128/scroll` Playwright scenario.
+   - Results go to `bench/RESULTS.md` with machine label `claude-cloud-4vcpu`, the date and the
+     commit. The score is the median of the three forks.
+   - A scenario worse than `ratchet/bench.tsv` by more than its tolerance (20 % for time and
+     throughput, 10 % for B/op) is measured once more. The gate fails if it is still worse, or
+     if a GATE check 7 target is missed.
+   - `regen --all` reads `.logs/<spec>-jmh.json` too, so the verifier runs this step before
+     step 4. A baseline moves only on a gain beyond the tolerance (ADR-0019).
 
 **CI** (GitHub Actions, `.github/workflows/ci.yml`, every PR and push to `main`; required on
 `main`):

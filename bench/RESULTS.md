@@ -69,3 +69,39 @@ baselines.
 | child JVM start, run one UDF, exit (median of 5; `TieredStopAtLevel=1` same) | 64–75 ms |
 | `destroyForcibly` on a spinning child JVM | 4–6 ms |
 | class loader unload after the last reference (5× `System.gc()`) | ~340 ms |
+
+## Interpreter and bytecode trial (grilling #17, ADR-0021)
+
+Machine `claude-cloud-4vcpu` (4 vCPU Xeon 2.10 GHz, 15 GB), 2026-10-31, JDK 25.0.5, JMH 1.37.
+Scratch reactor (`proto` with a toy queue block, StAX projector, hand-written UTF-8 writer and one
+`orders`-shaped mapping: 1:1, two-input `Lift` concat, `removeContexts`, `splitByValue` + one-input
+`Lift` with a UDF, unbounded targets), not a repo commit. Back ends: **a** tree-walking `switch`
+interpreter, **b** closure-compiled interpreter, **c** Class-File API hidden class. JMH
+`-f 1 -wi 3 -i 5 -w 1s -r 1s -prof gc`, three rounds; cells give the range of the three scores.
+Toy numbers: the shapes and ratios inform ADR-0021, they are not baselines.
+
+| Benchmark | a | b | c | Unit |
+| --- | --- | --- | --- | --- |
+| small 8.1 kB, parse + map + serialise | 111–123 | 109–112 | 96–104 | µs/op |
+| small, map + serialise | 34.4–37.6 | 27.7–29.3 | 14.3–15.4 | µs/op |
+| small, parse + map + serialise, alloc | 142,121 | 123,153 | 122,153 | B/op |
+| small, map + serialise, alloc | 35,312 | 16,344 | 15,344 | B/op |
+| large 10.54 MB, map + serialise | 64–73 | 43–46 | 32–39 | ms/op |
+| large, map + serialise, alloc | 45.8 M | 21.1 M | 19.7 M | B/op |
+| large, parse + map + serialise, 4 s iterations, one round | 323 ± 279 | 273 ± 317 | 183 ± 45 | ms/op |
+
+| Measurement | Result |
+| --- | --- |
+| c with a no-op tracer compiled in / without interruption checks / default, small map-only | 13.5–15.1 / 13.4–14.4 / 14.3–15.4 µs/op (within noise) |
+| UDF call, trivial body: direct / generated `invokeExact` on class-data condy / interpreter `invokeExact` on a field | 0.54–0.61 / 0.73–0.84 / 3.07–3.42 ns/op |
+| UDF call, 80 B allocating body with guard loop: all call paths | 30–39 ns/op (the body dominates) |
+| JMH noise: c small full, 3 runs back to back | 105.8 ± 31.4 / 112.0 ± 79.3 / 122.5 ± 129.3 µs/op (15.8 % spread) |
+| bytecode compile, cold (first in a fresh JVM) / warm, median of 10 JVMs × 20 | 32.0 ms (26.3–46.7) / 2.3 ms |
+| closure compile, warm | 0.05 ms |
+| hidden class (no `STRONG`) unloaded after dropping references | after 1 `System.gc()` in 100/100, 7.4–19 ms |
+| start to first mapped output, fresh JVM, median of 5: a / b / c | 98–109 / 122–124 / 129–136 ms |
+| same with `-XX:AOTCache` (JEP 514 one-step training, 1.25 s, 13.2–13.6 MB cache) | 69 / 75 / 85 ms |
+| five-variant byte-identity test (5 small seeds, 2 large 10.5 MB), surefire / `mvn -pl proto verify` wall | 2.1–3.7 s / 5.1–5.6 s |
+
+Parsing takes about 85 % of the small message end to end. The large parse + map + serialise run
+is GC-bound (bimodal iterations), so its error stays large even with 4 s iterations.

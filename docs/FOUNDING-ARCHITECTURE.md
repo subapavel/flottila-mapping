@@ -96,6 +96,10 @@ relational model over row store, column store and index):
   concurrency for an opt-in parallel `xsl:for-each`, behind a flag while preview.
 - Startup: serialized IR, Leyden AOT cache (JEP 483/514/515), GraalVM native image optional
   (interpreter only).
+- Refined by ADR-0021 (grilling #17): milestone 1 has one back end, the interpreter in
+  `engine/runtime`, closure-compiled, with eager compile at deploy, no tiering, no compiled-mapping
+  cache and no AOT cache. The bytecode tier's shape (`engine/bytecode`, a hidden class per mapping,
+  class-data constants) is fixed for the spec after milestone 1.
 
 ## 6. Graphical mapping on this core
 
@@ -124,7 +128,9 @@ relational model over row store, column store and index):
   UDFs ported separately.
 - Implementation order agreed: core (XDM, IR, F&O subset, interpreter) → **mapping front end
   first** (simpler than XSLT: no templates, modes, import precedence) → XSLT front end → bytecode
-  tier speeds up both. Whether milestone 1 already ships bytecode: Phase 0 ticket 16.
+  tier speeds up both. Whether milestone 1 already ships bytecode: Phase 0 ticket 17.
+  Settled by ADR-0021 (grilling #17): milestone 1 ships only the closure-compiled interpreter; the
+  bytecode tier is the first engine spec after it.
 
 ## 7. Mapping performance — how to match or beat SAP PO
 
@@ -150,6 +156,9 @@ a shared runtime structure that makes mappings pay for XSLT's generality. Proof:
 mappings with synthetic inputs, JMH latency on small messages, throughput and memory on large ones,
 early — right after the first bytecode prototype. Mapping time is usually a few ms of PO's total;
 the platform's throughput depends on the rest of the pipeline as well.
+Refined by ADR-0021: the proof runs in milestone 1 on the interpreter. It uses three corpus
+benchmark mappings, targets of ≤ 500 µs per small message and ≥ 20 MB/s on large ones, and an
+optional, informative PO observation request.
 
 ## 8. XSLT and XPath specifics (later milestones)
 

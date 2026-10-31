@@ -1,6 +1,6 @@
 # Oracles run in one test-only module over a file-based golden corpus; observed cases come from the owner
 
-Status: accepted (2026-10-30, grilling #14); corpus layout gains `udfs/` (ADR-0020)
+Status: accepted (2026-10-30, grilling #14); corpus layout gains `udfs/` (ADR-0020) and `bench/`; fifth variant timed (ADR-0021)
 
 FOUNDING §10 names three oracles: the golden corpus, the differential run against Saxon-HE and
 the W3C suites. ADR-0002 adds observed cases from SAP PO 7.5 and SAP Cloud Integration. This
@@ -23,6 +23,7 @@ corpus/
   structures/                 schema bundles (GATE check 1)
   mappings/<name>.mapping.json  synthetic mapping models (ADR-0010)
   udfs/<package path>/<Class>.java  UDF sources, optional <Class>.xsl bodies (ADR-0020)
+  bench/<mapping>/              benchmark mappings and seeded input generators (ADR-0021)
   cases/<area>/<topic>/<nnn>/   one case
     case.json                 {mapping, provenance, ref, expect, note}
     input.xml | input.json
@@ -45,7 +46,10 @@ corpus/
 - GATE check 4 is mechanical: no case of a function milestone 1 ships has `provenance: assumed`.
 - Every case also runs in four **metamorphic variants**: optimised and unoptimised IR, each with
   and without a tracer. All four outputs must be byte-identical. A case passes only when all
-  variants pass. The interpreter ≡ bytecode run (#17) is a fifth variant of the same harness.
+  variants pass. The interpreter ≡ bytecode run is a fifth variant of the same harness. It arrives with
+  `engine/bytecode`, the first engine spec after milestone 1, and runs in every ticket gate over
+  the whole corpus. The trial took 2–4 s for it. If it breaks the 30 s budget (ADR-0019), that
+  spec narrows it with a finding (ADR-0021).
 
 ## Observed cases
 

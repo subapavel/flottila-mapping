@@ -49,9 +49,17 @@ on one commit of `main`; each check names the command and the evidence it needs.
    and adds a UDF through the scan endpoint. A looping UDF in the corpus ends in `flottila:TIMEOUT`
    within the timeout, and a UDF calling a forbidden API fails to compile with `udf-forbidden-api`
    (ADR-0020).
-7. **Speed.** JMH on the corpus: compiled-mapping latency and throughput for a small (≤ 10 kB)
-   and a large (≥ 10 MB) message, recorded in `bench/RESULTS.md` with machine, date and commit.
-   _(Phase 0: targets)_
+7. **Speed.** The seven JMH benchmarks of ADR-0021 run on the gate commit in spec-gate step 5
+   on `claude-cloud-4vcpu`, in the closure-compiled interpreter (milestone 1 has no bytecode
+   tier). They cover the `corpus/bench/` mappings `orders`, `wide` and `contexts`, end to end,
+   and are recorded in `bench/RESULTS.md` with machine, date and commit. Targets:
+   - every small message (8–10 kB) at ≤ 500 µs/op;
+   - every large message (≥ 10 MB) at ≥ 20 MB/s, and it completes in a fork with `-Xmx128m`;
+   - `compile/orders` at ≤ 5 ms/op warm.
+
+   No scenario is worse than `ratchet/bench.tsv` beyond its tolerance (ADR-0019). The
+   20,128-field tree scenario has a p95 frame time of ≤ 16.7 ms. The optional PO observation
+   request (`po-owner-local`) is informative only.
 8. **Quality.** The CI run of the gate commit is green in all three required jobs, `backend`,
    `ui` and `stack` (ADR-0017). That covers the build with `-Xlint:all -Werror`, Spotless, the
    enforcer bans, the licence check with only the per-artifact exceptions of ADR-0017, the
@@ -65,7 +73,7 @@ on one commit of `main`; each check names the command and the evidence it needs.
    (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
    coverage of `ui/src/model/` and `ui/src/editor/store/` ≥ 90 % each (per-glob Vitest
    thresholds, ADR-0019); generated types with an empty diff; the 20,128-field tree scenario within its
-   `bench/RESULTS.md` threshold. No mutation testing on `ui/` in milestone 1.
+   check-7 target. No mutation testing on `ui/` in milestone 1.
 9. **Hand-over.** `HANDOVER.md` covers:
    - starting the stack from a clean clone with only JDK 25 and Node 22 installed:
      `./mvnw -pl service -am quarkus:dev` with `npm run dev` for development, and the `-Pui` jar
