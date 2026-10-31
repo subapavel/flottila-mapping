@@ -11,13 +11,6 @@
   <artifactId>flottila-mapping-mapping</artifactId>
   <name>Flottila Mapping mapping</name>
 
-  <properties>
-    <!-- No production code yet: PIT skips such a module, and fails "No mutations found" on a first
-         class without mutable bytecode. The first ticket that adds production code (#24) removes
-         this line. The mutation floor is not lowered. -->
-    <pit.failWhenNoMutations>false</pit.failWhenNoMutations>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -34,5 +27,35 @@
       <artifactId>flottila-mapping-structure</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- stage 1 of loading a mapping model (ADR-0011) -->
+    <dependency>
+      <groupId>com.github.erosb</groupId>
+      <artifactId>json-sKema</artifactId>
+    </dependency>
   </dependencies>
+
+  <build>
+    <resources>
+      <!-- the mapping-model schema is the contract's file, packed into the jar (ADR-0016) -->
+      <resource>
+        <directory>${maven.multiModuleProjectDirectory}/contract</directory>
+        <targetPath>io/flottila/mapping/mapping/internal</targetPath>
+        <includes>
+          <include>mapping-model.schema.json</include>
+        </includes>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <compilerArgs combine.children="append">
+            <!-- json-sKema 0.32.0 has no module descriptor: an automatic module (ADR-0017, F-3) -->
+            <arg>-Xlint:-requires-automatic</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

@@ -49,6 +49,8 @@
     <saxon-he.version>12.5</saxon-he.version>
     <xmlunit.version>2.14.0</xmlunit.version>
     <jmh.version>1.37</jmh.version>
+    <!-- validates mapping models (ADR-0011, F-1); an automatic module, F-3 -->
+    <json-skema.version>0.32.0</json-skema.version>
 
     <!-- JaCoCo floors (ADR-0019): class-C default; structure, structure-import and service override -->
     <jacoco.min.lines>0.90</jacoco.min.lines>
@@ -78,6 +80,11 @@
         <groupId>com.tngtech.archunit</groupId>
         <artifactId>archunit</artifactId>
         <version>${archunit.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.erosb</groupId>
+        <artifactId>json-sKema</artifactId>
+        <version>${json-skema.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
