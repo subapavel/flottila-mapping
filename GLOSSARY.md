@@ -438,6 +438,11 @@ The full checks the verifier runs on an integration branch before the spec's PR:
 test, oracle and UI suite, the ratchet regeneration and the benchmarks.
 _Avoid_: full build (only one part of it)
 
+**Walking skeleton**:
+The first spec of a milestone: the build skeleton plus the thinnest path through every layer
+(structure, mapping model, compile, run, service, editor, oracle, ratchet), which later specs widen.
+_Avoid_: prototype (throwaway, never merged), MVP
+
 **Gate**:
 A milestone check list in `docs/GATE.md`, verified by the gate-reviewer on one commit.
 

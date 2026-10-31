@@ -1,6 +1,6 @@
 # Milestone 1 runs a closure-compiled interpreter; the bytecode tier follows as the first engine spec after it; JMH targets and a noise-tolerant bench ratchet
 
-Status: accepted (2026-10-31, grilling #17)
+Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier)
 
 FOUNDING §5 plans an interpreter (tier 0) and a Class-File API bytecode tier (tier 1), and §6
 left open whether milestone 1 ships bytecode. §7 asks for JMH proof early: latency on small
@@ -38,7 +38,9 @@ leaves UDF calls from generated code to it. A scratch trial on the VM decided th
 
 ## The bytecode tier after milestone 1
 
-The first engine spec after milestone 1 builds it, before the XSLT front end, and to this shape:
+The first engine spec after milestone 1 builds it, before the XSLT front end, and to this shape.
+Grilling #19 placed it right after the JSON output spec (ADR-0008), so the generator emits the
+JSON constructor records from the start (`docs/GATE.md`, "After milestone 1"):
 
 - module `engine/bytecode`, JPMS `io.flottila.mapping.bytecode`, requires `ir`, `runtime` and
   `xdm`. `engine/api` selects it at deploy. Class C: JaCoCo lines ≥ 90 % and branches ≥ 80 %,
