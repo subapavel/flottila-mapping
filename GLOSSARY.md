@@ -422,6 +422,11 @@ A GitHub issue (`spec`) describing one deliverable from the user's side, parent 
 **Ticket**:
 A tracer-bullet slice of a spec, sized for one fresh context, with blocking edges and one class.
 
+**Seam**:
+An outer interface of a part of the system where a test gives input and checks output without
+knowing the inside. A spec names its seams before its tickets exist.
+_Avoid_: test boundary, integration point
+
 **Frontier**:
 The open, unblocked, unclaimed tickets of a spec or map.
 
