@@ -9,7 +9,8 @@ const lockPath = process.argv[2] ?? here('../package-lock.json');
 const exceptionsPath = process.argv[3] ?? here('./licence-exceptions.json');
 
 const ALLOWED = new Set([
-  'Apache-2.0', 'MIT', 'MIT-0', 'BSD-2-Clause', 'BSD-3-Clause', 'EDL 1.0', 'ISC', '0BSD',
+  // EDL 1.0 is BSD-3-Clause in SPDX, so it needs no entry of its own.
+  'Apache-2.0', 'MIT', 'MIT-0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', '0BSD',
   'MPL-2.0', 'EPL-1.0', 'EPL-2.0',
 ]);
 
