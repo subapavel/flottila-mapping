@@ -149,8 +149,10 @@ for-each over the source context".
 - Assumed readings since #51, until observed cases confirm them (ADR-0002, #61): a shorter input
   whose last value is SUPPRESS gives SUPPRESS when reused (#32 lift-3); `createIf` is true for `1`
   or `true` in any case, and anything else, `""` and SUPPRESS included, gives SUPPRESS.
-- SUPPRESS through the context functions since #51, each a corpus and differential case
-  (`assumed` unless marked):
+- SUPPRESS through the context functions since #51 (`assumed` unless marked). The seeded
+  agreement test `SuppressContextFunctionsAgreementTest` pins each reading on both back ends;
+  corpus cases cover those a root-level target can show, and the numeric-key error gets its
+  corpus case with #52:
   - `removeContexts`, `splitByValue`, `useOneAsMany`, `formatByExample`, `sort` keep SUPPRESS
     as a slot with its bit. In `splitByValue` valueChange, SUPPRESS equals only SUPPRESS; in
     emptyValue, SUPPRESS is not `""`. `useOneAsMany` repeats and counts SUPPRESS like a value.
