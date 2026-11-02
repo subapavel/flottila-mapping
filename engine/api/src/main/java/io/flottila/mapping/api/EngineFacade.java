@@ -87,6 +87,16 @@ public final class EngineFacade {
     };
   }
 
+  /**
+   * Exports a mapping model to XSLT 3.0 in the portable profile (ADR-0023).
+   *
+   * @throws MalformedJsonException if the bytes are no JSON document
+   */
+  public ExportResult export(byte[] model, Path base) throws MalformedJsonException {
+    // stub for red (#27)
+    throw new UnsupportedOperationException("#27");
+  }
+
   /** The structure {@code ref} names, or empty once its load error is added to {@code refusals}. */
   private static Optional<Structure> structure(
       Path base, StructureRef ref, List<Diagnostic> refusals) {
