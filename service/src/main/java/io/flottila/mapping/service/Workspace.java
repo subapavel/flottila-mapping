@@ -147,7 +147,7 @@ public class Workspace {
    * @throws NoSuchFileException if there is no mapping model file of {@code id}
    */
   public Path existing(String id) throws IOException, WorkspacePathException {
-    return real(mappingModelFile(id));
+    return real(mappingModelFile(id), id);
   }
 
   /**
@@ -170,7 +170,7 @@ public class Workspace {
    */
   public void create(String id, byte[] canonical) throws IOException, WorkspacePathException {
     Path file = mappingModelFile(id);
-    write(real(file.getParent()).resolve(file.getFileName()), canonical, CREATED);
+    write(real(file.getParent(), id).resolve(file.getFileName()), canonical, CREATED);
   }
 
   /**
@@ -178,12 +178,12 @@ public class Workspace {
    * the directory its bundle references are relative to.
    */
   public Path mappingDirectory(String id) throws IOException, WorkspacePathException {
-    return real(mappingModelFile(id).getParent());
+    return real(mappingModelFile(id).getParent(), id);
   }
 
   /** The real path of the directory {@code base} names; {@code ""} is the root. */
   public Path directory(String base) throws IOException, WorkspacePathException {
-    return real(inside(root, matching(base, BASE)));
+    return real(inside(root, matching(base, BASE)), base);
   }
 
   /**
@@ -203,7 +203,7 @@ public class Workspace {
         existing = existing.getParent();
       }
       try {
-        real(existing);
+        real(existing, reference);
       } catch (IOException noRealPath) {
         throw new WorkspacePathException(reference);
       }
@@ -239,11 +239,16 @@ public class Workspace {
     return path;
   }
 
-  /** Step 3: the real path of an existing file or directory lies under the root. */
-  private Path real(Path path) throws IOException, WorkspacePathException {
+  /**
+   * Step 3: the real path of an existing file or directory lies under the root.
+   *
+   * @param spelled the id, base or bundle reference that names {@code path}, as the request spelled
+   *     it: the refusal names it
+   */
+  private Path real(Path path, String spelled) throws IOException, WorkspacePathException {
     Path real = path.toRealPath();
     if (!real.startsWith(root)) {
-      throw new WorkspacePathException(relative(path));
+      throw new WorkspacePathException(spelled);
     }
     return real;
   }

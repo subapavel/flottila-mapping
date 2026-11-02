@@ -4,14 +4,15 @@ import org.eclipse.microprofile.openapi.annotations.media.DiscriminatorMapping;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
- * The result of a test run (ADR-0015, ADR-0024): output, or the diagnostics that refuse the working
- * copy. Spec 1 returns no trace.
+ * The result of a test run (ADR-0015, ADR-0024): output, the diagnostics that refuse the working
+ * copy, or the runtime error that stopped the run. No trace yet (#53).
  */
 @Schema(
-    oneOf = {TestOutput.class, TestRefused.class},
+    oneOf = {TestOutput.class, TestRefused.class, TestError.class},
     discriminatorProperty = "kind",
     discriminatorMapping = {
       @DiscriminatorMapping(value = TestOutput.KIND, schema = TestOutput.class),
-      @DiscriminatorMapping(value = TestRefused.KIND, schema = TestRefused.class)
+      @DiscriminatorMapping(value = TestRefused.KIND, schema = TestRefused.class),
+      @DiscriminatorMapping(value = TestError.KIND, schema = TestError.class)
     })
-public sealed interface TestResult permits TestOutput, TestRefused {}
+public sealed interface TestResult permits TestOutput, TestRefused, TestError {}

@@ -195,6 +195,18 @@
           }
         }
       },
+      "RuntimeErrorDto" : {
+        "type" : "object",
+        "required" : [ "code", "message" ],
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        }
+      },
       "StructureChoice" : {
         "type" : "object",
         "required" : [ "bundle", "root" ],
@@ -284,6 +296,25 @@
         },
         "type" : "object"
       },
+      "TestError" : {
+        "type" : "object",
+        "required" : [ "kind", "error", "diagnostics" ],
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "const" : "error"
+          },
+          "error" : {
+            "$ref" : "#/components/schemas/RuntimeErrorDto"
+          },
+          "diagnostics" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DiagnosticDto"
+            }
+          }
+        }
+      },
       "TestOutput" : {
         "type" : "object",
         "required" : [ "kind", "output", "diagnostics" ],
@@ -336,12 +367,15 @@
           "$ref" : "#/components/schemas/TestOutput"
         }, {
           "$ref" : "#/components/schemas/TestRefused"
+        }, {
+          "$ref" : "#/components/schemas/TestError"
         } ],
         "discriminator" : {
           "propertyName" : "kind",
           "mapping" : {
             "output" : "#/components/schemas/TestOutput",
-            "refused" : "#/components/schemas/TestRefused"
+            "refused" : "#/components/schemas/TestRefused",
+            "error" : "#/components/schemas/TestError"
           }
         },
         "type" : "object"
@@ -635,7 +669,7 @@
         },
         "responses" : {
           "200" : {
-            "description" : "The output, or the diagnostics that refuse the working copy",
+            "description" : "The output, the diagnostics that refuse the working copy, or the runtime error",
             "content" : {
               "application/json" : {
                 "schema" : {

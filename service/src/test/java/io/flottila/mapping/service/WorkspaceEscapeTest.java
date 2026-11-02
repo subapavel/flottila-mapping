@@ -12,6 +12,7 @@ import static io.flottila.mapping.service.Wire.structureRequest;
 import static io.flottila.mapping.service.Wire.testRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import java.net.URI;
@@ -202,6 +203,27 @@ class WorkspaceEscapeTest {
     } else {
       assertThat(reply.status()).as("the router's answer: %s", reply).isEqualTo(404);
     }
+  }
+
+  /** The detail names the id as the request spelled it, not its mapping model file (#54). */
+  @Test
+  void aRefusedIdIsNamedAsTheRequestSpelledIt() {
+    Http http = new Http(root);
+
+    JsonNode file =
+        assertProblem(http.get("api/mappings/links/out"), 400, "invalid-workspace-path");
+    JsonNode directory =
+        assertProblem(
+            http.post(
+                "api/mappings/links/outdir/evil/test",
+                "application/json",
+                bytes(testRequest(exfilModel("evil.xsd"), EXFIL_INPUT))),
+            400,
+            "invalid-workspace-path");
+
+    assertThat(file.path("detail").textValue()).isEqualTo("not a workspace path: \"links/out\"");
+    assertThat(directory.path("detail").textValue())
+        .isEqualTo("not a workspace path: \"links/outdir/evil\"");
   }
 
   @Test
