@@ -149,6 +149,52 @@
           }
         }
       },
+      "Problem" : {
+        "type" : "object",
+        "required" : [ "type", "title", "status", "detail" ],
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "detail" : {
+            "type" : "string"
+          }
+        }
+      },
+      "RefusedProblem" : {
+        "type" : "object",
+        "required" : [ "type", "title", "status", "detail", "diagnostics" ],
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "diagnostics" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DiagnosticDto"
+            }
+          }
+        }
+      },
       "StructureChoice" : {
         "type" : "object",
         "required" : [ "bundle", "root" ],
@@ -337,10 +383,76 @@
         "responses" : {
           "201" : {
             "description" : "The new mapping in canonical form, with its ETag and Location",
+            "headers" : {
+              "ETag" : {
+                "description" : "\"sha256:<hex>\" of the canonical bytes (ADR-0024)",
+                "schema" : {
+                  "type" : "string"
+                },
+                "required" : true
+              },
+              "Location" : {
+                "description" : "The new mapping's URI",
+                "schema" : {
+                  "type" : "string"
+                },
+                "required" : true
+              }
+            },
             "content" : {
               "application/json" : {
                 "schema" : {
                   "$ref" : "./mapping-model.schema.json"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path, malformed-json or invalid-request",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: the mapping's directory",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "mapping-exists",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415" : {
+            "description" : "unsupported-media-type",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "model-refused: a structure cannot be loaded",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RefusedProblem"
                 }
               }
             }
@@ -374,10 +486,59 @@
         "responses" : {
           "200" : {
             "description" : "The saved mapping in canonical form, with its new ETag",
+            "headers" : {
+              "ETag" : {
+                "description" : "\"sha256:<hex>\" of the canonical bytes (ADR-0024)",
+                "schema" : {
+                  "type" : "string"
+                },
+                "required" : true
+              }
+            },
             "content" : {
               "application/json" : {
                 "schema" : {
                   "$ref" : "./mapping-model.schema.json"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path or malformed-json",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: no mapping of this id",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415" : {
+            "description" : "unsupported-media-type",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "model-refused: validation stage 1 or 2 refuses the model",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RefusedProblem"
                 }
               }
             }
@@ -399,10 +560,49 @@
         "responses" : {
           "200" : {
             "description" : "The mapping in canonical form, with its ETag",
+            "headers" : {
+              "ETag" : {
+                "description" : "\"sha256:<hex>\" of the canonical bytes (ADR-0024)",
+                "schema" : {
+                  "type" : "string"
+                },
+                "required" : true
+              }
+            },
             "content" : {
               "application/json" : {
                 "schema" : {
                   "$ref" : "./mapping-model.schema.json"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: no mapping of this id",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "model-refused: the stored file is no JSON document or no valid model",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RefusedProblem"
                 }
               }
             }
@@ -435,11 +635,41 @@
         },
         "responses" : {
           "200" : {
-            "description" : "OK",
+            "description" : "The output, or the diagnostics that refuse the working copy",
             "content" : {
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TestResult"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path, malformed-json, invalid-request or malformed-input",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: the mapping's directory",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415" : {
+            "description" : "unsupported-media-type",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
                 }
               }
             }
@@ -463,11 +693,41 @@
         },
         "responses" : {
           "200" : {
-            "description" : "OK",
+            "description" : "The structure, or the load error that refuses it",
             "content" : {
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/StructureResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path, malformed-json or invalid-request",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: the base directory",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415" : {
+            "description" : "unsupported-media-type",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
                 }
               }
             }

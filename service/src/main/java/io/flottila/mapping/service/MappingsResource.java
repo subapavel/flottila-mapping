@@ -1,5 +1,6 @@
 package io.flottila.mapping.service;
 
+import static io.flottila.mapping.service.ProblemMappers.PROBLEM_JSON;
 import static jakarta.ws.rs.core.MediaType.APPLICATION_JSON;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -30,6 +31,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -39,6 +41,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
@@ -58,6 +62,8 @@ public class MappingsResource {
   static final String ROOT_SELECTOR = MODEL + "#/$defs/rootSelector";
 
   private static final String ID = "{id: .+}";
+
+  private static final String ETAG = "\"sha256:<hex>\" of the canonical bytes (ADR-0024)";
 
   private final Workspace workspace;
   private final ObjectMapper json;
@@ -86,7 +92,46 @@ public class MappingsResource {
   @APIResponse(
       responseCode = "201",
       description = "The new mapping in canonical form, with its ETag and Location",
+      headers = {
+        @Header(
+            name = "ETag",
+            description = ETAG,
+            required = true,
+            schema = @Schema(type = SchemaType.STRING)),
+        @Header(
+            name = "Location",
+            description = "The new mapping's URI",
+            required = true,
+            schema = @Schema(type = SchemaType.STRING))
+      },
       content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
+  @APIResponse(
+      responseCode = "400",
+      description = "invalid-workspace-path, malformed-json or invalid-request",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "404",
+      description = "not-found: the mapping's directory",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "409",
+      description = "mapping-exists",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "415",
+      description = "unsupported-media-type",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "422",
+      description = "model-refused: a structure cannot be loaded",
+      content =
+          @Content(
+              mediaType = PROBLEM_JSON,
+              schema = @Schema(implementation = RefusedProblem.class)))
   public Response create(CreateMappingRequest request)
       throws IOException,
           WorkspacePathException,
@@ -94,6 +139,7 @@ public class MappingsResource {
           MalformedJsonException,
           ModelRefusedException,
           NoSuchAlgorithmException {
+    InvalidRequestException.present(request);
     Path directory = workspace.mappingDirectory(request.id());
     workspace.checkBundle(directory, request.source().bundle());
     workspace.checkBundle(directory, request.target().bundle());
@@ -120,7 +166,30 @@ public class MappingsResource {
   @APIResponse(
       responseCode = "200",
       description = "The mapping in canonical form, with its ETag",
+      headers =
+          @Header(
+              name = "ETag",
+              description = ETAG,
+              required = true,
+              schema = @Schema(type = SchemaType.STRING)),
       content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
+  @APIResponse(
+      responseCode = "400",
+      description = "invalid-workspace-path",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "404",
+      description = "not-found: no mapping of this id",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "422",
+      description = "model-refused: the stored file is no JSON document or no valid model",
+      content =
+          @Content(
+              mediaType = PROBLEM_JSON,
+              schema = @Schema(implementation = RefusedProblem.class)))
   public Response get(@PathParam("id") String id)
       throws IOException, WorkspacePathException, ModelRefusedException, NoSuchAlgorithmException {
     byte[] stored = workspace.read(id);
@@ -133,8 +202,8 @@ public class MappingsResource {
   }
 
   /**
-   * Save (ADR-0015): stages 1 and 2 only, so a stage 3 error still saves. {@code If-Match} is not
-   * enforced until spec 6.
+   * Save (ADR-0015): stages 1 and 2 only, so a stage 3 error still saves. The id and its mapping
+   * model file are checked before the body is read. {@code If-Match} is not enforced until spec 6.
    */
   @PUT
   @jakarta.ws.rs.Path(ID)
@@ -143,17 +212,46 @@ public class MappingsResource {
   @APIResponse(
       responseCode = "200",
       description = "The saved mapping in canonical form, with its new ETag",
+      headers =
+          @Header(
+              name = "ETag",
+              description = ETAG,
+              required = true,
+              schema = @Schema(type = SchemaType.STRING)),
       content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
+  @APIResponse(
+      responseCode = "400",
+      description = "invalid-workspace-path or malformed-json",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "404",
+      description = "not-found: no mapping of this id",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "415",
+      description = "unsupported-media-type",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "422",
+      description = "model-refused: validation stage 1 or 2 refuses the model",
+      content =
+          @Content(
+              mediaType = PROBLEM_JSON,
+              schema = @Schema(implementation = RefusedProblem.class)))
   public Response save(
       @PathParam("id") String id,
       @RequestBody(content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
-          byte[] model)
+          InputStream body)
       throws IOException,
           WorkspacePathException,
           MalformedJsonException,
           ModelRefusedException,
           NoSuchAlgorithmException {
-    byte[] canonical = canonical(model);
+    workspace.existing(id);
+    byte[] canonical = canonical(body.readAllBytes());
     workspace.save(id, canonical);
     return model(Response.ok(), canonical);
   }
@@ -166,12 +264,36 @@ public class MappingsResource {
   @jakarta.ws.rs.Path(ID + "/test")
   @Consumes(APPLICATION_JSON)
   @Produces(APPLICATION_JSON)
+  @APIResponse(
+      responseCode = "200",
+      description = "The output, or the diagnostics that refuse the working copy",
+      content =
+          @Content(
+              mediaType = APPLICATION_JSON,
+              schema = @Schema(implementation = TestResult.class)))
+  @APIResponse(
+      responseCode = "400",
+      description = "invalid-workspace-path, malformed-json, invalid-request or malformed-input",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "404",
+      description = "not-found: the mapping's directory",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "415",
+      description = "unsupported-media-type",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
   public TestResult test(@PathParam("id") String id, TestRequest request)
       throws IOException,
           WorkspacePathException,
+          InvalidRequestException,
           MalformedJsonException,
           MalformedInputException,
           JsonProcessingException {
+    InvalidRequestException.present(request);
     Path directory = workspace.mappingDirectory(id);
     byte[] model = json.writeValueAsBytes(request.model());
     return switch (facade.load(model)) {

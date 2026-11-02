@@ -46,7 +46,10 @@ public class Workspace {
 
   private static final String SUFFIX = ".mapping.json";
 
-  /** Saves of one file are serialised by its stripe; the number of stripes is fixed. */
+  /**
+   * Writes of one file are serialised by its stripe, so two creates of one id cannot both pass the
+   * move's existence check; the number of stripes is fixed.
+   */
   private static final int STRIPES = 64;
 
   private final Path root;
@@ -78,9 +81,10 @@ public class Workspace {
   }
 
   /**
-   * The ids of the workspace's mappings, sorted by id. The walk follows no link, prunes every
-   * directory whose path is no base, and keeps a file only if its id passes the pattern and its
-   * real path lies inside the workspace.
+   * The ids of the workspace's mapping model files, sorted by id. The walk follows no link, prunes
+   * every directory whose path is no base, and skips a file or directory it cannot read. It keeps a
+   * file only if its id passes the pattern and its real path lies inside the workspace, so a
+   * dangling link is skipped too.
    */
   public List<String> list() throws IOException {
     List<String> ids = new ArrayList<>();
@@ -92,6 +96,11 @@ public class Workspace {
             return BASE.matcher(root.relativize(dir).toString()).matches()
                 ? FileVisitResult.CONTINUE
                 : FileVisitResult.SKIP_SUBTREE;
+          }
+
+          @Override
+          public FileVisitResult visitFileFailed(Path file, IOException unreadable) {
+            return FileVisitResult.CONTINUE;
           }
 
           @Override
@@ -111,38 +120,49 @@ public class Workspace {
     return ids;
   }
 
-  /** The bytes of the mapping file of {@code id}. */
+  /** The bytes of the mapping model file of {@code id}. */
   public byte[] read(String id) throws IOException, WorkspacePathException {
-    Path file = real(mappingFile(id));
+    Path file = existing(id);
     try (InputStream in = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS)) {
       return in.readAllBytes();
     }
   }
 
   /**
-   * Replaces the mapping file of {@code id} atomically. Through a link it writes the link's target
-   * and keeps the link.
+   * Steps 1 to 3 for the mapping model file of {@code id}, which must exist. The PUT endpoint
+   * checks its id with it before it reads the body.
+   *
+   * @return the file's real path
+   * @throws NoSuchFileException if there is no mapping model file of {@code id}
+   */
+  public Path existing(String id) throws IOException, WorkspacePathException {
+    return real(mappingModelFile(id));
+  }
+
+  /**
+   * Replaces the mapping model file of {@code id} atomically. Through a link it writes the link's
+   * target and keeps the link.
    */
   public void save(String id, byte[] canonical) throws IOException, WorkspacePathException {
     write(
-        real(mappingFile(id)),
+        existing(id),
         canonical,
         StandardCopyOption.ATOMIC_MOVE,
         StandardCopyOption.REPLACE_EXISTING);
   }
 
-  /** Writes the mapping file of a new {@code id}; never replaces one. */
+  /** Writes the mapping model file of a new {@code id}; never replaces one. */
   public void create(String id, byte[] canonical) throws IOException, WorkspacePathException {
-    Path file = mappingFile(id);
+    Path file = mappingModelFile(id);
     write(real(file.getParent()).resolve(file.getFileName()), canonical);
   }
 
   /**
-   * The real path of the directory that holds, or would hold, the mapping file of {@code id}: the
-   * directory its bundle references are relative to.
+   * The real path of the directory that holds, or would hold, the mapping model file of {@code id}:
+   * the directory its bundle references are relative to.
    */
   public Path mappingDirectory(String id) throws IOException, WorkspacePathException {
-    return real(mappingFile(id).getParent());
+    return real(mappingModelFile(id).getParent());
   }
 
   /** The real path of the directory {@code base} names; {@code ""} is the root. */
@@ -153,7 +173,8 @@ public class Workspace {
   /**
    * Refuses a bundle reference that leaves the workspace from {@code directory}. A file inside the
    * workspace that is missing passes: the engine reports it. Its nearest existing ancestor must lie
-   * inside the workspace by its real path.
+   * inside the workspace by its real path. A dangling link has no real path, and its target might
+   * appear outside later, so a reference to or through one is refused (ADR-0024).
    *
    * @param directory a real directory of the workspace, as {@link #directory} or {@link
    *     #mappingDirectory} return it
@@ -165,7 +186,11 @@ public class Workspace {
       while (Files.notExists(existing, LinkOption.NOFOLLOW_LINKS)) {
         existing = existing.getParent();
       }
-      real(existing);
+      try {
+        real(existing);
+      } catch (NoSuchFileException danglingLink) {
+        throw new WorkspacePathException(reference);
+      }
     }
   }
 
@@ -173,8 +198,8 @@ public class Workspace {
     return ID.matcher(id).matches() && !RESERVED.contains(id.substring(id.lastIndexOf('/') + 1));
   }
 
-  /** Steps 1 and 2 for an id: the path of its mapping file, not yet resolved on disk. */
-  private Path mappingFile(String id) throws WorkspacePathException {
+  /** Steps 1 and 2 for an id: the path of its mapping model file, not yet resolved on disk. */
+  private Path mappingModelFile(String id) throws WorkspacePathException {
     if (!isId(id)) {
       throw new WorkspacePathException(id);
     }
@@ -216,21 +241,17 @@ public class Workspace {
   }
 
   /**
-   * Writes {@code .<name>.tmp} in the real parent of {@code target}, then moves it onto {@code
-   * target} with {@code options}, under the target's lock. The temporary file never outlives the
-   * call.
+   * Writes a new temporary file with a unique name in the real parent of {@code target}, then moves
+   * it onto {@code target} with {@code options}, under the target's lock. No file that existed
+   * before the call is opened, so a {@code .<name>.tmp} left beside the target stays as it is. The
+   * temporary file never outlives the call.
    */
   private void write(Path target, byte[] bytes, CopyOption... options) throws IOException {
-    Path temp = target.resolveSibling("." + target.getFileName() + ".tmp");
     synchronized (locks[Math.floorMod(target.hashCode(), STRIPES)]) {
+      Path temp =
+          Files.createTempFile(target.getParent(), "." + target.getFileName() + ".", ".tmp");
       try {
-        Files.write(
-            temp,
-            bytes,
-            StandardOpenOption.CREATE,
-            StandardOpenOption.TRUNCATE_EXISTING,
-            StandardOpenOption.WRITE,
-            LinkOption.NOFOLLOW_LINKS);
+        Files.write(temp, bytes, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
         Files.move(temp, target, options);
       } finally {
         Files.deleteIfExists(temp);
