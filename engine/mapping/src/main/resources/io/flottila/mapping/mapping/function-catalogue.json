@@ -17,6 +17,15 @@
     ],
     "portable": true
   },
+  "exists": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
   "formatByExample": {
     "executionKind": "queue",
     "inputs": [
@@ -25,6 +34,22 @@
       },
       {
         "name": "example"
+      }
+    ],
+    "portable": true
+  },
+  "mapWithDefault": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "default",
+        "type": "string"
       }
     ],
     "portable": true

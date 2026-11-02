@@ -360,4 +360,43 @@ class RuntimeLibraryBindingTest {
         .hasMessageContaining(call.function().name())
         .hasMessageContaining(value);
   }
+
+  // --- exists and mapWithDefault (#57): per context of their input, mapWithDefault's param is the
+  // default; removeContexts puts every context under the root's one slot
+
+  /** Name in Item's context: x1, x2 | (empty) | y. */
+  private static final String NAMES =
+      "<Item><Name>x1</Name><Name>x2</Name></Item><Item/><Item><Name>y</Name></Item>";
+
+  private static FunCall removeContexts(Expr queue) {
+    return new FunCall(
+        new FunctionRef("removeContexts", List.of(QUEUE), QUEUE),
+        List.of(queue),
+        new AuthoringId("r1"));
+  }
+
+  @Test
+  void existsIsBoundByName() throws Exception {
+    FunCall exists =
+        new FunCall(
+            new FunctionRef("exists", List.of(QUEUE), QUEUE),
+            List.of(source(2, "a1", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    assertThat(run(removeContexts(exists), NAMES)).isEqualTo(notesOf("true", "false", "true"));
+  }
+
+  /** The param binds as the default: the empty Item's context gets it. */
+  @Test
+  void mapWithDefaultIsBoundByNameWithItsDefault() throws Exception {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall mapWithDefault =
+        new FunCall(
+            new FunctionRef("mapWithDefault", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(source(2, "a1", "Item", "Name"), new Literal("none", box)),
+            box);
+
+    assertThat(run(removeContexts(mapWithDefault), NAMES))
+        .isEqualTo(notesOf("x1", "x2", "none", "y"));
+  }
 }
