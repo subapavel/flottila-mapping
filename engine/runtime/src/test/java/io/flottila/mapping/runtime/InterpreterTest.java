@@ -8,7 +8,10 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.ir.TargetSlots;
@@ -305,6 +308,50 @@ class InterpreterTest {
     assertThat(untraced.values()).isEmpty();
     // the same mapping and input do report when traced, so the silence is the untraced compile's
     assertThat(witness.values()).hasSize(3);
+  }
+
+  /**
+   * A context function (ADR-0025): {@code removeContexts} over {@code Name} in {@code Item}'s
+   * context, as lowering gives it, bound by its catalogue name. A traced compile reports its queue
+   * once, at its box, beside its input's.
+   */
+  @Test
+  void aTracedFunCallReportsOnceAtItsBox() throws Exception {
+    QueueType queue = new QueueType();
+    AuthoringId t1 = id("t1");
+    FunCall removeContexts =
+        new FunCall(
+            new FunctionRef("removeContexts", List.of(queue), queue),
+            List.of(new SourceQueue(List.of(ORDER, local("Item"), local("Name")), 2, id("a1"))),
+            id("r1"));
+    TargetDocument names =
+        document(
+            new TargetSlots(
+                removeContexts,
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t1),
+                0,
+                UNBOUNDED,
+                "v",
+                new ElementConstructor(
+                    "",
+                    local("Name"),
+                    List.of(new TextConstructor(new VarRef("v", AtomicType.STRING, t1), t1)),
+                    t1),
+                t1));
+    byte[] input =
+        utf8(sourceOrder("<Item><Name>x1</Name><Name>x2</Name></Item><Item><Name>y</Name></Item>"));
+    Tracer tracer = new Tracer();
+
+    byte[] traced = run(names, true, input, tracer);
+    byte[] untraced = run(names, false, input, new Tracer());
+
+    assertThat(tracedOnce(tracer, "r1")).containsExactly(List.of("x1", "x2", "y"));
+    assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of("x1", "x2"), List.of("y"));
+    // the root's one slot reads context 1, which now holds every Name, not only the first Item's
+    String all =
+        DECLARATION + ROOT_OPEN + "<Name>x1</Name><Name>x2</Name><Name>y</Name>" + ROOT_CLOSE;
+    assertThat(new String(traced, UTF_8)).isEqualTo(all);
+    assertThat(untraced).isEqualTo(traced);
   }
 
   @Test

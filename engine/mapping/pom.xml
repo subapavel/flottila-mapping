@@ -44,6 +44,10 @@
           <include>mapping-model.schema.json</include>
         </includes>
       </resource>
+      <!-- the module's own resources: the engine-internal function catalogue (ADR-0025) -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
     </resources>
     <plugins>
       <plugin>

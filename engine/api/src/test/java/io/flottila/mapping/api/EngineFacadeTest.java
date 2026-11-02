@@ -29,8 +29,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The engine facade loads and saves a mapping model by delegating to {@code engine/mapping}, whose
@@ -530,6 +534,128 @@ class EngineFacadeTest {
                 assertThat(refused.diagnostics())
                     .extracting(Diagnostic::code)
                     .containsExactly("format-version-unsupported"));
+  }
+
+  // --- function boxes (#50, ADR-0025): stage 3 checks a reached standard function box against
+  // its catalogue entry, at the box. removeContexts has one input and no params.
+
+  /**
+   * The field link {@code OrderId <- OrderId} and {@code Note <- f1}, where {@code f1} is {@code
+   * box}; {@code a2} reads {@code Note} and {@code a3} reads {@code OrderId}.
+   */
+  private static byte[] withFunctionBox(String box) {
+    return orderToOrder(
+        """
+        {"%1$s/OrderId": {"id": "t1", "result": "a1",
+                          "boxes": {"a1": {"kind": "source", "field": "%1$s/OrderId"}}},
+         "%1$s/Note": {"id": "t2", "result": "f1",
+                       "boxes": {"f1": %2$s,
+                                 "a2": {"kind": "source", "field": "%1$s/Note"},
+                                 "a3": {"kind": "source", "field": "%1$s/OrderId"}}}}
+        """
+            .formatted(ORDER, box));
+  }
+
+  /** The box each refused one below differs from in one place: the catalogue's one input. */
+  private static final String REMOVE_CONTEXTS =
+      """
+      {"kind": "function", "fn": "removeContexts", "inputs": ["a2"]}""";
+
+  /**
+   * Witness: the well-formed box compiles and runs. {@code Note} is in the root's context, so the
+   * queue has one context and removeContexts keeps it as it is.
+   */
+  private static void assertTheWellFormedBoxRuns() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    byte[] input =
+        utf8(
+            "<src:Order xmlns:src=\""
+                + NS
+                + "\"><OrderId>1</OrderId><Note>x</Note><Note>y</Note></src:Order>");
+
+    byte[] output =
+        facade.run(
+            compiled(facade.compile(withFunctionBox(REMOVE_CONTEXTS), skeleton(), DEPLOY)), input);
+
+    assertThat(new String(output, UTF_8))
+        .isEqualTo(
+            DECLARATION
+                + "<ns0:Order xmlns:ns0=\""
+                + NS
+                + "\"><OrderId>1</OrderId><Note>x</Note><Note>y</Note></ns0:Order>");
+  }
+
+  /** The one diagnostic {@code code} at the function box {@code f1}. */
+  private static List<String> atTheFunctionBox(String code) {
+    return described(List.of(error(code, new AtAuthoringId(new AuthoringId("f1")))));
+  }
+
+  @Test
+  void moreInputsThanTheCatalogueIsWrongArity() throws Exception {
+    byte[] model =
+        withFunctionBox(
+            """
+            {"kind": "function", "fn": "removeContexts", "inputs": ["a2", "a3"]}""");
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics)).containsExactlyElementsOf(atTheFunctionBox("wrong-arity"));
+    assertTheWellFormedBoxRuns();
+  }
+
+  static Stream<Arguments> unconnectedInputs() {
+    return Stream.of(
+        Arguments.of(
+            "an input slot that is null",
+            """
+            {"kind": "function", "fn": "removeContexts", "inputs": [null]}"""),
+        Arguments.of(
+            "an empty inputs array",
+            """
+            {"kind": "function", "fn": "removeContexts", "inputs": []}"""),
+        Arguments.of(
+            "no inputs member",
+            """
+            {"kind": "function", "fn": "removeContexts"}"""));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("unconnectedInputs")
+  void aNullOrAbsentInputIsUnconnectedInput(String why, String box) throws Exception {
+    List<Diagnostic> diagnostics =
+        refusal(new EngineFacade().compile(withFunctionBox(box), skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .as(why)
+        .containsExactlyElementsOf(atTheFunctionBox("unconnected-input"));
+    assertTheWellFormedBoxRuns();
+  }
+
+  static Stream<Arguments> unknownParameters() {
+    return Stream.of(
+        Arguments.of(
+            "a string param",
+            """
+            {"kind": "function", "fn": "removeContexts", "inputs": ["a2"],
+             "params": {"mode": "each"}}"""),
+        // a key the entry lacks has no type to compare a table with: unknown, not wrong-type
+        Arguments.of(
+            "a table param",
+            """
+            {"kind": "function", "fn": "removeContexts", "inputs": ["a2"],
+             "params": {"rows": {"a": "b"}}}"""));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("unknownParameters")
+  void aParamTheCatalogueLacksIsUnknownParameter(String why, String box) throws Exception {
+    List<Diagnostic> diagnostics =
+        refusal(new EngineFacade().compile(withFunctionBox(box), skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .as(why)
+        .containsExactlyElementsOf(atTheFunctionBox("unknown-parameter"));
+    assertTheWellFormedBoxRuns();
   }
 
   // --- a new mapping (#54, ADR-0016): the facade, not the service, builds it

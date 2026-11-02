@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/remove-contexts.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0004 \"An absent parent gives zero contexts, not one empty context\" (assumed reading, Consequences)",
+  "expect": "output",
+  "note": "An empty input: <Orders/> has no Order and no Line, so the Sku queue has no context at all. removeContexts gives at most one context and it holds no value, so the root's one slot creates no All and the root is written empty."
+}

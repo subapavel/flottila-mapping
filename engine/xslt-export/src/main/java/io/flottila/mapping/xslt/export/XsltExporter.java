@@ -4,6 +4,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
@@ -16,6 +18,7 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The portable XSLT 3.0 export of unoptimised IR (ADR-0023): one stylesheet that imports the helper
@@ -33,6 +36,11 @@ import java.util.Map;
  *       {@code xpath-default-namespace}.
  *   <li>{@code TargetSlots} is {@code po:slots} over its queue, its parent's slot number and its
  *       {@code max}, {@code ()} when unbounded; spec 1 does not enforce {@code min} (ADR-0006).
+ *   <li>A queue is an {@code array(xs:string*)} with one member per context, and a {@code FunCall}
+ *       is {@code po:<catalogue name>} of the helper module over its args in {@code FunCall} order
+ *       (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
+ *   <li>An expression is escaped for the attribute it stands in, so a literal keeps every
+ *       character, white space included.
  * </ul>
  *
  * <p>An IR it cannot write is a compiler bug, as in {@code IrVerifier}, so it throws {@link
@@ -154,7 +162,10 @@ public final class XsltExporter {
         line(
             out,
             depth,
-            FOR_EACH.formatted(expression(s.queue()), expression(s.parentSlot()), max(s.max())));
+            FOR_EACH.formatted(
+                attribute(expression(s.queue())),
+                attribute(expression(s.parentSlot())),
+                max(s.max())));
         line(out, depth + 1, VALUE_VARIABLE.formatted(s.valueVar()));
         instruction(s.body(), depth + 1, out);
         line(out, depth, END_FOR_EACH);
@@ -174,9 +185,11 @@ public final class XsltExporter {
           line(out, depth, end);
         }
       }
-      case TextConstructor t -> out.append(VALUE_OF.formatted(expression(t.value())));
+      case TextConstructor t -> out.append(VALUE_OF.formatted(attribute(expression(t.value()))));
       case SourceQueue q -> throw misplaced(q, "content");
       case VarRef v -> throw misplaced(v, "content");
+      case Literal l -> throw misplaced(l, "content");
+      case FunCall c -> throw misplaced(c, "content");
     }
   }
 
@@ -190,6 +203,11 @@ public final class XsltExporter {
             path(q.field().subList(q.contextDepth(), q.field().size()), where));
       }
       case VarRef v -> "$" + v.name();
+      case Literal l -> "'" + l.value().replace("'", "''") + "'";
+      case FunCall c ->
+          c.args().stream()
+              .map(this::expression)
+              .collect(Collectors.joining(", ", "po:" + c.function().name() + "(", ")"));
       case TargetSlots s -> throw misplaced(s, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
@@ -257,9 +275,18 @@ public final class XsltExporter {
     }
   }
 
-  /** {@code value} escaped for an attribute in quotes. */
+  /**
+   * {@code value} escaped for an attribute in quotes, white space included, which a parser would
+   * otherwise normalise (XML 1.0 §3.3.3).
+   */
   private static String attribute(String value) {
-    return value.replace("&", "&amp;").replace("<", "&lt;").replace("\"", "&quot;");
+    return value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace("\"", "&quot;")
+        .replace("\t", "&#9;")
+        .replace("\n", "&#10;")
+        .replace("\r", "&#13;");
   }
 
   private static void line(StringBuilder out, int depth, String text) {

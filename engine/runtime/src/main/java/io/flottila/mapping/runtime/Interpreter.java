@@ -3,6 +3,8 @@ package io.flottila.mapping.runtime;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
@@ -19,8 +21,10 @@ import java.util.Map;
 /**
  * Tier 0, the closure-compiled interpreter (ADR-0021). Compiling turns the IR once into a tree of
  * executable nodes over a frame: variables become slots, source queues become indexes into the
- * projection plan, and nothing is looked up by name while a mapping runs. A traced compile reports
- * every source queue it evaluates to the run's tracer; an untraced compile has no hook at all.
+ * projection plan, a context function is bound by its name once per call site (ADR-0025), and
+ * nothing is looked up by name while a mapping runs. A traced compile reports every source queue
+ * and every call it evaluates to the run's tracer, at its box; an untraced compile has no hook at
+ * all.
  */
 public final class Interpreter {
 
@@ -73,6 +77,8 @@ public final class Interpreter {
     return switch (expr) {
       case SourceQueue q -> queue(q);
       case VarRef v -> variable(v, scope.get(v.name()));
+      case Literal l -> constant(l.value());
+      case FunCall c -> call(c, scope);
       case TargetSlots s -> slots(s, scope);
       case ElementConstructor e ->
           new Node.Element(
@@ -92,15 +98,35 @@ public final class Interpreter {
   private Node.OfQueue queue(SourceQueue q) {
     int index =
         plan.computeIfAbsent(new Projection.Queue(q.field(), q.contextDepth()), k -> plan.size());
-    if (!traced) {
-      return frame -> frame.queues[index];
+    return traced(q.origin(), frame -> frame.queues[index]);
+  }
+
+  /**
+   * A call of a context function: its inputs' nodes, bound by the function's name. Every argument
+   * is an input, as no function of the runtime library takes a param yet (#55).
+   */
+  private Node.OfQueue call(FunCall c, Map<String, Integer> scope) {
+    List<Node.OfQueue> inputs = new ArrayList<>();
+    for (Expr arg : c.args()) {
+      inputs.add((Node.OfQueue) compile(arg, scope));
     }
-    AuthoringId box = q.origin();
+    return traced(c.origin(), QueueLibrary.bind(c.function().name(), inputs));
+  }
+
+  /** {@code node}, which reports each queue it gives at {@code box} when the compile is traced. */
+  private Node.OfQueue traced(AuthoringId box, Node.OfQueue node) {
+    if (!traced) {
+      return node;
+    }
     return frame -> {
-      QueueBlock block = frame.queues[index];
+      QueueBlock block = node.eval(frame);
       frame.tracer.value(box, block);
       return block;
     };
+  }
+
+  private static Node.OfString constant(String value) {
+    return frame -> value;
   }
 
   private static Node variable(VarRef v, int slot) {

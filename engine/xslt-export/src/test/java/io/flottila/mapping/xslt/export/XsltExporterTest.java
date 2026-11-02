@@ -8,8 +8,12 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.ir.TargetSlots;
@@ -439,5 +443,183 @@ class XsltExporterTest {
         .contains("xmlns:po=\"urn:flottila:mapping:po\"")
         .contains("<xsl:function ")
         .contains("name=\"po:slots\"");
+  }
+
+  // --- function calls (#50, ADR-0025): a FunCall is po:<catalogue name>(args…), its args in
+  // FunCall order, the inputs and then every param as a Literal; the back ends bind by name only
+
+  private static final QueueType QUEUE = new QueueType();
+
+  private static FunCall removeContexts(Expr queue, String box) {
+    return new FunCall(
+        new FunctionRef("removeContexts", List.of(QUEUE), QUEUE), List.of(queue), id(box));
+  }
+
+  /** The number of {@code xsl:param} of the helper module's {@code xsl:function} {@code name}. */
+  private static int helperParams(String name) {
+    String helper = XsltExporter.helperModule();
+    int at = helper.indexOf("name=\"" + name + "\"");
+    assertThat(at).as("%s in the helper module", name).isNotNegative();
+    assertThat(helper.substring(helper.lastIndexOf('<', at)))
+        .as("the element named %s", name)
+        .startsWith("<xsl:function ");
+    int end = helper.indexOf("</xsl:function>", at);
+    assertThat(end).as("the end of %s", name).isGreaterThan(at);
+    return occurrences(helper.substring(at, end), "<xsl:param ");
+  }
+
+  @Test
+  void aFunCallIsItsPoFunction() {
+    SourceQueue orderIds = underRoot(ORDER, ORDER_ID, "a1");
+    String queue = "array:join(/s0:Order ! [OrderId ! string()])";
+    String once = "po:slots(po:removeContexts(" + queue + "), $root, 1)";
+    String nested = "po:slots(po:removeContexts(po:removeContexts(" + queue + ")), $root, 1)";
+    String fieldLink = "po:slots(" + queue + ", $root, 1)";
+    assertThat(FIELD_LINK_STYLESHEET).as("the field link's call").contains(fieldLink);
+
+    // the field link's stylesheet with the call around its queue, and nothing else changed
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(removeContexts(orderIds, "r1"), List.of(valueText()))))
+        .isEqualTo(FIELD_LINK_STYLESHEET.replace(fieldLink, once));
+    // an argument is any queue expression, a call included
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(
+                    removeContexts(removeContexts(orderIds, "r1"), "r2"), List.of(valueText()))))
+        .contains("<xsl:for-each select=\"" + nested + "\">");
+    // the helper module holds the function, with one parameter per argument
+    assertThat(helperParams("po:removeContexts")).isEqualTo(1);
+  }
+
+  /**
+   * The raw value of the first {@code xsl:for-each}'s {@code select}, as written between quotes.
+   */
+  private static String forEachSelect(String stylesheet) {
+    String start = "<xsl:for-each select=\"";
+    int at = stylesheet.indexOf(start);
+    assertThat(at).as("an xsl:for-each with a select").isNotNegative();
+    int from = at + start.length();
+    return stylesheet.substring(from, stylesheet.indexOf('"', from));
+  }
+
+  /**
+   * The value an XML 1.0 parser gives for an attribute value written as {@code raw} in double
+   * quotes: line ends normalised (§2.11), then references resolved and every literal white-space
+   * character made a space (§3.3.3). A raw {@code <} or an {@code &} that starts no reference is no
+   * well-formed XML.
+   */
+  private static String attributeValue(String raw) {
+    String text = raw.replace("\r\n", "\n").replace('\r', '\n');
+    StringBuilder value = new StringBuilder();
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      assertThat(c).as("a raw < in the attribute %s", raw).isNotEqualTo('<');
+      if (c == '&') {
+        int semicolon = text.indexOf(';', i);
+        assertThat(semicolon).as("a reference at %d of %s", i, raw).isGreaterThan(i + 1);
+        String name = text.substring(i + 1, semicolon);
+        if (name.startsWith("#x")) {
+          value.appendCodePoint(Integer.parseInt(name.substring(2), 16));
+        } else if (name.startsWith("#")) {
+          value.appendCodePoint(Integer.parseInt(name.substring(1)));
+        } else {
+          String entity =
+              switch (name) {
+                case "amp" -> "&";
+                case "lt" -> "<";
+                case "gt" -> ">";
+                case "quot" -> "\"";
+                case "apos" -> "'";
+                default ->
+                    throw new AssertionError("no predefined entity &" + name + "; in " + raw);
+              };
+          value.append(entity);
+        }
+        i = semicolon;
+      } else if (c == ' ' || c == '\t' || c == '\n') {
+        value.append(' ');
+      } else {
+        value.append(c);
+      }
+    }
+    return value.toString();
+  }
+
+  /**
+   * An XPath 3.1 StringLiteral starting at {@code at}: in apostrophes or quotation marks, where the
+   * delimiter doubled stands for itself; its value and the index after it.
+   */
+  private record StringLiteral(String value, int end) {
+
+    static StringLiteral at(String expression, int at) {
+      char delimiter = expression.charAt(at);
+      assertThat(delimiter).as("a string literal at %d of %s", at, expression).isIn('\'', '"');
+      StringBuilder value = new StringBuilder();
+      int i = at + 1;
+      while (true) {
+        assertThat(i)
+            .as("the end of the literal in %s", expression)
+            .isLessThan(expression.length());
+        char c = expression.charAt(i);
+        if (c == delimiter
+            && i + 1 < expression.length()
+            && expression.charAt(i + 1) == delimiter) {
+          value.append(delimiter);
+          i += 2;
+        } else if (c == delimiter) {
+          return new StringLiteral(value.toString(), i + 1);
+        } else {
+          value.append(c);
+          i++;
+        }
+      }
+    }
+  }
+
+  static Stream<Arguments> literals() {
+    return Stream.of(
+        Arguments.of("the empty string", ""),
+        Arguments.of("plain text", "each value"),
+        Arguments.of("an apostrophe", "it's"),
+        Arguments.of("quotation marks", "say \"hi\""),
+        Arguments.of("both delimiters, doubled", "'\"''\"\""),
+        Arguments.of("markup characters", "a&b<c>d&amp;"),
+        Arguments.of("a tab, a line feed and a carriage return", "a\tb\nc\rd"),
+        Arguments.of("a CR LF pair and leading and trailing spaces", " a\r\nb "),
+        Arguments.of("braces, which select never treats as a template", "{x}"),
+        Arguments.of("non-ASCII and a character outside the BMP", "Grüße 😀"));
+  }
+
+  /**
+   * A box parameter is a {@code Literal} argument. Read back as an XML parser and then an XPath
+   * parser read it, the literal is the parameter's value, whatever characters it holds; how it is
+   * quoted and escaped is the exporter's choice. The function name stands for any context function
+   * with a parameter: the exporter binds by name only.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("literals")
+  void aLiteralIsQuotedAndEscaped(String why, String value) {
+    FunCall split =
+        new FunCall(
+            new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(underRoot(ORDER, ORDER_ID, "a1"), new Literal(value, id("s1"))),
+            id("s1"));
+    String call = "po:slots(po:splitByValue(array:join(/s0:Order ! [OrderId ! string()])";
+
+    String select =
+        attributeValue(
+            forEachSelect(XsltExporter.export(fieldLinkWith(split, List.of(valueText())))));
+
+    assertThat(select).startsWith(call);
+    int comma = select.indexOf(',', call.length());
+    assertThat(select.substring(call.length(), comma)).as("before the second argument").isBlank();
+    int start = comma + 1;
+    while (select.charAt(start) == ' ') {
+      start++;
+    }
+    StringLiteral literal = StringLiteral.at(select, start);
+    assertThat(literal.value()).isEqualTo(value);
+    assertThat(select.substring(literal.end())).matches(" *\\) *, *\\$root *, *1 *\\)");
   }
 }
