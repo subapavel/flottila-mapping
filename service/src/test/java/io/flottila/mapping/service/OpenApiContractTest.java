@@ -278,6 +278,49 @@ class OpenApiContractTest {
     }
   }
 
+  /**
+   * Every operation declares exactly one 2xx, {@code application/json}, of the schema the #28
+   * design names: the list's {@code MappingSummary[]}, the model schema for GET, PUT and create,
+   * {@code TestResult} for a test run and {@code StructureResponse} for a structure (#28 round 3).
+   */
+  @Test
+  void everyOperationDeclaresTheSchemaOfItsSuccess() throws IOException {
+    String model = "./mapping-model.schema.json";
+    Map<String, String> successes =
+        Map.of(
+            "get /api/mappings", "200 array of " + SCHEMAS + "MappingSummary",
+            "post /api/mappings", "201 " + model,
+            "get /api/mappings/{id}", "200 " + model,
+            "put /api/mappings/{id}", "200 " + model,
+            "post /api/mappings/{id}/test", "200 " + SCHEMAS + "TestResult",
+            "post /api/structures", "200 " + SCHEMAS + "StructureResponse");
+    Map<String, JsonNode> operations = operations(contract());
+    assertThat(operations.keySet()).isEqualTo(successes.keySet());
+
+    Map<String, String> declared = new TreeMap<>();
+    operations.forEach(
+        (operation, node) -> {
+          List<String> answers = new ArrayList<>();
+          for (String status : names(node.path("responses"))) {
+            if (status.startsWith("2")) {
+              JsonNode content = node.path("responses").path(status).path("content");
+              assertThat(names(content))
+                  .as("media types of %s %s", status, operation)
+                  .containsExactly("application/json");
+              JsonNode schema = content.path("application/json").path("schema");
+              answers.add(
+                  status
+                      + " "
+                      + (schema.path("type").asText("").equals("array")
+                          ? "array of " + schema.path("items").path("$ref").textValue()
+                          : schema.path("$ref").textValue()));
+            }
+          }
+          declared.put(operation, String.join(", ", answers));
+        });
+    assertThat(declared).isEqualTo(new TreeMap<>(successes));
+  }
+
   /** A model answer carries its ETag (ADR-0024, "ETag"); a create carries its Location too. */
   @Test
   void modelAnswersDeclareTheirEtagAndCreateItsLocation() throws IOException {

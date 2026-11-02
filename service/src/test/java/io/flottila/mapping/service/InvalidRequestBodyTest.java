@@ -31,8 +31,10 @@ import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,6 +150,8 @@ class InvalidRequestBodyTest {
             edit("unknown member at the top", t, r -> r.put("extra", 1)),
             edit("unknown member in source", t, r -> object(r, "source").put("extra", 1)),
             edit("wrong type: id a number", t, r -> r.put("id", 5)),
+            edit("wrong type: id a boolean", t, r -> r.put("id", true)),
+            edit("wrong type: id a float", t, r -> r.put("id", 1.5)),
             edit("wrong type: id an object", t, r -> r.putObject("id")),
             edit("wrong type: source an array", t, r -> r.putArray("source")),
             edit(
@@ -189,6 +193,8 @@ class InvalidRequestBodyTest {
             Named.of("the body null", bytes("null")),
             edit("unknown member", t, r -> r.put("extra", 1)),
             edit("wrong type: base a number", t, r -> r.put("base", 0)),
+            edit("wrong type: base a boolean", t, r -> r.put("base", true)),
+            edit("wrong type: base a float", t, r -> r.put("base", 1.5)),
             edit("wrong type: base an object", t, r -> r.putObject("base")),
             edit("wrong type: bundle a string", t, r -> r.put("bundle", "order.xsd")),
             Named.of("wrong type: the body an array", bytes("[]"))));
@@ -225,6 +231,17 @@ class InvalidRequestBodyTest {
         Named.of(
             "wsdl fault a number",
             "{\"wsdl\": {" + operation + ", \"direction\": \"fault\", \"fault\": 5}}"),
+        Named.of(
+            "wsdl interface a number",
+            "{\"wsdl\": {\"interface\": 5, \"operation\": \"submit\", \"direction\": \"input\"}}"),
+        Named.of(
+            "wsdl operation a number",
+            "{\"wsdl\": {\"interface\": \"OrderService\", \"operation\": 5,"
+                + " \"direction\": \"input\"}}"),
+        Named.of(
+            "wsdl without operation but with a fault",
+            "{\"wsdl\": {\"interface\": \"OrderService\", \"direction\": \"fault\","
+                + " \"fault\": \"Rejected\"}}"),
         Named.of("wsdl a string", "{\"wsdl\": \"OrderService.submit\"}"),
         Named.of("a string", Wire.quoted(ORDER)),
         Named.of("an array", "[]"));
@@ -249,8 +266,52 @@ class InvalidRequestBodyTest {
         Named.of("the body null", bytes("null")),
         edit("unknown member", t, r -> r.put("extra", 1)),
         edit("wrong type: input a number", t, r -> r.put("input", 5)),
+        edit("wrong type: input a boolean", t, r -> r.put("input", true)),
+        edit("wrong type: input a float", t, r -> r.put("input", 1.5)),
         edit("wrong type: input an object", t, r -> r.putObject("input")),
         Named.of("wrong type: the body an array", bytes("[]")));
+  }
+
+  /**
+   * The problem's detail tells a missing member from a null one (ADR-0024, "Service boundary"): the
+   * client learns which edit to make. Each pair is one member of one endpoint, removed or set to
+   * null in the same template.
+   */
+  @Test
+  void aMissingMemberIsNamedMissingAndANullMemberNull() {
+    Map<String, ObjectNode[]> pairs = new LinkedHashMap<>();
+    pairs.put("api/mappings id", pair(createTemplate(), "id"));
+    pairs.put("api/structures base", pair(structureTemplate(), "base"));
+    pairs.put("api/mappings/" + TEST_ID + "/test input", pair(testTemplate(), "input"));
+
+    pairs.forEach(
+        (where, pair) -> {
+          String path = where.substring(0, where.indexOf(' '));
+          String missing =
+              assertProblem(post(path, serialised(pair[0])), 400, "invalid-request")
+                  .path("detail")
+                  .textValue();
+          String isNull =
+              assertProblem(post(path, serialised(pair[1])), 400, "invalid-request")
+                  .path("detail")
+                  .textValue();
+
+          assertThat(missing)
+              .as("missing %s", where)
+              .containsIgnoringCase("missing")
+              .doesNotContainIgnoringCase("null");
+          assertThat(isNull)
+              .as("null %s", where)
+              .containsIgnoringCase("null")
+              .doesNotContainIgnoringCase("missing");
+        });
+  }
+
+  /** {@code template} without {@code member}, and with {@code member} set to null. */
+  private static ObjectNode[] pair(ObjectNode template, String member) {
+    return new ObjectNode[] {
+      edited(template, r -> r.remove(member)), edited(template, r -> r.putNull(member))
+    };
   }
 
   /** A root shape inside the working copy is the model's: stage 1 refuses it with a 200. */

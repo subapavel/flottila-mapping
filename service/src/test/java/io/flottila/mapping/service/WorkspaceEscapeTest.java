@@ -149,6 +149,17 @@ class WorkspaceEscapeTest {
             "POST",
             "api/mappings/mappings/order-id-copy/test",
             testRequest(exfilModel("../links/ghost.xsd"), EXFIL_INPUT)),
+        // a link loop has no real path either: it fails closed (#28 round 3)
+        attack(
+            "structures: a bundle ref to a link loop",
+            "POST",
+            "api/structures",
+            structureRequest("", "links/loop.xsd", EXFIL)),
+        attack(
+            "test run with a bundle ref to a link loop",
+            "POST",
+            "api/mappings/mappings/order-id-copy/test",
+            testRequest(exfilModel("../links/loop.xsd"), EXFIL_INPUT)),
         attack(
             "test run with an escaping bundle",
             "POST",

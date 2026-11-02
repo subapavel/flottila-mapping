@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -15,6 +16,8 @@ import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -40,7 +43,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * and never a read or a write.
  *
  * <p>Each test lays out {@code tmp/ws} (the workspace) next to {@code tmp/outside}, whose files no
- * call may read or change. A mapping file's content is its id, so a read shows which file it read.
+ * call may read or change. A mapping model file's content is its id, so a read shows which file it
+ * read.
  */
 class WorkspaceTest {
 
@@ -494,6 +498,82 @@ class WorkspaceTest {
     assertThat(besideTheWorkspace()).isEqualTo(before);
   }
 
+  /**
+   * A link that points at itself has no real path ({@code ELOOP}): the listing skips it and lists
+   * the rest (#28 round 3).
+   */
+  @Test
+  void listSkipsALinkLoop() throws Exception {
+    mapping("m");
+    Files.createSymbolicLink(root.resolve("loop.mapping.json"), Path.of("loop.mapping.json"));
+    Files.createDirectory(root.resolve("d"));
+    Files.createSymbolicLink(root.resolve("d/x.mapping.json"), Path.of("x.mapping.json"));
+    // the witness: the links are there, and have no real path
+    assertThatExceptionOfType(FileSystemException.class)
+        .isThrownBy(() -> root.resolve("loop.mapping.json").toRealPath());
+
+    assertThat(workspace.list()).containsExactly("a/b", "m");
+  }
+
+  /**
+   * A bundle reference to or through a link loop is refused: like a dangling link it has no real
+   * path, so the check fails closed (#28 round 3). The engine never sees it.
+   */
+  @Test
+  void refusesABundleRefToALinkLoop() throws Exception {
+    Path links = Files.createDirectory(root.resolve("links"));
+    Files.createSymbolicLink(links.resolve("loop.xsd"), Path.of("loop.xsd"));
+    Files.createSymbolicLink(links.resolve("loopdir"), Path.of("loopdir"));
+    Map<String, String> before = besideTheWorkspace();
+
+    for (String ref : List.of("links/loop.xsd", "links/loopdir/x.xsd")) {
+      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+    }
+    assertRefused(() -> workspace.checkBundle(links, List.of("loop.xsd")), "from links");
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
+  /**
+   * A save keeps the mapping model file's POSIX permissions (#28 round 3): what the user set stays
+   * set. Skipped only on a file system without POSIX permissions.
+   */
+  @Test
+  void saveKeepsTheMappingModelFilesPermissions() throws Exception {
+    assumePosix();
+    for (String mode : List.of("rw-r--r--", "rw-r-----")) {
+      String id = "mode/" + mode.replace('-', '_');
+      mapping(id);
+      Path file = root.resolve(id + ".mapping.json");
+      Files.setPosixFilePermissions(file, PosixFilePermissions.fromString(mode));
+
+      workspace.save(id, NEW);
+
+      assertThat(workspace.read(id)).isEqualTo(NEW);
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+          .as("mode of %s after a save", id)
+          .isEqualTo(mode);
+    }
+  }
+
+  /** A created mapping model file is {@code rw-r--r--} (0644; #28 round 3). */
+  @Test
+  void createMakesAMappingModelFileOfMode0644() throws Exception {
+    assumePosix();
+
+    workspace.create("a/created", NEW);
+
+    Path file = root.resolve("a/created.mapping.json");
+    assertThat(workspace.read("a/created")).isEqualTo(NEW);
+    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+        .isEqualTo("rw-r--r--");
+  }
+
+  private void assumePosix() throws IOException {
+    assumeTrue(
+        Files.getFileStore(root).supportsFileAttributeView(PosixFileAttributeView.class),
+        "the file system has POSIX permissions");
+  }
+
   // --- [P] every accepted path resolves inside the workspace ---
 
   private static final long SEED = 0x2028_5EEDL;
@@ -662,7 +742,7 @@ class WorkspaceTest {
 
   // --- helpers ---
 
-  /** Writes the mapping file of {@code id}, whose content is the id. */
+  /** Writes the mapping model file of {@code id}, whose content is the id. */
   private void mapping(String id) throws IOException {
     Path file = root.resolve(id + ".mapping.json");
     Files.createDirectories(file.getParent());
