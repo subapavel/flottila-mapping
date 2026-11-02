@@ -120,7 +120,6 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      # --pass-with-no-tests is in the e2e:stack script until #30 adds the first @stack scenario and removes it.
       - name: '@stack suite against the jar'
         working-directory: ui
         run: npm run e2e:stack
