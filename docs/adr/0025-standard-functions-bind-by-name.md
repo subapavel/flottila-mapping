@@ -50,3 +50,6 @@ Status: accepted (2026-11-02, #50 design, spec #48)
   - one `po:` function;
   - its corpus and differential cases.
 - In formatVersion 1, a box feeding several inputs is lowered once per use. There is no `Let` in spec 2, and the trace (#53) reports such a box once.
+- The catalogue and `po-runtime.xsl` hold every family, against CODING_STANDARDS ("no central
+  registry"). Spec 2 accepts that, because it adds one family; before spec 3 both split into one
+  file per family (F-15).
