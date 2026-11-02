@@ -1,4 +1,5 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
+import type { BoxReference, FieldPath, TargetFieldMapping } from '../../generated/mapping-model';
 
 /** One visible row of a structure tree. */
 export interface TreeRow {
@@ -36,4 +37,24 @@ export function stepName(path: string): string {
 /** A field's effective occurrence, `min..max`, with `unbounded` for an absent max. */
 export function occurrenceText(field: FieldDto): string {
   return `${field.min}..${field.max ?? 'unbounded'}`;
+}
+
+/**
+ * The source fields read by the source-field boxes that a target field mapping's `result` reaches (ADR-0013), each
+ * once, in the order a walk from `result` through the boxes' inputs meets them. An unreachable box adds none, so a
+ * mapping whose `result` is null has none. The walk stops at an empty input slot, a box it has met, and a missing box.
+ */
+export function reachedSourceFields(mapping: TargetFieldMapping | undefined): FieldPath[] {
+  const fields = new Set<FieldPath>();
+  const met = new Set<string>();
+  const visit = (ref: BoxReference) => {
+    if (ref === null || met.has(ref)) return;
+    met.add(ref);
+    const box = mapping!.boxes[ref];
+    if (box === undefined) return;
+    if (box.kind === 'source') fields.add(box.field);
+    else box.inputs?.forEach(visit);
+  };
+  if (mapping) visit(mapping.result);
+  return [...fields];
 }

@@ -109,6 +109,24 @@ describe('linking, unsaved and save', () => {
     await expect.element(page.getByText('Unsaved')).toBeVisible();
   });
 
+  test('a target field whose result is null shows no link despite a leftover source-field box, and one once result reaches it', async () => {
+    const unconnected = structuredClone(corpusMapping);
+    unconnected.targetFieldMappings![ORDER_ID]!.result = null;
+    render('drafts/try-it', fakeApiClient({ 'drafts/try-it': unconnected }));
+    await expect.element(targetRow(ORDER_ID)).toMatchTextContent(/^OrderIdxs:string1\.\.1$/);
+
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+
+    await expect.element(targetRow(ORDER_ID)).toMatchTextContent(/^OrderIdxs:string1\.\.1← OrderId$/);
+  });
+
+  test('a target field whose result reaches a source-field box shows its link as loaded', async () => {
+    render('mappings/order-id-copy', fakeApiClient());
+
+    await expect.element(targetRow(ORDER_ID)).toMatchTextContent(/^OrderIdxs:string1\.\.1← OrderId$/);
+    await expect.element(targetRow(NOTE)).toMatchTextContent(/^Notexs:string0\.\.unbounded$/);
+  });
+
   test('the keyboard links too: Enter picks a source field, Enter on a target field links it', async () => {
     render('mappings/order-unmapped', fakeApiClient());
 

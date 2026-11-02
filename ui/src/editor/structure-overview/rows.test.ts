@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
-import { occurrenceText, stepName, treeRows } from './rows';
+import type { TargetFieldMapping } from '../../generated/mapping-model';
+import { occurrenceText, reachedSourceFields, stepName, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
 type StructureLoaded = components['schemas']['StructureLoaded'];
@@ -101,5 +102,45 @@ describe('the effective occurrence of a field', () => {
     [2, 5, '2..5'],
   ])('min %s and max %s read %s', (min, max, text) => {
     expect(occurrenceText(field('X', min, max))).toBe(text);
+  });
+});
+
+describe('the source fields a target field mapping links (ADR-0013, "reached")', () => {
+  const mapping = (result: string | null, boxes: TargetFieldMapping['boxes']): TargetFieldMapping => ({ id: 't1', result, boxes });
+  const source = (field: string) => ({ kind: 'source' as const, field });
+  const fn = (inputs?: (string | null)[]) => ({ kind: 'function' as const, fn: 'concat', ...(inputs ? { inputs } : {}) });
+
+  test('are none for a target field without a mapping', () => {
+    expect(reachedSourceFields(undefined)).toEqual([]);
+  });
+
+  test('are none while result is null, even with a leftover source-field box', () => {
+    expect(reachedSourceFields(mapping(null, { a1: source(`${ORDER}/OrderId`) }))).toEqual([]);
+  });
+
+  test('come from the box result reaches, not from an unreachable box', () => {
+    const m = mapping('a2', { a1: source(`${ORDER}/Note`), a2: source(`${ORDER}/OrderId`) });
+
+    expect(reachedSourceFields(m)).toEqual([`${ORDER}/OrderId`]);
+  });
+
+  test('follow the inputs of a function box, skip an empty input slot, and list a field read twice once', () => {
+    const m = mapping('f1', {
+      f1: fn(['a1', null, 'f2', 'a3']),
+      f2: fn(['a1', 'f3', 'a5']),
+      f3: fn(),
+      a1: source(`${ORDER}/OrderId`),
+      a3: source(`${ORDER}/@channel`),
+      a4: source(`${ORDER}/Note`),
+      a5: source(`${ORDER}/OrderId`),
+    });
+
+    expect(reachedSourceFields(m)).toEqual([`${ORDER}/OrderId`, `${ORDER}/@channel`]);
+  });
+
+  test('stop at a box cycle and at a reference to a missing box', () => {
+    const m = mapping('f1', { f1: fn(['f2', 'gone']), f2: fn(['f1', 'a1']), a1: source(`${ORDER}/OrderId`) });
+
+    expect(reachedSourceFields(m)).toEqual([`${ORDER}/OrderId`]);
   });
 });
