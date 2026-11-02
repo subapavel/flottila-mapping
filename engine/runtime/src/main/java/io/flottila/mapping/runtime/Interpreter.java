@@ -29,8 +29,11 @@ public final class Interpreter {
   /** The projection plan: each distinct (field, context) pair and its queue index. */
   private final Map<Projection.Queue, Integer> plan = new LinkedHashMap<>();
 
-  private int integers;
-  private int strings;
+  /** The number of {@code INTEGER} frame slots allocated so far. */
+  private int integerSlotCount;
+
+  /** The number of {@code STRING} frame slots allocated so far. */
+  private int stringSlotCount;
 
   private Interpreter(boolean traced) {
     this.traced = traced;
@@ -43,7 +46,7 @@ public final class Interpreter {
    */
   public static ExecutableMapping compile(TargetDocument document, boolean traced) {
     Interpreter compiler = new Interpreter(traced);
-    int rootSlot = compiler.integers++;
+    int rootSlot = compiler.integerSlotCount++;
     Map<String, Integer> scope = Map.of(document.rootSlot(), rootSlot);
     Name root = document.root();
     Node.OfContent element =
@@ -56,8 +59,8 @@ public final class Interpreter {
         new Projection(List.copyOf(compiler.plan.keySet())),
         rootSlot,
         element,
-        compiler.integers,
-        compiler.strings);
+        compiler.integerSlotCount,
+        compiler.stringSlotCount);
   }
 
   /**
@@ -110,7 +113,7 @@ public final class Interpreter {
   private Node.OfContent slots(TargetSlots s, Map<String, Integer> scope) {
     Node.OfQueue queue = (Node.OfQueue) compile(s.queue(), scope);
     Node.OfInteger parentSlot = (Node.OfInteger) compile(s.parentSlot(), scope);
-    int valueSlot = strings++;
+    int valueSlot = stringSlotCount++;
     Map<String, Integer> body = new HashMap<>(scope);
     body.put(s.valueVar(), valueSlot);
     return new Node.Slots(

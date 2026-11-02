@@ -14,16 +14,20 @@ public final class ExecutableMapping {
   private final Projection projection;
   private final int rootSlot;
   private final Node.OfContent root;
-  private final int integers;
-  private final int strings;
+  private final int integerSlotCount;
+  private final int stringSlotCount;
 
   ExecutableMapping(
-      Projection projection, int rootSlot, Node.OfContent root, int integers, int strings) {
+      Projection projection,
+      int rootSlot,
+      Node.OfContent root,
+      int integerSlotCount,
+      int stringSlotCount) {
     this.projection = projection;
     this.rootSlot = rootSlot;
     this.root = root;
-    this.integers = integers;
-    this.strings = strings;
+    this.integerSlotCount = integerSlotCount;
+    this.stringSlotCount = stringSlotCount;
   }
 
   /**
@@ -39,7 +43,9 @@ public final class ExecutableMapping {
    */
   public void run(InputStream in, OutputStream out, Tracer tracer)
       throws MalformedInputException, IOException {
-    Frame frame = new Frame(projection.read(in), tracer, new XmlSerializer(out), integers, strings);
+    Frame frame =
+        new Frame(
+            projection.read(in), tracer, new XmlSerializer(out), integerSlotCount, stringSlotCount);
     frame.integers[rootSlot] = 1;
     frame.out.startDocument();
     root.write(frame);

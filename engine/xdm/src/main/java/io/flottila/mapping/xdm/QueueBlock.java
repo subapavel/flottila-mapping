@@ -1,13 +1,15 @@
 package io.flottila.mapping.xdm;
 
 import java.util.Arrays;
+import java.util.concurrent.CancellationException;
 
 /**
  * The runtime representation of a queue (ADR-0004): {@code n} slots in {@code values} and {@code c
  * + 1} {@code contextStarts}, where {@code [0] = 0}, {@code [c] = n} and no entry decreases.
- * Context {@code k} spans the slots {@code start(k)} to {@code end(k)}; contexts and slots are
- * counted from 0. A block with no contexts ({@code {0}}) differs from one with one empty context
- * ({@code {0, 0}}). Spec 1 has no SUPPRESS.
+ * Context {@code k} spans the slot indexes {@code start(k)} to {@code end(k)}, the end excluded. A
+ * context index and a slot index count from 0: a slot index is the slot number minus 1. A block
+ * with no contexts ({@code {0}}) differs from one with one empty context ({@code {0, 0}}). Spec 1
+ * has no SUPPRESS.
  *
  * <p>A block is immutable. It takes the arrays it is given without copying them, so that context
  * operations can share them; whoever hands them over no longer writes them.
@@ -27,6 +29,7 @@ public final class QueueBlock {
    *
    * @throws IllegalArgumentException unless the starts begin at 0, never decrease and end with the
    *     sentinel {@code values.length}
+   * @throws CancellationException when the thread is interrupted while the starts are checked
    */
   public static QueueBlock of(String[] values, int[] contextStarts) {
     if (contextStarts.length == 0) {
@@ -36,6 +39,10 @@ public final class QueueBlock {
       throw new IllegalArgumentException("contextStarts[0] is " + contextStarts[0] + ", not 0");
     }
     for (int k = 1; k < contextStarts.length; k++) {
+      // every loop over contexts checks for interruption (ADR-0021)
+      if (Thread.currentThread().isInterrupted()) {
+        throw new CancellationException("the queue block was being checked when interrupted");
+      }
       if (contextStarts[k] < contextStarts[k - 1]) {
         throw new IllegalArgumentException("contextStarts decreases at " + k);
       }
@@ -58,17 +65,17 @@ public final class QueueBlock {
     return values.length;
   }
 
-  /** The first slot of context {@code context}. */
+  /** The slot index of the first slot of the context at index {@code context}. */
   public int start(int context) {
     return contextStarts[context];
   }
 
-  /** The slot after the last slot of context {@code context}. */
+  /** The slot index after the last slot of the context at index {@code context}. */
   public int end(int context) {
     return contextStarts[context + 1];
   }
 
-  /** The value in slot {@code slot}. */
+  /** The value at slot index {@code slot}. */
   public String value(int slot) {
     return values[slot];
   }

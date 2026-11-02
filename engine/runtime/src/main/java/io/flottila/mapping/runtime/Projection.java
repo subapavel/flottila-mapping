@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -101,6 +102,7 @@ final class Projection {
    * The queues of the plan, read from {@code in}.
    *
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws CancellationException when the thread is interrupted
    */
   QueueBlock[] read(InputStream in) throws MalformedInputException {
     QueueBlock.Builder[] builders = new QueueBlock.Builder[queues];
@@ -132,6 +134,10 @@ final class Projection {
     ArrayDeque<Step> open = new ArrayDeque<>();
     open.push(document);
     while (reader.hasNext()) {
+      // checked per event, so an interrupt stops the parse before the input is read to its end
+      if (Thread.currentThread().isInterrupted()) {
+        throw new CancellationException("the mapping run was interrupted while parsing its input");
+      }
       switch (reader.next()) {
         case XMLStreamConstants.START_ELEMENT -> {
           Step step = open.peek().child(namespace(reader), reader.getLocalName());

@@ -106,9 +106,6 @@ public final class EngineFacade {
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
    */
-  // api requires runtime non-transitively (#26): a module that catches the exception requires
-  // runtime itself; the facade's callers, the service and the oracle, are on the class path
-  @SuppressWarnings("exports")
   public byte[] run(CompiledMapping mapping, byte[] input) throws MalformedInputException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     try {

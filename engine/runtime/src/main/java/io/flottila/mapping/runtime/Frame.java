@@ -21,11 +21,16 @@ final class Frame {
   /** The {@code STRING} variables (slot values) by slot. */
   final String[] strings;
 
-  Frame(QueueBlock[] queues, Tracer tracer, XmlSerializer out, int integers, int strings) {
+  Frame(
+      QueueBlock[] queues,
+      Tracer tracer,
+      XmlSerializer out,
+      int integerSlotCount,
+      int stringSlotCount) {
     this.queues = queues;
     this.tracer = tracer;
     this.out = out;
-    this.integers = new long[integers];
-    this.strings = new String[strings];
+    this.integers = new long[integerSlotCount];
+    this.strings = new String[stringSlotCount];
   }
 }
