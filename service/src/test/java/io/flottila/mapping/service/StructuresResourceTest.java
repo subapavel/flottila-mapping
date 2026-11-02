@@ -17,6 +17,8 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * {@code POST /api/structures}: the structure graph and its fingerprint, or a load error as a 200
@@ -99,6 +101,29 @@ class StructuresResourceTest {
     assertThat(malformed.json().path("kind").textValue()).isEqualTo("refused");
     assertThat(described(malformed.json().path("diagnostics")))
         .containsExactly("error schema-not-well-formed at file malformed.xsd 7:7");
+  }
+
+  /**
+   * The service's root translator takes every wsdl and json shape of the model schema and hands it
+   * to the engine, which in milestone 1 refuses it with {@code root-selector-unsupported} at line
+   * 1, column 1 of the bundle's file ({@code
+   * StructureReaderTest.WSDL_and_JSON_roots_are_refused_until_their_readers_exist}). A 400 would
+   * mean the translator refused a shape the schema defines.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAndJson")
+  void wsdlAndJsonRootsReachTheEngineAsTheModelSchemaDefinesThem(String rootShape) {
+    String request =
+        "{\"base\": \"structures/skeleton\", \"bundle\": [\"order.xsd\"], \"root\": "
+            + rootShape
+            + "}";
+
+    Http.Reply reply = new Http(root).post("api/structures", "application/json", bytes(request));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.json().path("kind").textValue()).as("%s", reply).isEqualTo("refused");
+    assertThat(described(reply.json().path("diagnostics")))
+        .containsExactly("error root-selector-unsupported at file order.xsd 1:1");
   }
 
   /**

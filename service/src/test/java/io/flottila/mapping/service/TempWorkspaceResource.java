@@ -28,6 +28,8 @@ import java.util.Map;
  *     links/out.xsd            -> ../../outside/evil.xsd
  *     links/outdir             -> ../../outside
  *     links/out.mapping.json   -> ../../outside/evil.mapping.json
+ *     links/ghost.xsd          -> ../../outside/ghost.xsd    dangling
+ *     links/ghostdir           -> ../../outside/no-such-dir  dangling
  *   outside/evil.xsd, outside/evil.mapping.json
  * </pre>
  *
@@ -58,6 +60,8 @@ public class TempWorkspaceResource implements QuarkusTestResourceLifecycleManage
       Files.createSymbolicLink(links.resolve("outdir"), Path.of("../../outside"));
       Files.createSymbolicLink(
           links.resolve("out.mapping.json"), Path.of("../../outside/evil.mapping.json"));
+      Files.createSymbolicLink(links.resolve("ghost.xsd"), Path.of("../../outside/ghost.xsd"));
+      Files.createSymbolicLink(links.resolve("ghostdir"), Path.of("../../outside/no-such-dir"));
       return Map.of(WORKSPACE, workspace.toString());
     } catch (IOException e) {
       throw new UncheckedIOException("cannot lay out the temporary workspace", e);

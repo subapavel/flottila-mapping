@@ -23,10 +23,14 @@ import io.flottila.mapping.mapping.MappingModel;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * {@code /api/mappings} over the temporary workspace (#28; ADR-0014, ADR-0015, ADR-0024). Each test
@@ -290,6 +294,95 @@ class MappingsResourceTest {
 
     assertThat(put.status()).as("%s", put).isEqualTo(200);
     assertBytes(TempWorkspace.read("saving-if-match/order.mapping.json"), corpusMapping());
+  }
+
+  /** A dangling link in the listing is skipped; the listing does not fail (#28 rulings). */
+  @Test
+  void listSkipsADanglingLink() throws Exception {
+    TempWorkspace.mkdirs("listing-dangling");
+    Files.createSymbolicLink(
+        TempWorkspace.root().resolve("listing-dangling/ghost.mapping.json"),
+        Path.of("../../outside/ghost.mapping.json"));
+    Files.createSymbolicLink(
+        TempWorkspace.root().resolve("listing-dangling/ghost-in.mapping.json"),
+        Path.of("missing.mapping.json"));
+
+    Http.Reply reply = http().get("api/mappings");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    List<String> ids = new ArrayList<>();
+    for (JsonNode summary : reply.json()) {
+      ids.add(summary.path("id").textValue());
+    }
+    assertThat(ids)
+        .contains(CORPUS_ID)
+        .doesNotContain("listing-dangling/ghost", "listing-dangling/ghost-in");
+  }
+
+  /**
+   * A stored file that is no JSON document is refused like a model (#28 design, "GET"): 422 {@code
+   * model-refused} with no diagnostics, and the reader's message as the detail.
+   */
+  @Test
+  void getOfAStoredFileThatIsNoJsonIs422WithNoDiagnosticsAndADetail() {
+    Map<String, String> files =
+        Map.of(
+            "text", "not a JSON document",
+            "truncated", "{\"formatVersion\": 1,",
+            "empty", "");
+    files.forEach(
+        (name, content) -> {
+          TempWorkspace.write("getting-no-json/" + name + ".mapping.json", bytes(content));
+
+          JsonNode problem =
+              assertProblem(
+                  http().get("api/mappings/getting-no-json/" + name), 422, "model-refused");
+
+          assertThat(problem.path("diagnostics").isArray()).as("%s: diagnostics", name).isTrue();
+          assertThat(problem.path("diagnostics")).as("%s: diagnostics", name).isEmpty();
+          assertThat(problem.path("detail").textValue()).as("%s: detail", name).isNotBlank();
+        });
+  }
+
+  /**
+   * PUT checks the id against the workspace before it reads the body (#28 rulings), so an unknown
+   * id with a malformed body is 404, not {@code malformed-json}. The escaping ids are in {@link
+   * WorkspaceEscapeTest}.
+   */
+  @Test
+  void saveOfAnUnknownIdIs404BeforeTheBodyIsRead() {
+    assertProblem(
+        http().put("api/mappings/mappings/no-such-mapping", "application/json", bytes("{")),
+        404,
+        "not-found");
+    assertThat(TempWorkspace.exists("mappings/no-such-mapping.mapping.json")).isFalse();
+  }
+
+  /**
+   * A create whose root is a wsdl or json shape of the model schema reaches the engine, which in
+   * milestone 1 refuses it at line 1, column 1 of the bundle's file ({@code
+   * StructureReaderTest.WSDL_and_JSON_roots_are_refused_until_their_readers_exist}): 422 {@code
+   * model-refused}, never 400 {@code invalid-request}. Only the source has the shape.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAndJson")
+  void createWithAWsdlOrJsonRootIsTheEnginesRefusal(String rootShape) {
+    TempWorkspace.mkdirs("creating-root");
+    String target = createRequest("creating-root/order", "../structures/skeleton/order.xsd", ORDER);
+    String request =
+        target.replaceFirst(
+            "\"root\": \\{\"element\": \"[^\"]*\"\\}",
+            java.util.regex.Matcher.quoteReplacement("\"root\": " + rootShape));
+    assertThat(request).as("only the source's root is replaced").isNotEqualTo(target);
+
+    JsonNode problem =
+        assertProblem(
+            http().post("api/mappings", "application/json", bytes(request)), 422, "model-refused");
+
+    assertThat(described(problem.path("diagnostics")))
+        .containsExactly(
+            "error root-selector-unsupported at file ../structures/skeleton/order.xsd 1:1");
+    assertThat(TempWorkspace.exists("creating-root/order.mapping.json")).isFalse();
   }
 
   /** {@code facade.save(facade.load(body))}: the engine's canonical form, the oracle. */

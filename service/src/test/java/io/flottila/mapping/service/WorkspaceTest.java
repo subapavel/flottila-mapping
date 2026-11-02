@@ -9,9 +9,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -343,6 +346,154 @@ class WorkspaceTest {
     assertThat(workspace.list()).containsExactly("a/b", "b-c", "b/c", "in", "m");
   }
 
+  /**
+   * Step 2 on its own (ADR-0024): {@code outside/back} is a link to the workspace, so the real path
+   * of {@code a/../../outside/back/x.xsd} is the workspace's {@code x.xsd} and step 3 alone would
+   * accept the reference. Its normalised path leaves the workspace, so it is refused.
+   */
+  @Test
+  void refusesABundleRefWhoseNormalisedPathLeavesTheWorkspaceThoughItsRealPathIsInside()
+      throws Exception {
+    Files.write(root.resolve("x.xsd"), NEW);
+    Files.createSymbolicLink(outside.resolve("back"), Path.of("../ws"));
+    Path a = root.resolve("a");
+    String ref = "../../outside/back/x.xsd";
+    // the witness: step 3 alone accepts the reference, and so does the pattern
+    assertThat(a.resolve(ref).toRealPath()).isEqualTo(root.resolve("x.xsd"));
+
+    assertRefused(() -> workspace.checkBundle(a, List.of(ref)), ref);
+    // the same file named by a reference that stays inside is a workspace path
+    assertThatNoException().isThrownBy(() -> workspace.checkBundle(a, List.of("../x.xsd")));
+  }
+
+  /**
+   * A bundle reference to a dangling link is refused, wherever the link points: the check fails
+   * closed, because the target might appear outside the workspace later (#28 rulings). A missing
+   * file that is no link still passes, so the engine reports it.
+   */
+  @Test
+  void refusesABundleRefThroughADanglingLink() throws Exception {
+    Path links = Files.createDirectory(root.resolve("links"));
+    Files.createSymbolicLink(links.resolve("ghost-out.xsd"), Path.of("../../outside/ghost.xsd"));
+    Files.createSymbolicLink(links.resolve("ghost-in.xsd"), Path.of("../missing.xsd"));
+    Files.createSymbolicLink(links.resolve("ghostdir"), Path.of("../../outside/no-such-dir"));
+    Map<String, String> before = besideTheWorkspace();
+
+    for (String ref :
+        List.of("links/ghost-out.xsd", "links/ghost-in.xsd", "links/ghostdir/x.xsd")) {
+      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+    }
+    assertRefused(() -> workspace.checkBundle(links, List.of("ghost-in.xsd")), "from links");
+
+    // the witness: a missing file that is no link is passed on to the engine
+    assertThatNoException()
+        .isThrownBy(() -> workspace.checkBundle(root, List.of("links/missing.xsd", "missing.xsd")));
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
+  /** A dangling link in the listing is skipped, wherever it points (#28 rulings). */
+  @Test
+  void listSkipsADanglingLink() throws Exception {
+    mapping("m");
+    Files.createSymbolicLink(
+        root.resolve("ghost-out.mapping.json"), Path.of("../outside/ghost.mapping.json"));
+    Files.createSymbolicLink(
+        root.resolve("ghost-in.mapping.json"), Path.of("missing.mapping.json"));
+    Files.createDirectory(root.resolve("d"));
+    Files.createSymbolicLink(
+        root.resolve("d/ghost.mapping.json"), Path.of("../no-such-dir/x.mapping.json"));
+
+    assertThat(workspace.list()).containsExactly("a/b", "m");
+  }
+
+  /**
+   * {@code list()} skips a subdirectory it cannot read and never fails the whole list (#28
+   * rulings). The tests may run as root, whom {@code chmod 000} does not lock out (Linux {@code
+   * CAP_DAC_OVERRIDE}). A path of {@code PATH_MAX} (4096) bytes or more cannot be read by any
+   * process, root included: so the workspace root here is 4040 bytes long, and the directory below
+   * it has a 60-character name, which the id pattern accepts. Java opens no path relative to a
+   * directory, so {@code mkdir} and {@code rmdir} make and remove it from inside the root.
+   */
+  @Test
+  void listSkipsADirectoryItCannotRead() throws Exception {
+    Path deep = tmp.toRealPath().resolve("deep");
+    while (deep.toString().length() < 4040) {
+      deep = deep.resolve("d".repeat(Math.min(200, 4040 - deep.toString().length() - 1)));
+    }
+    Path longRoot = Files.createDirectories(deep).toRealPath();
+    assertThat(longRoot.toString()).hasSize(4040);
+    String name = "unreadable-" + "u".repeat(49);
+    Files.write(longRoot.resolve("m.mapping.json"), NEW);
+    Files.createDirectory(longRoot.resolve("b"));
+    Files.write(longRoot.resolve("b/c.mapping.json"), NEW);
+    Workspace longWorkspace = new Workspace(longRoot);
+    run(longRoot, "mkdir", name);
+    try {
+      // the witness: this process cannot read the directory, not even its attributes
+      assertThatExceptionOfType(FileSystemException.class)
+          .isThrownBy(
+              () ->
+                  Files.readAttributes(
+                      longRoot.resolve(name),
+                      BasicFileAttributes.class,
+                      LinkOption.NOFOLLOW_LINKS));
+
+      assertThat(longWorkspace.list()).containsExactly("b/c", "m");
+    } finally {
+      run(longRoot, "rmdir", name);
+    }
+  }
+
+  /**
+   * A pre-existing {@code .<name>.tmp}, here a hard link to a file outside, is never written
+   * through: {@code NOFOLLOW_LINKS} does not see a hard link (#28 rulings: the temporary file has a
+   * unique name and is created new).
+   */
+  @Test
+  void saveAndCreateNeverWriteThroughAPreExistingTemporaryFile() throws Exception {
+    Path a = root.resolve("a");
+    Files.createLink(a.resolve(".b.mapping.json.tmp"), outside.resolve("evil.mapping.json"));
+    Files.createLink(a.resolve(".new.mapping.json.tmp"), outside.resolve("evil.xsd"));
+    Map<String, String> before = besideTheWorkspace();
+
+    workspace.save("a/b", NEW);
+    workspace.create("a/new", NEW);
+
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+    assertThat(Files.readAllBytes(outside.resolve("evil.mapping.json"))).isEqualTo(OUTSIDE);
+    assertThat(Files.readAllBytes(outside.resolve("evil.xsd"))).isEqualTo(OUTSIDE);
+    assertThat(workspace.read("a/b")).isEqualTo(NEW);
+    assertThat(workspace.read("a/new")).isEqualTo(NEW);
+  }
+
+  /**
+   * Saves still succeed next to a pre-existing {@code .<name>.tmp} of any kind, and leave it as it
+   * was: an existing file is never reused (#28 rulings).
+   */
+  @Test
+  void saveSucceedsBesideAPreExistingTemporaryFileAndLeavesIt() throws Exception {
+    byte[] stale = "a stale temporary file".getBytes(UTF_8);
+    mapping("c");
+    mapping("d");
+    Files.createSymbolicLink(root.resolve(".c.mapping.json.tmp"), Path.of("../outside/evil.xsd"));
+    Files.write(root.resolve(".d.mapping.json.tmp"), stale);
+    Files.write(root.resolve("a/.e.mapping.json.tmp"), stale);
+    Map<String, String> before = besideTheWorkspace();
+
+    workspace.save("c", NEW);
+    workspace.save("d", NEW);
+    workspace.create("a/e", NEW);
+
+    assertThat(workspace.read("c")).isEqualTo(NEW);
+    assertThat(workspace.read("d")).isEqualTo(NEW);
+    assertThat(workspace.read("a/e")).isEqualTo(NEW);
+    assertThat(Files.readSymbolicLink(root.resolve(".c.mapping.json.tmp")))
+        .isEqualTo(Path.of("../outside/evil.xsd"));
+    assertThat(Files.readAllBytes(root.resolve(".d.mapping.json.tmp"))).isEqualTo(stale);
+    assertThat(Files.readAllBytes(root.resolve("a/.e.mapping.json.tmp"))).isEqualTo(stale);
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
   // --- [P] every accepted path resolves inside the workspace ---
 
   private static final long SEED = 0x2028_5EEDL;
@@ -520,6 +671,14 @@ class WorkspaceTest {
 
   private static void assertRefused(ThrowingCallable call, String path) {
     assertThatExceptionOfType(WorkspacePathException.class).as(path).isThrownBy(call);
+  }
+
+  /** Runs {@code command} in {@code directory}, which may be too deep for an absolute path. */
+  private static void run(Path directory, String... command) throws Exception {
+    Process process =
+        new ProcessBuilder(command).directory(directory.toFile()).redirectErrorStream(true).start();
+    String output = new String(process.getInputStream().readAllBytes(), UTF_8);
+    assertThat(process.waitFor()).as("%s: %s", String.join(" ", command), output).isZero();
   }
 
   private static String printable(String path) {

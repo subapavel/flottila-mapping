@@ -210,7 +210,162 @@ class OpenApiContractTest {
     }
   }
 
+  /** The problem+json media type of every 4xx answer (ADR-0024, "Problems"). */
+  private static final String PROBLEM_JSON = "application/problem+json";
+
+  /**
+   * The 4xx statuses of each operation (#28 design, "Endpoints"; ADR-0024). A 400 is also {@code
+   * invalid-workspace-path} wherever an id, a base or a bundle reaches the workspace; 404 is a
+   * missing mapping or directory; 415 is any body that is not {@code application/json}.
+   */
+  private static final Map<String, Set<String>> PROBLEMS =
+      Map.of(
+          "get /api/mappings", Set.of(),
+          "post /api/mappings", Set.of("400", "404", "409", "415", "422"),
+          "get /api/mappings/{id}", Set.of("400", "404", "422"),
+          "put /api/mappings/{id}", Set.of("400", "404", "415", "422"),
+          "post /api/mappings/{id}/test", Set.of("400", "404", "415"),
+          "post /api/structures", Set.of("400", "404", "415"));
+
+  /** Problems are in the contract, so the ui hand-writes no payload type (#28 rulings, #21). */
+  @Test
+  void problemSchemasAreInTheContract() throws IOException {
+    JsonNode schemas = schemas();
+
+    assertThat(names(schemas)).contains("Problem", "RefusedProblem");
+    JsonNode problem = schemas.path("Problem");
+    assertThat(names(problem.path("properties"))).isEqualTo(words("detail status title type"));
+    assertThat(strings(problem.path("required"))).isEqualTo(words("detail status title type"));
+    JsonNode refused = schemas.path("RefusedProblem");
+    assertThat(names(refused.path("properties")))
+        .isEqualTo(words("detail diagnostics status title type"));
+    assertThat(strings(refused.path("required")))
+        .isEqualTo(words("detail diagnostics status title type"));
+    JsonNode diagnostics = refused.path("properties").path("diagnostics");
+    assertThat(diagnostics.path("type").textValue()).isEqualTo("array");
+    assertThat(diagnostics.path("items").path("$ref").textValue())
+        .isEqualTo(SCHEMAS + "DiagnosticDto");
+  }
+
+  /**
+   * Every operation declares exactly its 4xx answers, each as {@code application/problem+json} of
+   * {@code Problem}, or of {@code RefusedProblem} for 422 {@code model-refused}.
+   */
+  @Test
+  void everyOperationDeclaresItsProblemResponses() throws IOException {
+    Map<String, JsonNode> operations = operations(contract());
+    assertThat(operations.keySet()).isEqualTo(PROBLEMS.keySet());
+
+    for (Map.Entry<String, Set<String>> entry : PROBLEMS.entrySet()) {
+      JsonNode responses = operations.get(entry.getKey()).path("responses");
+      Set<String> problems = new TreeSet<>();
+      for (String status : names(responses)) {
+        if (status.startsWith("4")) {
+          problems.add(status);
+        }
+      }
+      assertThat(problems)
+          .as("4xx of %s", entry.getKey())
+          .isEqualTo(new TreeSet<>(entry.getValue()));
+      for (String status : problems) {
+        String what = status + " of " + entry.getKey();
+        JsonNode content = responses.path(status).path("content");
+        assertThat(names(content)).as("media types of %s", what).containsExactly(PROBLEM_JSON);
+        assertThat(content.path(PROBLEM_JSON).path("schema").path("$ref").textValue())
+            .as("schema of %s", what)
+            .isEqualTo(SCHEMAS + (status.equals("422") ? "RefusedProblem" : "Problem"));
+      }
+    }
+  }
+
+  /** A model answer carries its ETag (ADR-0024, "ETag"); a create carries its Location too. */
+  @Test
+  void modelAnswersDeclareTheirEtagAndCreateItsLocation() throws IOException {
+    Map<String, JsonNode> operations = operations(contract());
+    Map<String, String> answers =
+        Map.of(
+            "get /api/mappings/{id}", "200",
+            "put /api/mappings/{id}", "200",
+            "post /api/mappings", "201");
+
+    answers.forEach(
+        (operation, status) ->
+            assertThat(
+                    operations
+                        .get(operation)
+                        .path("responses")
+                        .path(status)
+                        .path("headers")
+                        .path("ETag")
+                        .path("schema")
+                        .path("type")
+                        .textValue())
+                .as("ETag of %s %s", status, operation)
+                .isEqualTo("string"));
+    assertThat(
+            operations
+                .get("post /api/mappings")
+                .path("responses")
+                .path("201")
+                .path("headers")
+                .path("Location")
+                .path("schema")
+                .path("type")
+                .textValue())
+        .as("Location of 201 post /api/mappings")
+        .isEqualTo("string");
+  }
+
+  /**
+   * No 400 in the contract lacks our {@code Problem}: smallrye's generated "Bad Request" answer is
+   * switched off ({@code auto-add-bad-request-response=false}). The witness: the five operations
+   * with a parameter or a body each declare a 400, so the check is never over an empty set.
+   */
+  @Test
+  void noAutoAddedBadRequestWithoutTheProblemSchema() throws IOException {
+    int badRequests = 0;
+    for (Map.Entry<String, JsonNode> operation : operations(contract()).entrySet()) {
+      JsonNode badRequest = operation.getValue().path("responses").path("400");
+      if (!badRequest.isMissingNode()) {
+        badRequests++;
+        assertThat(names(badRequest.path("content")))
+            .as("400 of %s", operation.getKey())
+            .containsExactly(PROBLEM_JSON);
+        assertThat(
+                badRequest
+                    .path("content")
+                    .path(PROBLEM_JSON)
+                    .path("schema")
+                    .path("$ref")
+                    .textValue())
+            .as("400 of %s", operation.getKey())
+            .isEqualTo(SCHEMAS + "Problem");
+      }
+    }
+    assertThat(badRequests).as("operations that declare a 400").isEqualTo(5);
+  }
+
   // --- helpers ---
+
+  /** Every operation of the contract as {@code "<method> <path>"}. */
+  private static Map<String, JsonNode> operations(JsonNode contract) {
+    Map<String, JsonNode> operations = new TreeMap<>();
+    contract
+        .path("paths")
+        .properties()
+        .forEach(
+            path ->
+                path.getValue()
+                    .properties()
+                    .forEach(
+                        method -> {
+                          if (!method.getKey().equals("parameters")) {
+                            operations.put(
+                                method.getKey() + " " + path.getKey(), method.getValue());
+                          }
+                        }));
+    return operations;
+  }
 
   private static Path contractDirectory() {
     return Fixtures.repositoryRoot().resolve("contract");

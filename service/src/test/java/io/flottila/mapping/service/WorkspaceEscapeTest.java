@@ -1,8 +1,11 @@
 package io.flottila.mapping.service;
 
 import static io.flottila.mapping.service.Fixtures.ORDER;
+import static io.flottila.mapping.service.Fixtures.assertBytes;
 import static io.flottila.mapping.service.Fixtures.bytes;
 import static io.flottila.mapping.service.Fixtures.corpusMapping;
+import static io.flottila.mapping.service.Fixtures.unwired;
+import static io.flottila.mapping.service.Fixtures.workingCopy;
 import static io.flottila.mapping.service.Wire.assertProblem;
 import static io.flottila.mapping.service.Wire.createRequest;
 import static io.flottila.mapping.service.Wire.structureRequest;
@@ -12,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import java.net.URI;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -112,6 +116,39 @@ class WorkspaceEscapeTest {
             createRequest("../outside/new", "evil.xsd", EXFIL)),
         attack("PUT through a symlink pointing out", "PUT", "api/mappings/links/out", validModel),
         attack("PUT id ..%2Foutside%2Fevil", "PUT", "api/mappings/..%2Foutside%2Fevil", validModel),
+        // the id is checked before the body is read (#28 rulings)
+        attack(
+            "PUT id ..%2Foutside%2Fevil, malformed body",
+            "PUT", "api/mappings/..%2Foutside%2Fevil", "{"),
+        attack(
+            "PUT through a symlink pointing out, malformed body",
+            "PUT",
+            "api/mappings/links/out",
+            "{\"formatVersion\": 1,}"),
+        attack(
+            "PUT id ..%2Foutside%2Fevil, a body stage 1 refuses",
+            "PUT", "api/mappings/..%2Foutside%2Fevil", "{\"extra\": 1}"),
+        // a dangling link fails closed: its target might appear outside later (#28 rulings)
+        attack(
+            "structures: a bundle ref to a dangling link",
+            "POST",
+            "api/structures",
+            structureRequest("", "links/ghost.xsd", EXFIL)),
+        attack(
+            "structures: a bundle ref through a dangling directory link",
+            "POST",
+            "api/structures",
+            structureRequest("links", "ghostdir/evil.xsd", EXFIL)),
+        attack(
+            "create with a bundle ref to a dangling link",
+            "POST",
+            "api/mappings",
+            createRequest("mappings/dangling", "../links/ghost.xsd", EXFIL)),
+        attack(
+            "test run with a bundle ref to a dangling link",
+            "POST",
+            "api/mappings/mappings/order-id-copy/test",
+            testRequest(exfilModel("../links/ghost.xsd"), EXFIL_INPUT)),
         attack(
             "test run with an escaping bundle",
             "POST",
@@ -178,6 +215,33 @@ class WorkspaceEscapeTest {
     assertThat(run.status()).as("%s", run).isEqualTo(200);
     assertThat(run.json().path("kind").textValue()).isEqualTo("output");
     assertThat(run.json().path("output").textValue()).contains(MARKER);
+  }
+
+  /**
+   * A pre-existing {@code .<name>.tmp} that is a hard link to a file outside is never written
+   * through, and the save still succeeds (#28 rulings). {@link #nothingBesideTheWorkspaceChanged}
+   * compares {@code outside/evil.mapping.json}'s bytes as well.
+   */
+  @Test
+  void aSaveNeverWritesThroughAHardLinkedTemporaryFile() throws Exception {
+    byte[] outsideBefore = Files.readAllBytes(TempWorkspace.outside().resolve("evil.mapping.json"));
+    TempWorkspace.write("saving-hard-link/order.mapping.json", unwired());
+    Files.createLink(
+        TempWorkspace.root().resolve("saving-hard-link/.order.mapping.json.tmp"),
+        TempWorkspace.outside().resolve("evil.mapping.json"));
+
+    Http.Reply put =
+        new Http(root)
+            .put(
+                "api/mappings/saving-hard-link/order",
+                "application/json",
+                bytes(workingCopy("\"a1\"")));
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertBytes(put.body(), corpusMapping());
+    assertBytes(TempWorkspace.read("saving-hard-link/order.mapping.json"), corpusMapping());
+    assertBytes(
+        Files.readAllBytes(TempWorkspace.outside().resolve("evil.mapping.json")), outsideBefore);
   }
 
   private static Named<Attack> attack(String name, String method, String path, String body) {
