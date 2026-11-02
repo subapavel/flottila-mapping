@@ -100,7 +100,8 @@ _Avoid_: source node
 
 **Box parameter**:
 A constant setting of a function box (a string or a table of strings), named as in the function
-catalogue, such as a date pattern or the mode of `splitByValue`.
+catalogue, such as a date pattern or the mode of `splitByValue`. A parameter the box leaves
+out takes the catalogue's default.
 _Avoid_: argument, input
 
 **Unresolved function**:
@@ -197,8 +198,15 @@ _Avoid_: node function
 **Function catalogue**:
 The data that lists every standard function: its name, its SAP PO/CPI name, execution kind,
 parameters, whether it is portable, and its fidelity. The editor's palette, the function
-documentation and migration tools read it.
+documentation and migration tools read it. Engine-internal from spec 2 (`function-catalogue.json`
+in `engine/mapping`, ADR-0025), published in spec 3.
 _Avoid_: function registry, function list
+
+**Runtime library**:
+The engine's context and queue functions: the algebra over queue blocks in `engine/xdm`, bound by
+catalogue name at compile in `engine/runtime` (ADR-0025). The helper module is its export
+counterpart.
+_Avoid_: function registry
 
 **Fidelity**:
 How a standard function relates to SAP PO/CPI behaviour: _exact_, _deviation_ (a documented

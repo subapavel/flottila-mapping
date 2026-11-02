@@ -7,7 +7,8 @@ byte-identical prefixes for `checkForIdentical` (ADR-0018). Someone has to choos
 
 - Lowering assigns prefixes and carries them in the IR's element constructors:
   - the target root's namespace is `ns0`; when the root has no namespace, `ns0` goes to the first
-    namespace in target field order;
+    namespace in target field order among the fields the mapping writes. An unmapped field gets
+    no prefix, because it is never written (#49 ruling);
   - each further namespace gets `ns1`, `ns2` … in target field order;
   - a name without a namespace has no prefix;
   - no default namespace is ever declared.
