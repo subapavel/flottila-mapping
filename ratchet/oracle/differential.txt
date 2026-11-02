@@ -1,6 +1,10 @@
 fn/collapseContexts/001
 fn/collapseContexts/002
 fn/collapseContexts/003
+fn/formatByExample/001
+fn/formatByExample/002
+fn/formatByExample/003
+fn/formatByExample/004
 fn/removeContexts/001
 fn/removeContexts/002
 fn/removeContexts/003
