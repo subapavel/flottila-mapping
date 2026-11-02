@@ -45,6 +45,15 @@ and this ADR is its specification.
       (MPL 2.0) is on the list and needs no exception.
   - A dependency of an excepted artifact is still checked. Maven plugins are tools, not
     dependencies: any OSI licence, never bundled.
+- **npm licences** (owner ruling #39): the `ui` job runs a licence check over the whole
+  `package-lock.json`, dev dependencies included, against the `CLAUDE.md` list. It fails on any
+  other licence. The exceptions are per package, all of them dev-only build tools or data that are
+  never bundled into the editor:
+  - `argparse` (Python-2.0, PSF-2.0), through `js-yaml` in openapi-typescript and
+    json-schema-to-typescript;
+  - `caniuse-lite` (CC-BY-4.0), browser data for browserslist;
+  - `minimatch` (BlueOak-1.0.0), glob tooling.
+  A new exception needs an owner ruling.
 - **Tests**: JUnit **6.1.3**, the version the Quarkus 3.40.1.1 BOM manages, imported through
   `junit-bom` in the root. Also AssertJ 3.27.7 and ArchUnit 1.5.1. There is no mocking library:
   ports have hand-written fakes. PIT runs on JUnit 6 (ADR-0019); jqwik is not used (ADR-0018).
