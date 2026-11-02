@@ -50,7 +50,8 @@ describe('two mapping models differ', () => {
   });
 
   test('when one holds a member the other lacks', () => {
-    const { targetFieldMappings: _, ...unmapped } = model;
+    const unmapped = { ...model };
+    delete unmapped.targetFieldMappings;
 
     expect(sameModel(model, unmapped)).toBe(false);
     expect(sameModel(unmapped, model)).toBe(false);

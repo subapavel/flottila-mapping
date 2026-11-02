@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { MappingModel } from '../generated/mapping-model';
 import { ApiProblem } from './client';
 import { httpApiClient } from './http-api';
@@ -36,6 +36,17 @@ const json = (body: unknown, status = 200, type = 'application/json') =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': type } });
 
 describe('the HTTP ApiClient', () => {
+  test('uses the global fetch when no fetch port is given', async () => {
+    const port = fakeFetch(() => json(model));
+    vi.stubGlobal('fetch', port.fetch);
+    try {
+      expect(await httpApiClient().getMapping('m/one')).toEqual(model);
+      expect(port.calls.map((c) => c.url)).toEqual(['/api/mappings/m/one']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test('opens a mapping by GET on its id, keeping the id segments as path segments', async () => {
     const port = fakeFetch(() => json(model));
 
@@ -103,5 +114,6 @@ describe('the HTTP ApiClient', () => {
 
     expect(error).toBeInstanceOf(ApiProblem);
     expect((error as ApiProblem).problem).toEqual({ type: 'about:blank', title: 'Request Entity Too Large', status: 413, detail: '' });
+    expect((error as ApiProblem).message).toBe('Request Entity Too Large');
   });
 });

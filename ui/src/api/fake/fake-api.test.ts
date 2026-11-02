@@ -25,7 +25,8 @@ describe('the fake ApiClient over the corpus', () => {
     const api = fakeApiClient();
 
     expect(await api.getMapping('mappings/order-id-copy')).toEqual(corpusMapping);
-    const { targetFieldMappings: _, ...unmapped } = corpusMapping;
+    const unmapped = { ...corpusMapping };
+    delete unmapped.targetFieldMappings;
     expect(await api.getMapping('mappings/order-unmapped')).toEqual(unmapped);
   });
 
@@ -86,6 +87,16 @@ describe('the fake ApiClient over the corpus', () => {
     ]);
   });
 
+  test('resolves a bundle against the workspace root when the base is empty', async () => {
+    const response = await fakeApiClient().loadStructure({
+      base: '',
+      bundle: ['structures/skeleton/order.xsd'],
+      root: corpusMapping.source.root,
+    });
+
+    expect(response.kind).toBe('loaded');
+  });
+
   test('refuses a bundle it does not know as unreadable at line 1, column 1 of the file', async () => {
     const response = await fakeApiClient().loadStructure({
       base: 'mappings',
@@ -144,7 +155,8 @@ describe('the fake ApiClient over the corpus', () => {
 
   test('a working copy or input without a corpus case is an invalid-request problem, never a made-up output', async () => {
     const api = fakeApiClient();
-    const { targetFieldMappings: _, ...unmapped } = corpusMapping;
+    const unmapped = { ...corpusMapping };
+    delete unmapped.targetFieldMappings;
 
     const noCase = await problemOf(api.runTest('mappings/order-unmapped', { model: unmapped, input: caseInput }));
     const otherInput = await problemOf(api.runTest('mappings/order-id-copy', { model: corpusMapping, input: '<a/>' }));

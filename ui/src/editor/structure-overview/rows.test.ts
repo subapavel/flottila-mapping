@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
-import { occurrenceText, treeRows } from './rows';
+import { occurrenceText, stepName, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
 type StructureLoaded = components['schemas']['StructureLoaded'];
@@ -77,6 +77,19 @@ describe('the rows of a structure tree', () => {
     const empty: StructureLoaded = { ...structure, types: {} };
 
     expect(treeRows(empty, new Set([ORDER])).map((r) => r.path)).toEqual([ORDER]);
+  });
+});
+
+describe('the name of a field path’s last step', () => {
+  test.each([
+    ['/Q{urn:a}Order', 'Order'],
+    ['/Q{urn:a}Order/OrderId', 'OrderId'],
+    ['/Q{urn:a}Order/@channel', '@channel'],
+    ['/Q{http://a/b}Order/Q{http://a/b}Item', 'Item'],
+    ['/Q{http://a/b}Order/@Q{http://a/c}code', '@code'],
+    ['', ''],
+  ])('%s is %s', (path, name) => {
+    expect(stepName(path)).toBe(name);
   });
 });
 

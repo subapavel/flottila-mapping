@@ -57,7 +57,7 @@ describe('the structure overview', () => {
     await expect.element(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
     await expect.element(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
     for (const row of [sourceRow, targetRow]) {
-      await expect.element(row(ORDER)).toHaveTextContent('Order1..1');
+      await expect.element(row(ORDER)).toMatchTextContent(/Order1\.\.1$/);
       await expect.element(row(ORDER_ID)).toHaveTextContent('OrderIdxs:string1..1');
       await expect.element(row(`${ORDER}/@channel`)).toHaveTextContent('@channelxs:string0..1');
       await expect.element(row(NOTE)).toHaveTextContent('Notexs:string0..unbounded');
@@ -89,6 +89,13 @@ describe('the structure overview', () => {
     await expect.element(page.getByText('schema-unreadable')).toBeVisible();
     await expect.element(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
   });
+
+  test('a structure request that fails shows the error instead of the trees', async () => {
+    render('mappings/order-unmapped', { ...fakeApiClient(), loadStructure: () => Promise.reject(new TypeError('Failed to fetch')) });
+
+    await expect.element(page.getByRole('alert').first()).toHaveTextContent('Failed to fetch');
+    await expect.element(page.getByRole('tree')).not.toBeInTheDocument();
+  });
 });
 
 describe('linking, unsaved and save', () => {
@@ -98,7 +105,7 @@ describe('linking, unsaved and save', () => {
 
     await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
 
-    await expect.element(targetRow(ORDER_ID)).toHaveTextContent('← OrderId');
+    await expect.element(targetRow(ORDER_ID)).toHaveTextContent('OrderIdxs:string1..1← OrderId');
     await expect.element(page.getByText('Unsaved')).toBeVisible();
   });
 
@@ -111,8 +118,25 @@ describe('linking, unsaved and save', () => {
     await userEvent.click(targetRow(NOTE));
     await userEvent.keyboard('{Enter}');
 
-    await expect.element(targetRow(NOTE)).toHaveTextContent('← OrderId');
+    await expect.element(targetRow(NOTE)).toHaveTextContent('Notexs:string0..unbounded← OrderId');
     await expect.element(sourceRow(ORDER_ID)).toHaveAttribute('aria-selected', 'false');
+  });
+
+  test('Space picks and puts back a source field, other keys do nothing, and a target field without a pick links nothing', async () => {
+    render('mappings/order-unmapped', fakeApiClient());
+
+    await userEvent.click(sourceRow(ORDER_ID));
+    await userEvent.keyboard('x');
+    await expect.element(sourceRow(ORDER_ID)).toHaveAttribute('aria-selected', 'false');
+    await userEvent.keyboard(' ');
+    await expect.element(sourceRow(ORDER_ID)).toHaveAttribute('aria-selected', 'true');
+    await userEvent.keyboard(' ');
+    await expect.element(sourceRow(ORDER_ID)).toHaveAttribute('aria-selected', 'false');
+    await userEvent.click(targetRow(NOTE));
+    await userEvent.keyboard('{Enter}');
+
+    await expect.element(targetRow(NOTE)).toHaveTextContent('Notexs:string0..unbounded');
+    await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
   });
 
   test('save sends the working copy, the saved mapping holds the link, and unsaved goes away', async () => {
@@ -145,7 +169,7 @@ describe('linking, unsaved and save', () => {
 
     await page.getByRole('button', { name: 'Save' }).click();
 
-    await expect.element(page.getByText('Model refused')).toBeVisible();
+    await expect.element(page.getByRole('heading', { name: /Model refused/ })).toBeVisible();
     await expect.element(page.getByText('box-cycle')).toBeVisible();
     await expect.element(page.getByText('Unsaved')).toBeVisible();
   });
@@ -153,7 +177,7 @@ describe('linking, unsaved and save', () => {
   test('a mapping that cannot be opened shows the problem', async () => {
     render('mappings/missing', fakeApiClient());
 
-    await expect.element(page.getByText('Not found')).toBeVisible();
+    await expect.element(page.getByRole('heading', { name: /Not found/ })).toBeVisible();
   });
 });
 
@@ -167,7 +191,7 @@ describe('the test panel', () => {
 
     await expect
       .element(page.getByRole('figure', { name: 'Target message' }))
-      .toHaveTextContent('<OrderId>PO 4711</OrderId>');
+      .toMatchTextContent('<OrderId>PO 4711</OrderId>');
   });
 
   test('shows the diagnostics that refuse the working copy, and no target message', async () => {
@@ -179,8 +203,9 @@ describe('the test panel', () => {
     await page.getByRole('button', { name: 'Run test' }).click();
 
     const diagnostics = page.getByRole('list', { name: 'Diagnostics' });
-    await expect.element(diagnostics).toHaveTextContent('unconnected-target-field');
-    await expect.element(diagnostics).toHaveTextContent("the target field mapping's result is not connected");
+    await expect
+      .element(diagnostics)
+      .toHaveTextContent("error unconnected-target-field: the target field mapping's result is not connected");
     await expect.element(page.getByRole('figure', { name: 'Target message' })).not.toBeInTheDocument();
   });
 
@@ -190,6 +215,6 @@ describe('the test panel', () => {
     await userEvent.fill(page.getByRole('textbox', { name: 'Input message' }), '<other/>');
     await page.getByRole('button', { name: 'Run test' }).click();
 
-    await expect.element(page.getByText('Invalid request')).toBeVisible();
+    await expect.element(page.getByRole('heading', { name: /Invalid request/ })).toBeVisible();
   });
 });
