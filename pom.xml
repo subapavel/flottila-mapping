@@ -255,7 +255,7 @@
               <failOnBlacklist>true</failOnBlacklist>
               <failOnMissing>true</failOnMissing>
               <excludedScopes>system</excludedScopes>
-              <artifactFiltersUrl>file://${maven.multiModuleProjectDirectory}/.mvn/licence-filters.txt</artifactFiltersUrl>
+              <artifactFiltersUrl>${licence.filters.uri}</artifactFiltersUrl>
               <includedLicenses>
                 <includedLicense>Apache-2.0</includedLicense>
                 <includedLicense>MIT</includedLicense>
@@ -343,6 +343,32 @@
   </build>
 
   <profiles>
+    <!-- licence.filters.uri: the URI of .mvn/licence-filters.txt for license-maven-plugin, which needs a well-formed
+         URI (URI.create). project.baseUri is one on every OS (drive letters, backslashes, spaces) but belongs to the
+         module, so these profiles add the module's depth below the root. File activation resolves project.basedir
+         to the module being built. Only jar modules run the check; they sit one or two levels deep (#42). -->
+    <profile>
+      <id>licence-filters-depth-2</id>
+      <activation>
+        <file>
+          <exists>${project.basedir}/../../.mvn/licence-filters.txt</exists>
+        </file>
+      </activation>
+      <properties>
+        <licence.filters.uri>${project.baseUri}../../.mvn/licence-filters.txt</licence.filters.uri>
+      </properties>
+    </profile>
+    <profile>
+      <id>licence-filters-depth-1</id>
+      <activation>
+        <file>
+          <exists>${project.basedir}/../.mvn/licence-filters.txt</exists>
+        </file>
+      </activation>
+      <properties>
+        <licence.filters.uri>${project.baseUri}../.mvn/licence-filters.txt</licence.filters.uri>
+      </properties>
+    </profile>
     <!-- JMH benchmarks (ADR-0021); CI backend and the spec gate build them -->
     <profile>
       <id>bench</id>

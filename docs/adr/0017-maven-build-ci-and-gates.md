@@ -91,6 +91,7 @@ cache).
 | Job | Steps |
 | --- | --- |
 | `backend` | `./mvnw -B -Pbench verify`; `git diff --exit-code contract/` |
+| `windows` (`windows-latest`, #42) | `./mvnw.cmd -B -q -DskipTests verify` (ticket-gate row 2) |
 | `ui` | `npm ci`; `npx playwright install --with-deps chromium` (from the pinned `@playwright/test` 1.63.0); `gen:types` + `git diff --exit-code src/generated`; `typecheck`, `lint`, `test`, `test:browser`, `e2e`; `build` → artefact `ui-dist` |
 | `stack` (needs both) | download `ui-dist`; `./mvnw -B -Pui -pl service -am package -DskipTests`; `npm run e2e:stack` |
 
