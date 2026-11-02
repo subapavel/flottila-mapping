@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/suppress-sort-by-key.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): sortByKey orders a SUPPRESS key as the smallest in a lexicographic comparison; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "expect": "output",
+  "note": "The keys, createIf over Tag in context Orders, are \"\", SUPPRESS, \"\", SUPPRESS; the values are s1 to s4. Ascending puts the SUPPRESS keys first, in input order: s2, s4, s1, s3. SUPPRESS last gives s1, s3, s2, s4."
+}

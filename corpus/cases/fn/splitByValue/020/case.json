@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/suppress-split-change-collapse.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): in splitByValue valueChange, SUPPRESS equals only SUPPRESS; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "expect": "output",
+  "note": "createIf gives \"\", SUPPRESS, SUPPRESS, \"\", \"\" in one context. valueChange cuts where SUPPRESS meets \"\": \"\" | SUPPRESS, SUPPRESS | \"\", \"\", and collapseContexts gives three empty All. SUPPRESS equal to \"\" gives one; SUPPRESS unequal to SUPPRESS gives four."
+}

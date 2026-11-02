@@ -1073,4 +1073,57 @@ class EngineFacadeTest {
         .hasMessageContaining("sortByKey")
         .hasMessageContaining("keys: 2, values: 1");
   }
+
+  /**
+   * sortByKey of Tag by {@code replaceValue(createIf(Tag), "5")}, with {@code params}, on {@code
+   * Out/All}: a key is 5 where the Tag is true and SUPPRESS where it is not.
+   */
+  private static byte[] sortByCreatedKeys(String params) {
+    return """
+        {"formatVersion": 1,
+         "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Orders"}},
+         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Out"}},
+         "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "k1",
+           "boxes": {"k1": {"kind": "function", "fn": "sortByKey", "inputs": ["r1", "a1"],
+                            "params": %2$s},
+                     "r1": {"kind": "function", "fn": "replaceValue", "inputs": ["c1"],
+                            "params": {"replacement": "5"}},
+                     "c1": {"kind": "function", "fn": "createIf", "inputs": ["a1"]},
+                     "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
+        """
+        .formatted(FINGERPRINT, params)
+        .getBytes(UTF_8);
+  }
+
+  /**
+   * #2 §3 (documented): "numeric keys must not be equal to the constant ResultList.SUPPRESS". A
+   * numeric sortByKey over a SUPPRESS key stops the run; compared as strings the same key is the
+   * smallest (ADR-0006 since #51). The export raises po:SORTBYKEY for the same inputs.
+   */
+  @Test
+  void aNumericSortByKeyOverASuppressKeyStopsTheRun() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    Path observations = CorpusStructures.directory("observations");
+    byte[] input = utf8("<Orders><Order><Tag>1</Tag><Tag>no</Tag></Order></Orders>");
+    CompiledMapping lexicographic =
+        compiled(facade.compile(sortByCreatedKeys("{}"), observations, DEPLOY));
+    CompiledMapping numeric =
+        compiled(
+            facade.compile(
+                sortByCreatedKeys("{\"comparison\": \"numeric\"}"), observations, DEPLOY));
+    // witness: without SUPPRESS the numeric keys sort, and as strings the SUPPRESS key comes first
+    assertThat(
+            new String(
+                facade.run(numeric, utf8("<Orders><Order><Tag>1</Tag></Order></Orders>")), UTF_8))
+        .isEqualTo(DECLARATION + "<Out><All>1</All></Out>");
+    assertThat(new String(facade.run(lexicographic, input), UTF_8))
+        .isEqualTo(DECLARATION + "<Out><All>no</All><All>1</All></Out>");
+
+    assertThatThrownBy(() -> facade.run(numeric, input))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("sortByKey")
+        .hasMessageContaining("SUPPRESS");
+  }
 }

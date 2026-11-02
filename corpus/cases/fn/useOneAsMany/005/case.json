@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/suppress-use-one-as-many.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): useOneAsMany repeats and counts SUPPRESS like a value; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "expect": "output",
+  "note": "createIf over Tag in context Orders gives SUPPRESS, \"\"; Sku in context Order has two slots, then one. Value 1, SUPPRESS, is repeated twice and value 2 once, in the one context of Sku in context Orders: SUPPRESS, SUPPRESS, \"\", so one empty All. SUPPRESS repeated as \"\" gives three."
+}

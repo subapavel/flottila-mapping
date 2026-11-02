@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/suppress-sort-descending-format.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): sort orders a SUPPRESS value as the smallest, last descending; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "expect": "output",
+  "note": "createIf over Tag in context Orders gives SUPPRESS, \"\", SUPPRESS, \"\". Descending puts SUPPRESS last: \"\", \"\", SUPPRESS, SUPPRESS. formatByExample cuts after three slots, so the first context holds two \"\": two empty All. Unsorted or SUPPRESS first gives one."
+}
