@@ -1,7 +1,6 @@
 package io.flottila.mapping.api;
 
 import io.flottila.mapping.mapping.Diagnostic;
-import java.util.ArrayList;
 import java.util.List;
 
 /** The result of a compile: the compiled mapping, or the diagnostics that refuse it. */
@@ -22,9 +21,7 @@ public sealed interface CompileResult {
   record Refused(List<Diagnostic> diagnostics) implements CompileResult {
 
     public Refused {
-      List<Diagnostic> sorted = new ArrayList<>(diagnostics);
-      sorted.sort(Diagnostic.ORDER);
-      diagnostics = List.copyOf(sorted);
+      diagnostics = DiagnosticOrder.sorted(diagnostics);
     }
   }
 }

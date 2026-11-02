@@ -16,6 +16,7 @@ import io.flottila.mapping.runtime.Interpreter;
 import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.xslt.export.XsltExporter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * The engine facade the service calls (ADR-0016). It carries no compatibility promise and is not
@@ -63,26 +65,62 @@ public final class EngineFacade {
    */
   public CompileResult compile(byte[] model, Path base, CompileOptions options)
       throws MalformedJsonException {
-    return switch (MappingModelFormat.load(model)) {
-      case Refused refused -> new CompileResult.Refused(refused.diagnostics());
-      case Loaded(MappingModel loaded) -> compile(loaded, base, options);
-    };
+    return loadAndLower(
+        model,
+        base,
+        CompileResult.Refused::new,
+        document -> {
+          // lowering has verified the IR; the optimiser verifies it again (ADR-0006)
+          TargetDocument ir = options.optimised() ? IrOptimiser.optimise(document) : document;
+          return new CompileResult.Compiled(
+              new CompiledMapping(Interpreter.compile(ir, options.traced())));
+        });
   }
 
-  private static CompileResult compile(MappingModel model, Path base, CompileOptions options) {
-    List<Diagnostic> refusals = new ArrayList<>();
-    Optional<Structure> source = structure(base, model.source(), refusals);
-    Optional<Structure> target = structure(base, model.target(), refusals);
-    if (!refusals.isEmpty()) {
-      return new CompileResult.Refused(refusals);
-    }
-    return switch (Lowering.lower(model, source.orElseThrow(), target.orElseThrow())) {
-      case Refused refused -> new CompileResult.Refused(refused.diagnostics());
-      case Lowered(TargetDocument document) -> {
-        // lowering has verified the IR; the optimiser verifies it again (ADR-0006)
-        TargetDocument ir = options.optimised() ? IrOptimiser.optimise(document) : document;
-        yield new CompileResult.Compiled(
-            new CompiledMapping(Interpreter.compile(ir, options.traced())));
+  /**
+   * Exports a mapping model to XSLT 3.0 in the portable profile (ADR-0023): load, structures, stage
+   * 3 and lowering as {@link #compile} does them, then the export of the unoptimised IR. A refused
+   * model gives no stylesheet, not even of the target fields that would export.
+   *
+   * @param model the mapping model's bytes
+   * @param base the directory the model's schema bundle references are relative to
+   * @return the stylesheet and its helper module, or the diagnostics that refuse the model
+   * @throws MalformedJsonException if the bytes are no JSON document
+   */
+  public ExportResult export(byte[] model, Path base) throws MalformedJsonException {
+    return loadAndLower(
+        model,
+        base,
+        ExportResult.Refused::new,
+        document ->
+            new ExportResult.Exported(XsltExporter.export(document), XsltExporter.helperModule()));
+  }
+
+  /**
+   * The chain compile and export share: load with stages 1 and 2, the source and target structures,
+   * then stage 3 and lowering. The first of these that refuses the model gives {@code refused} its
+   * diagnostics, which the result sorts; the structures are both read before either refusal is
+   * reported. A model that lowers gives {@code lowered} its unoptimised IR.
+   */
+  private static <R> R loadAndLower(
+      byte[] model,
+      Path base,
+      Function<List<Diagnostic>, R> refused,
+      Function<TargetDocument, R> lowered)
+      throws MalformedJsonException {
+    return switch (MappingModelFormat.load(model)) {
+      case Refused r -> refused.apply(r.diagnostics());
+      case Loaded(MappingModel loaded) -> {
+        List<Diagnostic> refusals = new ArrayList<>();
+        Optional<Structure> source = structure(base, loaded.source(), refusals);
+        Optional<Structure> target = structure(base, loaded.target(), refusals);
+        if (!refusals.isEmpty()) {
+          yield refused.apply(refusals);
+        }
+        yield switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
+          case Refused r -> refused.apply(r.diagnostics());
+          case Lowered(TargetDocument document) -> lowered.apply(document);
+        };
       }
     };
   }
