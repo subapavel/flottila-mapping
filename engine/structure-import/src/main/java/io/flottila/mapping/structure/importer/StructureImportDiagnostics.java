@@ -9,7 +9,7 @@ public final class StructureImportDiagnostics {
   /** A schema file the XML parser cannot read to its end. */
   public static final String SCHEMA_NOT_WELL_FORMED = "schema-not-well-formed";
 
-  /** A construct outside the flat XSD subset, or a bundle of other than one file. */
+  /** A construct outside the nested XSD subset, or a bundle of other than one file. */
   public static final String SCHEMA_CONSTRUCT_UNSUPPORTED = "schema-construct-unsupported";
 
   /** A value the XSD does not allow, such as {@code minOccurs} above {@code maxOccurs}. */

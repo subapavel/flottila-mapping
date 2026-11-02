@@ -124,6 +124,45 @@ class LoweringTest {
   }
 
   @Test
+  void aSourceLeafBelowAStructureFieldLowersWithItsContextDepth() {
+    String street = ADDRESS + "/Street";
+    List<Name> streetNames = List.of(ORDER_NAME, new Name("", "Address"), new Name("", "Street"));
+
+    // #62: a source leaf at any depth; its context is the parent Address by default, depth 2
+    TargetDocument byParent =
+        lowered(
+            lower(
+                orderToOrder(
+                    targetFieldMappings(
+                        NOTE, targetFieldMapping("t1", "a1", boxes("a1", source(street)))))));
+    // any proper ancestor may be the context: the root Order is depth 1
+    TargetDocument byRoot =
+        lowered(
+            lower(
+                orderToOrder(
+                    targetFieldMappings(
+                        NOTE,
+                        targetFieldMapping("t1", "a1", boxes("a1", source(street, ORDER)))))));
+
+    assertThat(((TargetSlots) byParent.content().getFirst()).queue())
+        .isEqualTo(new SourceQueue(streetNames, 2, id("a1")));
+    assertThat(((TargetSlots) byRoot.content().getFirst()).queue())
+        .isEqualTo(new SourceQueue(streetNames, 1, id("a1")));
+  }
+
+  @Test
+  void aTargetLeafBelowAStructureFieldIsStillUnsupportedField() {
+    // target slots under a structure field are #52's
+    MappingModel model =
+        orderToOrder(
+            targetFieldMappings(
+                ADDRESS + "/Street",
+                targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID)))));
+
+    assertThat(refused(lower(model))).containsExactly(errorAtId("unsupported-field", "t1"));
+  }
+
+  @Test
   void targetSlotsTakeTheEffectiveOccurrence() {
     TargetDocument document =
         lowered(
