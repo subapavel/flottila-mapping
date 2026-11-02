@@ -8,11 +8,36 @@
     ],
     "portable": true
   },
+  "createIf": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "condition"
+      }
+    ],
+    "portable": true
+  },
   "removeContexts": {
     "executionKind": "queue",
     "inputs": [
       {
         "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "replaceValue": {
+    "executionKind": "single",
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "replacement",
+        "type": "string"
       }
     ],
     "portable": true

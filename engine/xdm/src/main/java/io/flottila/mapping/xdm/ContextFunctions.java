@@ -1,6 +1,7 @@
 package io.flottila.mapping.xdm;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 
 /**
@@ -14,8 +15,10 @@ public final class ContextFunctions {
 
   /**
    * {@code collapseContexts}: the first value of each context of {@code queue}, and {@code ""} for
-   * an empty context, all in one context (#2 §4). It copies references only (ADR-0004). A queue
-   * with no context at all gives one empty context, as {@link #removeContexts} does.
+   * an empty context, all in one context (#2 §4). A first slot that is SUPPRESS gives {@code ""}
+   * too, as SAP takes SUPPRESS there for an empty value (an assumed reading, #2 §7.4, obs ctx-6b),
+   * so the result holds no SUPPRESS. It copies references only (ADR-0004). A queue with no context
+   * at all gives one empty context, as {@link #removeContexts} does.
    *
    * @throws CancellationException when the thread is interrupted
    */
@@ -23,15 +26,41 @@ public final class ContextFunctions {
     String[] firsts = new String[queue.contexts()];
     for (int c = 0; c < firsts.length; c++) {
       checkInterrupt("collapseContexts");
-      firsts[c] = queue.end(c) > queue.start(c) ? queue.value(queue.start(c)) : "";
+      // an empty context and a SUPPRESS first slot both give the null that "" replaces
+      String first = queue.end(c) > queue.start(c) ? queue.value(queue.start(c)) : null;
+      firsts[c] = Objects.requireNonNullElse(first, "");
     }
     return QueueBlock.ofOneContext(firsts);
   }
 
   /**
-   * {@code removeContexts}: every slot of {@code queue}, in order, in one context. It shares the
-   * values array and builds only the context starts {@code {0, n}} (ADR-0004), so a queue with no
-   * context at all gives one empty context.
+   * {@code createIf}: per slot of {@code condition}, {@code ""} where it is {@code 1} or {@code
+   * true} in any case, and SUPPRESS for anything else, {@code ""} and SUPPRESS included (#2 §4 and
+   * §5; the assumed truth rule of ADR-0006 since #51). White space is part of a value. The result
+   * keeps the slots and shares the context starts of {@code condition} (ADR-0004).
+   *
+   * @throws CancellationException when the thread is interrupted
+   */
+  public static QueueBlock createIf(QueueBlock condition) {
+    String[] values = new String[condition.slots()];
+    for (int i = 0; i < values.length; i++) {
+      // inline, as the block's own read of the values after this loop checks too (ADR-0021)
+      if (Thread.currentThread().isInterrupted()) {
+        throw new CancellationException("createIf was running when the thread was interrupted");
+      }
+      // a SUPPRESS slot's value is null, which neither call takes for true
+      String value = condition.value(i);
+      if ("1".equals(value) || "true".equalsIgnoreCase(value)) {
+        values[i] = "";
+      }
+    }
+    return condition.withValues(values);
+  }
+
+  /**
+   * {@code removeContexts}: every slot of {@code queue}, in order, in one context, each SUPPRESS at
+   * its own slot. It shares the values array and the SUPPRESS bitset and builds only the context
+   * starts {@code {0, n}} (ADR-0004), so a queue with no context at all gives one empty context.
    */
   public static QueueBlock removeContexts(QueueBlock queue) {
     return queue.withContextStarts(new int[] {0, queue.slots()});
@@ -40,11 +69,13 @@ public final class ContextFunctions {
   // splitByValue (#55): one function per mode, which the runtime binds once per call site. Each
   // splits every context of its input on its own, so the input's context boundaries stay, and an
   // empty context stays one empty context. A context gives at most one context more than it has
-  // slots, which bounds the starts array by slots + contexts + 1, the end sentinel included.
+  // slots, which bounds the starts array by slots + contexts + 1, the end sentinel included. A
+  // SUPPRESS slot stays a slot in every mode (an assumed reading since #51).
 
   /**
-   * {@code splitByValue} in mode {@code eachValue}: every value in a context of its own. It shares
-   * the values array and builds only the context starts (ADR-0004).
+   * {@code splitByValue} in mode {@code eachValue}: every value, and every SUPPRESS, in a context
+   * of its own. It shares the values array and the SUPPRESS bitset and builds only the context
+   * starts (ADR-0004).
    */
   public static QueueBlock splitByEachValue(QueueBlock queue) {
     return split(queue, true);
@@ -52,8 +83,10 @@ public final class ContextFunctions {
 
   /**
    * {@code splitByValue} in mode {@code valueChange}: a new context at every value that is not
-   * equal to the value before it in its context, as {@link String#equals} compares. It shares the
-   * values array and builds only the context starts (ADR-0004).
+   * equal to the value before it in its context, as {@link String#equals} compares. SUPPRESS equals
+   * SUPPRESS and no value, as SAP's SUPPRESS string would compare (an assumed reading since #51).
+   * It shares the values array and the SUPPRESS bitset and builds only the context starts
+   * (ADR-0004).
    */
   public static QueueBlock splitByValueChange(QueueBlock queue) {
     return split(queue, false);
@@ -69,7 +102,8 @@ public final class ContextFunctions {
     for (int c = 0; c < queue.contexts(); c++) {
       starts[count++] = queue.start(c);
       for (int i = queue.start(c) + 1; i < queue.end(c); i++) {
-        if (eachValue || !queue.value(i).equals(queue.value(i - 1))) {
+        // a SUPPRESS slot's value is null, which equals only another SUPPRESS slot's
+        if (eachValue || !Objects.equals(queue.value(i), queue.value(i - 1))) {
           starts[count++] = i;
         }
       }
@@ -82,8 +116,9 @@ public final class ContextFunctions {
   /**
    * {@code splitByValue} in mode {@code emptyValue}: every {@code ""} ends its context there and
    * starts a new one, and is itself dropped, so a {@code ""} first or last in a context leaves an
-   * empty context there. Dropping values needs a values array of its own, which holds the input's
-   * value objects: no characters are copied (ADR-0004).
+   * empty context there. SUPPRESS is no {@code ""}, so it stays a slot (an assumed reading since
+   * #51). Dropping values needs a values array of its own, which holds the input's value objects:
+   * no characters are copied (ADR-0004).
    */
   public static QueueBlock splitByEmptyValue(QueueBlock queue) {
     String[] values = new String[queue.slots()];
@@ -93,8 +128,9 @@ public final class ContextFunctions {
     for (int c = 0; c < queue.contexts(); c++) {
       starts[count++] = slots;
       for (int i = queue.start(c); i < queue.end(c); i++) {
+        // a SUPPRESS slot's value is null, which is no ""
         String value = queue.value(i);
-        if (value.isEmpty()) {
+        if ("".equals(value)) {
           starts[count++] = slots;
         } else {
           values[slots++] = value;
@@ -102,14 +138,17 @@ public final class ContextFunctions {
       }
     }
     starts[count++] = slots;
-    return QueueBlock.of(Arrays.copyOf(values, slots), Arrays.copyOf(starts, count));
+    return QueueBlock.ofSlots(Arrays.copyOf(values, slots), Arrays.copyOf(starts, count));
   }
 
   /**
    * {@code useOneAsMany(value, occurrences, contexts)}: the value at slot index k of {@code value}
    * once per slot of context k of {@code occurrences}, in order, split at the context starts of
    * {@code contexts}, which it shares (#2 §4). It copies references only (ADR-0004). The contexts
-   * of {@code value} play no part: its values meet the contexts of {@code occurrences} in order.
+   * of {@code value} play no part: its values meet the contexts of {@code occurrences} in order. A
+   * SUPPRESS value is repeated as SUPPRESS, a SUPPRESS slot of {@code occurrences} is an occurrence
+   * like any other, and the slots of {@code contexts} give only their boundaries (assumed readings
+   * since #51).
    *
    * @throws IllegalArgumentException unless {@code value} has one slot per context of {@code
    *     occurrences} and {@code contexts} as many slots as {@code occurrences}: the assumed reading
@@ -134,7 +173,8 @@ public final class ContextFunctions {
               + " slots, the second "
               + occurrences.slots());
     }
-    // the slots of occurrences, counted across its contexts, are the slots of the result
+    // the slots of occurrences, counted across its contexts, are the slots of the result; a
+    // SUPPRESS value is a null, repeated as one
     String[] repeated = new String[occurrences.slots()];
     for (int k = 0; k < occurrences.contexts(); k++) {
       // one check per context: its slots are filled in one call, without a loop of this class

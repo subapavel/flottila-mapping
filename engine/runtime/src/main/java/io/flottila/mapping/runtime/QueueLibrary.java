@@ -28,6 +28,10 @@ final class QueueLibrary {
         Node.OfQueue input = inputs.getFirst();
         yield frame -> ContextFunctions.collapseContexts(input.eval(frame));
       }
+      case "createIf" -> {
+        Node.OfQueue condition = inputs.getFirst();
+        yield frame -> ContextFunctions.createIf(condition.eval(frame));
+      }
       case "removeContexts" -> {
         Node.OfQueue input = inputs.getFirst();
         yield frame -> ContextFunctions.removeContexts(input.eval(frame));

@@ -32,7 +32,8 @@ interface Node {
 
   /**
    * {@code TargetSlots} (ADR-0006): the body once per slot of context {@code p} of the queue, where
-   * {@code p} is the parent's slot number, until {@code max} occurrences are created.
+   * {@code p} is the parent's slot number, until {@code max} occurrences are created. A SUPPRESS
+   * slot creates nothing and does not count toward {@code max}.
    */
   final class Slots implements OfContent {
 
@@ -61,12 +62,15 @@ interface Node {
       int context = (int) parent - 1;
       int end = block.end(context);
       long created = 0;
-      for (int slot = block.start(context); slot < end && created < max; slot++, created++) {
+      for (int slot = block.start(context); slot < end && created < max; slot++) {
         if (Thread.currentThread().isInterrupted()) {
           throw new CancellationException("the mapping run was interrupted");
         }
-        frame.strings[valueSlot] = block.value(slot);
-        body.write(frame);
+        if (!block.suppressed(slot)) {
+          frame.strings[valueSlot] = block.value(slot);
+          body.write(frame);
+          created++;
+        }
       }
     }
   }

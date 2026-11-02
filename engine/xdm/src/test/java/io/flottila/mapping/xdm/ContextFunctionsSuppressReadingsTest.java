@@ -1,0 +1,257 @@
+package io.flottila.mapping.xdm;
+
+import static io.flottila.mapping.xdm.SuppressQueues.S;
+import static io.flottila.mapping.xdm.SuppressQueues.context;
+import static io.flottila.mapping.xdm.SuppressQueues.queue;
+import static io.flottila.mapping.xdm.SuppressQueues.read;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.flottila.mapping.xdm.SuppressQueues.Queue;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.SplittableRandom;
+import java.util.random.RandomGenerator;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+/**
+ * The context functions of #55 and #56 over queues that hold SUPPRESS (#51, ADR-0004). Every
+ * reading here is assumed until an observed case confirms it (#61):
+ *
+ * <ul>
+ *   <li>{@code splitByValue} keeps each SUPPRESS as a slot in every mode; in mode valueChange a
+ *       SUPPRESS equals another SUPPRESS and no value, as SAP's SUPPRESS string would compare, and
+ *       in mode emptyValue a SUPPRESS is no {@code ""};
+ *   <li>{@code collapseContexts} takes a SUPPRESS first slot for {@code ""}, as SAP is documented
+ *       to (#2 §7.4, obs-context-functions ctx-6b);
+ *   <li>{@code useOneAsMany} repeats a SUPPRESS value as SUPPRESS, counts a SUPPRESS occurrence as
+ *       one, and takes only the boundaries of its third input.
+ * </ul>
+ *
+ * Worked examples first, then property tests (ADR-0018) over the edges and 200 seeded queues of
+ * {@link SuppressQueues}, against list references written here.
+ */
+class ContextFunctionsSuppressReadingsTest {
+
+  static Stream<Arguments> queues() {
+    return SuppressQueues.queues().map(q -> Arguments.of(q.name(), q));
+  }
+
+  /** {@code a} and {@code b} are the same queue value: equal strings, or both SUPPRESS. */
+  private static boolean same(String a, String b) {
+    return a == null ? b == null : a.equals(b);
+  }
+
+  // --- splitByValue
+
+  @Test
+  void splitByValueChangeTakesSuppressForEqualToSuppressOnly() {
+    Queue queue = queue("worked", context("a", S, S, "a", "", S), context(S), context());
+
+    QueueBlock result = ContextFunctions.splitByValueChange(queue.block());
+
+    assertThat(read(result))
+        .containsExactly(
+            context("a"),
+            context(S, S),
+            context("a"),
+            context(""),
+            context(S),
+            context(S),
+            context());
+  }
+
+  @Test
+  void splitByEmptyValueKeepsSuppressAsASlot() {
+    Queue queue = queue("worked", context("a", S, "", S, ""), context(S, ""));
+
+    QueueBlock result = ContextFunctions.splitByEmptyValue(queue.block());
+
+    // taking SUPPRESS for "" would cut there and drop it, leaving no SUPPRESS at all
+    assertThat(read(result))
+        .containsExactly(context("a", S), context(S), context(), context(S), context());
+  }
+
+  /** Every slot, SUPPRESS included, in a context of its own; an empty context stays one. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void splitByEachValuePutsEverySuppressInAContextOfItsOwn(String name, Queue queue) {
+    List<List<String>> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      if (context.isEmpty()) {
+        expected.add(context());
+      }
+      for (String slot : context) {
+        expected.add(Collections.singletonList(slot));
+      }
+    }
+
+    assertThat(read(ContextFunctions.splitByEachValue(queue.block()))).isEqualTo(expected);
+  }
+
+  /** A new context where a slot is not the same value as the one before it in its context. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void splitByValueChangeSplitsWhereSuppressMeetsAValue(String name, Queue queue) {
+    List<List<String>> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      List<String> run = new ArrayList<>();
+      for (int i = 0; i < context.size(); i++) {
+        if (i > 0 && !same(context.get(i), context.get(i - 1))) {
+          expected.add(run);
+          run = new ArrayList<>();
+        }
+        run.add(context.get(i));
+      }
+      expected.add(run);
+    }
+
+    assertThat(read(ContextFunctions.splitByValueChange(queue.block()))).isEqualTo(expected);
+  }
+
+  /** Each {@code ""} cuts its context and is dropped; a SUPPRESS stays where it stands. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void splitByEmptyValueCutsAtEmptyStringsOnly(String name, Queue queue) {
+    List<List<String>> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      List<String> run = new ArrayList<>();
+      for (String slot : context) {
+        if ("".equals(slot)) {
+          expected.add(run);
+          run = new ArrayList<>();
+        } else {
+          run.add(slot);
+        }
+      }
+      expected.add(run);
+    }
+
+    assertThat(read(ContextFunctions.splitByEmptyValue(queue.block()))).isEqualTo(expected);
+  }
+
+  // --- collapseContexts
+
+  /** obs-context-functions ctx-6b: {@code 5 | SUPPRESS | 7} collapses to {@code 5, "", 7}. */
+  @Test
+  void collapseContextsTakesASuppressFirstSlotForAnEmptyValue() {
+    Queue ctx6b = queue("ctx-6b", context("5"), context(S), context("7"));
+    // the first slot decides, whatever follows it
+    Queue firsts = queue("firsts", context(S, "x"), context("y", S), context());
+
+    assertThat(read(ContextFunctions.collapseContexts(ctx6b.block())))
+        .containsExactly(context("5", "", "7"));
+    assertThat(read(ContextFunctions.collapseContexts(firsts.block())))
+        .containsExactly(context("", "y", ""));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void collapseContextsGivesNoSuppress(String name, Queue queue) {
+    List<String> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      expected.add(context.isEmpty() || context.getFirst() == null ? "" : context.getFirst());
+    }
+
+    assertThat(read(ContextFunctions.collapseContexts(queue.block()))).containsExactly(expected);
+  }
+
+  // --- useOneAsMany
+
+  /**
+   * Value {@code a, SUPPRESS} over occurrences {@code x, y | SUPPRESS} in contexts {@code SUPPRESS,
+   * 1 | 2}: {@code a} twice and SUPPRESS once, cut as the third input is.
+   */
+  @Test
+  void useOneAsManyRepeatsASuppressValueAsSuppress() {
+    QueueBlock value = queue("value", context("a", S)).block();
+    QueueBlock occurrences = queue("occurrences", context("x", "y"), context(S)).block();
+    QueueBlock contexts = queue("contexts", context(S, "1"), context("2")).block();
+
+    QueueBlock result = ContextFunctions.useOneAsMany(value, occurrences, contexts);
+
+    assertThat(read(result)).containsExactly(context("a", "a"), context(S));
+  }
+
+  /** The inputs of one useOneAsMany whose counts agree. */
+  record Triple(String name, Queue value, Queue occurrences, Queue contexts) {
+
+    /** Value k once per slot of occurrence context k, cut at the context sizes of the third. */
+    List<List<String>> expected() {
+      List<String> values = value.flat();
+      List<String> repeated = new ArrayList<>();
+      for (int k = 0; k < occurrences.contexts().size(); k++) {
+        for (int n = 0; n < occurrences.contexts().get(k).size(); n++) {
+          repeated.add(values.get(k));
+        }
+      }
+      List<List<String>> expected = new ArrayList<>();
+      int at = 0;
+      for (List<String> context : contexts.contexts()) {
+        expected.add(repeated.subList(at, at + context.size()));
+        at += context.size();
+      }
+      return expected;
+    }
+
+    @Override
+    public String toString() {
+      return name;
+    }
+  }
+
+  /** {@code slots} cut into seeded contexts, empty ones among them, SUPPRESS kept. */
+  private static List<List<String>> cut(List<String> slots, RandomGenerator random) {
+    List<List<String>> contexts = new ArrayList<>();
+    List<String> context = new ArrayList<>();
+    for (String slot : slots) {
+      while (random.nextInt(3) == 0) {
+        contexts.add(context);
+        context = new ArrayList<>();
+      }
+      context.add(slot);
+    }
+    contexts.add(context);
+    return contexts;
+  }
+
+  /**
+   * A seeded triple over a seeded occurrences queue: one value per context of it, SUPPRESS among
+   * them, and a third input of as many slots, SUPPRESS among them too, cut its own way.
+   */
+  private static Triple triple(long seed) {
+    RandomGenerator random = new SplittableRandom(seed);
+    Queue occurrences = SuppressQueues.seeded("seed " + seed + " occurrences", random);
+    List<String> values = new ArrayList<>();
+    for (int k = 0; k < occurrences.contexts().size(); k++) {
+      values.add(random.nextInt(3) == 0 ? S : "v" + k);
+    }
+    List<String> thirds = new ArrayList<>();
+    for (int i = 0; i < occurrences.flat().size(); i++) {
+      thirds.add(random.nextInt(4) == 0 ? S : "c" + i);
+    }
+    return new Triple(
+        "seed " + seed,
+        new Queue("value", cut(values, random)),
+        occurrences,
+        new Queue("contexts", cut(thirds, random)));
+  }
+
+  static Stream<Arguments> triples() {
+    return SuppressQueues.seeds().mapToObj(seed -> Arguments.of("seed " + seed, triple(seed)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("triples")
+  void useOneAsManyKeepsSuppressValuesAndCountsSuppressOccurrences(String name, Triple triple) {
+    QueueBlock result =
+        ContextFunctions.useOneAsMany(
+            triple.value().block(), triple.occurrences().block(), triple.contexts().block());
+
+    assertThat(read(result)).isEqualTo(triple.expected());
+  }
+}

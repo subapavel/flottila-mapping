@@ -5,6 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
@@ -15,6 +16,7 @@ import io.flottila.mapping.ir.VarRef;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +38,13 @@ import java.util.stream.Collectors;
  *       {@code xpath-default-namespace}.
  *   <li>{@code TargetSlots} is {@code po:slots} over its queue, its parent's slot number and its
  *       {@code max}, {@code ()} when unbounded; spec 1 does not enforce {@code min} (ADR-0006).
- *   <li>A queue is an {@code array(xs:string*)} with one member per context, and a {@code FunCall}
- *       is {@code po:<catalogue name>} of the helper module over its args in {@code FunCall} order
- *       (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
+ *   <li>A queue is an {@code array(item()*)} with one member per context, each value an {@code
+ *       xs:string} or {@code $po:SUPPRESS}, and a {@code FunCall} is {@code po:<catalogue name>} of
+ *       the helper module over its args in {@code FunCall} order (ADR-0025). A {@code Literal} is
+ *       an XPath string literal in apostrophes.
+ *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
+ *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
+ *       body (ADR-0025 since #51).
  *   <li>An expression is escaped for the attribute it stands in, so a literal keeps every
  *       character, white space included.
  * </ul>
@@ -95,6 +101,14 @@ public final class XsltExporter {
   private static final String QUEUE =
       """
       array:join(/%s ! [%s ! string()])""";
+
+  /**
+   * A {@code Lift} (ADR-0025): {@code po:lift} over its queues, and over the inline function that
+   * binds the slot variables and returns the body.
+   */
+  private static final String LIFT =
+      """
+      po:lift((%s), function($in as xs:string*) as xs:string { let %s return %s })""";
 
   /** The {@code max} of a {@code TargetSlots} that is unbounded. */
   private static final String UNBOUNDED = "()";
@@ -190,6 +204,7 @@ public final class XsltExporter {
       case VarRef v -> throw misplaced(v, "content");
       case Literal l -> throw misplaced(l, "content");
       case FunCall c -> throw misplaced(c, "content");
+      case Lift l -> throw misplaced(l, "content");
     }
   }
 
@@ -208,10 +223,26 @@ public final class XsltExporter {
           c.args().stream()
               .map(this::expression)
               .collect(Collectors.joining(", ", "po:" + c.function().name() + "(", ")"));
+      case Lift l -> lift(l);
       case TargetSlots s -> throw misplaced(s, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
     };
+  }
+
+  /**
+   * {@code l} as {@code po:lift} over the sequence of its queues and an inline function, whose
+   * {@code let} binds slot variable k to the k-th string it gets, and which returns the body.
+   */
+  private String lift(Lift l) {
+    List<String> bindings = new ArrayList<>();
+    for (int k = 0; k < l.slotVars().size(); k++) {
+      bindings.add("$" + l.slotVars().get(k) + " := $in[" + (k + 1) + "]");
+    }
+    return LIFT.formatted(
+        l.queues().stream().map(this::expression).collect(Collectors.joining(", ")),
+        String.join(", ", bindings),
+        expression(l.body()));
   }
 
   private static String max(long max) {
