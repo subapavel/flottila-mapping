@@ -99,7 +99,8 @@ cache).
   and floors.
 - `bench.yml` (`workflow_dispatch` only): JMH on a runner, for information. It is never a gate,
   because shared runners are too noisy for a regression threshold.
-- Branch protection on `main` requires `backend`, `ui` and `stack`.
+- Branch protection on `main` requires `backend`, `windows`, `ui` and `stack` (`windows`: owner
+  ruling 2026-11-02, #48).
 
 ## Gates
 

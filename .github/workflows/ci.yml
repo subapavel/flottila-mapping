@@ -1,6 +1,6 @@
 name: ci
 
-# ADR-0017. Required on main: backend, ui, stack.
+# ADR-0017. Required on main: backend, windows, ui, stack (windows: owner ruling 2026-11-02, #48).
 # Pushes to ticket branches (t/**) run it too, so a ticket's CI can be observed before the spec PR.
 on:
   pull_request:

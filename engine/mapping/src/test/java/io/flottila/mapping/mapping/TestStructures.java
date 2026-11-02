@@ -63,6 +63,22 @@ final class TestStructures {
         leaf("urn:u", "Other", 0, 1, ValueType.STRING));
   }
 
+  /**
+   * A target whose root {@code Invoice} has no namespace and whose leaves meet {@code urn:v} before
+   * {@code urn:u}, against the order of their names: {@code Plain} in none, {@code Ref} and {@code
+   * Other} in {@code urn:v}, {@code Number} in {@code urn:u}.
+   */
+  static Structure invoiceWithoutNamespace() {
+    return structure(
+        "",
+        "Invoice",
+        Map.of(),
+        leaf("", "Plain", 0, 1, ValueType.STRING),
+        leaf("urn:v", "Ref", 0, 1, ValueType.STRING),
+        leaf("urn:u", "Number", 1, 1, ValueType.STRING),
+        leaf("urn:v", "Other", 0, 1, ValueType.STRING));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =

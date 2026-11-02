@@ -388,6 +388,42 @@ class XsltExporterTest {
             """);
   }
 
+  /**
+   * IrVerifier accepts an element without content, which spec 1's lowering does not give yet: like
+   * any content but a single text, its end tag stands on a line of its own (#27 design, #49).
+   */
+  @Test
+  void anElementWithoutContentEndsOnALineOfItsOwn() {
+    TargetDocument document = fieldLinkWith(underRoot(ORDER, ORDER_ID, "a1"), List.of());
+    IrVerifier.verify(document);
+
+    assertThat(XsltExporter.export(document))
+        .isEqualTo(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" \
+            xmlns:xs="http://www.w3.org/2001/XMLSchema" \
+            xmlns:array="http://www.w3.org/2005/xpath-functions/array" \
+            xmlns:po="urn:flottila:mapping:po" xmlns:s0="urn:flottila:corpus:skeleton" \
+            xmlns:ns0="urn:flottila:corpus:skeleton" exclude-result-prefixes="#all">
+              <xsl:import href="po-runtime.xsl"/>
+              <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="no" \
+            omit-xml-declaration="no"/>
+              <xsl:template match="/">
+                <xsl:variable name="root" as="xs:integer" select="1"/>
+                <ns0:Order>
+                  <xsl:for-each \
+            select="po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1)">
+                    <xsl:variable name="value" as="xs:string" select="."/>
+                    <OrderId>
+                    </OrderId>
+                  </xsl:for-each>
+                </ns0:Order>
+              </xsl:template>
+            </xsl:stylesheet>
+            """);
+  }
+
   @Test
   void theHelperModuleIsTheModulesResource() throws Exception {
     String resource;
