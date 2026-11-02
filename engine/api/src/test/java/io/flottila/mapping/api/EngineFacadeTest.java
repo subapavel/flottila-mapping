@@ -25,7 +25,9 @@ import io.flottila.mapping.xslt.export.XsltExporter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -89,13 +91,7 @@ class EngineFacadeTest {
 
   /** The skeleton's schema directory: surefire runs in {@code engine/api}. */
   private static Path skeleton() {
-    for (Path p = Path.of("").toAbsolutePath(); p != null; p = p.getParent()) {
-      Path candidate = p.resolve("corpus/structures/skeleton");
-      if (Files.isRegularFile(p.resolve("mvnw")) && Files.isDirectory(candidate)) {
-        return candidate;
-      }
-    }
-    throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
+    return CorpusStructures.directory("skeleton");
   }
 
   /** A model from {@code order.xsd} to itself with the given target field mappings. */
@@ -180,6 +176,55 @@ class EngineFacadeTest {
 
       assertThat(new String(output, UTF_8)).as("%s", options).isEqualTo(expected);
       assertThat(output).as("%s", options).isEqualTo(expected.getBytes(UTF_8));
+    }
+  }
+
+  /**
+   * #62: a field link from a source leaf below two repeating structure fields, {@code
+   * Orders/Order/Line/Sku}, to the target leaf {@code Out/All} directly under the root, over the
+   * observation kit's structures. The root is created once, so the target reads the queue's first
+   * context: the context the box names decides how many values that holds.
+   */
+  @Test
+  void compileAndRunReadASourceLeafAtAnyDepthInItsContext() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    Path observations = CorpusStructures.directory("observations");
+    byte[] input =
+        ("<Orders><Order><Id>1</Id><Line><Sku>A</Sku><Qty>1</Qty></Line><Line><Sku>B</Sku></Line>"
+                + "</Order><Order><Line><Sku>C</Sku></Line></Order></Orders>")
+            .getBytes(UTF_8);
+    // the box's context, none for the default (the parent Line), and the target's All elements
+    Map<String, String> byContext = new LinkedHashMap<>();
+    byContext.put("", "<All>A</All>");
+    byContext.put("/Orders/Order", "<All>A</All><All>B</All>");
+    byContext.put("/Orders", "<All>A</All><All>B</All><All>C</All>");
+
+    for (Map.Entry<String, String> context : byContext.entrySet()) {
+      String box =
+          context.getKey().isEmpty()
+              ? "{\"kind\": \"source\", \"field\": \"/Orders/Order/Line/Sku\"}"
+              : "{\"kind\": \"source\", \"field\": \"/Orders/Order/Line/Sku\", \"context\": \"%s\"}"
+                  .formatted(context.getKey());
+      byte[] model =
+          """
+          {"formatVersion": 1,
+           "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                      "root": {"element": "Orders"}},
+           "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+                      "root": {"element": "Out"}},
+           "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "a1",
+                                                "boxes": {"a1": %2$s}}}}
+          """
+              .formatted(FINGERPRINT, box)
+              .getBytes(UTF_8);
+
+      for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+        byte[] output = facade.run(compiled(facade.compile(model, observations, options)), input);
+
+        assertThat(new String(output, UTF_8))
+            .as("context '%s', %s", context.getKey(), options)
+            .isEqualTo(DECLARATION + "<Out>" + context.getValue() + "</Out>");
+      }
     }
   }
 
