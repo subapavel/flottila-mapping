@@ -61,7 +61,9 @@ module's row is fixed now (ADR-0021); its spec comes after milestone 1.
   - C: every service class lives in `io.flottila.mapping.service..`, so B can see it.
 - **Artefacts**: maven-enforcer `bannedDependencies` bans `io.quarkus*`, `jakarta.*` and
   `com.fasterxml*` in `engine/pom.xml`, `org.openjdk.jmh` everywhere except `bench/jmh`, and
-  `net.sf.saxon` everywhere except test scope.
+  `net.sf.saxon` at every scope except in `engine/oracle`, which switches the `enforce-no-saxon`
+  execution off (`<phase>none</phase>`, #27). Maven cannot stop a child POM from doing the same,
+  so reviewers check every diff that names `enforce-no-saxon`.
 
 ## Considered options
 
