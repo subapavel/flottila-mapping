@@ -10,17 +10,19 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * The engine-internal function catalogue (ADR-0025): {@code function-catalogue.json}, a resource of
- * this package, read once. Only lowering reads it, and only what lowering needs: the names of a
- * function's inputs and its params, in order, with each param's default and values.
+ * this package, read once. Only lowering reads it, and only what lowering needs: a function's
+ * execution kind, the names of its inputs and its params, in order, with each param's default and
+ * the values it takes.
  *
- * <p>Every param of the catalogue is a string param with {@code values}: lowering makes each a
- * {@code Literal}, which holds a string. A table param, or a string param that takes any string,
- * adds what is read here when its function lands.
+ * <p>Every param of the catalogue is a string param, which lowering makes a {@code Literal}: one
+ * with {@code values} takes only those, one without them any string. A table param adds what is
+ * read here when its function lands.
  */
 final class FunctionCatalogue {
 
@@ -29,17 +31,24 @@ final class FunctionCatalogue {
    *
    * @param name the param's name, the key a box gives it under
    * @param fallback the {@code default}, the value of a box that leaves the param out
-   * @param values the strings the param takes
+   * @param values the strings the param takes, or empty when it takes any string
    */
-  record Param(String name, String fallback, List<String> values) {}
+  record Param(String name, String fallback, Optional<List<String>> values) {
+
+    /** Whether the param takes the string {@code value}. */
+    boolean takes(String value) {
+      return values.map(allowed -> allowed.contains(value)).orElse(true);
+    }
+  }
 
   /**
    * A function's signature.
    *
+   * @param executionKind what one call sees: one value, one context or the whole queue
    * @param inputs the input names, in order
    * @param params the params, in order
    */
-  record Entry(List<String> inputs, List<Param> params) {
+  record Entry(ExecutionKind executionKind, List<String> inputs, List<Param> params) {
 
     /** The param {@code name}, or empty when the function has no such one. */
     Optional<Param> param(String name) {
@@ -70,8 +79,13 @@ final class FunctionCatalogue {
     return Map.copyOf(entries);
   }
 
-  /** {@code entry}'s inputs and params; a function without params leaves {@code params} out. */
+  /**
+   * {@code entry}'s execution kind, inputs and params; a function without params leaves {@code
+   * params} out, and a param that takes any string leaves {@code values} out.
+   */
   private static Entry entry(IJsonObject entry) {
+    ExecutionKind kind =
+        ExecutionKind.valueOf(string(entry, "executionKind").toUpperCase(Locale.ROOT));
     List<String> inputs = new ArrayList<>();
     for (IJsonValue input : elements(entry, "inputs")) {
       inputs.add(string((IJsonObject) input, "name"));
@@ -80,14 +94,22 @@ final class FunctionCatalogue {
     if (entry.get("params") != null) {
       for (IJsonValue value : elements(entry, "params")) {
         IJsonObject param = (IJsonObject) value;
-        List<String> values = new ArrayList<>();
-        for (IJsonValue allowed : elements(param, "values")) {
-          values.add(((IJsonString) allowed).getValue());
-        }
-        params.add(new Param(string(param, "name"), string(param, "default"), List.copyOf(values)));
+        params.add(new Param(string(param, "name"), string(param, "default"), values(param)));
       }
     }
-    return new Entry(List.copyOf(inputs), List.copyOf(params));
+    return new Entry(kind, List.copyOf(inputs), List.copyOf(params));
+  }
+
+  /** The {@code values} of {@code param}, or empty when it has none and takes any string. */
+  private static Optional<List<String>> values(IJsonObject param) {
+    if (param.get("values") == null) {
+      return Optional.empty();
+    }
+    List<String> values = new ArrayList<>();
+    for (IJsonValue allowed : elements(param, "values")) {
+      values.add(((IJsonString) allowed).getValue());
+    }
+    return Optional.of(List.copyOf(values));
   }
 
   private static List<? extends IJsonValue> elements(IJsonObject object, String member) {

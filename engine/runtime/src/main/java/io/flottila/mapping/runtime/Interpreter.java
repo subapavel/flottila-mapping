@@ -1,18 +1,23 @@
 package io.flottila.mapping.runtime;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
+import io.flottila.mapping.xdm.Lifting;
 import io.flottila.mapping.xdm.QueueBlock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,10 +26,10 @@ import java.util.Map;
 /**
  * Tier 0, the closure-compiled interpreter (ADR-0021). Compiling turns the IR once into a tree of
  * executable nodes over a frame: variables become slots, source queues become indexes into the
- * projection plan, a context function is bound by its name once per call site (ADR-0025), and
- * nothing is looked up by name while a mapping runs. A traced compile reports every source queue
- * and every call it evaluates to the run's tracer, at its box; an untraced compile has no hook at
- * all.
+ * projection plan, a context or single-value function is bound by its name once per call site
+ * (ADR-0025), and nothing is looked up by name while a mapping runs. A traced compile reports every
+ * source queue, context function call and {@code Lift} it evaluates to the run's tracer, at its
+ * box; an untraced compile has no hook at all.
  */
 public final class Interpreter {
 
@@ -78,7 +83,12 @@ public final class Interpreter {
       case SourceQueue q -> queue(q);
       case VarRef v -> variable(v, scope.get(v.name()));
       case Literal l -> constant(l.value());
-      case FunCall c -> call(c, scope);
+      case FunCall c ->
+          switch (c.function().resultType()) {
+            case QueueType _ -> call(c, scope);
+            case AtomicType _ -> singleValueCall(c, scope);
+          };
+      case Lift l -> lift(l, scope);
       case TargetSlots s -> slots(s, scope);
       case ElementConstructor e ->
           new Node.Element(
@@ -117,6 +127,51 @@ public final class Interpreter {
       }
     }
     return traced(c.origin(), QueueLibrary.bind(c.function().name(), inputs, params));
+  }
+
+  /**
+   * A call of a single-value function, its args' string nodes bound by the function's name. It
+   * gives a string, not a queue, so it is not traced: the {@code Lift} around it is (ADR-0006).
+   */
+  private Node.OfString singleValueCall(FunCall c, Map<String, Integer> scope) {
+    List<Node.OfString> args = new ArrayList<>();
+    for (Expr arg : c.args()) {
+      args.add((Node.OfString) compile(arg, scope));
+    }
+    return SingleValueLibrary.bind(c.function().name(), args);
+  }
+
+  /**
+   * A {@code Lift} (ADR-0006): its inputs' nodes in {@code scope}, and its body's node in a scope
+   * of its slot variables only, each a string frame slot of its own. Per slot, the slot's values go
+   * into those frame slots and the body reads them there.
+   */
+  private Node.OfQueue lift(Lift l, Map<String, Integer> scope) {
+    Node.OfQueue[] inputs = new Node.OfQueue[l.queues().size()];
+    int[] slotVars = new int[inputs.length];
+    Map<String, Integer> slots = new HashMap<>();
+    for (int k = 0; k < inputs.length; k++) {
+      inputs[k] = (Node.OfQueue) compile(l.queues().get(k), scope);
+      slotVars[k] = stringSlotCount++;
+      slots.put(l.slotVars().get(k), slotVars[k]);
+    }
+    Node.OfString body = (Node.OfString) compile(l.body(), slots);
+    return traced(
+        l.origin(),
+        frame -> {
+          QueueBlock[] blocks = new QueueBlock[inputs.length];
+          for (int k = 0; k < blocks.length; k++) {
+            blocks[k] = inputs[k].eval(frame);
+          }
+          return Lifting.lift(
+              Arrays.asList(blocks),
+              values -> {
+                for (int k = 0; k < slotVars.length; k++) {
+                  frame.strings[slotVars[k]] = values[k];
+                }
+                return body.eval(frame);
+              });
+        });
   }
 
   /** {@code node}, which reports each queue it gives at {@code box} when the compile is traced. */

@@ -1,0 +1,123 @@
+package io.flottila.mapping.mapping;
+
+import static io.flottila.mapping.mapping.LoadResults.lowered;
+import static io.flottila.mapping.mapping.Models.boxes;
+import static io.flottila.mapping.mapping.Models.function;
+import static io.flottila.mapping.mapping.Models.id;
+import static io.flottila.mapping.mapping.Models.inputs;
+import static io.flottila.mapping.mapping.Models.model;
+import static io.flottila.mapping.mapping.Models.noParams;
+import static io.flottila.mapping.mapping.Models.params;
+import static io.flottila.mapping.mapping.Models.source;
+import static io.flottila.mapping.mapping.Models.targetFieldMapping;
+import static io.flottila.mapping.mapping.Models.targetFieldMappings;
+import static io.flottila.mapping.mapping.Models.text;
+import static io.flottila.mapping.mapping.TestStructures.ORDER;
+import static io.flottila.mapping.mapping.TestStructures.SKELETON;
+import static io.flottila.mapping.mapping.TestStructures.order;
+import static io.flottila.mapping.mapping.TestStructures.ref;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.Lift;
+import io.flottila.mapping.ir.Literal;
+import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
+import io.flottila.mapping.ir.SourceQueue;
+import io.flottila.mapping.ir.TargetSlots;
+import io.flottila.mapping.ir.VarRef;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Lowering by execution kind (ADR-0006 as refined by #51, ADR-0025): a single-value function box
+ * with a queue input becomes one {@code Lift(queues, slotVars, body, origin)} per box, whose body
+ * is the atomic {@code FunCall} over the slot variables {@code in1} … and then the params as {@code
+ * Literal}s; a context function such as {@code createIf} stays a {@code FunCall} over queues. The
+ * nodes of a box carry the box's id. {@code Note <- f1} throughout, {@code a1} reading {@code
+ * Note}.
+ */
+class LiftLoweringTest {
+
+  private static final String NOTE = ORDER + "/Note";
+  private static final QueueType QUEUE = new QueueType();
+  private static final FunctionRef CREATE_IF = new FunctionRef("createIf", List.of(QUEUE), QUEUE);
+  private static final FunctionRef REPLACE_VALUE =
+      new FunctionRef(
+          "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);
+  private static final SourceQueue NOTES =
+      new SourceQueue(List.of(new Name(SKELETON, "Order"), new Name("", "Note")), 1, id("a1"));
+
+  /** {@code Note <- f1}, where the boxes are given as alternating id and box. */
+  private static Object loweredQueue(Object... idThenBox) {
+    MappingModel model =
+        model(
+            ref(order()),
+            ref(order()),
+            targetFieldMappings(NOTE, targetFieldMapping("t1", "f1", boxes(idThenBox))),
+            Map.of());
+    LowerResult result = Lowering.lower(model, order(), order());
+    assertThat(lowered(result).content()).singleElement().isInstanceOf(TargetSlots.class);
+    return ((TargetSlots) lowered(result).content().getFirst()).queue();
+  }
+
+  /** The body lowering writes for replaceValue's box {@code box}: in1, then the param. */
+  private static FunCall replaceValueBody(String box, String replacement) {
+    return new FunCall(
+        REPLACE_VALUE,
+        List.of(new VarRef("in1", AtomicType.STRING, id(box)), new Literal(replacement, id(box))),
+        id(box));
+  }
+
+  @Test
+  void singleLowersToLiftOverAtomicFunCall() {
+    assertThat(
+            loweredQueue(
+                "f1",
+                function("replaceValue", inputs("a1"), params("replacement", text("X"))),
+                "a1",
+                source(NOTE)))
+        .isEqualTo(new Lift(List.of(NOTES), List.of("in1"), replaceValueBody("f1", "X"), id("f1")));
+    // over a context function's queue: the Lift's input is the call, one Lift per box
+    assertThat(
+            loweredQueue(
+                "f1",
+                function("replaceValue", inputs("c1"), params("replacement", text("yes"))),
+                "c1",
+                function("createIf", inputs("a1"), noParams()),
+                "a1",
+                source(NOTE)))
+        .isEqualTo(
+            new Lift(
+                List.of(new FunCall(CREATE_IF, List.of(NOTES), id("c1"))),
+                List.of("in1"),
+                replaceValueBody("f1", "yes"),
+                id("f1")));
+  }
+
+  @Test
+  void contextFunctionStaysFunCall() {
+    assertThat(
+            loweredQueue("f1", function("createIf", inputs("a1"), noParams()), "a1", source(NOTE)))
+        .isEqualTo(new FunCall(CREATE_IF, List.of(NOTES), id("f1")));
+    // over a single-value box: the call's input is that box's Lift
+    assertThat(
+            loweredQueue(
+                "f1",
+                function("createIf", inputs("v1"), noParams()),
+                "v1",
+                function("replaceValue", inputs("a1"), params("replacement", text("1"))),
+                "a1",
+                source(NOTE)))
+        .isEqualTo(
+            new FunCall(
+                CREATE_IF,
+                List.of(
+                    new Lift(
+                        List.of(NOTES), List.of("in1"), replaceValueBody("v1", "1"), id("v1"))),
+                id("f1")));
+  }
+}

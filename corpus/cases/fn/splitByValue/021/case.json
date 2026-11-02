@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/suppress-split-empty-collapse.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): in splitByValue emptyValue, SUPPRESS is not \"\"; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "expect": "output",
+  "note": "createIf gives \"\", SUPPRESS, \"\", SUPPRESS, SUPPRESS in one context. emptyValue cuts at each \"\" and drops it: (empty) | SUPPRESS | SUPPRESS, SUPPRESS, so collapseContexts gives three empty All. SUPPRESS taken for \"\" gives six."
+}

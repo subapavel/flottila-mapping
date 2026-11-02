@@ -8,6 +8,15 @@
     ],
     "portable": true
   },
+  "createIf": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "condition"
+      }
+    ],
+    "portable": true
+  },
   "formatByExample": {
     "executionKind": "queue",
     "inputs": [
@@ -25,6 +34,22 @@
     "inputs": [
       {
         "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "replaceValue": {
+    "executionKind": "single",
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "replacement",
+        "type": "string"
       }
     ],
     "portable": true
