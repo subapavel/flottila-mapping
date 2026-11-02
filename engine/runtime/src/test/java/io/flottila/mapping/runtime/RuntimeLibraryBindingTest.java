@@ -189,6 +189,22 @@ class RuntimeLibraryBindingTest {
     assertThat(runOverItems(collapse)).isEqualTo(notesOf("x1", "y"));
   }
 
+  /**
+   * The args bind in catalogue order, values then example (#58): Name in the root's context, x1,
+   * x2, y, cut at the context changes of Name in Item's, x1, x2 | y, so the root's one slot reads
+   * x1, x2. The args swapped would give x1, x2, y in one context.
+   */
+  @Test
+  void formatByExampleIsBoundByNameWithItsArgsInOrder() throws Exception {
+    FunCall formatByExample =
+        new FunCall(
+            new FunctionRef("formatByExample", List.of(QUEUE, QUEUE), QUEUE),
+            List.of(source(1, "a1", "Item", "Name"), source(2, "a2", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    assertThat(runOverItems(formatByExample)).isEqualTo(notesOf("x1", "x2"));
+  }
+
   /** The args bind in catalogue order: value, occurrences, contexts. */
   @Test
   void useOneAsManyIsBoundByNameWithItsArgsInOrder() throws Exception {
