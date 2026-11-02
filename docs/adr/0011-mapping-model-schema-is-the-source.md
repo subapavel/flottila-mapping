@@ -37,7 +37,7 @@ there is one.
    - a pattern that does not translate;
    - an unresolved box;
    - an unconnected input, or an unconnected target field (`result` is `null`, F-2);
-   - an unreachable box (one `result` does not reach) gives a warning, never an error, and its
+   - an unreachable box (one `result` does not reach) gives a warning (from spec 6), never an error, and its
      inputs are not checked (ADR-0013).
    - a UDF that does not match its declaration;
    - a fingerprint mismatch.
