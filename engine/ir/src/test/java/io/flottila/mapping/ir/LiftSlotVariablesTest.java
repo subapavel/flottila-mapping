@@ -35,6 +35,7 @@ class LiftSlotVariablesTest {
             rootSlot(),
             1,
             1,
+            "slot",
             "v",
             new ElementConstructor(
                 "",

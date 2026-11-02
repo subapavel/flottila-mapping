@@ -239,6 +239,7 @@ class IrVerifierTest {
             rootSlot(),
             0,
             UNBOUNDED,
+            "slot",
             "item",
             new ElementConstructor("", item, List.of(names), T1),
             T1));
@@ -322,6 +323,86 @@ class IrVerifierTest {
   void targetSlotsOverAnAtomicIsRefused(String why, TargetDocument document) {
     // witness: a queue call is a queue to create slots from
     assertAccepted(over(call(REMOVE_CONTEXTS, orderIds())));
+
+    assertRefused(document);
+  }
+
+  // --- slot variables (ADR-0006 since #52): a TargetSlots binds its occurrence's slot number,
+  // an INTEGER, to slotVar in its body only, where it is the children's parentSlot
+
+  private static final Name ITEM = new Name("", "Item");
+  private static final Name NAME = new Name("", "Name");
+  private static final AuthoringId T3 = new AuthoringId("t3");
+
+  private static VarRef integer(String name, AuthoringId at) {
+    return new VarRef(name, AtomicType.INTEGER, at);
+  }
+
+  /** {@code Name} per slot of context {@code parentSlot} of Name in Item's context. */
+  private static TargetSlots names(Expr parentSlot, Expr text) {
+    return new TargetSlots(
+        new SourceQueue(List.of(ORDER, ITEM, NAME), 2, A2),
+        parentSlot,
+        0,
+        UNBOUNDED,
+        "nameSlot",
+        "name",
+        new ElementConstructor("", NAME, List.of(new TextConstructor(text, T2)), T2),
+        T2);
+  }
+
+  /** {@code Item} per slot of its queue, slot number {@code itemSlot}, with {@code content}. */
+  private static TargetSlots items(Expr parentSlot, Expr... content) {
+    return new TargetSlots(
+        queue(ITEM, 1, A1),
+        parentSlot,
+        0,
+        UNBOUNDED,
+        "itemSlot",
+        "item",
+        new ElementConstructor("", ITEM, List.of(content), T1),
+        T1);
+  }
+
+  /** Item, and Name in each Item's context: the nesting lowering gives a field at depth 3. */
+  private static TargetDocument itemsWithNames() {
+    return document(
+        items(
+            rootSlot(), names(integer("itemSlot", T2), new VarRef("name", AtomicType.STRING, T2))));
+  }
+
+  static Stream<Arguments> misusedSlotVars() {
+    VarRef name = new VarRef("name", AtomicType.STRING, T2);
+    return Stream.of(
+        Arguments.of(
+            "the slot number read as a string in the body",
+            document(
+                items(
+                    rootSlot(),
+                    names(
+                        integer("itemSlot", T2), new VarRef("itemSlot", AtomicType.STRING, T2))))),
+        Arguments.of(
+            "the parent's value, a string, as the child's parentSlot",
+            document(items(rootSlot(), names(new VarRef("item", AtomicType.STRING, T2), name)))),
+        Arguments.of(
+            "the slot number as its own parentSlot", document(items(integer("itemSlot", T1)))),
+        Arguments.of(
+            "a sibling's slot number, out of its body",
+            document(items(rootSlot()), names(integer("itemSlot", T2), name))),
+        Arguments.of(
+            "a child's slot number in its parent's body, beside the child",
+            document(
+                items(
+                    rootSlot(),
+                    names(integer("itemSlot", T2), name),
+                    names(integer("nameSlot", T3), name)))));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("misusedSlotVars")
+  void slotVarIsAnIntegerOnlyInTheBody(String why, TargetDocument document) {
+    // witness: the child reads its parent's slot number as an INTEGER inside the parent's body
+    assertAccepted(itemsWithNames());
 
     assertRefused(document);
   }

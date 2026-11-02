@@ -51,6 +51,7 @@ final class FieldLinkIr {
         parentSlot,
         min,
         max,
+        "slot",
         valueVar,
         new ElementConstructor("", leaf, List.of(new TextConstructor(textValue, mapping)), mapping),
         mapping);
