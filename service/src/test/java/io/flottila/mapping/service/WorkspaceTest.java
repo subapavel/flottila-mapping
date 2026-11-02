@@ -267,6 +267,29 @@ class WorkspaceTest {
     assertThat(Files.readAllBytes(outside.resolve("evil.mapping.json"))).isEqualTo(OUTSIDE);
   }
 
+  /**
+   * The problem detail names what the request spelled (#54): the id, never its mapping model file
+   * or the directory that holds it, and the bundle reference, never the workspace path of the file
+   * it reaches.
+   */
+  @Test
+  void aRefusalNamesThePathAsTheRequestSpelledIt() throws Exception {
+    Path links = Files.createDirectory(root.resolve("links"));
+    Files.createSymbolicLink(
+        links.resolve("out.mapping.json"), Path.of("../../outside/evil.mapping.json"));
+    Files.createSymbolicLink(links.resolve("outdir"), Path.of("../../outside"));
+
+    assertRefusedAs(() -> workspace.read("links/out"), "links/out");
+    assertRefusedAs(() -> workspace.existing("links/out"), "links/out");
+    assertRefusedAs(() -> workspace.save("links/out", NEW), "links/out");
+    assertRefusedAs(() -> workspace.read("links/outdir/evil"), "links/outdir/evil");
+    assertRefusedAs(() -> workspace.create("links/outdir/new", NEW), "links/outdir/new");
+    assertRefusedAs(() -> workspace.mappingDirectory("links/outdir/new"), "links/outdir/new");
+    assertRefusedAs(() -> workspace.directory("links/outdir"), "links/outdir");
+    assertRefusedAs(
+        () -> workspace.checkBundle(links, List.of("outdir/evil.xsd")), "outdir/evil.xsd");
+  }
+
   @Test
   void followsSymlinkInside() throws Exception {
     mapping("real/m");
@@ -590,14 +613,16 @@ class WorkspaceTest {
   }
 
   /**
-   * A create whose target is a link is 409, as now, and on its way never opens a file more open
-   * than {@code rw-r--r--}: the body is never written into a file the group or the world may write
-   * (#28 round 4). {@link ObservedFileSystem} records each file's mode when it is opened for
-   * writing and just before its move. The witness: a create on a free name is observed too.
+   * A create whose target is a link is {@code mapping-exists}, as now, and on its way never opens a
+   * file more open than {@code rw-r--r--}: the body is never written into a file the group or the
+   * world may write (#28 round 4). {@link ObservedFileSystem} records each file's mode when it is
+   * opened for writing and just before its move. The witness: a create on a free name is observed
+   * too.
    */
   @ParameterizedTest(name = "a link to {0}")
   @EnumSource(LinkTo.class)
-  void createOnALinkIs409AndNeverOpensAFileMoreOpenThan0644(LinkTo link) throws Exception {
+  void createOnALinkIsMappingExistsAndNeverOpensAFileMoreOpenThan0644(LinkTo link)
+      throws Exception {
     assumePosix();
     Path file = root.resolve("a/x.mapping.json");
     Files.createSymbolicLink(file, link.target);
@@ -871,6 +896,13 @@ class WorkspaceTest {
 
   private static void assertRefused(ThrowingCallable call, String path) {
     assertThatExceptionOfType(WorkspacePathException.class).as(path).isThrownBy(call);
+  }
+
+  private static void assertRefusedAs(ThrowingCallable call, String spelled) {
+    assertThatExceptionOfType(WorkspacePathException.class)
+        .as(spelled)
+        .isThrownBy(call)
+        .withMessage("not a workspace path: \"" + spelled + "\"");
   }
 
   /** Runs {@code command} in {@code directory}, which may be too deep for an absolute path. */

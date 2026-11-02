@@ -22,9 +22,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -32,6 +39,9 @@ import java.util.function.Function;
  * the embedding API for Flottila.
  */
 public final class EngineFacade {
+
+  /** The runtime error of a test run that exceeds its timeout (ADR-0014, ADR-0015). */
+  private static final String TIMEOUT = "flottila:TIMEOUT";
 
   /** A facade; it holds no state. */
   public EngineFacade() {}
@@ -50,6 +60,18 @@ public final class EngineFacade {
   /** The canonical form of {@code model} (ADR-0010). */
   public byte[] save(MappingModel model) {
     return MappingModelFormat.save(model);
+  }
+
+  /**
+   * A new mapping model in {@code formatVersion} 1 (ADR-0010) between two structures, with no
+   * target field mapping and no UDF.
+   *
+   * @param source the source structure's schema bundle, root and fingerprint
+   * @param target the target structure's schema bundle, root and fingerprint
+   * @return the model, not yet saved
+   */
+  public MappingModel newMapping(StructureRef source, StructureRef target) {
+    return new MappingModel(1, source, target, Map.of(), Map.of());
   }
 
   /**
@@ -153,5 +175,44 @@ public final class EngineFacade {
       throw new UncheckedIOException(e);
     }
     return out.toByteArray();
+  }
+
+  /**
+   * A test run (ADR-0014, "Running"): {@link #run} on a thread of its own, for at most {@code
+   * timeout}. Past it the run is interrupted, never stopped, and the result is the runtime error
+   * {@code flottila:TIMEOUT}; the run itself ends at its next interrupt check, in the parse or a
+   * slot loop. No trace is returned yet.
+   *
+   * @param mapping a compiled mapping
+   * @param input the input message's bytes
+   * @param timeout how long the run may take
+   * @return the target message, or {@code flottila:TIMEOUT}
+   * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws CancellationException when the calling thread is interrupted while it waits; its
+   *     interrupt status is kept, and the run is interrupted too
+   * @throws IllegalStateException when the run fails with an unchecked throwable, its cause
+   */
+  public TestRunResult testRun(CompiledMapping mapping, byte[] input, Duration timeout)
+      throws MalformedInputException {
+    FutureTask<byte[]> task = new FutureTask<>(() -> run(mapping, input));
+    Thread.ofVirtual().name("flottila test run").start(task);
+    try {
+      return new TestRunResult.Output(task.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
+    } catch (TimeoutException late) {
+      return new TestRunResult.RuntimeError(
+          TIMEOUT, "the test run took longer than its timeout of " + timeout.toMillis() + " ms");
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new CancellationException("the test run was interrupted while it was awaited");
+    } catch (ExecutionException failed) {
+      // run declares only MalformedInputException; anything else it throws is unchecked
+      if (failed.getCause() instanceof MalformedInputException malformed) {
+        throw malformed;
+      }
+      throw new IllegalStateException("the test run failed", failed.getCause());
+    } finally {
+      // a no-op once the run is done; otherwise it interrupts the run's thread
+      task.cancel(true);
+    }
   }
 }

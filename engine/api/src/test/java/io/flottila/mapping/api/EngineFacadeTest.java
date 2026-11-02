@@ -14,13 +14,19 @@ import io.flottila.mapping.mapping.LoadResult;
 import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Location;
 import io.flottila.mapping.mapping.MalformedJsonException;
+import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.Refused;
 import io.flottila.mapping.mapping.Severity;
+import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.runtime.MalformedInputException;
+import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -605,5 +611,120 @@ class EngineFacadeTest {
         .as(why)
         .containsExactlyElementsOf(atTheFunctionBox("unknown-parameter"));
     assertTheWellFormedBoxRuns();
+  }
+
+  // --- a new mapping (#54, ADR-0016): the facade, not the service, builds it
+
+  @Test
+  void aNewMappingHasBothStructureRefsAndNoTargetFieldMapping() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    StructureRef source =
+        new StructureRef(
+            new SchemaBundle(List.of("order.xsd")),
+            new ElementRoot("Order"),
+            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    StructureRef target =
+        new StructureRef(
+            new SchemaBundle(List.of("invoice.xsd")),
+            new ElementRoot("Invoice"),
+            "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
+    String expected = CANONICAL.substring(0, CANONICAL.indexOf(",\n  \"targetFieldMappings\""));
+
+    MappingModel created = facade.newMapping(source, target);
+
+    assertThat(new String(facade.save(created), UTF_8)).isEqualTo(expected + "\n}\n");
+    assertThat(facade.load(facade.save(created))).isEqualTo(new Loaded(created));
+  }
+
+  // --- a test run under its timeout (#54, ADR-0014 "Running"): the run is interrupted, never
+  // stopped, and the slot loops and the parse check for it
+
+  /**
+   * An input whose parse alone takes far longer than a zero timeout: 200 000 unmapped {@code Note}
+   * elements, each an event the projection checks for an interrupt.
+   */
+  private static byte[] largeInput() {
+    return utf8(
+        "<src:Order xmlns:src=\""
+            + NS
+            + "\"><OrderId>4711</OrderId>"
+            + "<Note>n</Note>".repeat(200_000)
+            + "</src:Order>");
+  }
+
+  @Test
+  void aTestRunWithinItsTimeoutGivesTheOutputOfARun() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+    byte[] input = utf8("<src:Order xmlns:src=\"" + NS + "\"><OrderId>4711</OrderId></src:Order>");
+
+    byte[] run = facade.run(mapping, input);
+
+    TestRunResult result = facade.testRun(mapping, input, Duration.ofSeconds(10));
+
+    assertThat(result)
+        .isInstanceOfSatisfying(
+            TestRunResult.Output.class, output -> assertThat(output.output()).isEqualTo(run));
+  }
+
+  @Test
+  void aTestRunPastItsTimeoutIsTheRuntimeErrorFlottilaTimeout() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+
+    TestRunResult result = facade.testRun(mapping, largeInput(), Duration.ZERO);
+
+    assertThat(result)
+        .isInstanceOfSatisfying(
+            TestRunResult.RuntimeError.class,
+            error -> {
+              assertThat(error.code()).isEqualTo("flottila:TIMEOUT");
+              assertThat(error.message()).isNotBlank();
+            });
+    assertThat(Thread.currentThread().isInterrupted())
+        .as("the caller is not interrupted")
+        .isFalse();
+  }
+
+  @Test
+  void malformedInputInATestRunIsAMalformedInputException() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+
+    assertThatThrownBy(
+            () ->
+                facade.testRun(
+                    mapping, utf8("<src:Order xmlns:src=\"" + NS + "\">"), Duration.ofSeconds(10)))
+        .isInstanceOf(MalformedInputException.class);
+  }
+
+  @Test
+  void anUncheckedFailureOfATestRunCarriesItsCause() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+
+    assertThatThrownBy(() -> facade.testRun(mapping, null, Duration.ofSeconds(10)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasCauseInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void anInterruptedCallerCancelsTheTestRunAndKeepsItsInterrupt() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+    byte[] input = largeInput();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> facade.testRun(mapping, input, Duration.ofSeconds(10)))
+          .isInstanceOf(CancellationException.class);
+    } finally {
+      assertThat(Thread.interrupted()).as("the interrupt is kept").isTrue();
+    }
   }
 }

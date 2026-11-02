@@ -39,7 +39,8 @@ class OpenApiContractTest {
                   "pointer", "PointerLocation",
                   "authoring-id", "AuthoringIdLocation",
                   "file-position", "FilePositionLocation"),
-          "TestResult", Map.of("output", "TestOutput", "refused", "TestRefused"),
+          "TestResult",
+              Map.of("output", "TestOutput", "refused", "TestRefused", "error", "TestError"),
           "StructureResponse", Map.of("loaded", "StructureLoaded", "refused", "StructureRefused"));
 
   /**
@@ -54,6 +55,8 @@ class OpenApiContractTest {
           Map.entry("StructureRequest", "base bundle root | base bundle root"),
           Map.entry("TestOutput", "diagnostics kind output | diagnostics kind output"),
           Map.entry("TestRefused", "diagnostics kind | diagnostics kind"),
+          Map.entry("TestError", "diagnostics error kind | diagnostics error kind"),
+          Map.entry("RuntimeErrorDto", "code message | code message"),
           Map.entry("StructureLoaded", "fingerprint kind root types | fingerprint kind root types"),
           Map.entry("StructureRefused", "diagnostics kind | diagnostics kind"),
           Map.entry(

@@ -16,8 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
+import org.eclipse.microprofile.config.Config;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -29,8 +32,17 @@ class TestRunResourceTest {
 
   @TestHTTPResource URI root;
 
+  @Inject Config config;
+
   private Http.Reply test(String id, String request) {
     return new Http(root).post("api/mappings/" + id + "/test", "application/json", bytes(request));
+  }
+
+  /** ADR-0014, "Running": 10 s unless configured; {@code TestRunTimeoutTest} configures zero. */
+  @Test
+  void theTestRunTimeoutIs10SecondsByDefault() {
+    assertThat(config.getValue("flottila.mapping.test-timeout", Duration.class))
+        .isEqualTo(Duration.ofSeconds(10));
   }
 
   @Test
