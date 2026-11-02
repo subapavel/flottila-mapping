@@ -13,4 +13,6 @@ the engine, the service and the XSLT export.** See `docs/wayfinder/phase-0-map.m
 Built AI-first: agents write the code under the rules in `CLAUDE.md`, `AGENTS.md` and
 `docs/WORKFLOW.md`; work is tracked in GitHub Issues.
 
+Dev run: `./mvnw -pl service -am quarkus:dev` plus `npm run dev` in `ui/`; if port 8080 is taken, set `QUARKUS_HTTP_PORT` for both (PowerShell `$env:QUARKUS_HTTP_PORT=8081`, bash `QUARKUS_HTTP_PORT=8081`) and the dev proxy follows.
+
 Licence: Apache 2.0 (`LICENSE`). Third-party notices: `NOTICE`.

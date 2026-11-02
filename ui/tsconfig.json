@@ -12,5 +12,5 @@
     "isolatedModules": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "e2e", "*.ts"]
+  "include": ["src", "e2e", "dev", "*.ts"]
 }

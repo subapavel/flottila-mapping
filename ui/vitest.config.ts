@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 // Unit tests run in node (ADR-0013). Component tests run in browser mode (vitest.browser.config.ts).
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'dev/**/*.test.ts'],
     exclude: ['src/**/*.browser.test.ts', 'node_modules/**'],
     passWithNoTests: true,
     coverage: {
