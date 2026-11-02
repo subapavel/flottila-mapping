@@ -6,7 +6,8 @@ The structure keeps no prefixes (ADR-0007), but our runtime and the exported XSL
 byte-identical prefixes for `checkForIdentical` (ADR-0018). Someone has to choose them.
 
 - Lowering assigns prefixes and carries them in the IR's element constructors:
-  - the target root's namespace is `ns0`;
+  - the target root's namespace is `ns0`; when the root has no namespace, `ns0` goes to the first
+    namespace in target field order;
   - each further namespace gets `ns1`, `ns2` … in target field order;
   - a name without a namespace has no prefix;
   - no default namespace is ever declared.
@@ -28,4 +29,5 @@ byte-identical prefixes for `checkForIdentical` (ADR-0018). Someone has to choos
 
 - This binds the serializer, the exporter and the bytecode tier.
 - `ns0` matches PO's output for a single namespace. With two or more namespaces it is an assumed
-  reading until an observed case confirms it.
+  reading until an observed case confirms it, and so is `ns0` for a root without a namespace
+  (#26 review).
