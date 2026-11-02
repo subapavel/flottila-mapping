@@ -1,7 +1,14 @@
 package io.flottila.mapping.oracle;
 
+import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import org.xmlunit.builder.DiffBuilder;
 import org.xmlunit.builder.Input;
 import org.xmlunit.diff.Diff;
@@ -43,7 +50,29 @@ final class OracleVerdict {
    * {@code prefix=URI} pairs its start tag declares, {@code =URI} for a default namespace.
    */
   static List<Set<String>> declarations(byte[] document) {
-    // stub for red (#27)
-    throw new UnsupportedOperationException("#27");
+    List<Set<String>> declarations = new ArrayList<>();
+    try {
+      XMLStreamReader reader =
+          XMLInputFactory.newDefaultFactory()
+              .createXMLStreamReader(new ByteArrayInputStream(document));
+      try {
+        while (reader.hasNext()) {
+          if (reader.next() == XMLStreamConstants.START_ELEMENT) {
+            Set<String> declared = new HashSet<>();
+            for (int k = 0; k < reader.getNamespaceCount(); k++) {
+              // the reader gives null for a default namespace (XMLStreamReader)
+              String prefix = reader.getNamespacePrefix(k);
+              declared.add((prefix == null ? "" : prefix) + "=" + reader.getNamespaceURI(k));
+            }
+            declarations.add(declared);
+          }
+        }
+      } finally {
+        reader.close();
+      }
+    } catch (XMLStreamException e) {
+      throw new IllegalArgumentException("no well-formed document: " + e.getMessage(), e);
+    }
+    return declarations;
   }
 }
