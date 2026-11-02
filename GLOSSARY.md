@@ -369,6 +369,12 @@ Running a corpus case's mapping both in our runtime and, exported to XSLT, in Sa
 requiring the same output. It applies to every case whose functions are all portable.
 _Avoid_: differential case (it is a second oracle over the same cases, not a kind of case)
 
+**Helper module**:
+The XSLT module `po-runtime.xsl` that every portable export imports. It holds the PO queue
+semantics as `po:` functions in `urn:flottila:mapping:po` (`po:slots`, later `po:lift`,
+`po:at-least`, `po:show`).
+_Avoid_: runtime library (that is the engine's), helper stylesheet
+
 **Golden corpus**:
 Synthetic mappings with inputs and the outputs SAP PO semantics demand, kept in the repo.
 _Avoid_: test data, samples
