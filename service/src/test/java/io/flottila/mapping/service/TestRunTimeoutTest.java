@@ -61,6 +61,8 @@ class TestRunTimeoutTest {
     assertThat(result.path("kind").textValue()).isEqualTo("error");
     assertThat(result.path("error").path("code").textValue()).isEqualTo("flottila:TIMEOUT");
     assertThat(result.path("error").path("message").textValue()).isNotBlank();
+    // ADR-0015 since #52: flottila:TIMEOUT has no authoring id, an absent member, never null
+    assertThat(result.path("error").has("authoringId")).isFalse();
     assertThat(described(result.path("diagnostics"))).isEmpty();
     assertThat(result.has("output")).as("the buffered output is dropped").isFalse();
     assertThat(result.has("trace")).as("the trace comes with #53").isFalse();
