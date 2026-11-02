@@ -5,7 +5,7 @@ package io.flottila.mapping.ir;
  * xs:string} (ADR-0004), and a slot number is an {@code xs:integer}. The other types of ADR-0004
  * join with the function boxes that need them.
  */
-public enum AtomicType {
+public enum AtomicType implements IrType {
   STRING,
   INTEGER
 }

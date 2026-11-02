@@ -54,7 +54,10 @@ public final class MappingDiagnostics {
 
   // stage 3, compile (#26)
 
-  /** A box of a kind spec 1 does not compile that {@code result} reaches, at the box. */
+  /**
+   * A box that {@code result} reaches and that this engine does not compile yet, at the box: a UDF
+   * box, or a function box whose function the catalogue does not hold yet (ADR-0025).
+   */
   public static final String UNSUPPORTED_BOX_KIND = "unsupported-box-kind";
 
   /** An unresolved function box that {@code result} reaches, at the box. */
@@ -73,6 +76,19 @@ public final class MappingDiagnostics {
 
   /** A target field mapping whose {@code result} is {@code null} (F-2). */
   public static final String UNCONNECTED_TARGET_FIELD = "unconnected-target-field";
+
+  // stage 3, a reached standard function box against its catalogue entry (ADR-0025)
+
+  /** A function box with more inputs than its catalogue entry has, at the box. */
+  public static final String WRONG_ARITY = "wrong-arity";
+
+  /**
+   * A function box input slot of its catalogue entry that is {@code null} or absent, at the box.
+   */
+  public static final String UNCONNECTED_INPUT = "unconnected-input";
+
+  /** A function box param whose key its catalogue entry lacks, at the box. */
+  public static final String UNKNOWN_PARAMETER = "unknown-parameter";
 
   private MappingDiagnostics() {}
 }

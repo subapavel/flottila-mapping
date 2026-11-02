@@ -4,8 +4,11 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.ir.TargetSlots;
@@ -17,16 +20,20 @@ import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Structure;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeSet;
 
 /**
- * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26).
- * Spec 1 lowers field links: a target field mapping whose {@code result} is a source-field box
- * becomes {@code TargetSlots} over that box's {@code SourceQueue}, under the root created once.
+ * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
+ * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, under
+ * the root created once. A source-field box gives its {@code SourceQueue}; a standard function box
+ * whose function the catalogue holds gives a {@code FunCall} over its inputs' queues (ADR-0025). A
+ * box that feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
@@ -36,12 +43,16 @@ import java.util.Optional;
  *       leaf element under the root, such as an attribute or the root itself: {@code
  *       unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
- *   <li>a {@code result} that is a function or UDF box: {@code unsupported-box-kind}, and an
- *       unresolved box: {@code unresolved-function}.
+ *   <li>a UDF box, or a function box whose function the catalogue does not hold yet: {@code
+ *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
+ *   <li>a function box against its catalogue entry: more inputs than the entry has, {@code
+ *       wrong-arity}; an input slot of the entry that is {@code null} or absent, {@code
+ *       unconnected-input}; a param key the entry lacks, {@code unknown-parameter}.
  * </ul>
  *
- * <p>Only the box {@code result} names is checked: a box it does not reach is not, and a refused
- * function box's inputs are not either. A refused target field's boxes are not checked.
+ * <p>Only the boxes {@code result} reaches are checked: a box it does not reach is not, and the
+ * inputs of a function box refused at the box are not either. A refused target field's boxes are
+ * not checked, and after a function box's first refused input its later inputs are not.
  */
 public final class Lowering {
 
@@ -51,8 +62,10 @@ public final class Lowering {
   /** The variable that holds a slot's value in the body of its {@code TargetSlots}. */
   private static final String VALUE = "value";
 
+  private static final QueueType QUEUE = new QueueType();
+
   /** A target field mapping that lowers: its place in target field order, field and queue. */
-  private record Link(int position, Field field, AuthoringId mapping, SourceQueue queue) {}
+  private record Link(int position, Field field, AuthoringId mapping, Expr queue) {}
 
   private final MappingModel model;
   private final Structure source;
@@ -174,8 +187,8 @@ public final class Lowering {
     return Optional.of(path);
   }
 
-  /** The queue {@code mapping}'s {@code result} reads, or empty once its refusal is reported. */
-  private Optional<SourceQueue> queue(TargetFieldMapping mapping) {
+  /** The queue {@code mapping}'s {@code result} gives, or empty once its refusal is reported. */
+  private Optional<Expr> queue(TargetFieldMapping mapping) {
     if (mapping.result().isEmpty()) {
       report(
           MappingDiagnostics.UNCONNECTED_TARGET_FIELD,
@@ -183,12 +196,16 @@ public final class Lowering {
           "the target field mapping's result is not connected");
       return Optional.empty();
     }
-    AuthoringId id = mapping.result().get();
+    return queue(mapping, mapping.result().get());
+  }
+
+  /** The queue box {@code id} of {@code mapping} gives, or empty once its refusal is reported. */
+  private Optional<Expr> queue(TargetFieldMapping mapping, AuthoringId id) {
     return switch (mapping.boxes().get(id)) {
       case SourceFieldBox box ->
           leaf(source, box.field(), id, false)
               .map(field -> new SourceQueue(names(field), contextDepth(box, field), id));
-      case StandardFunctionBox box -> unsupportedBox(id, "the function " + box.fn());
+      case StandardFunctionBox box -> call(mapping, id, box);
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
       case UnresolvedFunctionBox box -> {
         report(
@@ -200,12 +217,59 @@ public final class Lowering {
     };
   }
 
-  private Optional<SourceQueue> unsupportedBox(AuthoringId id, String what) {
-    report(
-        MappingDiagnostics.UNSUPPORTED_BOX_KIND,
-        id,
-        what + " cannot be compiled yet; only a source-field box can feed a target field");
+  private Optional<Expr> unsupportedBox(AuthoringId id, String what) {
+    report(MappingDiagnostics.UNSUPPORTED_BOX_KIND, id, what + " cannot be compiled yet");
     return Optional.empty();
+  }
+
+  /**
+   * The call of {@code box}'s function over its inputs' queues, or empty once its refusals are
+   * reported. Every defect of the box against its catalogue entry is reported at the box before any
+   * input is lowered. No entry has a param yet (#55), so every param key is one the entry lacks.
+   */
+  private Optional<Expr> call(TargetFieldMapping mapping, AuthoringId id, StandardFunctionBox box) {
+    Optional<List<String>> entry = FunctionCatalogue.inputs(box.fn());
+    if (entry.isEmpty()) {
+      report(
+          MappingDiagnostics.UNSUPPORTED_BOX_KIND,
+          id,
+          "the function " + box.fn() + " is not in the catalogue yet, so it cannot be compiled");
+      return Optional.empty();
+    }
+    List<String> inputs = entry.get();
+    List<Optional<AuthoringId>> slots = box.inputs();
+    int reported = found.size();
+    if (slots.size() > inputs.size()) {
+      report(
+          MappingDiagnostics.WRONG_ARITY,
+          id,
+          box.fn() + " has the inputs " + inputs + ", and the box gives it " + slots.size());
+    }
+    for (int i = 0; i < inputs.size(); i++) {
+      if (i >= slots.size() || slots.get(i).isEmpty()) {
+        report(
+            MappingDiagnostics.UNCONNECTED_INPUT,
+            id,
+            "the input " + inputs.get(i) + " of " + box.fn() + " is not connected");
+      }
+    }
+    for (String param : new TreeSet<>(box.params().keySet())) {
+      report(MappingDiagnostics.UNKNOWN_PARAMETER, id, box.fn() + " has no parameter " + param);
+    }
+    if (found.size() > reported) {
+      return Optional.empty();
+    }
+    List<Expr> args = new ArrayList<>();
+    for (Optional<AuthoringId> slot : slots) {
+      Optional<Expr> arg = queue(mapping, slot.orElseThrow());
+      if (arg.isEmpty()) {
+        return Optional.empty();
+      }
+      args.add(arg.get());
+    }
+    return Optional.of(
+        new FunCall(
+            new FunctionRef(box.fn(), Collections.nCopies(inputs.size(), QUEUE), QUEUE), args, id));
   }
 
   private static List<Name> names(FieldPath path) {

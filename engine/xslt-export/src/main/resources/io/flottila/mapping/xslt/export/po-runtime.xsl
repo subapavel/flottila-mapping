@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The helper module every portable export imports (ADR-0023): the PO queue semantics as po:
-     functions. Spec 1 holds po:slots only. Renaming this file or the po namespace breaks exports
-     already handed out. -->
+     functions. A queue is an array(xs:string*) with one member per context, and a context
+     function is po:<catalogue name>, its params in FunCall order (ADR-0025). Renaming this file,
+     the po namespace or a function breaks exports already handed out. -->
 <xsl:stylesheet version="3.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
@@ -19,5 +20,12 @@
     <xsl:variable name="context" as="xs:string*"
         select="if ($parentSlot le array:size($queue)) then $queue($parentSlot) else ()"/>
     <xsl:sequence select="if (exists($max)) then subsequence($context, 1, $max) else $context"/>
+  </xsl:function>
+
+  <!-- removeContexts: every value of $queue, in order, in one context. A queue with no context at
+       all gives one empty context, as the runtime's ContextFunctions.removeContexts does. -->
+  <xsl:function name="po:removeContexts" as="array(xs:string*)">
+    <xsl:param name="queue" as="array(xs:string*)"/>
+    <xsl:sequence select="[$queue?*]"/>
   </xsl:function>
 </xsl:stylesheet>

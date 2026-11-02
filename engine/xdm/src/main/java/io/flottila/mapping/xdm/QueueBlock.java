@@ -81,6 +81,16 @@ public final class QueueBlock {
   }
 
   /**
+   * A block over this block's own values array, split at {@code contextStarts} instead: a context
+   * operation that changes only the boundaries shares the values (ADR-0004).
+   *
+   * @throws IllegalArgumentException as {@link #of} does
+   */
+  QueueBlock withContextStarts(int[] contextStarts) {
+    return of(values, contextStarts);
+  }
+
+  /**
    * Builds a block context by context: {@link #newContext()} opens a context, {@link
    * #append(String)} adds a slot to it. Without a {@code newContext()} the block has no context.
    */

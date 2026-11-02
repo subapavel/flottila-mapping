@@ -1,0 +1,11 @@
+{
+  "removeContexts": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  }
+}
