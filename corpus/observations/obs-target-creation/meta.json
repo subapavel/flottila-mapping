@@ -9,7 +9,14 @@
     "date": "2026-11-02",
     "tool": "ESR message mapping, Test tab"
   },
-  "cpi": null,
+  "cpi": {
+    "integrationSuiteVersion": "4.14.0",
+    "cloudIntegration": "6.84.77",
+    "cloudIntegrationRuntime": "8.48.27",
+    "servicePlan": "trial",
+    "date": "2026-11-02",
+    "tool": "Message Mapping artifact, Simulate"
+  },
   "divergence": [],
   "notes": [
     "create-a: Check (save) reported no error and no warning; the target root Create is not mapped.",
@@ -21,6 +28,10 @@
     "create-d: Check (save) reported no error and no warning.",
     "d1 confirms: an absent Memo among present ones gives no context; queue [a][c]; Item 3 empty.",
     "d2 confirms: an empty Memo gives an empty context; mapWithDefault fills D; Item 2 = D.",
-    "d3 CONTRADICTS ADR-0004 bullet 2: with no Memo anywhere, the queue is one empty context, mapWithDefault gives [D], Item 1 = D, Item 2 empty. Assumed was no V at all."
+    "d3 CONTRADICTS ADR-0004 bullet 2: with no Memo anywhere, the queue is one empty context, mapWithDefault gives [D], Item 1 = D, Item 2 empty. Assumed was no V at all.",
+    "CPI matches PO 7.5 on every output (a1, b1, b2, d1, d2, d3) and on every failure (a2, a3, c1). No divergence.",
+    "a2/a3: same exception class com.sap.aii.mappingtool.tf7.IllegalInstanceException; CPI wording differs ('Cannot produce target element ... Queue has not enough values in context ...').",
+    "c1: CPI saves the mapping (red Req, 'Target has 1 errors' on the target root) but refuses Simulate: 'Mapping has validation errors. Please fix them before you simulate.' PO 7.5 cancels activation.",
+    "Display queue: gray rows are context changes on both systems (CPI also sets them in italics). For an empty context CPI shows '[ ]' where PO shows '<null>'."
   ]
 }
