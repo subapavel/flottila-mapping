@@ -67,39 +67,48 @@
   </xsl:function>
 
   <!-- sort: each context of $queue in the order of $comparison and $order, as the runtime's
-       ContextFunctions.sort does: sortByKey of the queue by itself. -->
+       ContextFunctions.sort does: the queue sorted by itself. Its data error is po:SORT. -->
   <xsl:function name="po:sort" as="array(xs:string*)">
     <xsl:param name="queue" as="array(xs:string*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
-    <xsl:sequence select="po:sortByKey($queue, $queue, $comparison, $order)"/>
+    <xsl:sequence select="po:sort-contexts('sort', $queue, $queue, $comparison, $order)"/>
   </xsl:function>
 
   <!-- sortByKey: each context of $values in the order of the keys at the same places of $keys, as
-       the runtime's ContextFunctions.sortByKey does. Context by context, a context with more or
-       fewer keys than values raises po:SORTBYKEY, and for a numeric sort a key that is no
-       xs:decimal raises err:FORG0001 (ADR-0005), even alone in its context; unequal numbers of
-       contexts raise po:SORTBYKEY first. -->
+       the runtime's ContextFunctions.sortByKey does. Its data error is po:SORTBYKEY. -->
   <xsl:function name="po:sortByKey" as="array(xs:string*)">
+    <xsl:param name="keys" as="array(xs:string*)"/>
+    <xsl:param name="values" as="array(xs:string*)"/>
+    <xsl:param name="comparison" as="xs:string"/>
+    <xsl:param name="order" as="xs:string"/>
+    <xsl:sequence select="po:sort-contexts('sortByKey', $keys, $values, $comparison, $order)"/>
+  </xsl:function>
+
+  <!-- Each context of $values sorted by $keys, for the function $function. Its data error is
+       po:<$function upper-cased>, one code per function (ADR-0025, #52), raised where the
+       runtime's ContextFunctions raises it: for unequal numbers of contexts first, then context
+       by context for a context with more or fewer keys than values, or, in a numeric sort, for a
+       key that is no xs:decimal, even alone in its context. -->
+  <xsl:function name="po:sort-contexts" as="array(xs:string*)">
+    <xsl:param name="function" as="xs:string"/>
     <xsl:param name="keys" as="array(xs:string*)"/>
     <xsl:param name="values" as="array(xs:string*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
     <xsl:variable name="contexts" as="xs:integer" select="array:size($values)"/>
     <xsl:variable name="defect" as="xs:string?" select="
-        if (array:size($keys) ne $contexts) then 'count'
+        if (array:size($keys) ne $contexts) then 'the keys and the values differ in their contexts'
         else (for $c in 1 to $contexts
-              return if (count($keys($c)) ne count($values($c))) then 'count'
+              return if (count($keys($c)) ne count($values($c)))
+                     then 'a context has more or fewer keys than values'
                      else if ($comparison eq 'numeric'
                               and (some $k in $keys($c) satisfies not($k castable as xs:decimal)))
-                     then 'number' else ())[1]"/>
+                     then 'a numeric sort meets a key that is no xs:decimal' else ())[1]"/>
     <xsl:sequence select="
-        if ($defect eq 'count')
-        then error(QName('urn:flottila:mapping:po', 'po:SORTBYKEY'),
-                   'sortByKey: the keys and the values differ in their contexts or counts')
-        else if ($defect eq 'number')
-        then error(QName('http://www.w3.org/2005/xqt-errors', 'err:FORG0001'),
-                   'a numeric sort meets a key that is no xs:decimal')
+        if (exists($defect))
+        then error(QName('urn:flottila:mapping:po', 'po:' || upper-case($function)),
+                   $function || ': ' || $defect)
         else array:join(for $c in 1 to $contexts
                         return [po:sortByKey-context($keys($c), $values($c), $comparison, $order)])"/>
   </xsl:function>

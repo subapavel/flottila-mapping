@@ -228,9 +228,9 @@ class ContextFunctionsSortTest {
   }
 
   /**
-   * A value that is not in the xs:decimal lexical form (ADR-0005; err:FORG0001 in the export) stops
-   * a numeric sort, even alone in its context, where nothing is compared. A lexicographic sort of
-   * the same value is fine.
+   * A value that is not in the xs:decimal lexical form (ADR-0005; po:SORT in the export) stops a
+   * numeric sort, even alone in its context, where nothing is compared. A lexicographic sort of the
+   * same value is fine.
    */
   @ParameterizedTest(name = "\"{0}\"")
   @MethodSource("nonNumbers")

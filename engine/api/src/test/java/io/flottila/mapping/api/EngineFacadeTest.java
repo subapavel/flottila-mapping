@@ -980,7 +980,7 @@ class EngineFacadeTest {
 
   // --- the runtime errors of sort and sortByKey (#59). No runtime error has a code before #52, so
   // a run reports them as unchecked failures; #52's code replaces these tests, and corpus cases
-  // follow them. The export raises err:FORG0001 and po:SORTBYKEY for the same inputs.
+  // follow them. The export raises po:SORT and po:SORTBYKEY for the same inputs (ADR-0025, #52).
 
   /**
    * sort of Tag with {@code params}, on {@code Out/All}: context 1 of the queue, the first Order.
