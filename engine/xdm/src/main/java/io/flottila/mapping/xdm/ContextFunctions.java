@@ -77,7 +77,8 @@ public final class ContextFunctions {
     CASE_INSENSITIVE,
     /**
      * By decimal value. Every key must be in the {@code xs:decimal} lexical form (ADR-0005), XML
-     * whitespace around it allowed, as the export's cast collapses it; anything else stops the sort.
+     * whitespace around it allowed, as the export's cast collapses it; anything else stops the
+     * sort.
      */
     NUMERIC
   }
