@@ -165,3 +165,5 @@ for-each over the source context".
   - `sort` and `sortByKey` order a SUPPRESS value or key as the smallest in every comparison,
     so it comes first ascending and last descending, except that a numeric `sortByKey` key
     must not be SUPPRESS: it raises `po:SORTBYKEY` (#2 §3 [SAP✓ STD]; documented).
+  - `exists` and `mapWithDefault` (#57): SUPPRESS is not a value, so a context holding only
+    SUPPRESS counts as empty; `""` is a value; a queue with no context gives no context.
