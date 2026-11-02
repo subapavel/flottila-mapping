@@ -46,6 +46,8 @@ jobs:
         run: ./mvnw -B -Pbench verify
       - name: contract/ is up to date
         run: git diff --exit-code contract/
+      - name: Every file checks out byte-identical on Windows (#49)
+        run: scripts/check-lf-checkout.sh
 
   # The owner builds on Windows (#42): drive letters and backslashes in paths. Ticket-gate row 2.
   windows:
