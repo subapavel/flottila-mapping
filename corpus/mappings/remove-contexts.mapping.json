@@ -1,0 +1,40 @@
+{
+  "formatVersion": 1,
+  "source": {
+    "bundle": [
+      "../structures/observations/src-orders.xsd"
+    ],
+    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "root": {
+      "element": "Orders"
+    }
+  },
+  "target": {
+    "bundle": [
+      "../structures/observations/tgt-list.xsd"
+    ],
+    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "root": {
+      "element": "Out"
+    }
+  },
+  "targetFieldMappings": {
+    "/Out/All": {
+      "boxes": {
+        "R1": {
+          "fn": "removeContexts",
+          "inputs": [
+            "S1"
+          ],
+          "kind": "function"
+        },
+        "S1": {
+          "field": "/Orders/Order/Line/Sku",
+          "kind": "source"
+        }
+      },
+      "id": "T1",
+      "result": "R1"
+    }
+  }
+}
