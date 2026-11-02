@@ -1,5 +1,6 @@
 package io.flottila.mapping.oracle;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.flottila.mapping.api.ExportResult;
@@ -7,8 +8,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import javax.xml.transform.stream.StreamSource;
 import net.sf.saxon.s9api.Processor;
+import net.sf.saxon.s9api.QName;
+import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.Xslt30Transformer;
 
 /**
@@ -48,6 +52,42 @@ final class SaxonRunner {
     transformer.transform(
         new StreamSource(new ByteArrayInputStream(input)), transformer.newSerializer(out));
     return out.toByteArray();
+  }
+
+  /** The namespace URI of each prefix a runtime error's QName takes (ADR-0015, ADR-0025). */
+  private static final Map<String, String> ERROR_NAMESPACES =
+      Map.of("po", "urn:flottila:mapping:po", "err", "http://www.w3.org/2005/xqt-errors");
+
+  /**
+   * The error Saxon raises when it runs {@code stylesheet} on {@code input}, as {@link #run} does;
+   * fails when it writes output instead.
+   */
+  static SaxonApiException raised(
+      String stylesheet, String helperModule, byte[] input, Path dir, String what)
+      throws Exception {
+    try {
+      byte[] output = run(stylesheet, helperModule, input, dir);
+      throw new AssertionError(
+          what + ": expected Saxon to raise an error, it wrote " + new String(output, UTF_8));
+    } catch (SaxonApiException raised) {
+      return raised;
+    }
+  }
+
+  /**
+   * Saxon raised the runtime error {@code code}, a QName such as {@code po:MINOCCURS}: the same
+   * namespace URI and local name (ADR-0018 since #52), whatever its prefix.
+   */
+  static void assertSameError(SaxonApiException saxon, String code, String what) {
+    int colon = code.indexOf(':');
+    assertThat(colon).as("%s: %s is a QName", what, code).isPositive();
+    String namespace = ERROR_NAMESPACES.get(code.substring(0, colon));
+    assertThat(namespace).as("%s: the namespace of %s", what, code).isNotNull();
+    QName raised = saxon.getErrorCode();
+    assertThat(raised).as("%s: Saxon's error code, %s", what, saxon.getMessage()).isNotNull();
+    assertThat("Q{" + raised.getNamespaceURI() + "}" + raised.getLocalName())
+        .as("%s: Saxon's error, %s", what, saxon.getMessage())
+        .isEqualTo("Q{" + namespace + "}" + code.substring(colon + 1));
   }
 
   /** {@code saxon} and {@code ours} agree: identical, and declared on the same elements. */

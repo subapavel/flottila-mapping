@@ -83,6 +83,7 @@ class LiftAgreementTest {
                 new VarRef("root", AtomicType.INTEGER, T1),
                 0,
                 max,
+                "slot",
                 "value",
                 new ElementConstructor(
                     "",

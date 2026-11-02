@@ -1,5 +1,6 @@
 package io.flottila.mapping.oracle;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
@@ -11,6 +12,7 @@ import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.AtAuthoringId;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
+import io.flottila.mapping.runtime.MappingRunException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -44,7 +46,15 @@ class GoldenCorpusTest {
     return cases.stream().map(c -> dynamicTest(c.id(), () -> check(c)));
   }
 
-  private static void check(CorpusCase c) throws Exception {
+  /**
+   * Whether {@code c} expects a runtime error: its expected code is a QName (ADR-0018 since #52).
+   */
+  static boolean expectsRuntimeError(CorpusCase c) {
+    return c.expect().equals("error") && ((String) c.expectedError().get("code")).contains(":");
+  }
+
+  /** The check of one case; {@code RuntimeErrorCheckTest} runs it on synthetic cases. */
+  static void check(CorpusCase c) throws Exception {
     assertThat(c.provenance()).isIn("observed", "documented", "assumed", "decided");
     assertThat(c.ref()).isNotBlank();
     assertThat(c.expect()).isIn("output", "error", "none");
@@ -52,6 +62,39 @@ class GoldenCorpusTest {
     byte[] model = Files.readAllBytes(mapping);
     Path base = mapping.getParent();
     EngineFacade facade = new EngineFacade();
+
+    if (expectsRuntimeError(c)) {
+      // a runtime error: every variant compiles, and its run raises the code at the authoring id
+      Map<String, Object> expected = c.expectedError();
+      String code = (String) expected.get("code");
+      AuthoringId at = new AuthoringId((String) expected.get("authoringId"));
+      byte[] input = Files.readAllBytes(c.input());
+      for (CompileOptions options : VARIANTS) {
+        CompileResult result = facade.compile(model, base, options);
+        if (!(result instanceof CompileResult.Compiled(CompiledMapping compiled))) {
+          throw new AssertionError(c.id() + " " + options + ": expected Compiled, got " + result);
+        }
+        MappingRunException raised;
+        try {
+          byte[] output = facade.run(compiled, input);
+          throw new AssertionError(
+              c.id()
+                  + " "
+                  + options
+                  + ": expected "
+                  + code
+                  + " at "
+                  + at.value()
+                  + ", the run wrote "
+                  + new String(output, UTF_8));
+        } catch (MappingRunException e) {
+          raised = e;
+        }
+        assertThat(raised.code()).as("%s %s: code", c.id(), options).isEqualTo(code);
+        assertThat(raised.authoringId()).as("%s %s: authoring id", c.id(), options).isEqualTo(at);
+      }
+      return;
+    }
 
     if (c.expect().equals("error")) {
       // a design-time error: every variant refuses with the expected code at the authoring id

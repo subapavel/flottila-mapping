@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.flottila.mapping.mapping.MappingDiagnostics;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
+import io.flottila.mapping.runtime.RuntimeErrors;
 import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 class ExpectedErrorCodesTest {
 
   private static final List<Class<?>> CATALOGUE =
-      List.of(MappingDiagnostics.class, StructureImportDiagnostics.class);
+      List.of(MappingDiagnostics.class, StructureImportDiagnostics.class, RuntimeErrors.class);
 
   /** Every {@code public static final String} constant of the catalogue classes. */
   static Set<String> catalogue() throws IllegalAccessException {
@@ -57,7 +58,8 @@ class ExpectedErrorCodesTest {
     Set<String> catalogue = catalogue();
     List<CorpusCase> cases = CaseFiles.all();
 
-    assertThat(catalogue).contains("unsupported-box-kind", "schema-not-well-formed");
+    assertThat(catalogue)
+        .contains("unsupported-box-kind", "schema-not-well-formed", "po:MINOCCURS");
     assertThat(cases).as("cases under %s", CaseFiles.cases()).isNotEmpty();
     assertThat(unknownCodes(cases, catalogue)).isEmpty();
   }
@@ -77,7 +79,7 @@ class ExpectedErrorCodesTest {
     assertThat(unknownCodes(synthetic, catalogue())).containsExactly("synthetic/unknown/001");
   }
 
-  private static Path errorCase(Path dir, String code) throws Exception {
+  static Path errorCase(Path dir, String code) throws Exception {
     Files.createDirectories(dir);
     Files.writeString(
         dir.resolve("case.json"),
@@ -93,7 +95,7 @@ class ExpectedErrorCodesTest {
     return dir;
   }
 
-  private static Path outputCase(Path dir) throws Exception {
+  static Path outputCase(Path dir) throws Exception {
     Files.createDirectories(dir);
     Files.writeString(
         dir.resolve("case.json"),

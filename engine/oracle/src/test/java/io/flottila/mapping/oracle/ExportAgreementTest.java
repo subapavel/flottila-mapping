@@ -2,6 +2,7 @@ package io.flottila.mapping.oracle;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.api.CompileOptions;
 import io.flottila.mapping.api.CompileResult;
@@ -19,6 +20,7 @@ import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.runtime.Interpreter;
+import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.io.ByteArrayInputStream;
@@ -44,18 +46,14 @@ import org.w3c.dom.Document;
 /**
  * The export and our runtime agree outside the corpus (#27 design): Saxon-HE runs the exported
  * stylesheet, our runtime runs the same mapping as deployed, and {@link SaxonRunner#assertAgree}
- * judges. The empty-source and wrong-root inputs are no corpus cases, because case ids are
- * permanent and spec 2 changes their output ({@code po:MINOCCURS}). This class is no corpus or
- * differential class, so the ratchet does not read its tests as case ids (scripts/ratchet.java).
+ * judges. The empty-source and wrong-root inputs raise {@code po:MINOCCURS} since #52; the corpus
+ * case target/minOccurs is theirs. This class is no corpus or differential class, so the ratchet
+ * does not read its tests as case ids (scripts/ratchet.java).
  */
 class ExportAgreementTest {
 
   private static final String NS = "urn:flottila:corpus:skeleton";
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-
-  /** What spec 1 writes for an empty source: the root without the field (EngineFacadeTest). */
-  private static final String EMPTY_SOURCE_OUTPUT =
-      DECLARATION + "<ns0:Order xmlns:ns0=\"" + NS + "\"/>";
 
   @TempDir Path dir;
 
@@ -91,20 +89,13 @@ class ExportAgreementTest {
 
   // --- the empty source and wrong roots
 
-  @Test
-  void anEmptySourceGivesTheSameDocumentOnBothSides() throws Exception {
-    byte[] input = utf8("<s:Order xmlns:s=\"" + NS + "\"/>");
-
-    byte[] ours = ours(input);
-    assertThat(new String(ours, UTF_8)).isEqualTo(EMPTY_SOURCE_OUTPUT);
-    byte[] saxon = saxon(input);
-
-    SaxonRunner.assertAgree(saxon, ours, "an empty source");
-  }
-
-  /** InterpreterTest's wrong roots: the source root is not there, so its queues have no context. */
-  static Stream<Arguments> wrongRoots() {
+  /**
+   * An empty source, and InterpreterTest's wrong roots: the source root is not there, so its queues
+   * have no context, which counts as empty (assumed, #31 d1).
+   */
+  static Stream<Arguments> emptySources() {
     return Stream.of(
+        Arguments.of("an empty source", "<s:Order xmlns:s=\"" + NS + "\"/>"),
         Arguments.of(
             "another local name",
             "<s:Invoice xmlns:s=\"" + NS + "\"><OrderId>1</OrderId></s:Invoice>"),
@@ -115,14 +106,31 @@ class ExportAgreementTest {
             "the root's local name without a namespace", "<Order><OrderId>1</OrderId></Order>"));
   }
 
+  /**
+   * OrderId is 1..1, so no OrderId raises {@code po:MINOCCURS} on both sides (ADR-0006 since #52):
+   * ours at the target field mapping t1, Saxon's {@code po:at-least} with the same QName. It
+   * replaces spec 1's tests, which wrote the root without the field on both sides.
+   */
   @ParameterizedTest(name = "{0}")
-  @MethodSource("wrongRoots")
-  void anotherRootGivesWhatAnEmptySourceGives(String why, String input) throws Exception {
-    byte[] ours = ours(utf8(input));
-    assertThat(new String(ours, UTF_8)).as(why).isEqualTo(EMPTY_SOURCE_OUTPUT);
-    byte[] saxon = saxon(utf8(input));
+  @MethodSource("emptySources")
+  void anEmptySourceRaisesMinOccursOnBothSides(String why, String input) throws Exception {
+    assertThatThrownBy(() -> ours(utf8(input)))
+        .as(why)
+        .isInstanceOfSatisfying(
+            MappingRunException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("po:MINOCCURS");
+              assertThat(e.authoringId()).isEqualTo(new AuthoringId("t1"));
+            });
+    ExportResult.Exported exported =
+        SaxonRunner.exported(
+            new EngineFacade().export(Files.readAllBytes(fieldLink()), fieldLink().getParent()),
+            "order-id-copy");
 
-    SaxonRunner.assertAgree(saxon, ours, why);
+    SaxonRunner.assertSameError(
+        SaxonRunner.raised(exported.stylesheet(), exported.helperModule(), utf8(input), dir, why),
+        "po:MINOCCURS",
+        why);
   }
 
   // --- generated values (ADR-0018: a seeded generator, the seed in the case name, no shrinking)
@@ -200,6 +208,7 @@ class ExportAgreementTest {
         new VarRef("root", AtomicType.INTEGER, origin),
         0,
         max,
+        "slot",
         "value",
         new ElementConstructor(
             prefix,

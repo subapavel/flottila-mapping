@@ -93,6 +93,7 @@ class SuppressContextFunctionsAgreementTest {
         new VarRef("root", AtomicType.INTEGER, T1),
         0,
         Long.MAX_VALUE,
+        "slot",
         "value",
         new ElementConstructor(
             "", local(name), List.of(new TextConstructor(new VarRef("value", STRING, T1), T1)), T1),
