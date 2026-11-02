@@ -108,6 +108,9 @@ for-each over the source context".
   no tracer is set. `Literal`s are shown from the model, not traced. Editor test runs use
   unoptimised IR in the interpreter, so every box has its node. Bytecode emits the hooks only in
   a traced compile.
+  Since #53 a traced `TargetSlots` reports `Tracer.occurrences(field, parentSlot, queue, min,
+  max)` before its min check, so a shortfall is always traced. The slot statuses are derived from
+  context p and max when the trace is built, off the run thread.
 - Milestone 1 does not serialise IR. Mappings compile from the mapping model at deploy
   (FOUNDING §5). The pure-data rule keeps a later SEF-like format mechanical; that format must
   version the node list.
@@ -162,3 +165,5 @@ for-each over the source context".
   - `sort` and `sortByKey` order a SUPPRESS value or key as the smallest in every comparison,
     so it comes first ascending and last descending, except that a numeric `sortByKey` key
     must not be SUPPRESS: it raises `po:SORTBYKEY` (#2 §3 [SAP✓ STD]; documented).
+  - `exists` and `mapWithDefault` (#57): SUPPRESS is not a value, so a context holding only
+    SUPPRESS counts as empty; `""` is a value; a queue with no context gives no context.

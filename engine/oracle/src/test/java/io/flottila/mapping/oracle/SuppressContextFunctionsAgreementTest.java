@@ -178,6 +178,23 @@ class SuppressContextFunctionsAgreementTest {
     Expr cut = call("formatByExample", "f2", List.of(conditions, source(2, "a5", "Line", "Sku")));
     leaves.add(leaf("J", call("removeContexts", "r6", List.of(cut))));
     leaves.add(leaf("K", call("collapseContexts", "k6", List.of(cut))));
+    // exists and mapWithDefault (#57): a SUPPRESS-only context holds no value, "" is a value
+    leaves.add(
+        leaf(
+            "L",
+            call("removeContexts", "r7", List.of(call("exists", "e1", List.of(mixed("m6")))))));
+    leaves.add(
+        leaf("M", call("removeContexts", "r8", List.of(call("exists", "e2", List.of(perOrder))))));
+    Expr filled = call("mapWithDefault", "w1", List.of(mixed("m7"), param("O'Brien & <Co>", "w1")));
+    leaves.add(leaf("N", call("removeContexts", "r9", List.of(filled))));
+    Expr filledConditions = call("mapWithDefault", "w2", List.of(perOrder, param("", "w2")));
+    leaves.add(leaf("O", call("removeContexts", "r10", List.of(filledConditions))));
+    // Sku in Line's context has no context when no Order has a Line: removeContexts then gives
+    // one empty context, which mapWithDefault fills, and the queue itself stays without one
+    Expr perLine = source(3, "a6", "Line", "Sku");
+    Expr flatLines = call("removeContexts", "r11", List.of(perLine));
+    leaves.add(leaf("P", call("mapWithDefault", "w3", List.of(flatLines, param("D", "w3")))));
+    leaves.add(leaf("Q", call("mapWithDefault", "w4", List.of(perLine, param("D", "w4")))));
     return new TargetDocument("", local("Out"), "root", Collections.unmodifiableList(leaves));
   }
 

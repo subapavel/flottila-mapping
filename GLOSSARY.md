@@ -260,6 +260,10 @@ _Avoid_: null, empty (both are different things)
 The variable from which a `Lift` body reads one input's value at the current slot, `in1` … `inN`.
 _Avoid_: argument, parameter
 
+**Parent slot**:
+The slot number of the parent occurrence under which a target field's slots are read.
+_Avoid_: parent index
+
 **Slot number**:
 The position of a slot counted across all contexts of a queue, starting at 1. A target
 occurrence's slot number is the index of the context its children read.
@@ -282,8 +286,14 @@ _Avoid_: simulation, preview
 
 **Trace**:
 What a test run records: the queue or value each evaluated box produced, by authoring id, and
-the occurrences of each target field per parent slot. The display queue shows it.
+the occurrences of each target field per parent slot: each slot created, suppressed or truncated,
+the count created, and the field's min and max. The display queue shows it.
 _Avoid_: log, debug output
+
+**Trace limit**:
+The most slots, contexts or occurrence records one trace entry holds, 10,000 by default and
+configurable. An entry above it is _capped_ and keeps its totals.
+_Avoid_: truncated (a slot cut by `maxOccurs`)
 
 **Truncated slot**:
 A slot that comes after `maxOccurs` occurrences were created in its context. It creates nothing

@@ -74,6 +74,16 @@
                               else $po:SUPPRESS)])"/>
   </xsl:function>
 
+  <!-- exists: per context of $queue, one context holding 'true' if it holds a value, '' included,
+       and 'false' if it holds none, as the runtime's ContextFunctions.exists does; SUPPRESS is no
+       value (an assumed reading). A queue with no context at all gives none. -->
+  <xsl:function name="po:exists" as="array(item()*)">
+    <xsl:param name="queue" as="array(item()*)"/>
+    <xsl:sequence select="array:join(for $c in 1 to array:size($queue)
+        return [if (some $v in $queue($c) satisfies $v instance of xs:string) then 'true'
+                else 'false'])"/>
+  </xsl:function>
+
   <!-- formatByExample: every value of $values, in order, cut into the contexts of $example, empty
        ones included, as the runtime's ContextFunctions.formatByExample does; a SUPPRESS of $values
        stays at its slot, and a SUPPRESS of $example counts as a value (an assumed reading). Unless
@@ -102,6 +112,18 @@
         </xsl:iterate>
       </xsl:otherwise>
     </xsl:choose>
+  </xsl:function>
+
+  <!-- mapWithDefault: every context of $queue that holds no value replaced by one holding $default,
+       every other context kept, SUPPRESS included, as the runtime's ContextFunctions.mapWithDefault
+       does; a context of SUPPRESS only holds no value (an assumed reading), '' is a value. A queue
+       with no context at all gives none. -->
+  <xsl:function name="po:mapWithDefault" as="array(item()*)">
+    <xsl:param name="queue" as="array(item()*)"/>
+    <xsl:param name="default" as="xs:string"/>
+    <xsl:sequence select="array:join(for $c in 1 to array:size($queue)
+        return [if (some $v in $queue($c) satisfies $v instance of xs:string) then $queue($c)
+                else $default])"/>
   </xsl:function>
 
   <!-- removeContexts: every value of $queue, in order, in one context, SUPPRESS kept at its slot.

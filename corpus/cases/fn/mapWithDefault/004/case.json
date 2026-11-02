@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/map-with-default-remove-contexts.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0004 Consequences: \"An absent parent gives zero contexts, not one empty context\" (assumed); ContextFunctions.removeContexts gives a queue with no context one empty context (ADR-0004 starts {0, n}); #50 review: pins removeContexts apart from a no-op; observation #61",
+  "expect": "output",
+  "note": "To observe in PO: removeContexts over an empty input. <Orders/> has no Order and no Line, so Sku in its default context Line has no context at all. removeContexts gives one empty context, which mapWithDefault fills with D, so the root's one slot creates one All D. A removeContexts that kept zero contexts, or a no-op, would leave the root empty (fn/mapWithDefault/005)."
+}

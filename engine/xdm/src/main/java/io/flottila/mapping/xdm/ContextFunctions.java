@@ -62,6 +62,39 @@ public final class ContextFunctions {
   }
 
   /**
+   * {@code exists}: per context of {@code queue}, one context holding {@code true} if the context
+   * holds a value and {@code false} if it holds none (#2 §4, one value per context assumed, #2
+   * §7.7). SUPPRESS is no value, so a context of SUPPRESS only gives {@code false}, as {@link
+   * #mapWithDefault} takes it for empty (assumed, #57); {@code ""} is a value. A queue with no
+   * context at all gives none.
+   *
+   * @throws CancellationException when the thread is interrupted
+   */
+  public static QueueBlock exists(QueueBlock queue) {
+    String[] values = new String[queue.contexts()];
+    int[] starts = new int[values.length + 1];
+    for (int c = 0; c < values.length; c++) {
+      // one check per context: holdsValue reads its slots, bounded by their count
+      checkInterrupt("exists");
+      values[c] = String.valueOf(holdsValue(queue, c));
+      starts[c + 1] = c + 1;
+    }
+    return QueueBlock.ofSlots(values, starts);
+  }
+
+  /**
+   * Whether the context at index {@code context} of {@code queue} holds a slot that is no SUPPRESS.
+   */
+  private static boolean holdsValue(QueueBlock queue, int context) {
+    for (int i = queue.start(context); i < queue.end(context); i++) {
+      if (!queue.suppressed(i)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * {@code formatByExample(values, example)}: every slot of {@code values}, in order, split at the
    * context changes of {@code example}, empty contexts included (#2 §4). The contexts of {@code
    * values} play no part. It shares the values array and the SUPPRESS bitset of {@code values} and
@@ -86,6 +119,36 @@ public final class ContextFunctions {
               + " values");
     }
     return values.withContextsOf(example);
+  }
+
+  /**
+   * {@code mapWithDefault(queue, defaultValue)}: every context of {@code queue} that holds no value
+   * replaced by one context holding {@code defaultValue}, every other context kept with its slots,
+   * SUPPRESS included (#2 §4). A context of SUPPRESS only holds no value, so it is replaced too (an
+   * assumed reading, #2 §7.6, obs ctx-2); {@code ""} is a value. A queue with no context at all
+   * gives none, so only a context that is there is filled. It copies references only (ADR-0004).
+   *
+   * @throws CancellationException when the thread is interrupted
+   */
+  public static QueueBlock mapWithDefault(QueueBlock queue, String defaultValue) {
+    // a context keeps its slots or gets one, so the result has at most one slot per context more
+    String[] values = new String[queue.slots() + queue.contexts()];
+    int[] starts = new int[queue.contexts() + 1];
+    int slots = 0;
+    for (int c = 0; c < queue.contexts(); c++) {
+      // one check per context: its slots are read below, bounded by their count
+      checkInterrupt("mapWithDefault");
+      starts[c] = slots;
+      if (holdsValue(queue, c)) {
+        for (int i = queue.start(c); i < queue.end(c); i++) {
+          values[slots++] = queue.value(i);
+        }
+      } else {
+        values[slots++] = defaultValue;
+      }
+    }
+    starts[queue.contexts()] = slots;
+    return QueueBlock.ofSlots(Arrays.copyOf(values, slots), starts);
   }
 
   /**
