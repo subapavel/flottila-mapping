@@ -18,9 +18,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Every loop over slots or contexts checks for interruption (ADR-0021), also on the paths #51 adds.
- * Each call here is one whose own loop is the first to run: a block of empty contexts has no slot
- * whose value is read, createIf reads its condition before its result's values are, and
- * removeContexts reads no value at all.
+ * Each call here gives a block on a thread that is not interrupted and throws {@link
+ * CancellationException} on one that is. The lift cases also show which of the lift's checks fires:
+ * the one before each context, by its message, and the one before each slot, by the body calls
+ * made.
  */
 class SuppressPathsInterruptionTest {
 
@@ -49,6 +50,30 @@ class SuppressPathsInterruptionTest {
     Thread.currentThread().interrupt();
     try {
       assertThatThrownBy(block::get).isInstanceOf(CancellationException.class);
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  /**
+   * A lift over two inputs whose contexts are all empty or missing runs no slot, so only its check
+   * before each context is the lift's own: the block it builds checks too, with another message.
+   */
+  @Test
+  void aLiftOverEmptyOrMissingContextsOnlyChecksBeforeEachContext() {
+    List<QueueBlock> inputs =
+        List.of(
+            queue("in1", context(), context("a"), context()).block(),
+            queue("in2", context(), context()).block());
+    // witness: on a thread that is not interrupted it gives three empty contexts and no body call
+    assertThat(read(Lifting.lift(inputs, values -> values[0])))
+        .containsExactly(context(), context(), context());
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> Lifting.lift(inputs, values -> values[0]))
+          .isInstanceOf(CancellationException.class)
+          .hasMessageContaining("a lift was running");
     } finally {
       Thread.interrupted();
     }

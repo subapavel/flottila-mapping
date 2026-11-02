@@ -21,8 +21,9 @@ import java.util.Optional;
  *   <li>a {@link FunCall} has one argument per parameter type of its {@link FunctionRef}, each of
  *       that type; a context function's (one whose result is a queue) atomic argument is a param,
  *       and a param is a {@link Literal} (ADR-0025);
- *   <li>a {@link Lift} has at least one input, each a queue, one slot variable per input, and a
- *       {@code STRING} body (ADR-0006 since #51);
+ *   <li>a {@link Lift} has at least one input, each a queue, one slot variable per input, all
+ *       distinct and none named {@code in}, which the export binds (ADR-0025), and a {@code STRING}
+ *       body (ADR-0006 since #51);
  *   <li>a {@link TextConstructor}'s value is a {@code STRING}, and the document's content, an
  *       {@link ElementConstructor}'s content and a {@link TargetSlots}' body are content (#51).
  * </ul>
@@ -30,6 +31,9 @@ import java.util.Optional;
 public final class IrVerifier {
 
   private static final QueueType QUEUE = new QueueType();
+
+  /** The inline function of an exported {@code Lift} takes its slot's values as {@code $in}. */
+  private static final String RESERVED_SLOT_VAR = "in";
 
   private IrVerifier() {}
 
@@ -146,7 +150,13 @@ public final class IrVerifier {
     Map<String, AtomicType> slots = new HashMap<>();
     for (int k = 0; k < queues.size(); k++) {
       value(l, queues.get(k), QUEUE, scope, "its input");
-      slots.put(l.slotVars().get(k), AtomicType.STRING);
+      String slotVar = l.slotVars().get(k);
+      if (slotVar.equals(RESERVED_SLOT_VAR)) {
+        throw refused(l, "its slot variable in is reserved: the export binds $in (ADR-0025)");
+      }
+      if (slots.put(slotVar, AtomicType.STRING) != null) {
+        throw refused(l, "it binds the slot variable " + slotVar + " twice");
+      }
     }
     value(l, l.body(), AtomicType.STRING, slots, "its body");
   }

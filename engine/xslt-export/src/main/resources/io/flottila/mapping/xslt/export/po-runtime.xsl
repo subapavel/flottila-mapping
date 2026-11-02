@@ -153,7 +153,8 @@
        runtime's ContextFunctions raises it: for unequal numbers of contexts first, then context
        by context for a context with more or fewer keys than values, or, in a numeric sort, for a
        key that is no xs:decimal, even alone in its context. A SUPPRESS counts as a key or a value,
-       and a SUPPRESS key is never cast. -->
+       and a SUPPRESS key is never cast; in a numeric sortByKey it is a data error too (#2 §3:
+       numeric keys must not be ResultList.SUPPRESS), in a numeric sort the smallest key. -->
   <xsl:function name="po:sort-contexts" as="array(item()*)">
     <xsl:param name="function" as="xs:string"/>
     <xsl:param name="keys" as="array(item()*)"/>
@@ -169,7 +170,10 @@
                      else if ($comparison eq 'numeric'
                               and (some $k in $keys($c)[. instance of xs:string]
                                    satisfies not($k castable as xs:decimal)))
-                     then 'a numeric sort meets a key that is no xs:decimal' else ())[1]"/>
+                     then 'a numeric sort meets a key that is no xs:decimal'
+                     else if ($function eq 'sortByKey' and $comparison eq 'numeric'
+                              and (some $k in $keys($c) satisfies not($k instance of xs:string)))
+                     then 'a numeric key is SUPPRESS' else ())[1]"/>
     <xsl:sequence select="
         if (exists($defect))
         then error(QName('urn:flottila:mapping:po', 'po:' || upper-case($function)),

@@ -28,8 +28,9 @@ public final class Lifting {
    * One input shares its context starts and SUPPRESS bitset with the result (ADR-0006's fast path).
    *
    * @param body gets the value of each input at the slot, in input order, in an array the lift
-   *     reuses for the next slot; it never sees SUPPRESS and never gives null
+   *     reuses for the next slot; it never sees SUPPRESS and must not give null
    * @throws CancellationException when the thread is interrupted
+   * @throws IllegalStateException when {@code body} gives null
    */
   public static QueueBlock lift(List<QueueBlock> inputs, Function<String[], String> body) {
     if (inputs.size() == 1) {
@@ -43,16 +44,11 @@ public final class Lifting {
     String[] slot = new String[queues.length];
     QueueBlock.Builder result = new QueueBlock.Builder();
     for (int c = 0; c < contexts; c++) {
-      // every loop over contexts or slots checks for interruption (ADR-0021)
-      if (Thread.currentThread().isInterrupted()) {
-        throw new CancellationException("a lift was running when the thread was interrupted");
-      }
+      checkInterrupt();
       result.newContext();
       int count = count(queues, c);
       for (int j = 0; j < count; j++) {
-        if (Thread.currentThread().isInterrupted()) {
-          throw new CancellationException("a lift was running when the thread was interrupted");
-        }
+        checkInterrupt();
         append(result, queues, c, j, slot, body);
       }
     }
@@ -64,15 +60,33 @@ public final class Lifting {
     String[] values = new String[queue.slots()];
     String[] slot = new String[1];
     for (int i = 0; i < values.length; i++) {
-      if (Thread.currentThread().isInterrupted()) {
-        throw new CancellationException("a lift was running when the thread was interrupted");
-      }
+      checkInterrupt();
       if (!queue.suppressed(i)) {
         slot[0] = queue.value(i);
-        values[i] = body.apply(slot);
+        values[i] = apply(body, slot);
       }
     }
     return queue.withSameSuppress(values);
+  }
+
+  /** Every loop over contexts or slots checks for interruption (ADR-0021). */
+  private static void checkInterrupt() {
+    if (Thread.currentThread().isInterrupted()) {
+      throw new CancellationException("a lift was running when the thread was interrupted");
+    }
+  }
+
+  /**
+   * {@code body} over {@code slot}, which is never null: only an input's SUPPRESS gives a SUPPRESS
+   * slot, so a null would break the bit invariant of ADR-0004, silently with one input.
+   */
+  private static String apply(Function<String[], String> body, String[] slot) {
+    String value = body.apply(slot);
+    if (value == null) {
+      throw new IllegalStateException(
+          "Lifting.lift: its body gave null, which is no value (ADR-0004, ADR-0006)");
+    }
+    return value;
   }
 
   /**
@@ -110,6 +124,6 @@ public final class Lifting {
       }
       slot[k] = queue.value(i);
     }
-    result.append(body.apply(slot));
+    result.append(apply(body, slot));
   }
 }

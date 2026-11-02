@@ -5,6 +5,7 @@ import static io.flottila.mapping.xdm.SuppressQueues.context;
 import static io.flottila.mapping.xdm.SuppressQueues.queue;
 import static io.flottila.mapping.xdm.SuppressQueues.read;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.xdm.ContextFunctions.Comparison;
 import io.flottila.mapping.xdm.SuppressQueues.Queue;
@@ -37,7 +38,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  *       its example as a value;
  *   <li>{@code sort} and {@code sortByKey} take a SUPPRESS key for the smallest key in every
  *       comparison, so it comes first ascending and last descending, and a numeric sort does not
- *       parse it; a SUPPRESS value moves with its key and stays SUPPRESS.
+ *       parse it; a SUPPRESS value moves with its key and stays SUPPRESS. A numeric sortByKey key
+ *       must not be SUPPRESS (#2 §3, documented).
  * </ul>
  *
  * Worked examples first, then property tests (ADR-0018) over the edges and 200 seeded queues of
@@ -326,20 +328,39 @@ class ContextFunctionsSuppressReadingsTest {
   }
 
   /**
-   * Keys {@code 2, SUPPRESS, 1, SUPPRESS} over values {@code w, x, SUPPRESS, z}: a SUPPRESS key is
-   * the smallest, and a SUPPRESS value moves with its key.
+   * Keys {@code 2, SUPPRESS, 1, SUPPRESS} over values {@code w, x, SUPPRESS, z}: compared as
+   * strings a SUPPRESS key is the smallest, and a SUPPRESS value moves with its key.
    */
   @Test
   void sortByKeyMovesSuppressValuesWithTheirKeys() {
     QueueBlock keys = queue("keys", context("2", S, "1", S)).block();
     QueueBlock values = queue("values", context("w", "x", S, "z")).block();
 
-    assertThat(read(ContextFunctions.sortByKey(keys, values, Comparison.NUMERIC, false)))
-        .containsExactly(context("x", "z", S, "w"));
-    assertThat(read(ContextFunctions.sortByKey(keys, values, Comparison.NUMERIC, true)))
-        .containsExactly(context("w", S, "x", "z"));
     assertThat(read(ContextFunctions.sortByKey(keys, values, Comparison.LEXICOGRAPHIC, false)))
         .containsExactly(context("x", "z", S, "w"));
+    assertThat(read(ContextFunctions.sortByKey(keys, values, Comparison.CASE_INSENSITIVE, true)))
+        .containsExactly(context("w", S, "x", "z"));
+  }
+
+  /**
+   * #2 §3: "numeric keys must not be equal to the constant ResultList.SUPPRESS". A numeric
+   * sortByKey over a SUPPRESS key stops, where a numeric sort takes it for the smallest value.
+   */
+  @Test
+  void aNumericSortByKeyOverASuppressKeyStops() {
+    QueueBlock keys = queue("keys", context("2", S, "1")).block();
+    QueueBlock numbers = queue("numbers", context("2", "3", "1")).block();
+    QueueBlock values = queue("values", context("w", S, "z")).block();
+    // witness: numeric keys without SUPPRESS sort the same values, their SUPPRESS kept
+    assertThat(read(ContextFunctions.sortByKey(numbers, values, Comparison.NUMERIC, false)))
+        .containsExactly(context("z", "w", S));
+    assertThat(read(ContextFunctions.sort(keys, Comparison.NUMERIC, false)))
+        .containsExactly(context(S, "1", "2"));
+
+    assertThatThrownBy(() -> ContextFunctions.sortByKey(keys, values, Comparison.NUMERIC, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("sortByKey")
+        .hasMessageContaining("SUPPRESS");
   }
 
   /**
@@ -379,13 +400,13 @@ class ContextFunctionsSuppressReadingsTest {
   }
 
   /**
-   * Numeric keys in place of the queue's values, SUPPRESS kept, some equal as numbers but not as
-   * strings ({@code 1} and {@code 1.0}), over values that are the slot indexes with a seeded
-   * SUPPRESS among them: the order of equal keys shows the sort is stable.
+   * Numeric keys in place of the queue's slots, some equal as numbers but not as strings ({@code 1}
+   * and {@code 1.0}), over values that are the slot indexes with a seeded SUPPRESS among them: the
+   * order of equal keys shows the sort is stable, and each SUPPRESS value moves with its key.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void sortByKeyNumericOrdersSuppressKeysFirstAndKeepsSuppressValues(String name, Queue queue) {
+  void sortByKeyNumericKeepsSuppressValuesWithTheirKeys(String name, Queue queue) {
     RandomGenerator random = new SplittableRandom(name.hashCode());
     List<List<String>> keys = new ArrayList<>();
     List<List<String>> values = new ArrayList<>();
@@ -393,9 +414,9 @@ class ContextFunctionsSuppressReadingsTest {
     for (List<String> context : queue.contexts()) {
       List<String> contextKeys = new ArrayList<>();
       List<String> contextValues = new ArrayList<>();
-      for (String value : context) {
+      for (int k = 0; k < context.size(); k++) {
         int number = random.nextInt(5) - 2;
-        contextKeys.add(value == null ? S : random.nextBoolean() ? number + "" : number + ".0");
+        contextKeys.add(random.nextBoolean() ? number + "" : number + ".0");
         contextValues.add(random.nextInt(4) == 0 ? S : "v" + slot++);
       }
       keys.add(contextKeys);
@@ -407,8 +428,7 @@ class ContextFunctionsSuppressReadingsTest {
     for (boolean descending : new boolean[] {false, true}) {
       List<List<String>> expected = new ArrayList<>();
       for (int c = 0; c < keys.size(); c++) {
-        List<BigDecimal> numbers =
-            keys.get(c).stream().map(k -> k == null ? null : new BigDecimal(k.trim())).toList();
+        List<BigDecimal> numbers = keys.get(c).stream().map(BigDecimal::new).toList();
         expected.add(sortedBy(numbers, values.get(c), BigDecimal::compareTo, descending));
       }
 

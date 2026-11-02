@@ -102,7 +102,8 @@ public final class ContextFunctions {
   // comparison and the direction once per call site. A SUPPRESS key is the smallest key in every
   // comparison, so it comes first ascending and last descending, and a numeric sort does not parse
   // it; a SUPPRESS value moves with its key and stays SUPPRESS, as the result's bitset is read off
-  // its values (an assumed reading since #51, #61).
+  // its values (assumed since #51, #61). A numeric sortByKey key must not be SUPPRESS (#2 §3,
+  // documented): ADR-0006 since #51.
 
   /** How a sort compares two keys (owner decision Q4 of #48). */
   public enum Comparison {
@@ -131,7 +132,7 @@ public final class ContextFunctions {
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock sort(QueueBlock queue, Comparison comparison, boolean descending) {
-    return sorted("sort", queue, queue, comparison, descending);
+    return sorted("sort", queue, queue, comparison, descending, true);
   }
 
   /**
@@ -142,7 +143,8 @@ public final class ContextFunctions {
    *
    * @throws IllegalArgumentException unless both queues have the same number of contexts and each
    *     context as many keys as values, or when {@code comparison} is numeric and a key is no
-   *     decimal
+   *     decimal or is SUPPRESS (#2 §3: "numeric keys must not be equal to the constant
+   *     ResultList.SUPPRESS")
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock sortByKey(
@@ -154,20 +156,22 @@ public final class ContextFunctions {
               + ", of values: "
               + values.contexts());
     }
-    return sorted("sortByKey", keys, values, comparison, descending);
+    return sorted("sortByKey", keys, values, comparison, descending, false);
   }
 
   /**
    * The values of {@code values}, each context ordered by the keys at the same slots of {@code
    * keys}, which has as many contexts. A context with more or fewer keys than values stops it; the
-   * contexts before it had as many, so the two queues' starts agree up to it.
+   * contexts before it had as many, so the two queues' starts agree up to it. A numeric key may be
+   * SUPPRESS only when {@code suppressKeys}.
    */
   private static QueueBlock sorted(
       String function,
       QueueBlock keys,
       QueueBlock values,
       Comparison comparison,
-      boolean descending) {
+      boolean descending,
+      boolean suppressKeys) {
     String[] sorted = new String[values.slots()];
     for (int c = 0; c < values.contexts(); c++) {
       // one check per context: a context's slots are read and sorted below, bounded by their count
@@ -187,7 +191,8 @@ public final class ContextFunctions {
       for (int k = 0; k < slots.length; k++) {
         slots[k] = start + k;
       }
-      Comparator<Integer> order = order(function, keys, start, slots.length, comparison);
+      Comparator<Integer> order =
+          order(function, keys, start, slots.length, comparison, suppressKeys);
       // Arrays.sort of objects is stable, and a reversed order keeps ties as they are
       Arrays.sort(slots, descending ? order.reversed() : order);
       for (int k = 0; k < slots.length; k++) {
@@ -199,11 +204,16 @@ public final class ContextFunctions {
 
   /**
    * The order of the slots {@code start} to {@code start + size} of {@code keys}, by their keys. A
-   * SUPPRESS key comes before every other key in every comparison and is not parsed (an assumed
-   * reading since #51, #61).
+   * SUPPRESS key comes before every other key and is not parsed, except that in a numeric
+   * comparison it stops the sort unless {@code suppressKeys} (ADR-0006 since #51).
    */
   private static Comparator<Integer> order(
-      String function, QueueBlock keys, int start, int size, Comparison comparison) {
+      String function,
+      QueueBlock keys,
+      int start,
+      int size,
+      Comparison comparison,
+      boolean suppressKeys) {
     return switch (comparison) {
       case LEXICOGRAPHIC -> suppressFirst(keys::value, String::compareTo);
       case CASE_INSENSITIVE -> suppressFirst(keys::value, String::compareToIgnoreCase);
@@ -211,8 +221,14 @@ public final class ContextFunctions {
         // every key is parsed, once, even alone in its context where nothing is compared
         BigDecimal[] numbers = new BigDecimal[size];
         for (int k = 0; k < size; k++) {
-          // a SUPPRESS key's value is null, which stays null
+          // a SUPPRESS key's value is null, which stays null where it may stand
           String key = keys.value(start + k);
+          if (key == null && !suppressKeys) {
+            throw new IllegalArgumentException(
+                function
+                    + " compares numerically, and a key is SUPPRESS, which a numeric key must not"
+                    + " be (#2 §3)");
+          }
           numbers[k] = key == null ? null : decimal(function, key);
         }
         yield suppressFirst(i -> numbers[i - start], BigDecimal::compareTo);
