@@ -49,6 +49,15 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - smallrye-openapi marks an `Optional` component nullable unless `@Schema(nullable = false)`; a
   `byte[]` body needs `@RequestBody(content = @Content(schema = @Schema(ref)))` for a clean `$ref`.
 - A record header cannot see its own `static final` constant unqualified: `Rec.KIND`.
+- smallrye 4.3.5: once a method declares any `@APIResponse` (a 4xx), the generated 200 is gone;
+  declare the 2xx explicitly too.
+- An empty body and the body `null` bind a record parameter to `null`: check it in the method.
+- Jackson 2.21 strict records (javap + probe): `setDefaultSetterInfo(forValueNulls(FAIL, FAIL))`
+  refuses null members, null list entries and JSON `null` for a `JsonNode` member, and a missing
+  member too (`NullsFailProvider.getAbsentValue`); `FAIL_ON_MISSING_CREATOR_PROPERTIES` first only
+  names it missing. Int/float/boolean to `String` needs
+  `coercionConfigFor(LogicalType.Textual).setCoercion(<shape>, Fail)`. Tree content is untouched.
+- `Files.createTempFile` makes the file 0600 on POSIX; a move keeps it.
 
 ## JaCoCo
 
