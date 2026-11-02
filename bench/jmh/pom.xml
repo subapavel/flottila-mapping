@@ -47,7 +47,7 @@
           <execution>
             <id>check-licences</id>
             <configuration>
-              <artifactFiltersUrl>file://${project.basedir}/licence-filters.txt</artifactFiltersUrl>
+              <artifactFiltersUrl>${project.baseUri}licence-filters.txt</artifactFiltersUrl>
             </configuration>
           </execution>
         </executions>
