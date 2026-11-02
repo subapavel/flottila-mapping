@@ -246,8 +246,13 @@ A context with no slots, as under a parent occurrence without children. A queue 
 at all (the parent is absent) is a different thing.
 
 **SUPPRESS**:
-The marker for a value that is present as a slot but produces no target field.
+The marker for a value that is present as a slot but produces no target field. In a queue block,
+a set bit with a null value; in the export, `$po:SUPPRESS`.
 _Avoid_: null, empty (both are different things)
+
+**Slot variable**:
+The variable from which a `Lift` body reads one input's value at the current slot, `in1` … `inN`.
+_Avoid_: argument, parameter
 
 **Slot number**:
 The position of a slot counted across all contexts of a queue, starting at 1. A target

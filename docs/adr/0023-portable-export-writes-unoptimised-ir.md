@@ -1,6 +1,6 @@
 # The portable export writes unoptimised IR as one stylesheet that imports po-runtime.xsl
 
-Status: accepted (2026-11-02, #27 design)
+Status: accepted (2026-11-02, #27 design); the portable profile needs higher-order functions since #51
 
 - **Input.** `engine/xslt-export` writes the unoptimised IR (`TargetDocument`) of a mapping that lowered, as one
   XSLT 3.0 stylesheet. The IR is the only input any back end takes. Unoptimised IR keeps one node per box, which
@@ -34,3 +34,6 @@ Status: accepted (2026-11-02, #27 design)
 
 - Every export carries the `po` URI and the helper's file name. Renaming either breaks exports already handed out.
 - `TargetSlots` exports as `po:slots` alone until `min` is enforced in spec 2 (ADR-0006).
+- Since #51 a portable export uses inline functions (`po:lift`). The portable profile therefore
+  requires the XSLT 3.0 higher-order functions feature. The differential oracle runs every
+  portable case on Saxon-HE, so a processor without the feature shows up there first.
