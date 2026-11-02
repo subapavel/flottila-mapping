@@ -47,6 +47,10 @@ step "1 build $modules,engine/oracle" ".logs/${ticket}-build.log" \
 step "2 compile-all" ".logs/${ticket}-compile-all.log" \
   ./mvnw -B -q -DskipTests verify
 
+# 2b: every tracked file checks out byte-identical on Windows (.gitattributes, #49). Reads the index: stage new files.
+step "2b lf checkout" ".logs/${ticket}-lf-checkout.log" \
+  scripts/check-lf-checkout.sh
+
 # 3: the build writes contract/openapi.json; it must equal the committed one. Cheap, so it always runs.
 step "3 contract diff" ".logs/${ticket}-contract.log" \
   git diff --exit-code contract/

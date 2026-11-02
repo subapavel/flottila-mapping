@@ -590,14 +590,16 @@ class WorkspaceTest {
   }
 
   /**
-   * A create whose target is a link is 409, as now, and on its way never opens a file more open
-   * than {@code rw-r--r--}: the body is never written into a file the group or the world may write
-   * (#28 round 4). {@link ObservedFileSystem} records each file's mode when it is opened for
-   * writing and just before its move. The witness: a create on a free name is observed too.
+   * A create whose target is a link is {@code mapping-exists}, as now, and on its way never opens a
+   * file more open than {@code rw-r--r--}: the body is never written into a file the group or the
+   * world may write (#28 round 4). {@link ObservedFileSystem} records each file's mode when it is
+   * opened for writing and just before its move. The witness: a create on a free name is observed
+   * too.
    */
   @ParameterizedTest(name = "a link to {0}")
   @EnumSource(LinkTo.class)
-  void createOnALinkIs409AndNeverOpensAFileMoreOpenThan0644(LinkTo link) throws Exception {
+  void createOnALinkIsMappingExistsAndNeverOpensAFileMoreOpenThan0644(LinkTo link)
+      throws Exception {
     assumePosix();
     Path file = root.resolve("a/x.mapping.json");
     Files.createSymbolicLink(file, link.target);

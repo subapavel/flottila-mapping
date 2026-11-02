@@ -501,6 +501,11 @@ class InterpreterTest {
         Thread.currentThread().interrupt();
       }
     }
+
+    /** The number of bytes written. */
+    int size() {
+      return bytes.size();
+    }
   }
 
   /**
@@ -524,5 +529,8 @@ class InterpreterTest {
     } finally {
       Thread.interrupted();
     }
+
+    // stopped inside the loop, not after it: most of the fields never reached the output (#49)
+    assertThat(out.size()).as("bytes written by the cancelled run").isLessThan(all.length() / 2);
   }
 }

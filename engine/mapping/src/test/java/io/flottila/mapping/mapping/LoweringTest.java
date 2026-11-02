@@ -21,6 +21,7 @@ import static io.flottila.mapping.mapping.TestStructures.ADDRESS;
 import static io.flottila.mapping.mapping.TestStructures.ORDER;
 import static io.flottila.mapping.mapping.TestStructures.SKELETON;
 import static io.flottila.mapping.mapping.TestStructures.invoice;
+import static io.flottila.mapping.mapping.TestStructures.invoiceWithoutNamespace;
 import static io.flottila.mapping.mapping.TestStructures.order;
 import static io.flottila.mapping.mapping.TestStructures.ref;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -181,6 +182,43 @@ class LoweringTest {
             tuple("ns2", new Name("urn:v", "Ref")),
             tuple("ns0", new Name("urn:t", "Same")),
             tuple("ns1", new Name("urn:u", "Other")));
+  }
+
+  /**
+   * The assumed reading of ADR-0022, pinned (#49): when the target root has no namespace, the root
+   * has no prefix and {@code ns0} goes to the first namespace in target field order, here {@code
+   * urn:v}; the model lists its target field mappings in another order.
+   */
+  @Test
+  void withoutARootNamespaceNs0IsTheFirstNamespaceInTargetFieldOrder() {
+    String invoice = "/Invoice";
+    MappingModel model =
+        model(
+            ref(order()),
+            ref(invoiceWithoutNamespace()),
+            targetFieldMappings(
+                invoice + "/Q{urn:u}Number",
+                targetFieldMapping("m3", "b3", boxes("b3", source(ORDER_ID))),
+                invoice + "/Q{urn:v}Other",
+                targetFieldMapping("m4", "b4", boxes("b4", source(ORDER_ID))),
+                invoice + "/Plain",
+                targetFieldMapping("m1", "b1", boxes("b1", source(ORDER_ID))),
+                invoice + "/Q{urn:v}Ref",
+                targetFieldMapping("m2", "b2", boxes("b2", source(ORDER_ID)))),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, order(), invoiceWithoutNamespace()));
+
+    assertThat(document.prefix()).isEmpty();
+    assertThat(document.root()).isEqualTo(new Name("", "Invoice"));
+    assertThat(document.content())
+        .map(e -> (ElementConstructor) ((TargetSlots) e).body())
+        .extracting(ElementConstructor::prefix, ElementConstructor::name)
+        .containsExactly(
+            tuple("", new Name("", "Plain")),
+            tuple("ns0", new Name("urn:v", "Ref")),
+            tuple("ns1", new Name("urn:u", "Number")),
+            tuple("ns0", new Name("urn:v", "Other")));
   }
 
   @Test
