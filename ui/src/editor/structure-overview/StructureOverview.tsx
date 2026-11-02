@@ -4,7 +4,7 @@ import { useStore } from 'zustand';
 import type { ApiClient, StructureLoaded } from '../../api/client';
 import type { StructureRef } from '../../generated/mapping-model';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { occurrenceText, stepName, treeRows } from './rows';
+import { occurrenceText, reachedSourceFields, stepName, treeRows } from './rows';
 
 type Side = 'source' | 'target';
 
@@ -169,11 +169,8 @@ function Tree({
   );
 }
 
-/** The field links that end at a target field: one mark per source field its source-field boxes read. */
+/** The field links that end at a target field: one mark per source field that its `result` reaches (ADR-0013). */
 function TargetLinks({ store, path }: { store: WorkingCopyStore; path: string }) {
   const mapping = useStore(store, (s) => s.workingCopy.targetFieldMappings?.[path]);
-  const fields = new Set(
-    Object.values(mapping?.boxes ?? {}).flatMap((box) => (box.kind === 'source' ? [box.field] : [])),
-  );
-  return [...fields].map((field) => <span key={field}>← {stepName(field)}</span>);
+  return reachedSourceFields(mapping).map((field) => <span key={field}>← {stepName(field)}</span>);
 }
