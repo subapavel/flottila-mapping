@@ -15,7 +15,7 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
   runs on load, before validation, and its result is written on the next save. Each migration
   has one golden input/output pair.
 - `source` and `target` each hold:
-  - `bundle`: the schema files, as references;
+  - `bundle`: the schema files, as references; a non-empty set, written sorted (#24);
   - `root`: the root selector, one of `{element: EQName}`,
     `{wsdl: {interface, operation, direction: input|output|fault, fault?}}` or `{json: "$"}`;
   - `fingerprint`: `sha256:<hex>` (ADR-0009).
@@ -37,7 +37,7 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
   the catalogue's parameter name. A value is a string or a table (an object from string to
   string, for `FixValues`).
 - `udfs` is keyed by UDF name. Each entry is
-  `{executionKind: single|context|queue, inputs: [name], params?: {name: string|int}, source}`.
+  `{executionKind: single|context|queue, inputs?: [name], params?: {name: string|int}, source}` (`inputs` optional, F-6).
   `source` points at a Java method, for example `udf/Udfs.java#formatPartner`. Compiling checks
   that the method matches the declaration. Java source is never inline. How UDFs are written,
   compiled and isolated is #16's decision.
@@ -75,7 +75,8 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
 - There is one writer. It sorts keys by UTF-16 code unit and indents as
   `JSON.stringify(value, null, 2)` does. It writes LF line endings, a final LF, and UTF-8 without
   a BOM.
-- It leaves out members equal to their default, and empty objects and arrays. A `context` equal
+- It leaves out members equal to their default, and empty objects and arrays, except an empty
+  table parameter, which is a value and is written `{}` (#24, F-6). A `context` equal
   to the field's parent is left out.
 - Values are strings. `formatVersion` is the only number.
 - Unordered collections are objects keyed by id or field path. Arrays appear only where order

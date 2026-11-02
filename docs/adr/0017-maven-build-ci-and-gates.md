@@ -25,7 +25,7 @@ and this ADR is its specification.
   does the same in a workflow step.
 - **Root POM**, the parent of everything:
   - maven-compiler 3.16.0 with `release 25`, `-Xlint:all -Werror`. Only the modules that read
-    json-sKema (an automatic module) add `-Xlint:-requires-automatic`. No `--enable-preview`
+    json-sKema or XmlSchema (automatic modules, F-7) add `-Xlint:-requires-automatic`. No `--enable-preview`
     in milestone 1;
   - maven-enforcer 3.6.3: Java and Maven versions, `dependencyConvergence`,
     `bannedDependencies`. It bans `org.openjdk.jmh` everywhere but `bench/jmh`, `net.sf.saxon`
@@ -45,6 +45,15 @@ and this ADR is its specification.
       (MPL 2.0) is on the list and needs no exception.
   - A dependency of an excepted artifact is still checked. Maven plugins are tools, not
     dependencies: any OSI licence, never bundled.
+- **npm licences** (owner ruling #39): the `ui` job runs a licence check over the whole
+  `package-lock.json`, dev dependencies included, against the `CLAUDE.md` list. It fails on any
+  other licence. The exceptions are per package, all of them dev-only build tools or data that are
+  never bundled into the editor:
+  - `argparse` (Python-2.0, PSF-2.0), through `js-yaml` in openapi-typescript and
+    json-schema-to-typescript;
+  - `caniuse-lite` (CC-BY-4.0), browser data for browserslist;
+  - `minimatch` (BlueOak-1.0.0), glob tooling.
+  A new exception needs an owner ruling.
 - **Tests**: JUnit **6.1.3**, the version the Quarkus 3.40.1.1 BOM manages, imported through
   `junit-bom` in the root. Also AssertJ 3.27.7 and ArchUnit 1.5.1. There is no mocking library:
   ports have hand-written fakes. PIT runs on JUnit 6 (ADR-0019); jqwik is not used (ADR-0018).
@@ -74,7 +83,7 @@ and this ADR is its specification.
 
 ## CI (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on `pull_request` and on `push` to `main`, with `concurrency`
+`.github/workflows/ci.yml` runs on `pull_request` and on `push` to `main` and to `t/**` (F-4), with `concurrency`
 per ref and `cancel-in-progress`. It runs on `ubuntu-24.04`, with `actions/checkout@v7`,
 `setup-java@v6` (Temurin 25, `cache: maven`, mirror step) and `setup-node@v7` (Node 22, npm
 cache).
@@ -82,6 +91,7 @@ cache).
 | Job | Steps |
 | --- | --- |
 | `backend` | `./mvnw -B -Pbench verify`; `git diff --exit-code contract/` |
+| `windows` (`windows-latest`, #42) | `./mvnw.cmd -B -q -DskipTests verify` (ticket-gate row 2) |
 | `ui` | `npm ci`; `npx playwright install --with-deps chromium` (from the pinned `@playwright/test` 1.63.0); `gen:types` + `git diff --exit-code src/generated`; `typecheck`, `lint`, `test`, `test:browser`, `e2e`; `build` → artefact `ui-dist` |
 | `stack` (needs both) | download `ui-dist`; `./mvnw -B -Pui -pl service -am package -DskipTests`; `npm run e2e:stack` |
 
@@ -117,6 +127,10 @@ scripts.
 4. ratchet regeneration (#14);
 5. the JMH scenarios (ADR-0021) into `bench/RESULTS.md`, machine label `claude-cloud-4vcpu`.
    Regression is checked there against the baseline with the same label, never on CI.
+
+The spec gate runs these in the order 1, 2, 5, 4, 3, not as numbered. Regen (4) reads the JMH
+results of 5 and the JaCoCo and PIT reports of 1. Step 3's `clean`, which is mandatory with
+`-Pui`, deletes those reports. The spec-1 review found this (#21).
 
 ## Concurrency (`AGENTS.md`)
 

@@ -246,6 +246,11 @@ The position of a slot counted across all contexts of a queue, starting at 1. A 
 occurrence's slot number is the index of the context its children read.
 _Avoid_: index, position (both are per context)
 
+**Slot index**:
+A slot number minus 1, so it counts from 0. Only code uses it, as an array offset into a queue
+block; tickets, tests and diagnostics use the slot number.
+_Avoid_: index alone
+
 **Generating function**:
 A function graph with no source field, such as a constant or `concat` of two constants. On a
 target field it gives `max(1, minOccurs)` occurrences per parent occurrence.
@@ -260,6 +265,11 @@ _Avoid_: simulation, preview
 What a test run records: the queue or value each evaluated box produced, by authoring id, and
 the occurrences of each target field per parent slot. The display queue shows it.
 _Avoid_: log, debug output
+
+**Diagnostic catalogue**:
+The stable codes of design-time errors and warnings, declared as constants in one
+`<Module>Diagnostics` class per engine module.
+_Avoid_: error list, message catalogue
 
 **Diagnostic**:
 A design-time error or warning, with a stable code and one location: an authoring id, a JSON
@@ -348,6 +358,21 @@ function-catalogue schema and the committed OpenAPI document. Both sides' types 
 from or checked against them.
 _Avoid_: API spec, interface definition
 
+**Workspace path**:
+An id, base directory or bundle reference that matches its pattern and whose real path lies
+inside the workspace (ADR-0024).
+_Avoid_: safe path, sandboxed path
+
+**Workspace escape**:
+A path that would resolve outside the workspace: `..`, an absolute path, or a symlink pointing
+out. The service refuses it before any read.
+_Avoid_: jailbreak
+
+**Problem**:
+The RFC 9457 `application/problem+json` body of a transport error, with a `type` from the
+service's problem types. Diagnostics are a result; a problem is a failed request.
+_Avoid_: error response, API error
+
 ## Verification
 
 **Oracle**:
@@ -358,6 +383,12 @@ the exported XSLT, or the golden corpus.
 Running a corpus case's mapping both in our runtime and, exported to XSLT, in Saxon-HE, and
 requiring the same output. It applies to every case whose functions are all portable.
 _Avoid_: differential case (it is a second oracle over the same cases, not a kind of case)
+
+**Helper module**:
+The XSLT module `po-runtime.xsl` that every portable export imports. It holds the PO queue
+semantics as `po:` functions in `urn:flottila:mapping:po` (`po:slots`, later `po:lift`,
+`po:at-least`, `po:show`).
+_Avoid_: runtime library (that is the engine's), helper stylesheet
 
 **Golden corpus**:
 Synthetic mappings with inputs and the outputs SAP PO semantics demand, kept in the repo.
@@ -421,6 +452,11 @@ A GitHub issue (`spec`) describing one deliverable from the user's side, parent 
 
 **Ticket**:
 A tracer-bullet slice of a spec, sized for one fresh context, with blocking edges and one class.
+
+**Seam**:
+An outer interface of a part of the system where a test gives input and checks output without
+knowing the inside. A spec names its seams before its tickets exist.
+_Avoid_: test boundary, integration point
 
 **Frontier**:
 The open, unblocked, unclaimed tickets of a spec or map.

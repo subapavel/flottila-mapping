@@ -1,18 +1,19 @@
 # Handoff
 
-state: PHASE_0_DONE — #19 closed (GATE.md final, 7 specs in build order); map #1 closed, destination met
-spec: none · integration branch: none · tickets in flight: none
-closed (map #1): #2–#20 — decisions indexed on the map; specs and post-M1 order in docs/GATE.md "Specs in build order"
-next exact action (architect + owner): `/grill-with-docs` for spec 1 "Walking skeleton" (docs/GATE.md row 1), then `/to-spec`
-spec 1 must: build skeleton ticket first (carry-over comments on #19); open the observation requests of ADR-0004/6/8 + #2 §7
-spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 speed · 6 editor · 7 UDFs
-rule (#19): a function ticket carries runtime + export + corpus + differential cases; no export spec; requests never block a spec
-after M1: JSON output → bytecode tier → formatVersion 2 + PO importer → XSLT front end
-owner action (from spec 1): answer observation requests on PO 7.5 + CPI; /gate waits for them (checks 4, 6)
-PO importer: ADR-0010 table; `formatVersion` 2 (shared box output, `switchedOff`, `ext_bind`, output ports); CPI reopens with `.mmap`
-saxon: oracle pinned to Saxon-HE 12.5 (ADR-0005, ADR-0018); s9api and XMLUnit facts in agent/NOTES.md "Oracle and ratchet trial for #14"
-owner rules: grill from docs/FOUNDING-ARCHITECTURE.md, gaps only; one question at a time, Czech chat, English artefacts
-owner rules: real mappings only via the owner locally (iFlow-forge)
-env: setup.sh v3 in the cloud env (JDK 25 /opt/temurin-25, Google mirror in ~/.m2, MVNW_REPOURL); never `pkill -f`; jqwik banned (ADR-0018)
-gh: REST only, multi-line bodies with `-F body=@file`; every comment ends with the Claude Code footer
-pointers: CLAUDE.md · AGENTS.md · docs/GATE.md · docs/FOUNDING-ARCHITECTURE.md · docs/WORKFLOW.md · docs/agents/issue-tracker.md · agent/NOTES.md
+state: SPEC PR OPEN. Spec #21 "Walking skeleton" goes to main through the spec PR from `spec/21-walking-skeleton`, merge commit only.
+tickets (#21), all closed: #22–#30, #40, #41, review fixes, #42 Windows build, #43 dev port, #44 Windows ids, #45 Swagger $ref.
+spec gate: VERIFIED_PASS @68c81fc, ratchet 4c954c4. #42–#45 merged after it, each with a green ticket gate. jmh is NOT_RUN (no harness until spec 5).
+next action: watch spec-PR CI, including the first `windows` job. When it is green, merge, open "owner: protect main", and cut spec 2 (/to-spec).
+carried out of spec 1, by spec: #21 comment 6582060566. Each spec picks up its lines when it is cut.
+findings open: F-12 (resolver port, timeout → spec 4/2), F-13 (gate budget missed → spec 5).
+owner: observation requests #31–#38 open (GATE checks 4, 6). Owner may veto the po URI. §11 trailers missing on old commits, accepted unless vetoed.
+owner tries spec 1 on Windows: `$env:QUARKUS_HTTP_PORT=8090` (Docker holds 8080), `.\mvnw.cmd -pl service -am quarkus:dev`, `cd ui; npm run dev`.
+spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 speed · 6 editor · 7 UDFs.
+rule (#19): a function ticket carries runtime + export + corpus + differential cases. There is no export spec. Requests never block a spec.
+spec gate order: 1, 1b, 2, 5, 4, 3. Step 3's `clean` deletes the reports regen needs (ADR-0017, WORKFLOW §6).
+merge trailers: WORKFLOW §11 (`Ticket: #n`, Co-authored-by, `Signed-off-by: subapavel <subapav@gmail.com>`, Claude-Session).
+after M1: JSON output → bytecode tier → formatVersion 2 + PO importer → XSLT front end.
+owner rules: grill from FOUNDING-ARCHITECTURE, gaps only. One question at a time. Czech chat, English artefacts. Real mappings only via the owner.
+env: JDK 25 /opt/temurin-25. Never `pkill -f`. jqwik banned. Playwright pinned, never `playwright install`. Keep worktrees until the ticket merges.
+gh: REST only, multi-line bodies with `-F body=@file`. Every comment ends with the Claude Code footer.
+pointers: CLAUDE.md · AGENTS.md · docs/GATE.md · docs/WORKFLOW.md · docs/agents/issue-tracker.md · agent/NOTES.md · docs/findings/

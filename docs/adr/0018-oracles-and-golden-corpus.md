@@ -75,14 +75,15 @@ by two target fields once (`counter`, UDF state, ADR-0010), and PO's result for 
 
 ## The differential oracle
 
-- Every case whose mapping uses portable functions only (ADR-0002) is a differential case. It
-  is not a provenance. `engine/api` exports the mapping to XSLT 3.0 (portable profile with the
+- The differential oracle covers every case whose mapping uses portable functions only (ADR-0002).
+  Coverage is not a provenance and is not marked in `case.json`. `engine/api` exports the mapping to XSLT 3.0 (portable profile with the
   helper module), Saxon-HE runs it on the case's input, and our runtime runs the same mapping.
 - Saxon-HE is pinned to **12.5**, the version ADR-0005's division rule was observed on. An
   upgrade is its own ticket, and a changed oracle case reopens ADR-0005.
 - **Verdict**: the two output documents are compared with XMLUnit 2.14.0 (Apache-2.0, test scope
-  in `engine/oracle` only), `checkForIdentical()`. Both sides are generated from the same target
-  structure, so prefixes and namespace declarations must match too.
+  in `engine/oracle` only), `checkForIdentical()`, which compares names, prefixes, URIs, text and
+  the XML declaration. XMLUnit drops `xmlns` attributes (F-11), so the verdict also requires equal
+  namespace declarations per element (`OracleVerdict.declarations`). Bytes are not the verdict.
 - The golden-corpus oracle compares our output with `expected.xml` using `checkForSimilar()` and
   `ignoreElementContentWhitespace()`: an expected file may be indented, and an observed PO output
   has PO's own prefixes (`ns0:`). Whitespace inside a value still counts. `ignoreWhitespace` and
@@ -115,8 +116,10 @@ also checks the suites' licence.
 
 The diagnostic catalogue is not a central file. Each engine module declares its codes as
 constants in one class, `<Module>Diagnostics`. A test in `engine/api` collects them through the
-modules' public API. It checks that every code is kebab-case and unique across modules, that at
-least one corpus case raises each code, and that no case expects a code that does not exist.
+modules' public API. It checks that every code is kebab-case and unique across modules, and that
+every code-shaped string in the engine's classes is a catalogue code. `engine/oracle` checks that
+no case expects a code that does not exist, and, from spec 2 on, that at least one corpus case
+raises each runtime error code (F-9).
 
 Property tests cover the algebra of queues in `xdm` and `runtime`: context functions, block
 invariants, and `Lift` against a reference implementation in the test. They are JUnit 6
