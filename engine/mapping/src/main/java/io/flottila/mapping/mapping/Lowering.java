@@ -160,27 +160,26 @@ public final class Lowering {
    * @param mapped the target fields that have a target field mapping
    */
   private Optional<FieldPath> targetField(String text, AuthoringId at, Set<FieldPath> mapped) {
-    Optional<FieldPath> path = resolve(target, text);
-    if (path.isEmpty()) {
-      report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
-      return Optional.empty();
-    }
-    List<FieldPath.Step> steps = path.get().steps();
-    boolean parentsMapped =
-        IntStream.range(UNDER_ROOT, steps.size())
-            .allMatch(depth -> mapped.contains(new FieldPath(steps.subList(0, depth))));
-    if (steps.size() < UNDER_ROOT
-        || steps.getLast().kind() != FieldKind.ELEMENT
-        || !parentsMapped) {
-      report(
-          MappingDiagnostics.UNSUPPORTED_FIELD,
-          at,
-          text
-              + " is not a target field this engine maps yet: an element under the root or under"
-              + " mapped parents");
-      return Optional.empty();
-    }
-    return path;
+    return named(target, text, at)
+        .flatMap(
+            path -> {
+              List<FieldPath.Step> steps = path.steps();
+              boolean parentsMapped =
+                  IntStream.range(UNDER_ROOT, steps.size())
+                      .allMatch(depth -> mapped.contains(new FieldPath(steps.subList(0, depth))));
+              if (steps.size() < UNDER_ROOT
+                  || steps.getLast().kind() != FieldKind.ELEMENT
+                  || !parentsMapped) {
+                report(
+                    MappingDiagnostics.UNSUPPORTED_FIELD,
+                    at,
+                    text
+                        + " is not a target field this engine maps yet: an element under the root"
+                        + " or under mapped parents");
+                return Optional.empty();
+              }
+              return Optional.of(path);
+            });
   }
 
   /**
@@ -188,18 +187,29 @@ public final class Lowering {
    * (#62), or empty once the reason it names none is reported at the box {@code at}.
    */
   private Optional<FieldPath> sourceLeaf(String text, AuthoringId at) {
-    Optional<FieldPath> path = resolve(source, text);
+    return named(source, text, at)
+        .flatMap(
+            path -> {
+              Field field = source.field(path).orElseThrow();
+              if (field.step().kind() != FieldKind.ELEMENT || field.valueType().isEmpty()) {
+                report(
+                    MappingDiagnostics.UNSUPPORTED_FIELD,
+                    at,
+                    text + " is not a source field this engine maps yet: a leaf element");
+                return Optional.empty();
+              }
+              return Optional.of(path);
+            });
+  }
+
+  /**
+   * The field path {@code text} names in {@code structure}, or empty once {@code
+   * orphaned-reference} is reported at {@code at}: one check for target fields and source fields.
+   */
+  private Optional<FieldPath> named(Structure structure, String text, AuthoringId at) {
+    Optional<FieldPath> path = resolve(structure, text);
     if (path.isEmpty()) {
       report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
-      return Optional.empty();
-    }
-    Field field = source.field(path.get()).orElseThrow();
-    if (field.step().kind() != FieldKind.ELEMENT || field.valueType().isEmpty()) {
-      report(
-          MappingDiagnostics.UNSUPPORTED_FIELD,
-          at,
-          text + " is not a source field this engine maps yet: a leaf element");
-      return Optional.empty();
     }
     return path;
   }
