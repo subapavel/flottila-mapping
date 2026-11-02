@@ -93,6 +93,43 @@ class XmlSerializerTest {
         bytes);
   }
 
+  /**
+   * A prefix in scope bound to another namespace is declared again, and the innermost binding of a
+   * prefix decides (Namespaces in XML 1.0, section 6.1). Lowering gives each namespace one prefix,
+   * so this is the serializer's own contract.
+   */
+  @Test
+  void aPrefixBoundToAnotherNamespaceIsDeclaredAgainAndTheInnermostBindingDecides()
+      throws Exception {
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("ns0", "urn:a", "A");
+              // ns0 is bound to urn:a here, so urn:b needs its own declaration
+              s.startElement("ns0", "urn:b", "B");
+              // bound to urn:b by B
+              s.startElement("ns0", "urn:b", "C");
+              s.text("x");
+              s.endElement();
+              // the innermost ns0 is B's urn:b, not A's urn:a
+              s.startElement("ns0", "urn:a", "D");
+              s.endElement();
+              s.endElement();
+              // B's binding went out of scope with it: A's urn:a holds again
+              s.startElement("ns0", "urn:a", "E");
+              s.endElement();
+              s.endElement();
+            });
+
+    assertAscii(
+        DECLARATION
+            + "<ns0:A xmlns:ns0=\"urn:a\">"
+            + "<ns0:B xmlns:ns0=\"urn:b\"><ns0:C>x</ns0:C><ns0:D xmlns:ns0=\"urn:a\"/></ns0:B>"
+            + "<ns0:E/>"
+            + "</ns0:A>",
+        bytes);
+  }
+
   @Test
   void refusesANamespaceWithoutAPrefix() throws Exception {
     ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -17,6 +17,7 @@ import static io.flottila.mapping.mapping.Models.udf;
 import static io.flottila.mapping.mapping.Models.udfDeclaration;
 import static io.flottila.mapping.mapping.Models.udfs;
 import static io.flottila.mapping.mapping.Models.unresolved;
+import static io.flottila.mapping.mapping.TestStructures.ADDRESS;
 import static io.flottila.mapping.mapping.TestStructures.ORDER;
 import static io.flottila.mapping.mapping.TestStructures.SKELETON;
 import static io.flottila.mapping.mapping.TestStructures.invoice;
@@ -319,12 +320,20 @@ class LoweringTest {
                 ORDER_ID,
                 targetFieldMapping("t1", "a1", boxes("a1", source(ORDER))),
                 ORDER,
-                targetFieldMapping("t2", "a2", boxes("a2", source(ORDER_ID)))));
+                targetFieldMapping("t2", "a2", boxes("a2", source(ORDER_ID))),
+                QUANTITY,
+                targetFieldMapping("t3", "a3", boxes("a3", source(ADDRESS))),
+                ADDRESS,
+                targetFieldMapping("t4", "a4", boxes("a4", source(ORDER_ID)))));
 
-    // the root is no leaf element under the root
+    // the root is no leaf element under the root; Address is an element under the root, but a
+    // structure field, with no value of its own: source at its box, target at its mapping
     assertThat(refused(lower(model)))
         .containsExactly(
-            errorAtId("unsupported-field", "a1"), errorAtId("unsupported-field", "t2"));
+            errorAtId("unsupported-field", "a1"),
+            errorAtId("unsupported-field", "a3"),
+            errorAtId("unsupported-field", "t2"),
+            errorAtId("unsupported-field", "t4"));
   }
 
   @Test

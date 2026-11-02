@@ -93,25 +93,36 @@ class EngineFacadeTest {
 
   /** A model from {@code order.xsd} to itself with the given target field mappings. */
   private static byte[] orderToOrder(String targetFieldMappings) {
+    return between("order.xsd", "order.xsd", targetFieldMappings);
+  }
+
+  /**
+   * A model whose source and target bundles are the one file each names, both under the root {@code
+   * Order}, with the given target field mappings.
+   */
+  private static byte[] between(String sourceFile, String targetFile, String targetFieldMappings) {
     String side =
         """
-        {"bundle": ["order.xsd"], "fingerprint": "%s",
-         "root": {"element": "Q{%s}Order"}}"""
-            .formatted(FINGERPRINT, NS);
+        {"bundle": ["%s"], "fingerprint": "%s",
+         "root": {"element": "Q{%s}Order"}}""";
     return """
         {"formatVersion": 1, "source": %s, "target": %s, "targetFieldMappings": %s}
         """
-        .formatted(side, side, targetFieldMappings)
+        .formatted(
+            side.formatted(sourceFile, FINGERPRINT, NS),
+            side.formatted(targetFile, FINGERPRINT, NS),
+            targetFieldMappings)
         .getBytes(UTF_8);
   }
 
-  private static final byte[] FIELD_LINK =
-      orderToOrder(
-          """
-          {"%1$s/OrderId": {"id": "t1", "result": "a1",
-                            "boxes": {"a1": {"kind": "source", "field": "%1$s/OrderId"}}}}
-          """
-              .formatted(ORDER));
+  private static final String FIELD_LINK_MAPPINGS =
+      """
+      {"%1$s/OrderId": {"id": "t1", "result": "a1",
+                        "boxes": {"a1": {"kind": "source", "field": "%1$s/OrderId"}}}}
+      """
+          .formatted(ORDER);
+
+  private static final byte[] FIELD_LINK = orderToOrder(FIELD_LINK_MAPPINGS);
 
   private static CompiledMapping compiled(CompileResult result) {
     if (result instanceof CompileResult.Compiled(CompiledMapping mapping)) {
@@ -219,6 +230,27 @@ class EngineFacadeTest {
               assertThat(d.code()).isEqualTo("schema-unreadable");
               assertThat(d.location()).isEqualTo(new AtFilePosition("order.xsd", 1, 1));
             });
+  }
+
+  @Test
+  void bothStructuresAreReadAndTheirLoadErrorsComeInFileOrder(@TempDir Path base) throws Exception {
+    // the target's file is not well-formed: its mismatched end tag starts at line 2, column 1,
+    // and the parser points at its name, column 3 (StructureReaderTest)
+    Files.writeString(
+        base.resolve("a-target.xsd"),
+        "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n</xs:element>\n");
+    // the source's file is not there at all; read first, it sorts after the target's file
+    byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
+
+    List<Diagnostic> diagnostics =
+        refusal(new EngineFacade().compile(model, base, CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
+                    error("schema-unreadable", new AtFilePosition("z-source.xsd", 1, 1)))));
   }
 
   @Test

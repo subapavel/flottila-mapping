@@ -9,6 +9,7 @@ import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.StructureType;
 import io.flottila.mapping.structure.ValueType;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,15 +25,26 @@ final class TestStructures {
 
   private TestStructures() {}
 
-  /** The flat shape of {@code corpus/structures/skeleton/order.xsd}, shortened to four fields. */
+  /** The structure field under the root that {@link #order()} adds to the skeleton's shape. */
+  static final String ADDRESS = ORDER + "/Address";
+
+  /**
+   * The flat shape of {@code corpus/structures/skeleton/order.xsd}, shortened to four fields, and
+   * one structure field the skeleton lacks: {@code Address}, last, which holds the leaf {@code
+   * Street}.
+   */
   static Structure order() {
     return structure(
         SKELETON,
         "Order",
+        Map.of(
+            ADDRESS,
+            new StructureType(ADDRESS, List.of(leaf("", "Street", 0, 1, ValueType.STRING)))),
         attribute("channel", 0, 1),
         leaf("", "OrderId", 1, 1, ValueType.STRING),
         leaf("", "Quantity", 0, 1, ValueType.INTEGER),
-        leaf("", "Note", 0, Occurrence.UNBOUNDED, ValueType.STRING));
+        leaf("", "Note", 0, Occurrence.UNBOUNDED, ValueType.STRING),
+        structureField("Address", 0, 1, ADDRESS));
   }
 
   /**
@@ -43,6 +55,7 @@ final class TestStructures {
     return structure(
         "urn:t",
         "Invoice",
+        Map.of(),
         leaf("urn:u", "Number", 1, 1, ValueType.STRING),
         leaf("", "Plain", 0, 1, ValueType.STRING),
         leaf("urn:v", "Ref", 0, 1, ValueType.STRING),
@@ -62,12 +75,28 @@ final class TestStructures {
         structure.fingerprint());
   }
 
-  private static Structure structure(String namespace, String root, Field... fields) {
+  /**
+   * A structure whose root holds {@code fields}; {@code types} holds the type of each structure
+   * field among them, by its field path.
+   */
+  private static Structure structure(
+      String namespace, String root, Map<String, StructureType> types, Field... fields) {
     FieldPath.Step step = new FieldPath.Step(FieldKind.ELEMENT, namespace, root);
     String type = FieldPath.of(step).toString();
+    Map<String, StructureType> all = new HashMap<>(types);
+    all.put(type, new StructureType(type, List.of(fields)));
     return new Structure(
-        new Field(step, new Occurrence(1, 1), Optional.empty(), false, Optional.of(type)),
-        Map.of(type, new StructureType(type, List.of(fields))));
+        new Field(step, new Occurrence(1, 1), Optional.empty(), false, Optional.of(type)), all);
+  }
+
+  /** A structure field without a namespace: no value type, its child fields in {@code type}. */
+  private static Field structureField(String name, long min, long max, String type) {
+    return new Field(
+        new FieldPath.Step(FieldKind.ELEMENT, "", name),
+        new Occurrence(min, max),
+        Optional.empty(),
+        false,
+        Optional.of(type));
   }
 
   private static Field leaf(

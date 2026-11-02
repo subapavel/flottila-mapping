@@ -1,11 +1,13 @@
 package io.flottila.mapping.xdm;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SplittableRandom;
+import java.util.concurrent.CancellationException;
 import java.util.random.RandomGenerator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -79,6 +81,33 @@ class QueueBlockTest {
       String why, String[] values, int[] contextStarts) {
     assertThatThrownBy(() -> QueueBlock.of(values, contextStarts))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  static Stream<Arguments> validStarts() {
+    return Stream.of(
+        // the smallest block whose starts are checked in a loop: one pass
+        Arguments.of("one context", new String[] {"a"}, new int[] {0, 1}),
+        Arguments.of("three contexts", new String[] {"a", " b ", ""}, new int[] {0, 2, 2, 3}));
+  }
+
+  /**
+   * Every loop over contexts checks for interruption (ADR-0021), and {@code of} checks the starts
+   * in one.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("validStarts")
+  void ofOnAnInterruptedThreadThrowsCancellationExceptionAndGivesNoBlock(
+      String why, String[] values, int[] contextStarts) {
+    // witness: the same arrays give a block on a thread that is not interrupted
+    assertThatCode(() -> QueueBlock.of(values, contextStarts)).doesNotThrowAnyException();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> QueueBlock.of(values, contextStarts))
+          .isInstanceOf(CancellationException.class);
+    } finally {
+      Thread.interrupted();
+    }
   }
 
   /** Values a source queue holds: {@code ""} is a value, and whitespace is part of it. */

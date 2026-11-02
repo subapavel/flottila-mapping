@@ -17,12 +17,18 @@ import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.xdm.QueueBlock;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -193,6 +199,32 @@ class InterpreterTest {
         .isEqualTo(DECLARATION + ROOT_OPEN + "<Note>a</Note><Note>b</Note>" + ROOT_CLOSE);
   }
 
+  static Stream<Arguments> wrongRoots() {
+    return Stream.of(
+        Arguments.of(
+            "another local name",
+            "<s:Invoice xmlns:s=\"" + NS + "\"><OrderId>1</OrderId></s:Invoice>"),
+        Arguments.of(
+            "the root's local name in another namespace",
+            "<o:Order xmlns:o=\"urn:other\"><OrderId>1</OrderId></o:Order>"),
+        Arguments.of(
+            "the root's local name without a namespace", "<Order><OrderId>1</OrderId></Order>"));
+  }
+
+  /**
+   * The source root is not there, so its queues have no context at all, not one empty context: the
+   * root slot 1 names none, and the root is written without the field, as for an empty source.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("wrongRoots")
+  void anInputWhoseRootIsNotTheSourceRootGivesWhatAnEmptySourceGives(String why, String input)
+      throws Exception {
+    String emptySource = run(orderIdLink(), sourceOrder(""));
+
+    assertThat(emptySource).isEqualTo(DECLARATION + EMPTY_ROOT);
+    assertThat(run(orderIdLink(), input)).isEqualTo(emptySource);
+  }
+
   @Test
   void anUnmappedSourceFieldIsNeverCreated() throws Exception {
     String input =
@@ -305,6 +337,31 @@ class InterpreterTest {
         .isEqualTo(DECLARATION + ROOT_OPEN + "<OrderId>1</OrderId>" + ROOT_CLOSE);
   }
 
+  static Stream<Arguments> externalDoctypes() {
+    return Stream.of(
+        Arguments.of("an external DTD", "<!DOCTYPE s:Order SYSTEM \"%s\">"),
+        Arguments.of(
+            "an external parameter entity",
+            "<!DOCTYPE s:Order [<!ENTITY %% ext SYSTEM \"%s\"> %%ext;]>"));
+  }
+
+  /**
+   * The DOCTYPE refusal comes before anything the DOCTYPE names is read. The file it names is no
+   * DTD, so a parser that read it would fail on it, and that failure would be the refusal's cause.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("externalDoctypes")
+  void aDoctypeIsRefusedWithoutReadingWhatItNames(String why, String doctype, @TempDir Path dir)
+      throws Exception {
+    Path notADtd = Files.writeString(dir.resolve("not-a.dtd"), "this file is no DTD <\n");
+    String input = doctype.formatted(notADtd.toUri()) + sourceOrder("<OrderId>1</OrderId>");
+
+    assertThatThrownBy(() -> run(orderIdLink(), input))
+        .isInstanceOf(MalformedInputException.class)
+        // the refusal of the DOCTYPE itself, not a parse error of the file
+        .hasNoCause();
+  }
+
   static Stream<Arguments> malformed() {
     return Stream.of(
         Arguments.of("no bytes at all", new byte[0]),
@@ -355,8 +412,115 @@ class InterpreterTest {
 
     Thread.currentThread().interrupt();
     try {
-      // the exception type is open in #26; it is no input error
-      assertThatThrownBy(() -> run(notes, input)).isNotInstanceOf(MalformedInputException.class);
+      // no input error: CancellationException (ExecutableMapping.run, ADR-0021)
+      assertThatThrownBy(() -> run(notes, input))
+          .isNotInstanceOf(MalformedInputException.class)
+          .isInstanceOf(CancellationException.class);
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  /** An input that interrupts the thread reading it at its first read. */
+  private static final class InterruptingInput extends InputStream {
+
+    private final ByteArrayInputStream bytes;
+    private boolean interrupted;
+
+    InterruptingInput(byte[] content) {
+      bytes = new ByteArrayInputStream(content);
+    }
+
+    @Override
+    public int read() {
+      interruptOnce();
+      return bytes.read();
+    }
+
+    @Override
+    public int read(byte[] buffer, int offset, int length) {
+      interruptOnce();
+      return bytes.read(buffer, offset, length);
+    }
+
+    private void interruptOnce() {
+      if (!interrupted) {
+        interrupted = true;
+        Thread.currentThread().interrupt();
+      }
+    }
+
+    /** Whether every byte of the input was read. */
+    boolean readToTheEnd() {
+      return bytes.available() == 0;
+    }
+  }
+
+  @Test
+  void anInterruptWhileTheInputIsParsedStopsTheParseAndWritesNothing() throws Exception {
+    // about 4.4 MB of a field the mapping skips, far more than a parser reads at once
+    String input = sourceOrder("<Quantity>1</Quantity>".repeat(200_000));
+    // witness: without the interrupt the same run reads it all and writes the root
+    assertThat(run(orderIdLink(), input)).isEqualTo(DECLARATION + EMPTY_ROOT);
+    ExecutableMapping mapping = Interpreter.compile(orderIdLink(), false);
+    InterruptingInput in = new InterruptingInput(input.getBytes(UTF_8));
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    try {
+      assertThatThrownBy(() -> mapping.run(in, out, new Tracer()))
+          .isInstanceOf(CancellationException.class);
+    } finally {
+      Thread.interrupted();
+    }
+
+    assertThat(out.toByteArray()).as("output of the cancelled run").isEmpty();
+    assertThat(in.readToTheEnd()).as("the parse went on to the end of the input").isFalse();
+  }
+
+  /** An output that interrupts the thread writing it at its first write. */
+  private static final class InterruptingOutput extends OutputStream {
+
+    private final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    private boolean interrupted;
+
+    @Override
+    public void write(int b) {
+      interruptOnce();
+      bytes.write(b);
+    }
+
+    @Override
+    public void write(byte[] buffer, int offset, int length) {
+      interruptOnce();
+      bytes.write(buffer, offset, length);
+    }
+
+    private void interruptOnce() {
+      if (!interrupted) {
+        interrupted = true;
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  /**
+   * The input is read whole before anything is written, so an interrupt that comes with the first
+   * bytes of output finds the run inside its loop over slots: about 1.4 MB of target fields, far
+   * more than a writer holds back.
+   */
+  @Test
+  void anInterruptWhileTheTargetIsWrittenStopsTheLoopOverSlots() throws Exception {
+    TargetDocument notes = document(leaf("Note", rootLeaf("Note", "a1"), 0, UNBOUNDED, "t1"));
+    byte[] input = utf8(sourceOrder("<Note>x</Note>".repeat(100_000)));
+    String all = DECLARATION + ROOT_OPEN + "<Note>x</Note>".repeat(100_000) + ROOT_CLOSE;
+    // witness: without the interrupt the same run writes every field
+    assertThat(new String(run(notes, false, input, new Tracer()), UTF_8)).isEqualTo(all);
+    ExecutableMapping mapping = Interpreter.compile(notes, false);
+    InterruptingOutput out = new InterruptingOutput();
+
+    try {
+      assertThatThrownBy(() -> mapping.run(new ByteArrayInputStream(input), out, new Tracer()))
+          .isInstanceOf(CancellationException.class);
     } finally {
       Thread.interrupted();
     }
