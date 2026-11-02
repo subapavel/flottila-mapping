@@ -21,6 +21,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.Config;
 
@@ -104,7 +105,7 @@ public class Workspace {
         new SimpleFileVisitor<>() {
           @Override
           public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-            return BASE.matcher(root.relativize(dir).toString()).matches()
+            return BASE.matcher(relative(dir)).matches()
                 ? FileVisitResult.CONTINUE
                 : FileVisitResult.SKIP_SUBTREE;
           }
@@ -116,7 +117,7 @@ public class Workspace {
 
           @Override
           public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-            String relative = root.relativize(file).toString();
+            String relative = relative(file);
             if (relative.endsWith(SUFFIX)) {
               String id = relative.substring(0, relative.length() - SUFFIX.length());
               if (isId(id) && insideByRealPath(file)) {
@@ -242,9 +243,21 @@ public class Workspace {
   private Path real(Path path) throws IOException, WorkspacePathException {
     Path real = path.toRealPath();
     if (!real.startsWith(root)) {
-      throw new WorkspacePathException(root.relativize(path).toString());
+      throw new WorkspacePathException(relative(path));
     }
     return real;
+  }
+
+  /**
+   * {@code path} relative to the root, its name elements joined with {@code /} on every OS
+   * (ADR-0024 workspace path); {@code ""} for the root itself.
+   */
+  private String relative(Path path) {
+    StringJoiner joined = new StringJoiner("/");
+    for (Path name : root.relativize(path)) {
+      joined.add(name.toString());
+    }
+    return joined.toString();
   }
 
   /** False also when the real path does not resolve: a dangling link or a link loop. */
