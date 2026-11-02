@@ -1,4 +1,16 @@
 {
+  "formatByExample": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "values"
+      },
+      {
+        "name": "example"
+      }
+    ],
+    "portable": true
+  },
   "removeContexts": {
     "executionKind": "queue",
     "inputs": [

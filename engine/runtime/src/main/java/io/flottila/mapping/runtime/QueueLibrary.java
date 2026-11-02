@@ -21,6 +21,11 @@ final class QueueLibrary {
    */
   static Node.OfQueue bind(String name, List<Node.OfQueue> inputs) {
     return switch (name) {
+      case "formatByExample" -> {
+        Node.OfQueue values = inputs.get(0);
+        Node.OfQueue example = inputs.get(1);
+        yield frame -> ContextFunctions.formatByExample(values.eval(frame), example.eval(frame));
+      }
       case "removeContexts" -> {
         Node.OfQueue input = inputs.getFirst();
         yield frame -> ContextFunctions.removeContexts(input.eval(frame));

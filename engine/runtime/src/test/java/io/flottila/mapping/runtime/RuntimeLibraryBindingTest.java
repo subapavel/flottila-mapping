@@ -90,4 +90,40 @@ class RuntimeLibraryBindingTest {
                 + NS
                 + "\"><Note>fixed</Note><Note>fixed</Note></ns0:Order>");
   }
+
+  /**
+   * The args bind in catalogue order, values then example (#58): Id in the root's context is A, B,
+   * C, and Name in Item's context x1, x2 | y, so the result is A, B | C and the root's one slot
+   * reads A, B. The args swapped would give x1, x2, y.
+   */
+  @Test
+  void formatByExampleIsBoundByNameWithItsArgsInOrder() throws Exception {
+    FunCall formatByExample =
+        new FunCall(
+            new FunctionRef("formatByExample", List.of(QUEUE, QUEUE), QUEUE),
+            List.of(
+                new SourceQueue(List.of(ORDER, new Name("", "Id")), 1, new AuthoringId("a1")),
+                new SourceQueue(
+                    List.of(ORDER, new Name("", "Item"), new Name("", "Name")),
+                    2,
+                    new AuthoringId("a2"))),
+            new AuthoringId("f1"));
+    TargetDocument document = notes(formatByExample, new VarRef("v", AtomicType.STRING, T1));
+    IrVerifier.verify(document);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    String input =
+        "<s:Order xmlns:s=\""
+            + NS
+            + "\"><Id>A</Id><Id>B</Id><Id>C</Id><Item><Name>x1</Name><Name>x2</Name></Item>"
+            + "<Item><Name>y</Name></Item></s:Order>";
+
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+
+    assertThat(out.toString(UTF_8))
+        .isEqualTo(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
+                + NS
+                + "\"><Note>A</Note><Note>B</Note></ns0:Order>");
+  }
 }

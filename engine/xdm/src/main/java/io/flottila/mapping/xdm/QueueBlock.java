@@ -81,6 +81,16 @@ public final class QueueBlock {
   }
 
   /**
+   * A block over this block's own values array, split at {@code example}'s context starts, which it
+   * shares too: an operation that takes another queue's boundaries copies nothing (ADR-0004).
+   *
+   * @throws IllegalArgumentException unless {@code example} has as many slots as this block
+   */
+  QueueBlock withContextsOf(QueueBlock example) {
+    return withContextStarts(example.contextStarts);
+  }
+
+  /**
    * A block over this block's own values array, split at {@code contextStarts} instead: a context
    * operation that changes only the boundaries shares the values (ADR-0004).
    *

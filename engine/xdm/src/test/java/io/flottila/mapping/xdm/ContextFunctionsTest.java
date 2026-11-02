@@ -1,6 +1,7 @@
 package io.flottila.mapping.xdm;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -194,5 +195,91 @@ class ContextFunctionsTest {
     }
 
     assertThat(slots(result)).containsExactlyElementsOf(written);
+  }
+
+  // --- formatByExample (#58): the values of the first queue in the contexts of the second (#2 §4)
+
+  /**
+   * {@code count} distinct values {@code v1} … in contexts of their own that the example does not
+   * have: an empty context first, then one value per context, so that a result that kept them, or
+   * counted the empty one, shows.
+   */
+  private static Queue valuesFor(int count) {
+    List<List<String>> contexts = new ArrayList<>();
+    contexts.add(List.of());
+    for (int k = 1; k <= count; k++) {
+      contexts.add(List.of("v" + k));
+    }
+    return new Queue(count + " values", contexts);
+  }
+
+  /** The reference: {@code values} in order, cut to the sizes of {@code example}'s contexts. */
+  private static List<List<String>> formattedBy(List<String> values, Queue example) {
+    List<List<String>> contexts = new ArrayList<>();
+    int next = 0;
+    for (List<String> context : example.contexts()) {
+      contexts.add(values.subList(next, next + context.size()));
+      next += context.size();
+    }
+    return contexts;
+  }
+
+  /**
+   * Every value in order, in the example's contexts, empty ones and none at all included; the
+   * contexts of the values play no part. Both inputs read as before.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void formatByExampleCutsTheValuesAtTheExamplesContextChanges(String name, Queue example) {
+    Queue values = valuesFor(example.flat().size());
+    QueueBlock valueBlock = values.block();
+    QueueBlock exampleBlock = example.block();
+
+    QueueBlock result = ContextFunctions.formatByExample(valueBlock, exampleBlock);
+
+    assertThat(read(result)).isEqualTo(formattedBy(values.flat(), example));
+    assertThat(read(valueBlock)).isEqualTo(values.contexts());
+    assertThat(read(exampleBlock)).isEqualTo(example.contexts());
+  }
+
+  /** It changes only the boundaries, so it shares the values array as removeContexts does. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queuesWithSlots")
+  void formatByExampleSharesTheValueArray(String name, Queue example) {
+    String[] values = valuesFor(example.flat().size()).values();
+    QueueBlock input = QueueBlock.of(values, valuesFor(values.length).starts());
+
+    QueueBlock result = ContextFunctions.formatByExample(input, example.block());
+    // witness: before the write the result holds the input's own value objects
+    for (int i = 0; i < values.length; i++) {
+      assertThat(result.value(i)).as("slot index %d", i).isSameAs(input.value(i));
+    }
+    values[0] = "written";
+
+    assertThat(result.value(0)).isEqualTo("written");
+  }
+
+  /**
+   * One value more, or one fewer, than the example holds is refused, whatever the contexts: the SAP
+   * documentation requires equal value counts (#2 §4). The message names both counts.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void formatByExampleRefusesUnequalValueCounts(String name, Queue example) {
+    int count = example.flat().size();
+    QueueBlock exampleBlock = example.block();
+
+    assertThatThrownBy(
+            () -> ContextFunctions.formatByExample(valuesFor(count + 1).block(), exampleBlock))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("formatByExample")
+        .hasMessageContaining((count + 1) + " values")
+        .hasMessageContaining(count + " values");
+    if (count > 0) {
+      assertThatThrownBy(
+              () -> ContextFunctions.formatByExample(valuesFor(count - 1).block(), exampleBlock))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining((count - 1) + " values");
+    }
   }
 }
