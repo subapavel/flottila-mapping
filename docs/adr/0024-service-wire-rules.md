@@ -65,7 +65,9 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
   - `Structures.load`;
   - `Structure.fingerprint()` and the structure's read accessors (root field and type definitions), which
     `/api/structures` maps to `FieldDto`.
-- A request with a missing or null non-`Optional` member, or an empty body, is 400 `invalid-request`, never 500.
+- A JSON request record with a missing, null or wrongly typed non-`Optional` member (no scalar coercion), or an
+  empty body, is 400 `invalid-request`, never 500. A PUT body is the model's raw bytes, so an empty one is
+  `malformed-json`.
 
 ## Considered options
 
