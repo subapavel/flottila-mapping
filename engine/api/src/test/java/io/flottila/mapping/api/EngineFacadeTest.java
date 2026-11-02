@@ -366,6 +366,38 @@ class EngineFacadeTest {
                 List.of(error("unsupported-box-kind", new AtAuthoringId(new AuthoringId("f1"))))));
   }
 
+  @Test
+  void exportOfAUdfBoxIsRefusedWithUnsupportedBoxKindAtTheBox() throws Exception {
+    byte[] model =
+        new String(
+                orderToOrder(
+                    """
+                    {"%1$s/OrderId": {"id": "t1", "result": "u1",
+                                      "boxes": {"u1": {"kind": "udf", "udf": "twice",
+                                                       "inputs": ["a1"]},
+                                                "a1": {"kind": "source",
+                                                       "field": "%1$s/OrderId"}}}}
+                    """
+                        .formatted(ORDER)),
+                UTF_8)
+            .replace(
+                "\"targetFieldMappings\":",
+                """
+                "udfs": {"twice": {"executionKind": "single", "inputs": ["value"],
+                                   "source": "udfs/Numbers.java#twice"}},
+                "targetFieldMappings":""")
+            .getBytes(UTF_8);
+    List<String> atTheBox =
+        described(List.of(error("unsupported-box-kind", new AtAuthoringId(new AuthoringId("u1")))));
+    // witness: the model passes stages 1 and 2, and compile refuses it at the box
+    assertThat(described(refusal(new EngineFacade().compile(model, skeleton(), DEPLOY))))
+        .containsExactlyElementsOf(atTheBox);
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().export(model, skeleton()));
+
+    assertThat(described(diagnostics)).containsExactlyElementsOf(atTheBox);
+  }
+
   /** A refused model, the directory its bundle references resolve in, and its diagnostics. */
   private record RefusedModel(String why, byte[] model, Path base, List<Diagnostic> expected) {}
 
