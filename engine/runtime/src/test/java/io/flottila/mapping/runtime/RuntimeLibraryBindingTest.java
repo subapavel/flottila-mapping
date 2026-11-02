@@ -21,6 +21,7 @@ import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -134,6 +135,74 @@ class RuntimeLibraryBindingTest {
     assertThatThrownBy(() -> Interpreter.compile(document, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("everyOtherValue");
+  }
+
+  /** {@code Order/<steps>} read in the context {@code depth} steps from the root. */
+  private static SourceQueue source(int depth, String box, String... steps) {
+    List<Name> names = new ArrayList<>(List.of(ORDER));
+    for (String step : steps) {
+      names.add(new Name("", step));
+    }
+    return new SourceQueue(names, depth, new AuthoringId(box));
+  }
+
+  /** Two Ids in the root's context, and Name in Item's: x1, x2 | y. */
+  private static final String ITEMS =
+      "<s:Order xmlns:s=\""
+          + NS
+          + "\"><Id>A</Id><Id>B</Id><Item><Name>x1</Name><Name>x2</Name></Item>"
+          + "<Item><Name>y</Name></Item></s:Order>";
+
+  /** The output of {@link #notes} over {@code queue} for the input {@link #ITEMS}. */
+  private static String runOverItems(FunCall queue) throws Exception {
+    TargetDocument document = notes(queue, new VarRef("v", AtomicType.STRING, T1));
+    IrVerifier.verify(document);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(ITEMS.getBytes(UTF_8)), out, new Tracer());
+
+    return out.toString(UTF_8);
+  }
+
+  private static String notesOf(String... values) {
+    StringBuilder notes = new StringBuilder();
+    for (String value : values) {
+      notes.append("<Note>").append(value).append("</Note>");
+    }
+    return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
+        + NS
+        + "\">"
+        + notes
+        + "</ns0:Order>";
+  }
+
+  @Test
+  void collapseContextsIsBoundByName() throws Exception {
+    FunCall collapse =
+        new FunCall(
+            new FunctionRef("collapseContexts", List.of(QUEUE), QUEUE),
+            List.of(source(2, "a1", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    // Name in Item's context is x1, x2 | y; the root's one slot reads the collapsed context
+    assertThat(runOverItems(collapse)).isEqualTo(notesOf("x1", "y"));
+  }
+
+  /** The args bind in catalogue order: value, occurrences, contexts. */
+  @Test
+  void useOneAsManyIsBoundByNameWithItsArgsInOrder() throws Exception {
+    FunCall useOneAsMany =
+        new FunCall(
+            new FunctionRef("useOneAsMany", List.of(QUEUE, QUEUE, QUEUE), QUEUE),
+            List.of(
+                source(1, "a1", "Id"),
+                source(2, "a2", "Item", "Name"),
+                source(1, "a3", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    // A once per Name of the first Item, B once per Name of the second, in one context
+    assertThat(runOverItems(useOneAsMany)).isEqualTo(notesOf("A", "A", "B"));
   }
 
   @Test

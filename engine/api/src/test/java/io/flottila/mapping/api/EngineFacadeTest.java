@@ -891,4 +891,58 @@ class EngineFacadeTest {
       assertThat(Thread.interrupted()).as("the interrupt is kept").isTrue();
     }
   }
+
+  // --- useOneAsMany's error conditions (#56): an assumed reading (#2 §7.10, #34)
+
+  /** obs-useoneasmany uoam-1 with its result on {@code Out/All}: Id, Sku in context Order, Tag. */
+  private static final byte[] USE_ONE_AS_MANY =
+      """
+      {"formatVersion": 1,
+       "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                  "root": {"element": "Orders"}},
+       "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+                  "root": {"element": "Out"}},
+       "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "u1",
+         "boxes": {"u1": {"kind": "function", "fn": "useOneAsMany", "inputs": ["a1", "a2", "a3"]},
+                   "a1": {"kind": "source", "field": "/Orders/Order/Id"},
+                   "a2": {"kind": "source", "field": "/Orders/Order/Line/Sku",
+                          "context": "/Orders/Order"},
+                   "a3": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
+      """
+          .formatted(FINGERPRINT)
+          .getBytes(UTF_8);
+
+  /** One order with Id A, the given Tags and one Line per Sku. */
+  private static byte[] order(int tags, int skus) {
+    return utf8(
+        "<Orders><Order><Id>A</Id>"
+            + "<Tag>t</Tag>".repeat(tags)
+            + "<Line><Sku>s</Sku></Line>".repeat(skus)
+            + "</Order></Orders>");
+  }
+
+  /**
+   * The input of obs-useoneasmany u2.xml: three Skus but two Tags, so the third input has fewer
+   * slots than the second. The run stops and writes nothing. No runtime error has a code before
+   * #52, so a test run reports it as an unchecked failure; #52's code replaces this test, and the
+   * u2 to u4 corpus cases follow it.
+   */
+  @Test
+  void aUseOneAsManyCountMismatchStopsTheRun() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    Path observations = CorpusStructures.directory("observations");
+    CompiledMapping deployed = compiled(facade.compile(USE_ONE_AS_MANY, observations, DEPLOY));
+    // witness: with as many Tags as Skus (u1.xml's first order) the mapping runs
+    assertThat(new String(facade.run(deployed, order(3, 3)), UTF_8))
+        .isEqualTo(DECLARATION + "<Out><All>A</All><All>A</All><All>A</All></Out>");
+
+    assertThatThrownBy(() -> facade.run(deployed, order(2, 3)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("useOneAsMany");
+    CompiledMapping tested =
+        compiled(facade.compile(USE_ONE_AS_MANY, observations, CompileOptions.TEST_RUN));
+    assertThatThrownBy(() -> facade.testRun(tested, order(2, 3), Duration.ofSeconds(10)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasCauseInstanceOf(IllegalArgumentException.class);
+  }
 }

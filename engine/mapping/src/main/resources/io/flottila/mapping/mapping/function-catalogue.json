@@ -1,4 +1,13 @@
 {
+  "collapseContexts": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
   "removeContexts": {
     "executionKind": "queue",
     "inputs": [
@@ -25,6 +34,21 @@
           "valueChange",
           "emptyValue"
         ]
+      }
+    ],
+    "portable": true
+  },
+  "useOneAsMany": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "occurrences"
+      },
+      {
+        "name": "contexts"
       }
     ],
     "portable": true
