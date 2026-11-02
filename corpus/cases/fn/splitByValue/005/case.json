@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-each.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0004 \"An absent parent gives zero contexts, not one empty context\" (assumed reading, Consequences); #2 §7.6 (empty contexts)",
+  "expect": "output",
+  "note": "An empty input: <Orders/> has no Order, so the Tag queue has no context; removeContexts gives one empty context and S1 keeps it as one empty context, so the root's slot creates no All."
+}

@@ -90,5 +90,11 @@ public final class MappingDiagnostics {
   /** A function box param whose key its catalogue entry lacks, at the box. */
   public static final String UNKNOWN_PARAMETER = "unknown-parameter";
 
+  /** A function box param of another type than its catalogue entry's, at the box. */
+  public static final String WRONG_PARAMETER_TYPE = "wrong-parameter-type";
+
+  /** A function box param whose string is none of its catalogue entry's values, at the box. */
+  public static final String INVALID_PARAMETER_VALUE = "invalid-parameter-value";
+
   private MappingDiagnostics() {}
 }

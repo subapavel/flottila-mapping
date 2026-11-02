@@ -1,9 +1,54 @@
 {
+  "collapseContexts": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
   "removeContexts": {
     "executionKind": "queue",
     "inputs": [
       {
         "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "splitByValue": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "eachValue",
+        "name": "mode",
+        "type": "string",
+        "values": [
+          "eachValue",
+          "valueChange",
+          "emptyValue"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "useOneAsMany": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "occurrences"
+      },
+      {
+        "name": "contexts"
       }
     ],
     "portable": true
