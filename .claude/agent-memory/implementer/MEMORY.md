@@ -35,6 +35,15 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   prefix first. Java `compareTo` is UTF-16 order, `compareToIgnoreCase` code-point order (JDK src).
 - engine/xdm is at 100 % PIT: an interrupt check that `QueueBlock.of`'s own check duplicates dies
   only if the test asserts the function's name in the CancellationException message.
+- `-pl engine/oracle` without `-am` takes sibling SNAPSHOT jars from `~/.m2`, stale ones: a
+  "cannot find symbol" for a new engine class. Always `-am`.
+- A ticket branch checked out in another worktree: reset the agent branch to it, then
+  `git push origin HEAD:<ticket-branch>`.
+- Splitting a shared helper copies its branches; a copy no test reaches drops the module's
+  branch % (the ratchet floors it: 97.9 is 97). Keep a shared check in one method.
+- Saxon 12.5 s9api `QName.getNamespaceURI()` is deprecated (`-Werror` fails): `getNamespace()`.
+- Saxon: inside `xsl:for-each` over arrays the focus is no node, a leading `/` is static
+  XPTY0020; read a global `<xsl:variable select="/">` (the s9api transform sets the global item).
 - Error messages in engine classes must not hold a kebab-case constant with a hyphen (e.g. a param
   value `case-insensitive`): `DiagnosticCatalogueTest` treats it as an uncatalogued code (read in
   its source, not observed failing).
