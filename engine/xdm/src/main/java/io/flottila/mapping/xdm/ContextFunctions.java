@@ -102,7 +102,7 @@ public final class ContextFunctions {
    * values} stays SUPPRESS at its slot, and a SUPPRESS of {@code example} counts as a value (an
    * assumed reading since #51).
    *
-   * @throws IllegalArgumentException unless both queues hold as many values: the SAP documentation
+   * @throws QueueDataException unless both queues hold as many values: the SAP documentation
    *     requires equal counts, where empty contexts are not counted, and raises an exception
    *     otherwise (#2 §4)
    * @throws CancellationException when the thread is interrupted while the context starts are
@@ -110,7 +110,7 @@ public final class ContextFunctions {
    */
   public static QueueBlock formatByExample(QueueBlock values, QueueBlock example) {
     if (values.slots() != example.slots()) {
-      throw new IllegalArgumentException(
+      throw new QueueDataException(
           "formatByExample needs as many values in its first input as in its second: the first"
               + " has "
               + values.slots()
@@ -191,7 +191,7 @@ public final class ContextFunctions {
    * ascending or {@code descending}. The contexts stay as they are; the result copies references
    * only and shares the context starts (ADR-0004).
    *
-   * @throws IllegalArgumentException when {@code comparison} is numeric and a value is no decimal
+   * @throws QueueDataException when {@code comparison} is numeric and a value is no decimal
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock sort(QueueBlock queue, Comparison comparison, boolean descending) {
@@ -204,16 +204,15 @@ public final class ContextFunctions {
    * Only the keys are compared, so only they are parsed. The result copies references only and
    * shares the context starts of {@code values} (ADR-0004).
    *
-   * @throws IllegalArgumentException unless both queues have the same number of contexts and each
-   *     context as many keys as values, or when {@code comparison} is numeric and a key is no
-   *     decimal or is SUPPRESS (#2 §3: "numeric keys must not be equal to the constant
-   *     ResultList.SUPPRESS")
+   * @throws QueueDataException unless both queues have the same number of contexts and each context
+   *     as many keys as values, or when {@code comparison} is numeric and a key is no decimal or is
+   *     SUPPRESS (#2 §3: "numeric keys must not be equal to the constant ResultList.SUPPRESS")
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock sortByKey(
       QueueBlock keys, QueueBlock values, Comparison comparison, boolean descending) {
     if (keys.contexts() != values.contexts()) {
-      throw new IllegalArgumentException(
+      throw new QueueDataException(
           "sortByKey needs one context of keys per context of values; contexts of keys: "
               + keys.contexts()
               + ", of values: "
@@ -240,7 +239,7 @@ public final class ContextFunctions {
       // one check per context: a context's slots are read and sorted below, bounded by their count
       checkInterrupt(function);
       if (keys.end(c) != values.end(c)) {
-        throw new IllegalArgumentException(
+        throw new QueueDataException(
             function
                 + " needs as many keys as values in each context; in context "
                 + (c + 1)
@@ -287,7 +286,7 @@ public final class ContextFunctions {
           // a SUPPRESS key's value is null, which stays null where it may stand
           String key = keys.value(start + k);
           if (key == null && !suppressKeys) {
-            throw new IllegalArgumentException(
+            throw new QueueDataException(
                 function
                     + " compares numerically, and a key is SUPPRESS, which a numeric key must not"
                     + " be (#2 §3)");
@@ -308,7 +307,7 @@ public final class ContextFunctions {
   /** {@code value} as a decimal, read as the export's {@code xs:decimal} cast reads it. */
   private static BigDecimal decimal(String function, String value) {
     if (!DECIMAL.matcher(value).matches()) {
-      throw new IllegalArgumentException(
+      throw new QueueDataException(
           function
               + " compares numerically, and \""
               + value
@@ -402,15 +401,15 @@ public final class ContextFunctions {
    * like any other, and the slots of {@code contexts} give only their boundaries (assumed readings
    * since #51).
    *
-   * @throws IllegalArgumentException unless {@code value} has one slot per context of {@code
-   *     occurrences} and {@code contexts} as many slots as {@code occurrences}: the assumed reading
-   *     of the error conditions (#2 §7.10)
+   * @throws QueueDataException unless {@code value} has one slot per context of {@code occurrences}
+   *     and {@code contexts} as many slots as {@code occurrences}: the assumed reading of the error
+   *     conditions (#2 §7.10)
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock useOneAsMany(
       QueueBlock value, QueueBlock occurrences, QueueBlock contexts) {
     if (value.slots() != occurrences.contexts()) {
-      throw new IllegalArgumentException(
+      throw new QueueDataException(
           "useOneAsMany needs one value of its first input per context of its second: the first"
               + " has "
               + value.slots()
@@ -419,7 +418,7 @@ public final class ContextFunctions {
               + " contexts");
     }
     if (contexts.slots() != occurrences.slots()) {
-      throw new IllegalArgumentException(
+      throw new QueueDataException(
           "useOneAsMany needs as many slots in its third input as in its second: the third has "
               + contexts.slots()
               + " slots, the second "

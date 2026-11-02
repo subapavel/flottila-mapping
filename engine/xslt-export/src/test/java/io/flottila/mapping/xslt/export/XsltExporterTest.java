@@ -365,7 +365,9 @@ class XsltExporterTest {
   /**
    * A {@code TargetSlots} inside a mapped field's element, as lowering gives it since #52: each
    * level is two spaces deeper, one element per line (#27 design), the inner queue's context is
-   * {@code Item}, and the inner field reads Item's slot number {@code $slot2} as its parent's.
+   * {@code Item}, and the inner field reads Item's slot number {@code $slot2} as its parent's. The
+   * inner queue reads the source from {@code $po:source}: inside an occurrence the focus is its
+   * {@code [slot number, value]}, where a leading {@code /} is Saxon's static XPTY0020.
    */
   @Test
   void aTargetFieldInsideAnElementIsWrittenOneLevelDeeper() {
@@ -425,7 +427,7 @@ class XsltExporterTest {
                     <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <Item>
                       <xsl:for-each \
-            select="po:slots(array:join(/s0:Order/Item ! [Name ! string()]), $slot2, 1)">
+            select="po:slots(array:join($po:source/s0:Order/Item ! [Name ! string()]), $slot2, 1)">
                         <xsl:variable name="slot3" as="xs:integer" select="?1"/>
                         <xsl:variable name="value3" as="xs:string" select="?2"/>
                         <Name><xsl:value-of select="$value3"/></Name>

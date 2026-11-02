@@ -1,5 +1,6 @@
 package io.flottila.mapping.runtime;
 
+import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.xdm.QueueBlock;
 import java.io.IOException;
 import java.util.concurrent.CancellationException;
@@ -31,47 +32,115 @@ interface Node {
   }
 
   /**
-   * {@code TargetSlots} (ADR-0006): the body once per slot of context {@code p} of the queue, where
-   * {@code p} is the parent's slot number, until {@code max} occurrences are created. A SUPPRESS
-   * slot creates nothing and does not count toward {@code max}.
+   * {@code TargetSlots} (ADR-0006 "Target fields", refined by #52): the body once per created slot
+   * of context {@code p} of the queue, where {@code p} is the parent's slot number, with the slot's
+   * number and value in their frame slots. A slot number is the slot's index across all contexts of
+   * the queue plus 1, so a SUPPRESS slot and a truncated slot keep theirs. A context the queue
+   * lacks counts as empty. Before anything of context {@code p} is written, fewer than {@code min}
+   * slots that are not SUPPRESS raise {@code po:MINOCCURS} at the target field mapping; then each
+   * slot that is not SUPPRESS is created until {@code max} are.
+   *
+   * <p>The queue is evaluated at most once per run, on first read, and kept in the frame. It reads
+   * no variable of the target, as the IR verifier allows a context function only {@code Literal}
+   * params and a {@code Lift}'s body only its own slot variables, so every parent occurrence gets
+   * the same block.
    */
   final class Slots implements OfContent {
 
     private final OfQueue queue;
+    private final int queueIndex;
     private final OfInteger parentSlot;
+    private final long min;
     private final long max;
+    private final int slotSlot;
     private final int valueSlot;
     private final OfContent body;
+    private final AuthoringId origin;
 
-    Slots(OfQueue queue, OfInteger parentSlot, long max, int valueSlot, OfContent body) {
+    /**
+     * @param queueIndex where the frame keeps the queue's block once it is evaluated
+     * @param slotSlot the {@code INTEGER} frame slot of the slot number
+     * @param valueSlot the {@code STRING} frame slot of the slot's value
+     * @param origin the target field mapping, where {@code po:MINOCCURS} is raised
+     */
+    Slots(
+        OfQueue queue,
+        int queueIndex,
+        OfInteger parentSlot,
+        long min,
+        long max,
+        int slotSlot,
+        int valueSlot,
+        OfContent body,
+        AuthoringId origin) {
       this.queue = queue;
+      this.queueIndex = queueIndex;
       this.parentSlot = parentSlot;
+      this.min = min;
       this.max = max;
+      this.slotSlot = slotSlot;
       this.valueSlot = valueSlot;
       this.body = body;
+      this.origin = origin;
     }
 
     @Override
     public void write(Frame frame) throws IOException {
-      QueueBlock block = queue.eval(frame);
-      long parent = parentSlot.eval(frame);
-      if (parent > block.contexts()) {
-        // the queue has no context p, as when the input's root is not the source root: nothing
-        return;
+      QueueBlock block = frame.targetQueues[queueIndex];
+      if (block == null) {
+        block = queue.eval(frame);
+        frame.targetQueues[queueIndex] = block;
       }
-      int context = (int) parent - 1;
-      int end = block.end(context);
+      long parent = parentSlot.eval(frame);
+      int start = 0;
+      int end = 0;
+      if (parent <= block.contexts()) {
+        int context = (int) parent - 1;
+        start = block.start(context);
+        end = block.end(context);
+      }
+      long created = create(frame, block, start, end, min, false);
+      if (created < min) {
+        throw new MappingRunException(
+            RuntimeErrors.MINOCCURS,
+            origin,
+            "the target field mapping "
+                + origin.value()
+                + " creates "
+                + created
+                + " occurrences under parent slot "
+                + parent
+                + ", fewer than its minOccurs "
+                + min,
+            null);
+      }
+      create(frame, block, start, end, max, true);
+    }
+
+    /**
+     * Walks the slots {@code start} to {@code end} of {@code block} until {@code limit} of them are
+     * created, a SUPPRESS slot creating nothing, and writes the body of each when {@code write}.
+     *
+     * @return the number of slots created
+     */
+    private long create(
+        Frame frame, QueueBlock block, int start, int end, long limit, boolean write)
+        throws IOException {
       long created = 0;
-      for (int slot = block.start(context); slot < end && created < max; slot++) {
+      for (int slot = start; slot < end && created < limit; slot++) {
         if (Thread.currentThread().isInterrupted()) {
           throw new CancellationException("the mapping run was interrupted");
         }
         if (!block.suppressed(slot)) {
-          frame.strings[valueSlot] = block.value(slot);
-          body.write(frame);
+          if (write) {
+            frame.integers[slotSlot] = slot + 1L;
+            frame.strings[valueSlot] = block.value(slot);
+            body.write(frame);
+          }
           created++;
         }
       }
+      return created;
     }
   }
 

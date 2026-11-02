@@ -22,6 +22,7 @@ import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.runtime.Interpreter;
+import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.io.ByteArrayInputStream;
@@ -281,8 +282,14 @@ class SuppressContextFunctionsAgreementTest {
     assertThat(new String(ours, UTF_8)).contains("<Out><C>1</C><C>2</C></Out>");
     SaxonRunner.assertAgree(saxon(lexicographic, input, "lexicographic"), ours, "lexicographic");
 
+    // since #52 the run stops with sortByKey's one code at its box (ADR-0025)
     assertThatThrownBy(() -> ours(numeric, input))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOfSatisfying(
+            MappingRunException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("po:SORTBYKEY");
+              assertThat(e.authoringId()).isEqualTo(new AuthoringId("y1"));
+            })
         .hasMessageContaining("SUPPRESS");
     assertThatThrownBy(() -> saxon(numeric, input, "numeric"))
         .isInstanceOfSatisfying(

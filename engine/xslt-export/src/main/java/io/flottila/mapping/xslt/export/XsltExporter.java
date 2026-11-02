@@ -36,12 +36,17 @@ import java.util.stream.Collectors;
  *       pair met again is not declared again.
  *   <li>A name without a namespace stays bare. There is never a default namespace and never an
  *       {@code xpath-default-namespace}.
- *   <li>{@code TargetSlots} is {@code po:slots} over its queue, its parent's slot number and its
- *       {@code max}, {@code ()} when unbounded; spec 1 does not enforce {@code min} (ADR-0006).
+ *   <li>{@code TargetSlots} is an {@code xsl:for-each} over {@code po:slots} of its queue, its
+ *       parent's slot number and its {@code max}, {@code ()} when unbounded, inside {@code
+ *       po:at-least} with its {@code min} when that is above 0 (ADR-0006 since #52). Each item is
+ *       {@code [slot number, value]}, bound to its slot and value variables.
  *   <li>A queue is an {@code array(item()*)} with one member per context, each value an {@code
- *       xs:string} or {@code $po:SUPPRESS}, and a {@code FunCall} is {@code po:<catalogue name>} of
- *       the helper module over its args in {@code FunCall} order (ADR-0025). A {@code Literal} is
- *       an XPath string literal in apostrophes.
+ *       xs:string} or {@code $po:SUPPRESS}. A {@code SourceQueue} directly under the root reads the
+ *       template's focus, the source document, as {@code /}; inside an occurrence the focus is the
+ *       occurrence's {@code [slot number, value]}, so it reads the helper's {@code $po:source}
+ *       (#52). A {@code FunCall} is {@code po:<catalogue name>} of the helper module over its args
+ *       in {@code FunCall} order (ADR-0025). A {@code Literal} is an XPath string literal in
+ *       apostrophes.
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -83,11 +88,21 @@ public final class XsltExporter {
 
   private static final String FOR_EACH =
       """
-      <xsl:for-each select="po:slots(%s, %s, %s)">""";
+      <xsl:for-each select="%s">""";
+
+  /** The occurrences of a {@code TargetSlots}: its queue, its parent's slot number, its max. */
+  private static final String SLOTS = "po:slots(%s, %s, %s)";
+
+  /** The occurrences of a {@code TargetSlots} whose min is above 0, and the min. */
+  private static final String AT_LEAST = "po:at-least(%s, %d)";
+
+  private static final String SLOT_VARIABLE =
+      """
+      <xsl:variable name="%s" as="xs:integer" select="?1"/>""";
 
   private static final String VALUE_VARIABLE =
       """
-      <xsl:variable name="%s" as="xs:string" select="."/>""";
+      <xsl:variable name="%s" as="xs:string" select="?2"/>""";
 
   private static final String END_FOR_EACH =
       """
@@ -97,10 +112,22 @@ public final class XsltExporter {
       """
       <xsl:value-of select="%s"/>""";
 
-  /** A {@code SourceQueue}: its context's path from the root, then its field's path under it. */
+  /**
+   * A {@code SourceQueue}: how it reaches the source document, its context's path from the root,
+   * then its field's path under it.
+   */
   private static final String QUEUE =
       """
-      array:join(/%s ! [%s ! string()])""";
+      array:join(%s%s ! [%s ! string()])""";
+
+  /** How a queue directly under the root reaches the source document: the template's focus. */
+  private static final String FROM_FOCUS = "/";
+
+  /**
+   * How a queue inside an occurrence reaches the source document: the helper's global variable, as
+   * the focus there is the occurrence's {@code [slot number, value]}, not a node (#52).
+   */
+  private static final String FROM_SOURCE = "$po:source/";
 
   /**
    * A {@code Lift} (ADR-0025): {@code po:lift} over its queues, and over the inline function that
@@ -149,7 +176,7 @@ public final class XsltExporter {
     String root = exporter.outputName(document.prefix(), document.root(), "the root");
     StringBuilder content = new StringBuilder();
     for (Expr expr : document.content()) {
-      exporter.instruction(expr, CONTENT_DEPTH, content);
+      exporter.instruction(expr, CONTENT_DEPTH, FROM_FOCUS, content);
     }
     return STYLESHEET.formatted(
         exporter.declarations.toString() + exporter.outputDeclarations,
@@ -169,19 +196,23 @@ public final class XsltExporter {
     }
   }
 
-  /** Appends {@code expr} as the instructions that create its content, at {@code depth}. */
-  private void instruction(Expr expr, int depth, StringBuilder out) {
+  /**
+   * Appends {@code expr} as the instructions that create its content, at {@code depth}.
+   *
+   * @param source how a queue there reaches the source document, {@link #FROM_FOCUS} or {@link
+   *     #FROM_SOURCE}
+   */
+  private void instruction(Expr expr, int depth, String source, StringBuilder out) {
     switch (expr) {
       case TargetSlots s -> {
-        line(
-            out,
-            depth,
-            FOR_EACH.formatted(
-                attribute(expression(s.queue())),
-                attribute(expression(s.parentSlot())),
-                max(s.max())));
+        String slots =
+            SLOTS.formatted(
+                expression(s.queue(), source), expression(s.parentSlot(), source), max(s.max()));
+        String occurrences = s.min() > 0 ? AT_LEAST.formatted(slots, s.min()) : slots;
+        line(out, depth, FOR_EACH.formatted(attribute(occurrences)));
+        line(out, depth + 1, SLOT_VARIABLE.formatted(s.slotVar()));
         line(out, depth + 1, VALUE_VARIABLE.formatted(s.valueVar()));
-        instruction(s.body(), depth + 1, out);
+        instruction(s.body(), depth + 1, FROM_SOURCE, out);
         line(out, depth, END_FOR_EACH);
       }
       case ElementConstructor e -> {
@@ -189,7 +220,7 @@ public final class XsltExporter {
             outputName(e.prefix(), e.name(), "ElementConstructor of " + e.origin().value());
         line(out, depth, "<" + name + ">");
         for (Expr content : e.content()) {
-          instruction(content, depth + 1, out);
+          instruction(content, depth + 1, source, out);
         }
         String end = "</" + name + ">";
         if (e.content().size() == 1 && e.content().getFirst() instanceof TextConstructor) {
@@ -199,7 +230,8 @@ public final class XsltExporter {
           line(out, depth, end);
         }
       }
-      case TextConstructor t -> out.append(VALUE_OF.formatted(attribute(expression(t.value()))));
+      case TextConstructor t ->
+          out.append(VALUE_OF.formatted(attribute(expression(t.value(), source))));
       case SourceQueue q -> throw misplaced(q, "content");
       case VarRef v -> throw misplaced(v, "content");
       case Literal l -> throw misplaced(l, "content");
@@ -208,12 +240,17 @@ public final class XsltExporter {
     }
   }
 
-  /** {@code expr} as an XPath expression. */
-  private String expression(Expr expr) {
+  /**
+   * {@code expr} as an XPath expression.
+   *
+   * @param source how a queue there reaches the source document
+   */
+  private String expression(Expr expr, String source) {
     return switch (expr) {
       case SourceQueue q -> {
         String where = "SourceQueue of " + q.origin().value();
         yield QUEUE.formatted(
+            source,
             path(q.field().subList(0, q.contextDepth()), where),
             path(q.field().subList(q.contextDepth(), q.field().size()), where));
       }
@@ -221,9 +258,9 @@ public final class XsltExporter {
       case Literal l -> "'" + l.value().replace("'", "''") + "'";
       case FunCall c ->
           c.args().stream()
-              .map(this::expression)
+              .map(arg -> expression(arg, source))
               .collect(Collectors.joining(", ", "po:" + c.function().name() + "(", ")"));
-      case Lift l -> lift(l);
+      case Lift l -> lift(l, source);
       case TargetSlots s -> throw misplaced(s, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
@@ -234,15 +271,15 @@ public final class XsltExporter {
    * {@code l} as {@code po:lift} over the sequence of its queues and an inline function, whose
    * {@code let} binds slot variable k to the k-th string it gets, and which returns the body.
    */
-  private String lift(Lift l) {
+  private String lift(Lift l, String source) {
     List<String> bindings = new ArrayList<>();
     for (int k = 0; k < l.slotVars().size(); k++) {
       bindings.add("$" + l.slotVars().get(k) + " := $in[" + (k + 1) + "]");
     }
     return LIFT.formatted(
-        l.queues().stream().map(this::expression).collect(Collectors.joining(", ")),
+        l.queues().stream().map(q -> expression(q, source)).collect(Collectors.joining(", ")),
         String.join(", ", bindings),
-        expression(l.body()));
+        expression(l.body(), source));
   }
 
   private static String max(long max) {

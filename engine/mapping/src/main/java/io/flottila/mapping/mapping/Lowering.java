@@ -24,30 +24,36 @@ import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Structure;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 /**
  * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
- * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, under
- * the root created once. A source-field box gives its {@code SourceQueue}. A standard function box
- * whose function the catalogue holds gives, by its execution kind, a {@code FunCall} over its
- * inputs' queues and then its params as {@code Literal}s for a context or queue function, or a
- * {@code Lift} over its inputs' queues whose body is the atomic {@code FunCall} over the slot
- * variables and then the params for a single-value function (ADR-0006, ADR-0025). A param the box
- * leaves out is its catalogue default. A box that feeds several inputs is lowered once per use.
+ * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, in its
+ * parent's element: the root's, created once, or a mapped structure field's (ADR-0006 since #52).
+ * Its slot and value variables at depth d are {@code slot<d>} and {@code value<d>}, and it reads
+ * its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A leaf's
+ * element holds its value, a structure field's its mapped children in target field order. A
+ * source-field box gives its {@code SourceQueue}. A standard function box whose function the
+ * catalogue holds gives, by its execution kind, a {@code FunCall} over its inputs' queues and then
+ * its params as {@code Literal}s for a context or queue function, or a {@code Lift} over its
+ * inputs' queues whose body is the atomic {@code FunCall} over the slot variables and then the
+ * params for a single-value function (ADR-0006, ADR-0025). A param the box leaves out is its
+ * catalogue default. A box that feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
  * <ul>
  *   <li>a source or target field path the structure lacks: {@code orphaned-reference};
  *   <li>a source field that is no leaf element at any depth (#62), or a target field that is no
- *       leaf element under the root, such as an attribute or the root itself: {@code
- *       unsupported-field};
+ *       element under the root or under mapped parents, such as an attribute, the root itself or a
+ *       field under an unmapped parent (#63): {@code unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
  *   <li>a UDF box, or a function box whose function the catalogue does not hold yet: {@code
  *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
@@ -67,13 +73,19 @@ public final class Lowering {
   /** The variable that holds the root's slot number. */
   private static final String ROOT_SLOT = "root";
 
-  /** The variable that holds a slot's value in the body of its {@code TargetSlots}. */
+  /** The variable, before its depth, that holds a slot's number in its {@code TargetSlots}. */
+  private static final String SLOT = "slot";
+
+  /** The variable, before its depth, that holds a slot's value in its {@code TargetSlots}. */
   private static final String VALUE = "value";
+
+  /** The depth of a field directly under the root, whose parent's slot number is the root's. */
+  private static final int UNDER_ROOT = 2;
 
   private static final QueueType QUEUE = new QueueType();
 
-  /** A target field mapping that lowers: its place in target field order, field and queue. */
-  private record Link(int position, Field field, AuthoringId mapping, Expr queue) {}
+  /** A target field mapping that lowers: its field and queue. */
+  private record Link(Field field, AuthoringId mapping, Expr queue) {}
 
   private final MappingModel model;
   private final Structure source;
@@ -99,22 +111,20 @@ public final class Lowering {
   }
 
   private LowerResult lower() {
-    List<FieldPath> order = target.children(target.rootPath());
-    List<Link> links = new ArrayList<>();
-    model
-        .targetFieldMappings()
-        .forEach((path, mapping) -> link(path, mapping, order).ifPresent(links::add));
+    // the fields that are mapped, whether or not their mappings lower, for the parent check
+    Set<FieldPath> mapped = new HashSet<>();
+    for (String path : model.targetFieldMappings().keySet()) {
+      resolve(target, path).ifPresent(mapped::add);
+    }
+    Map<FieldPath, Link> links = new HashMap<>();
+    model.targetFieldMappings().forEach((path, mapping) -> link(path, mapping, mapped, links));
     if (!found.isEmpty()) {
       return new Refused(found);
     }
-    links.sort(Comparator.comparingInt(Link::position));
     FieldPath.Step root = target.root().step();
     // the root's namespace is met first, so it is ns0
     String rootPrefix = prefix(root.namespace());
-    List<Expr> content = new ArrayList<>();
-    for (Link link : links) {
-      content.add(slots(link));
-    }
+    List<Expr> content = children(target.rootPath(), links);
     TargetDocument document =
         new TargetDocument(
             rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content);
@@ -124,49 +134,71 @@ public final class Lowering {
   }
 
   /**
-   * The link of the target field at {@code path}, or empty once the reason it does not lower is
-   * reported: its field first, then its {@code result}.
+   * Adds the link of the target field at {@code path} to {@code links}, or reports why it does not
+   * lower: its field first, then its {@code result}.
    *
-   * @param order the target root's child fields in target field order
+   * @param mapped the target fields that have a target field mapping
    */
-  private Optional<Link> link(String path, TargetFieldMapping mapping, List<FieldPath> order) {
-    return leaf(target, path, mapping.id(), true)
-        .flatMap(
+  private void link(
+      String path, TargetFieldMapping mapping, Set<FieldPath> mapped, Map<FieldPath, Link> links) {
+    targetField(path, mapping.id(), mapped)
+        .ifPresent(
             field ->
                 queue(mapping)
-                    .map(
+                    .ifPresent(
                         queue ->
-                            new Link(
-                                order.indexOf(field),
-                                target.field(field).orElseThrow(),
-                                mapping.id(),
-                                queue)));
+                            links.put(
+                                field,
+                                new Link(target.field(field).orElseThrow(), mapping.id(), queue))));
   }
 
   /**
-   * The path of the leaf element that {@code text} names in {@code structure}, or empty once the
-   * reason it names none is reported at {@code at}.
+   * The path of the target element that {@code text} names, under the root and mapped parents, or
+   * empty once the reason it names none is reported at the target field mapping {@code at}. A field
+   * under an unmapped parent waits for #63 (#52 design, O1).
    *
-   * @param underRoot whether the leaf must be a child of the root: a target leaf under a structure
-   *     field needs the target slots of #52, while a source leaf may stand at any depth (#62)
+   * @param mapped the target fields that have a target field mapping
    */
-  private Optional<FieldPath> leaf(
-      Structure structure, String text, AuthoringId at, boolean underRoot) {
-    Optional<FieldPath> path = resolve(structure, text);
+  private Optional<FieldPath> targetField(String text, AuthoringId at, Set<FieldPath> mapped) {
+    Optional<FieldPath> path = resolve(target, text);
     if (path.isEmpty()) {
       report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
       return Optional.empty();
     }
-    Field field = structure.field(path.get()).orElseThrow();
-    if ((underRoot && path.get().steps().size() != 2)
-        || field.step().kind() != FieldKind.ELEMENT
-        || field.valueType().isEmpty()) {
+    List<FieldPath.Step> steps = path.get().steps();
+    boolean parentsMapped =
+        IntStream.range(UNDER_ROOT, steps.size())
+            .allMatch(depth -> mapped.contains(new FieldPath(steps.subList(0, depth))));
+    if (steps.size() < UNDER_ROOT
+        || steps.getLast().kind() != FieldKind.ELEMENT
+        || !parentsMapped) {
       report(
           MappingDiagnostics.UNSUPPORTED_FIELD,
           at,
           text
-              + " is not a field this engine maps yet: a source leaf element, or a target leaf"
-              + " element under the root");
+              + " is not a target field this engine maps yet: an element under the root or under"
+              + " mapped parents");
+      return Optional.empty();
+    }
+    return path;
+  }
+
+  /**
+   * The path of the leaf element that {@code text} names in the source structure, at any depth
+   * (#62), or empty once the reason it names none is reported at the box {@code at}.
+   */
+  private Optional<FieldPath> sourceLeaf(String text, AuthoringId at) {
+    Optional<FieldPath> path = resolve(source, text);
+    if (path.isEmpty()) {
+      report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
+      return Optional.empty();
+    }
+    Field field = source.field(path.get()).orElseThrow();
+    if (field.step().kind() != FieldKind.ELEMENT || field.valueType().isEmpty()) {
+      report(
+          MappingDiagnostics.UNSUPPORTED_FIELD,
+          at,
+          text + " is not a source field this engine maps yet: a leaf element");
       return Optional.empty();
     }
     return path;
@@ -211,7 +243,7 @@ public final class Lowering {
   private Optional<Expr> queue(TargetFieldMapping mapping, AuthoringId id) {
     return switch (mapping.boxes().get(id)) {
       case SourceFieldBox box ->
-          leaf(source, box.field(), id, false)
+          sourceLeaf(box.field(), id)
               .map(field -> new SourceQueue(names(field), contextDepth(box, field), id));
       case StandardFunctionBox box -> call(mapping, id, box);
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
@@ -370,20 +402,48 @@ public final class Lowering {
         .orElse(field.steps().size() - 1);
   }
 
-  private TargetSlots slots(Link link) {
-    FieldPath.Step step = link.field().step();
+  /**
+   * The {@code TargetSlots} of the mapped child fields of {@code parent}, in target field order.
+   */
+  private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
+    List<Expr> content = new ArrayList<>();
+    for (FieldPath child : target.children(parent)) {
+      Link link = links.get(child);
+      if (link != null) {
+        content.add(slots(child, link, links));
+      }
+    }
+    return content;
+  }
+
+  /**
+   * The {@code TargetSlots} of the mapped field at {@code path}: its variables by its depth, its
+   * parent's slot number, its effective occurrence, and its element, which holds its value for a
+   * leaf and its mapped children for a structure field. Its prefix is taken before its children's,
+   * so prefixes follow document order (ADR-0022).
+   */
+  private TargetSlots slots(FieldPath path, Link link, Map<FieldPath, Link> links) {
+    int depth = path.steps().size();
+    String slotVar = SLOT + depth;
+    String valueVar = VALUE + depth;
+    String parentSlot = depth == UNDER_ROOT ? ROOT_SLOT : SLOT + (depth - 1);
+    Field field = link.field();
+    FieldPath.Step step = field.step();
     AuthoringId origin = link.mapping();
+    String prefix = prefix(step.namespace());
+    List<Expr> content =
+        field.valueType().isPresent()
+            ? List.of(new TextConstructor(new VarRef(valueVar, AtomicType.STRING, origin), origin))
+            : children(path, links);
     return new TargetSlots(
         link.queue(),
-        new VarRef(ROOT_SLOT, AtomicType.INTEGER, origin),
-        link.field().occurrence().min(),
-        link.field().occurrence().max(),
-        VALUE,
+        new VarRef(parentSlot, AtomicType.INTEGER, origin),
+        field.occurrence().min(),
+        field.occurrence().max(),
+        slotVar,
+        valueVar,
         new ElementConstructor(
-            prefix(step.namespace()),
-            new Name(step.namespace(), step.localName()),
-            List.of(new TextConstructor(new VarRef(VALUE, AtomicType.STRING, origin), origin)),
-            origin),
+            prefix, new Name(step.namespace(), step.localName()), content, origin),
         origin);
   }
 

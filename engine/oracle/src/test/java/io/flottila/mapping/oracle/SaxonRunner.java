@@ -85,7 +85,8 @@ final class SaxonRunner {
     assertThat(namespace).as("%s: the namespace of %s", what, code).isNotNull();
     QName raised = saxon.getErrorCode();
     assertThat(raised).as("%s: Saxon's error code, %s", what, saxon.getMessage()).isNotNull();
-    assertThat("Q{" + raised.getNamespaceURI() + "}" + raised.getLocalName())
+    // getNamespace, not getNamespaceURI, which Saxon 12.5 deprecates (javap) and -Werror refuses
+    assertThat("Q{" + raised.getNamespace() + "}" + raised.getLocalName())
         .as("%s: Saxon's error, %s", what, saxon.getMessage())
         .isEqualTo("Q{" + namespace + "}" + code.substring(colon + 1));
   }
