@@ -74,6 +74,20 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- Swagger UI resolves the contract's ./mapping-model.schema.json against /q/openapi (#45, ADR-0015):
+           the contract's file, served as /q/mapping-model.schema.json -->
+      <resource>
+        <directory>${maven.multiModuleProjectDirectory}/contract</directory>
+        <targetPath>META-INF/resources/q</targetPath>
+        <includes>
+          <include>mapping-model.schema.json</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>${quarkus.platform.group-id}</groupId>
