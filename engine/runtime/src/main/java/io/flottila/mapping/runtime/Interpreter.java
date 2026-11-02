@@ -102,15 +102,21 @@ public final class Interpreter {
   }
 
   /**
-   * A call of a context function: its inputs' nodes, bound by the function's name. Every argument
-   * is an input, as no function of the runtime library takes a param yet (#55).
+   * A call of a context function: its inputs' nodes and its params' strings, bound by the
+   * function's name. A {@code Literal} argument is a param, which the IR verifier allows only as a
+   * {@code Literal}; any other argument is an input.
    */
   private Node.OfQueue call(FunCall c, Map<String, Integer> scope) {
     List<Node.OfQueue> inputs = new ArrayList<>();
+    List<String> params = new ArrayList<>();
     for (Expr arg : c.args()) {
-      inputs.add((Node.OfQueue) compile(arg, scope));
+      if (arg instanceof Literal param) {
+        params.add(param.value());
+      } else {
+        inputs.add((Node.OfQueue) compile(arg, scope));
+      }
     }
-    return traced(c.origin(), QueueLibrary.bind(c.function().name(), inputs));
+    return traced(c.origin(), QueueLibrary.bind(c.function().name(), inputs, params));
   }
 
   /** {@code node}, which reports each queue it gives at {@code box} when the compile is traced. */

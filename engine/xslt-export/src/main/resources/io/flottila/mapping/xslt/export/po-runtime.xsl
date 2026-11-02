@@ -28,4 +28,41 @@
     <xsl:param name="queue" as="array(xs:string*)"/>
     <xsl:sequence select="[$queue?*]"/>
   </xsl:function>
+
+  <!-- splitByValue: each context of $queue split on its own, as the runtime's
+       ContextFunctions.splitByEachValue, splitByValueChange and splitByEmptyValue do. The input's
+       context boundaries stay, and an empty context stays one empty context. -->
+  <xsl:function name="po:splitByValue" as="array(xs:string*)">
+    <xsl:param name="queue" as="array(xs:string*)"/>
+    <xsl:param name="mode" as="xs:string"/>
+    <xsl:sequence select="array:join(for $c in 1 to array:size($queue)
+                                     return po:splitByValue-context($queue($c), $mode))"/>
+  </xsl:function>
+
+  <!-- One context of splitByValue, as an array of the contexts it gives. emptyValue: every ""
+       ends a context and starts one, and is dropped. eachValue: every value starts a context.
+       Otherwise, valueChange: a value starts a context when it is not eq the value before it,
+       which under the default Unicode codepoint collation is the runtime's String.equals. -->
+  <xsl:function name="po:splitByValue-context" as="array(xs:string*)">
+    <xsl:param name="context" as="xs:string*"/>
+    <xsl:param name="mode" as="xs:string"/>
+    <xsl:variable name="n" as="xs:integer" select="count($context)"/>
+    <xsl:choose>
+      <xsl:when test="$mode eq 'emptyValue'">
+        <xsl:variable name="cuts" as="xs:integer*" select="0, index-of($context, ''), $n + 1"/>
+        <xsl:sequence select="array:join(for $k in 1 to count($cuts) - 1
+            return [subsequence($context, $cuts[$k] + 1, $cuts[$k + 1] - $cuts[$k] - 1)])"/>
+      </xsl:when>
+      <xsl:when test="$n eq 0">
+        <xsl:sequence select="[()]"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:variable name="starts" as="xs:integer*" select="1, for $i in 2 to $n
+            return $i[$mode eq 'eachValue' or $context[$i] ne $context[$i - 1]]"/>
+        <xsl:variable name="ends" as="xs:integer*" select="tail($starts), $n + 1"/>
+        <xsl:sequence select="array:join(for $k in 1 to count($starts)
+            return [subsequence($context, $starts[$k], $ends[$k] - $starts[$k])])"/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:function>
 </xsl:stylesheet>

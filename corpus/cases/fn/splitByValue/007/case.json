@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-change.mapping.json",
+  "provenance": "assumed",
+  "ref": "#48 owner decision Q3, mode valueChange: a context change where the value differs from the previous one; #2 §4 labels not seen on SAP pages; obs-context-functions ctx-3 (f3.xml) decides it",
+  "expect": "output",
+  "note": "valueChange over a queue of one value: Tag a gives the one context a, so All is a."
+}

@@ -8,6 +8,7 @@ import java.util.SplittableRandom;
 import java.util.random.RandomGenerator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -17,6 +18,10 @@ import org.junit.jupiter.params.provider.MethodSource;
  * ContextFunctions}. Property tests (ADR-0018): each runs over hand-picked edge queues and over 200
  * seeded random queues, the seed in the case name, against a list-of-contexts reference written
  * here. No SUPPRESS yet (#51).
+ *
+ * <p>{@code splitByValue} (#55, owner decision Q3 of #48) splits each context of its input on its
+ * own and keeps the existing context boundaries; an empty context stays one empty context. Its
+ * three modes are three functions here, because the runtime binds the mode once per call site.
  */
 class ContextFunctionsTest {
 
@@ -75,7 +80,15 @@ class ContextFunctionsTest {
         // the worked example of fn/removeContexts/002: an empty context and the value ""
         new Queue(
             "a | (empty) | \"\" | b", List.of(List.of("a"), List.of(), List.of(""), List.of("b"))),
-        new Queue("empty contexts at both ends", List.of(List.of(), List.of("x", "y"), List.of())));
+        new Queue("empty contexts at both ends", List.of(List.of(), List.of("x", "y"), List.of())),
+        new Queue("one value", List.of(List.of("a"))),
+        new Queue("equal runs", List.of(List.of("a", "a", "b", "b", "b", "a"))),
+        // the input of obs-context-functions ctx-3 (f3.xml): Tag a, a, <Tag/>, b, <Tag/>
+        new Queue("a, a, \"\", b, \"\"", List.of(List.of("a", "a", "", "b", ""))),
+        new Queue("\"\" at both ends", List.of(List.of("", "a", ""), List.of("b"))),
+        new Queue("only \"\"", List.of(List.of(""), List.of("", ""))),
+        // a run across a context boundary stays split at the boundary
+        new Queue("a run across contexts", List.of(List.of("a", "a"), List.of("a", "b"))));
   }
 
   /**
@@ -194,5 +207,147 @@ class ContextFunctionsTest {
     }
 
     assertThat(slots(result)).containsExactlyElementsOf(written);
+  }
+
+  // --- splitByValue (#55): references over contexts of values
+
+  /** Each value in a context of its own; an empty context stays one. */
+  private static List<List<String>> eachValue(Queue queue) {
+    List<List<String>> contexts = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      if (context.isEmpty()) {
+        contexts.add(List.of());
+      }
+      for (String value : context) {
+        contexts.add(List.of(value));
+      }
+    }
+    return contexts;
+  }
+
+  /** A new context at each value that differs from the one before it in its context. */
+  private static List<List<String>> valueChange(Queue queue) {
+    List<List<String>> contexts = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      List<String> run = new ArrayList<>();
+      for (String value : context) {
+        if (!run.isEmpty() && !run.getLast().equals(value)) {
+          contexts.add(run);
+          run = new ArrayList<>();
+        }
+        run.add(value);
+      }
+      contexts.add(run);
+    }
+    return contexts;
+  }
+
+  /** Each {@code ""} ends its context there and starts a new one, and is dropped. */
+  private static List<List<String>> emptyValue(Queue queue) {
+    List<List<String>> contexts = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      List<String> part = new ArrayList<>();
+      for (String value : context) {
+        if (value.isEmpty()) {
+          contexts.add(part);
+          part = new ArrayList<>();
+        } else {
+          part.add(value);
+        }
+      }
+      contexts.add(part);
+    }
+    return contexts;
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void splitByEachValuePutsEveryValueInAContextOfItsOwn(String name, Queue queue) {
+    QueueBlock input = queue.block();
+
+    QueueBlock result = ContextFunctions.splitByEachValue(input);
+
+    assertThat(read(result)).isEqualTo(eachValue(queue));
+    assertThat(read(input)).isEqualTo(queue.contexts());
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void splitByValueChangeStartsAContextWhereTheValueChanges(String name, Queue queue) {
+    QueueBlock input = queue.block();
+
+    QueueBlock result = ContextFunctions.splitByValueChange(input);
+
+    assertThat(read(result)).isEqualTo(valueChange(queue));
+    assertThat(read(input)).isEqualTo(queue.contexts());
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void splitByEmptyValueSplitsAtEachEmptyStringAndDropsIt(String name, Queue queue) {
+    QueueBlock input = queue.block();
+
+    QueueBlock result = ContextFunctions.splitByEmptyValue(input);
+
+    assertThat(read(result)).isEqualTo(emptyValue(queue));
+    assertThat(read(input)).isEqualTo(queue.contexts());
+  }
+
+  /**
+   * The three modes over the input of obs-context-functions ctx-3, written out by hand, so that the
+   * references above are checked against values they did not compute.
+   */
+  @Test
+  void theThreeModesOverTheObservationInput() {
+    QueueBlock tags = QueueBlock.of(new String[] {"a", "a", "", "b", ""}, new int[] {0, 5});
+
+    assertThat(read(ContextFunctions.splitByEachValue(tags)))
+        .containsExactly(List.of("a"), List.of("a"), List.of(""), List.of("b"), List.of(""));
+    assertThat(read(ContextFunctions.splitByValueChange(tags)))
+        .containsExactly(List.of("a", "a"), List.of(""), List.of("b"), List.of(""));
+    assertThat(read(ContextFunctions.splitByEmptyValue(tags)))
+        .containsExactly(List.of("a", "a"), List.of("b"), List.of());
+  }
+
+  /**
+   * ADR-0004: eachValue and valueChange only move context boundaries, so they share the values
+   * array as removeContexts does, seen from outside by writing the array after the call.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queuesWithSlots")
+  void splitByEachValueAndValueChangeShareTheValueArray(String name, Queue queue) {
+    String[] values = queue.values();
+    QueueBlock input = QueueBlock.of(values, queue.starts());
+
+    QueueBlock each = ContextFunctions.splitByEachValue(input);
+    QueueBlock change = ContextFunctions.splitByValueChange(input);
+    List<String> written = new ArrayList<>();
+    for (int i = 0; i < values.length; i++) {
+      values[i] = "written " + i;
+      written.add(values[i]);
+    }
+
+    assertThat(slots(each)).containsExactlyElementsOf(written);
+    assertThat(slots(change)).containsExactlyElementsOf(written);
+  }
+
+  /**
+   * emptyValue drops values, so it cannot share the values array; its own array holds the input's
+   * value objects, so no characters are copied (ADR-0004).
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queuesWithSlots")
+  void splitByEmptyValueKeepsTheInputsValueObjects(String name, Queue queue) {
+    QueueBlock input = queue.block();
+
+    QueueBlock result = ContextFunctions.splitByEmptyValue(input);
+
+    int kept = 0;
+    for (int i = 0; i < input.slots(); i++) {
+      if (!input.value(i).isEmpty()) {
+        assertThat(result.value(kept++)).as("slot index %d", i).isSameAs(input.value(i));
+      }
+    }
+    assertThat(result.slots()).isEqualTo(kept);
   }
 }

@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-empty-flat.mapping.json",
+  "provenance": "assumed",
+  "ref": "#48 owner decision Q3, mode emptyValue: a context change at \"\", and the \"\" is dropped; #2 §4 labels not seen on SAP pages; obs-context-functions ctx-3 (f3.xml) decides it",
+  "expect": "output",
+  "note": "The input of f3.xml through removeContexts(splitByValue(emptyValue)): R2 puts every value S1 keeps into one context, so All shows which values were dropped. Both \"\", one in the middle and one at the end, are dropped: All is a, a, b. If S1 kept them there would be two empty All."
+}
