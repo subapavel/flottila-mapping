@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 /**
  * Files the tests read from the repository: the committed canonical fixtures under {@code
  * engine/mapping/src/test/resources/mapping-model} (not in {@code corpus/}, the service's dev
- * workspace, which lists every mapping file in it) and the contract under {@code contract/}.
+ * workspace, which lists every mapping model in it) and the contract under {@code contract/}.
  * Surefire runs in the module directory, so the repository root is the nearest ancestor holding
  * {@code mvnw} and {@code contract/}.
  */

@@ -50,8 +50,11 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
 /**
  * {@code /api/mappings} (ADR-0014, ADR-0015, ADR-0024): list, create, open and save the mappings of
- * the workspace, and test-run a working copy. Model bytes never pass through Jackson, so the
- * engine's strict reader sees them as sent and every answer is the engine's canonical form.
+ * the workspace, and test-run a working copy. A saved model's bytes never pass through Jackson:
+ * {@code save} reads the body as bytes, so the engine's strict reader sees them as sent, and every
+ * answer is the engine's canonical form. A test run's working copy is a member of a JSON request
+ * body: Jackson parses it into a tree, and {@code test} writes that tree back to bytes with {@code
+ * writeValueAsBytes}, so the engine reads Jackson's serialisation, not the bytes as sent.
  */
 @jakarta.ws.rs.Path("/api/mappings")
 public class MappingsResource {
