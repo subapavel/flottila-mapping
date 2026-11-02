@@ -358,6 +358,21 @@ function-catalogue schema and the committed OpenAPI document. Both sides' types 
 from or checked against them.
 _Avoid_: API spec, interface definition
 
+**Workspace path**:
+An id, base directory or bundle reference that matches its pattern and whose real path lies
+inside the workspace (ADR-0024).
+_Avoid_: safe path, sandboxed path
+
+**Workspace escape**:
+A path that would resolve outside the workspace: `..`, an absolute path, or a symlink pointing
+out. The service refuses it before any read.
+_Avoid_: jailbreak
+
+**Problem**:
+The RFC 9457 `application/problem+json` body of a transport error, with a `type` from the
+service's problem types. Diagnostics are a result; a problem is a failed request.
+_Avoid_: error response, API error
+
 ## Verification
 
 **Oracle**:
