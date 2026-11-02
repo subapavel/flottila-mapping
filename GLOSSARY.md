@@ -246,6 +246,11 @@ The position of a slot counted across all contexts of a queue, starting at 1. A 
 occurrence's slot number is the index of the context its children read.
 _Avoid_: index, position (both are per context)
 
+**Slot index**:
+A slot number minus 1, so it counts from 0. Only code uses it, as an array offset into a queue
+block; tickets, tests and diagnostics use the slot number.
+_Avoid_: index alone
+
 **Generating function**:
 A function graph with no source field, such as a constant or `concat` of two constants. On a
 target field it gives `max(1, minOccurs)` occurrences per parent occurrence.
