@@ -13,6 +13,7 @@ import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.StructureResult;
 import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.api.TestRunResult;
+import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.MalformedJsonException;
@@ -324,8 +325,13 @@ public class MappingsResource {
           switch (facade.testRun(compiled, input.getBytes(UTF_8), timeout)) {
             case TestRunResult.Output(byte[] output) ->
                 new TestOutput(new String(output, UTF_8), List.of());
-            case TestRunResult.RuntimeError(String code, String message) ->
-                new TestError(new RuntimeErrorDto(code, message), List.of());
+            case TestRunResult.RuntimeError(
+                    String code,
+                    String message,
+                    Optional<AuthoringId> authoringId) ->
+                new TestError(
+                    new RuntimeErrorDto(code, message, authoringId.map(AuthoringId::value)),
+                    List.of());
           };
     };
   }

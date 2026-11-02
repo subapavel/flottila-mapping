@@ -56,7 +56,8 @@ class OpenApiContractTest {
           Map.entry("TestOutput", "diagnostics kind output | diagnostics kind output"),
           Map.entry("TestRefused", "diagnostics kind | diagnostics kind"),
           Map.entry("TestError", "diagnostics error kind | diagnostics error kind"),
-          Map.entry("RuntimeErrorDto", "code message | code message"),
+          // ADR-0015 since #52 (O2): authoringId, absent for flottila:TIMEOUT
+          Map.entry("RuntimeErrorDto", "authoringId code message | code message"),
           Map.entry("StructureLoaded", "fingerprint kind root types | fingerprint kind root types"),
           Map.entry("StructureRefused", "diagnostics kind | diagnostics kind"),
           Map.entry(
