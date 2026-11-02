@@ -8,9 +8,11 @@
 # [pit-modules]  class-C module directories PIT runs on (step 1b), comma-separated. Default: the nine class-C
 #                modules. The verifier narrows it to the modules the spec touched.
 #
-# Order: 1, 1b, 2, 3, 5, 4 (step 5 writes the JMH JSON that step 4 reads). Every step runs even if an earlier one
-# failed; each prints an evidence word and its log. Exit 1 if any step failed. The script leaves ratchet/
-# modified; the verifier commits it.
+# Order: 1, 1b, 2, 5, 4, 3. Step 5 writes the JMH JSON that step 4 reads. Step 4 reads the reports of steps 1, 1b
+# and 2, and step 3 must run after it: -Pui needs clean (ADR-0017), and that clean deletes the JaCoCo and PIT
+# reports of service and its upstream modules. Every step runs even if an earlier one failed; each prints an
+# evidence word and its log. Exit 1 if any step failed. The script leaves ratchet/ modified; the verifier
+# commits it.
 set -uo pipefail
 
 if [ $# -lt 1 ]; then
@@ -51,7 +53,7 @@ step "1b pit $pit_modules" ".logs/${spec}-pit.log" \
 # 2: ui/
 if [ -f ui/package.json ]; then
   step "2 ui npm ci" "ui/.logs/${spec}-npm-ci.log" bash -c 'cd ui && npm ci'
-  for check in typecheck lint test test:browser e2e; do
+  for check in licences typecheck lint test test:browser e2e; do
     step "2 ui $check" "ui/.logs/${spec}-${check/:/-}.log" bash -c "cd ui && npm run $check"
   done
   step "2 ui gen:types diff" "ui/.logs/${spec}-gen-types.log" \
@@ -59,13 +61,6 @@ if [ -f ui/package.json ]; then
   step "2 ui build" "ui/.logs/${spec}-build.log" bash -c 'cd ui && npm run build'
 else
   skipped "2 ui" "no ui/"
-fi
-
-# 3: the stack, one jar serving UI and /api
-step "3 stack package -Pui" ".logs/${spec}-stack-package.log" \
-  ./mvnw -B -Pui -pl service -am clean package -DskipTests
-if [ -f ui/package.json ]; then
-  step "3 stack e2e" "ui/.logs/${spec}-e2e-stack.log" bash -c 'cd ui && npm run e2e:stack'
 fi
 
 # 5: JMH (ADR-0021), before step 4. The benchmarks arrive with the speed spec; until then there is no jar.
@@ -76,8 +71,15 @@ else
   skipped "5 jmh" "bench/jmh/target/benchmarks.jar does not exist yet (speed spec)"
 fi
 
-# 4: ratchet regeneration. Needs every report; refuses a drop. The verifier commits ratchet/.
+# 4: ratchet regeneration, before step 3. Needs every report; refuses a drop. The verifier commits ratchet/.
 step "4 ratchet regen" ".logs/${spec}-ratchet.log" \
   java scripts/ratchet.java regen --all
+
+# 3: the stack, one jar serving UI and /api. Last: its clean deletes the reports step 4 read.
+step "3 stack package -Pui" ".logs/${spec}-stack-package.log" \
+  ./mvnw -B -Pui -pl service -am clean package -DskipTests
+if [ -f ui/package.json ]; then
+  step "3 stack e2e" "ui/.logs/${spec}-e2e-stack.log" bash -c 'cd ui && npm run e2e:stack'
+fi
 
 exit "$status"

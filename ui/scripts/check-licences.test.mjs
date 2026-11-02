@@ -31,6 +31,11 @@ test('AND needs every alternative allowed', () => failsNaming('and', 'and-pkg'))
 test('OR passes if any alternative is allowed', () => passes('or'));
 test('an excepted package passes', () => passes('excepted', 'exceptions.json'));
 test('the same package fails without the exception', () => failsNaming('excepted', 'excepted-pkg'));
+test('an exception covers a dev dependency only: as a non-dev dependency it fails', () => {
+  const r = failsNaming('excepted-not-dev', 'excepted-pkg', 'exceptions.json');
+  assert.match(r.stderr, /its exception covers dev dependencies only/);
+});
+test('a trailing unknown token fails closed', () => failsNaming('trailing', 'trailing-pkg'));
 test('SEE LICENSE IN fails closed', () => failsNaming('see-licence', 'see-pkg'));
 test('an unbalanced parenthesis fails closed', () => failsNaming('unbalanced', 'unbalanced-pkg'));
 test('a dangling operator fails closed', () => failsNaming('dangling', 'dangling-pkg'));

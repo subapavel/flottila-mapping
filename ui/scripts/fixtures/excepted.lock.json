@@ -6,7 +6,8 @@
     },
     "node_modules/excepted-pkg": {
       "version": "1.0.0",
-      "license": "CC-BY-4.0"
+      "license": "CC-BY-4.0",
+      "dev": true
     }
   }
 }

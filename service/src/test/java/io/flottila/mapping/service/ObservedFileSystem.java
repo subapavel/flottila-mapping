@@ -33,10 +33,10 @@ import java.util.Set;
 /**
  * The default file system, observed: a test double at the file system port. {@link Workspace} does
  * all its I/O through the provider of the {@link Path} it is made with, so a workspace over {@link
- * #path} runs on the real files while this records the POSIX mode of every file at the two moments
- * that matter for a write: when it is opened for writing, and just before it is moved into place.
- * {@link #beforeMove} runs at the second moment, so a test can change the target in between (remove
- * a link) without a race.
+ * #path} runs on the real files while this records the POSIX mode of every existing file at two
+ * moments: when it is opened, to read or to write, and just before it is moved into place. {@link
+ * #beforeMove} runs at the second moment, so a test can change the target in between (remove a
+ * link) without a race.
  */
 final class ObservedFileSystem extends FileSystem {
 
@@ -174,7 +174,7 @@ final class ObservedFileSystem extends FileSystem {
     throw new UnsupportedOperationException("not observed");
   }
 
-  /** Every operation on the real path; writes and moves are observed first. */
+  /** Every operation on the real path; opens and moves are observed first. */
   private final class Provider extends FileSystemProvider {
 
     @Override
@@ -210,7 +210,12 @@ final class ObservedFileSystem extends FileSystem {
     public SeekableByteChannel newByteChannel(
         Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
         throws IOException {
-      return Files.newByteChannel(unwrap(path), options, attrs);
+      // the channel path: Files.readAllBytes, Files.newInputStream and Files.createTempFile
+      Path file = unwrap(path);
+      if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+        observe("open", file);
+      }
+      return Files.newByteChannel(file, options, attrs);
     }
 
     @Override
