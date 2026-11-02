@@ -21,8 +21,13 @@ import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The interpreter binds a call by its catalogue name once, when it compiles (ADR-0025), and a
@@ -74,6 +79,148 @@ class RuntimeLibraryBindingTest {
         .hasMessageContaining("noSuchFunction");
   }
 
+  static Stream<Arguments> modes() {
+    return Stream.of(
+        Arguments.of("eachValue", "<Note>x</Note>"),
+        Arguments.of("valueChange", "<Note>x</Note><Note>x</Note>"),
+        Arguments.of("emptyValue", "<Note>x</Note><Note>x</Note><Note>y</Note>"));
+  }
+
+  /**
+   * The mode param selects the function the call binds. {@code Note} x, x, y in the root's context
+   * is one context, and the root's slot reads context 1 of the call's queue.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("modes")
+  void theModeParamSelectsTheSplit(String mode, String notes) throws Exception {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall split =
+        new FunCall(
+            new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(sourceNotes(), new Literal(mode, box)),
+            box);
+    TargetDocument document = notes(split, new VarRef("v", AtomicType.STRING, T1));
+    IrVerifier.verify(document);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    String input =
+        "<s:Order xmlns:s=\"" + NS + "\"><Note>x</Note><Note>x</Note><Note>y</Note></s:Order>";
+
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+
+    assertThat(out.toString(UTF_8))
+        .isEqualTo(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
+                + NS
+                + "\">"
+                + notes
+                + "</ns0:Order>");
+  }
+
+  /**
+   * A param is parsed once, when the call binds, so a value lowering would refuse is caught there.
+   */
+  @Test
+  void aParamValueTheFunctionLacksIsACompilerBug() {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall split =
+        new FunCall(
+            new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(sourceNotes(), new Literal("everyOtherValue", box)),
+            box);
+    TargetDocument document = notes(split, new VarRef("v", AtomicType.STRING, T1));
+    // witness: the IR is well-formed, and binding is what refuses it
+    IrVerifier.verify(document);
+
+    assertThatThrownBy(() -> Interpreter.compile(document, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("everyOtherValue");
+  }
+
+  /** {@code Order/<steps>} read in the context {@code depth} steps from the root. */
+  private static SourceQueue source(int depth, String box, String... steps) {
+    List<Name> names = new ArrayList<>(List.of(ORDER));
+    for (String step : steps) {
+      names.add(new Name("", step));
+    }
+    return new SourceQueue(names, depth, new AuthoringId(box));
+  }
+
+  /** Two Ids in the root's context, and Name in Item's: x1, x2 | y. */
+  private static final String ITEMS =
+      "<s:Order xmlns:s=\""
+          + NS
+          + "\"><Id>A</Id><Id>B</Id><Item><Name>x1</Name><Name>x2</Name></Item>"
+          + "<Item><Name>y</Name></Item></s:Order>";
+
+  /** The output of {@link #notes} over {@code queue} for the input {@link #ITEMS}. */
+  private static String runOverItems(FunCall queue) throws Exception {
+    TargetDocument document = notes(queue, new VarRef("v", AtomicType.STRING, T1));
+    IrVerifier.verify(document);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(ITEMS.getBytes(UTF_8)), out, new Tracer());
+
+    return out.toString(UTF_8);
+  }
+
+  private static String notesOf(String... values) {
+    StringBuilder notes = new StringBuilder();
+    for (String value : values) {
+      notes.append("<Note>").append(value).append("</Note>");
+    }
+    return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
+        + NS
+        + "\">"
+        + notes
+        + "</ns0:Order>";
+  }
+
+  @Test
+  void collapseContextsIsBoundByName() throws Exception {
+    FunCall collapse =
+        new FunCall(
+            new FunctionRef("collapseContexts", List.of(QUEUE), QUEUE),
+            List.of(source(2, "a1", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    // Name in Item's context is x1, x2 | y; the root's one slot reads the collapsed context
+    assertThat(runOverItems(collapse)).isEqualTo(notesOf("x1", "y"));
+  }
+
+  /**
+   * The args bind in catalogue order, values then example (#58): Name in the root's context, x1,
+   * x2, y, cut at the context changes of Name in Item's, x1, x2 | y, so the root's one slot reads
+   * x1, x2. The args swapped would give x1, x2, y in one context.
+   */
+  @Test
+  void formatByExampleIsBoundByNameWithItsArgsInOrder() throws Exception {
+    FunCall formatByExample =
+        new FunCall(
+            new FunctionRef("formatByExample", List.of(QUEUE, QUEUE), QUEUE),
+            List.of(source(1, "a1", "Item", "Name"), source(2, "a2", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    assertThat(runOverItems(formatByExample)).isEqualTo(notesOf("x1", "x2"));
+  }
+
+  /** The args bind in catalogue order: value, occurrences, contexts. */
+  @Test
+  void useOneAsManyIsBoundByNameWithItsArgsInOrder() throws Exception {
+    FunCall useOneAsMany =
+        new FunCall(
+            new FunctionRef("useOneAsMany", List.of(QUEUE, QUEUE, QUEUE), QUEUE),
+            List.of(
+                source(1, "a1", "Id"),
+                source(2, "a2", "Item", "Name"),
+                source(1, "a3", "Item", "Name")),
+            new AuthoringId("f1"));
+
+    // A once per Name of the first Item, B once per Name of the second, in one context
+    assertThat(runOverItems(useOneAsMany)).isEqualTo(notesOf("A", "A", "B"));
+  }
+
   @Test
   void aLiteralIsItsValueInEverySlot() throws Exception {
     TargetDocument document = notes(sourceNotes(), new Literal("fixed", T1));
@@ -89,41 +236,5 @@ class RuntimeLibraryBindingTest {
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
                 + NS
                 + "\"><Note>fixed</Note><Note>fixed</Note></ns0:Order>");
-  }
-
-  /**
-   * The args bind in catalogue order, values then example (#58): Id in the root's context is A, B,
-   * C, and Name in Item's context x1, x2 | y, so the result is A, B | C and the root's one slot
-   * reads A, B. The args swapped would give x1, x2, y.
-   */
-  @Test
-  void formatByExampleIsBoundByNameWithItsArgsInOrder() throws Exception {
-    FunCall formatByExample =
-        new FunCall(
-            new FunctionRef("formatByExample", List.of(QUEUE, QUEUE), QUEUE),
-            List.of(
-                new SourceQueue(List.of(ORDER, new Name("", "Id")), 1, new AuthoringId("a1")),
-                new SourceQueue(
-                    List.of(ORDER, new Name("", "Item"), new Name("", "Name")),
-                    2,
-                    new AuthoringId("a2"))),
-            new AuthoringId("f1"));
-    TargetDocument document = notes(formatByExample, new VarRef("v", AtomicType.STRING, T1));
-    IrVerifier.verify(document);
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    String input =
-        "<s:Order xmlns:s=\""
-            + NS
-            + "\"><Id>A</Id><Id>B</Id><Id>C</Id><Item><Name>x1</Name><Name>x2</Name></Item>"
-            + "<Item><Name>y</Name></Item></s:Order>";
-
-    Interpreter.compile(document, false)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
-
-    assertThat(out.toString(UTF_8))
-        .isEqualTo(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
-                + NS
-                + "\"><Note>A</Note><Note>B</Note></ns0:Order>");
   }
 }

@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-empty.mapping.json",
+  "provenance": "assumed",
+  "ref": "#48 owner decision Q3, mode emptyValue: a context change at \"\", and the \"\" is dropped; #2 §4 labels not seen on SAP pages; obs-context-functions ctx-3 (f3.xml) decides it",
+  "expect": "output",
+  "note": "emptyValue over a, b, which holds no \"\": nothing splits, and All is a, b. eachValue would give a alone."
+}

@@ -19,7 +19,19 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   the public `internal` classes; JFR (`-XX:StartFlightRecording`) plus `jfr print` for hot spots.
   Surefire's per-test `time` includes a cold JIT and the JaCoCo agent.
 
+- Worktree-isolated agents: the guard refuses any Bash line that mixes `git` with pipes, `$(…)`,
+  `for` loops or `&&` chains it cannot verify. Run each `git` command plainly on its own line.
+- PIT (gate-spec 1b) mutates each module against that module's own tests only: a path covered
+  only by `EngineFacadeTest` survives in `engine/mapping` / `engine/runtime`. Add module tests.
+- Saxon-HE is test scope in `engine/oracle` only (enforcer): an XSLT helper is run only through
+  the corpus differential oracle, and a root-level target reads context 1 of its queue only.
+- Observing a corpus red after the code exists: put the base `function-catalogue.json` back
+  (`git show <base>:<path> > <path>`), run the oracle, restore it.
+
 ## json-sKema 0.32.0 (observed, engine/mapping)
+
+- `IJsonObject.get(String)` is `getProperties().get(new JsonString(key))`: `null` when absent
+  (javap -c).
 
 - Automatic module `json.sKema`; needs `-Xlint:-requires-automatic` under `-Werror`.
 - `patternProperties`: the visitor keeps `firstOrNull()` of the per-member results, so only the

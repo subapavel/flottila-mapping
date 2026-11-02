@@ -101,6 +101,24 @@ public final class QueueBlock {
   }
 
   /**
+   * A block over {@code values}, split at this block's own context starts: a context operation that
+   * keeps the boundaries of an input shares them (ADR-0004).
+   *
+   * @throws IllegalArgumentException unless {@code values} has as many slots as this block
+   */
+  QueueBlock withValues(String[] values) {
+    return of(values, contextStarts);
+  }
+
+  /**
+   * A block of one context that holds every slot of {@code values}. The starts {@code {0, n}} are
+   * valid for any {@code n}, so unlike {@link #of} it checks nothing.
+   */
+  static QueueBlock ofOneContext(String[] values) {
+    return new QueueBlock(values, new int[] {0, values.length});
+  }
+
+  /**
    * Builds a block context by context: {@link #newContext()} opens a context, {@link
    * #append(String)} adds a slot to it. Without a {@code newContext()} the block has no context.
    */

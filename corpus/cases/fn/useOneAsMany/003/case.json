@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/use-one-as-many-root-value.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §4 useOneAsMany: input 2 \"decides how often each input-1 value is repeated\" [SAP✓ https://help.sap.com/saphelp_em900/helpdata/en/4b/f416edeaca4c86e10000000a42189e/content.htm]; that the values of input 1 meet the contexts of input 2 in order, whatever input 1's own contexts, is an assumed reading (#2 §7.10); obs-useoneasmany decides (#34)",
+  "expect": "output",
+  "note": "Inputs with different context counts, over obs-useoneasmany u1.xml. Id in context Orders is one context A, B, while Sku in context Order has two, s1,s2,s3 | s4, and Sku in context Line four. The i-th value of input 1 is repeated once per value of input 2's i-th context, so removeContexts gives All A, A, A, B. If input 1 had to have as many contexts as input 2, this would be an error. To observe in PO: obs-useoneasmany does not draw this wiring yet."
+}
