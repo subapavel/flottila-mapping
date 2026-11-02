@@ -1,6 +1,6 @@
 # The mapping-model schema is the source: generated TS types, hand-written Java records, three-stage validation
 
-Status: accepted (2026-10-30, grilling #6); amended by F-2; refined by ADR-0013 (unreachable boxes)
+Status: accepted (2026-10-30, grilling #6); amended by F-2; refined by ADR-0013 (unreachable boxes); refined by ADR-0025 (stage-3 codes for function boxes)
 
 FOUNDING §12 says the editor's model types are generated from the mapping-model schema. This
 ADR records that and fills the gaps for the Java side and for validation.
@@ -76,6 +76,13 @@ there is one.
   - `unsupported-field` and `orphaned-reference` guard what spec 1's lowering cannot yet express.
   A box that `result` does not reach is not lowered and gives no error, so the model still runs.
   The `unreachable-box` warning arrives with the editor's diagnostics (spec 6).
+- Stage 3 codes in spec 2 (ADR-0025), at the function box's `{authoringId}`:
+  - `wrong-arity`: more inputs than the catalogue entry has;
+  - `unconnected-input`: an input slot that is `null` or absent;
+  - `unknown-parameter`: a param key the entry lacks;
+  - `wrong-parameter-type`: a table given for a string param;
+  - `invalid-parameter-value`: a string outside the entry's `values`.
+  A function name that is not yet in the catalogue stays `unsupported-box-kind`.
 - `Diagnostic`, its `Location` and the load result live in `engine/mapping`. `engine/api`
   requires that module transitively and translates the errors of other modules into it.
 - Renaming a code is a contract change.
