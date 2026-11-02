@@ -122,7 +122,7 @@ class FunctionCatalogueTest {
           empty.addAll(emptyCollections(items.get(i), pointer + "/" + i, ""));
         }
       }
-      default -> {}
+      case Str _, Num _, Bool _, Null _ -> {}
     }
     return empty;
   }
