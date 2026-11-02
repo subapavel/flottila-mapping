@@ -115,6 +115,8 @@ scripts.
    `service` ArchUnit and `@QuarkusTest`;
 2. `./mvnw -B -q -DskipTests verify`: the whole reactor compiles, with Spotless, enforcer and
    licences;
+   2b. `scripts/check-lf-checkout.sh`: every tracked file checks out byte-identical with
+   `core.autocrlf=true` (#49); CI runs it in `backend`;
 3. `git diff --exit-code contract/`, when the service or `contract/` changed;
 4. in `ui/`, when it changed: `typecheck`, `lint`, `test`, `test:browser`, `e2e`, and
    `gen:types` + an empty diff;
