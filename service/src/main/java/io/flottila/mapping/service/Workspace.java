@@ -15,8 +15,13 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.Config;
@@ -45,6 +50,10 @@ public class Workspace {
   private static final Set<String> RESERVED = Set.of("test", "compile", "refresh", "udfs");
 
   private static final String SUFFIX = ".mapping.json";
+
+  /** The mode of a created mapping model file on a POSIX file store (0644). */
+  private static final Set<PosixFilePermission> CREATED =
+      Set.copyOf(PosixFilePermissions.fromString("rw-r--r--"));
 
   /**
    * Writes of one file are serialised by its stripe, so two creates of one id cannot both pass the
@@ -81,10 +90,11 @@ public class Workspace {
   }
 
   /**
-   * The ids of the workspace's mapping model files, sorted by id. The walk follows no link, prunes
-   * every directory whose path is no base, and skips a file or directory it cannot read. It keeps a
-   * file only if its id passes the pattern and its real path lies inside the workspace, so a
-   * dangling link is skipped too.
+   * The ids of the workspace's mapping model files, sorted by id. The walk follows no link and
+   * prunes every directory whose path is no base. It skips an entry whose attributes it cannot read
+   * and a directory it cannot open; an I/O error while it reads a directory it did open fails the
+   * listing. It keeps a file only if its id passes the pattern and its real path resolves and lies
+   * inside the workspace, so a dangling link and a link loop are skipped too.
    */
   public List<String> list() throws IOException {
     List<String> ids = new ArrayList<>();
@@ -104,8 +114,7 @@ public class Workspace {
           }
 
           @Override
-          public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-              throws IOException {
+          public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
             String relative = root.relativize(file).toString();
             if (relative.endsWith(SUFFIX)) {
               String id = relative.substring(0, relative.length() - SUFFIX.length());
@@ -173,14 +182,14 @@ public class Workspace {
   /**
    * Refuses a bundle reference that leaves the workspace from {@code directory}. A file inside the
    * workspace that is missing passes: the engine reports it. Its nearest existing ancestor must lie
-   * inside the workspace by its real path. A dangling link has no real path, and its target might
-   * appear outside later, so a reference to or through one is refused (ADR-0024).
+   * inside the workspace by its real path. An ancestor whose real path does not resolve, a dangling
+   * link or a link loop, is refused as well: the check fails closed, because the link's target
+   * might appear outside later (ADR-0024).
    *
    * @param directory a real directory of the workspace, as {@link #directory} or {@link
    *     #mappingDirectory} return it
    */
-  public void checkBundle(Path directory, List<String> bundle)
-      throws IOException, WorkspacePathException {
+  public void checkBundle(Path directory, List<String> bundle) throws WorkspacePathException {
     for (String reference : bundle) {
       Path existing = inside(directory, matching(reference, BUNDLE));
       while (Files.notExists(existing, LinkOption.NOFOLLOW_LINKS)) {
@@ -188,7 +197,7 @@ public class Workspace {
       }
       try {
         real(existing);
-      } catch (NoSuchFileException danglingLink) {
+      } catch (IOException noRealPath) {
         throw new WorkspacePathException(reference);
       }
     }
@@ -232,10 +241,11 @@ public class Workspace {
     return real;
   }
 
-  private boolean insideByRealPath(Path file) throws IOException {
+  /** False also when the real path does not resolve: a dangling link or a link loop. */
+  private boolean insideByRealPath(Path file) {
     try {
       return file.toRealPath().startsWith(root);
-    } catch (NoSuchFileException danglingLink) {
+    } catch (IOException noRealPath) {
       return false;
     }
   }
@@ -244,18 +254,44 @@ public class Workspace {
    * Writes a new temporary file with a unique name in the real parent of {@code target}, then moves
    * it onto {@code target} with {@code options}, under the target's lock. No file that existed
    * before the call is opened, so a {@code .<name>.tmp} left beside the target stays as it is. The
-   * temporary file never outlives the call.
+   * temporary file is created with its final {@link #mode}, and set to it again in case the umask
+   * narrowed it, before any content is written. It never outlives the call.
    */
   private void write(Path target, byte[] bytes, CopyOption... options) throws IOException {
     synchronized (locks[Math.floorMod(target.hashCode(), STRIPES)]) {
+      Optional<Set<PosixFilePermission>> mode = mode(target);
+      FileAttribute<?>[] attributes =
+          mode.isPresent()
+              ? new FileAttribute<?>[] {PosixFilePermissions.asFileAttribute(mode.get())}
+              : new FileAttribute<?>[0];
       Path temp =
-          Files.createTempFile(target.getParent(), "." + target.getFileName() + ".", ".tmp");
+          Files.createTempFile(
+              target.getParent(), "." + target.getFileName() + ".", ".tmp", attributes);
       try {
+        if (mode.isPresent()) {
+          Files.setPosixFilePermissions(temp, mode.get());
+        }
         Files.write(temp, bytes, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
         Files.move(temp, target, options);
       } finally {
         Files.deleteIfExists(temp);
       }
     }
+  }
+
+  /**
+   * The POSIX mode {@code target} has after a write: the one it has now, so a save keeps it, or
+   * {@code rw-r--r--} for a new file. Empty on a file store without POSIX permissions, where the
+   * temporary file gets the file system's default.
+   */
+  private static Optional<Set<PosixFilePermission>> mode(Path target) throws IOException {
+    if (!Files.getFileStore(target.getParent())
+        .supportsFileAttributeView(PosixFileAttributeView.class)) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        Files.exists(target, LinkOption.NOFOLLOW_LINKS)
+            ? Files.getPosixFilePermissions(target, LinkOption.NOFOLLOW_LINKS)
+            : CREATED);
   }
 }
