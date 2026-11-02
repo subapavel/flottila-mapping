@@ -26,9 +26,7 @@ import org.junit.jupiter.api.Test;
  * rules do (ADR-0016, "Enforcement"). Rule A reads the exported packages from the engine jars'
  * {@code module-info.class}; there is no hand-written list.
  *
- * <p>The rules allow an empty set while the service and the engine have no classes of their own.
- * The ticket that adds the first service class (#28) removes {@code allowEmptyShould}, so a rule
- * can never pass because it matches nothing.
+ * <p>No rule allows an empty set (#28): a rule never passes because it matches nothing.
  */
 class ArchitectureTest {
 
@@ -51,8 +49,7 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(SERVICE_PACKAGE + "..")
             .should()
-            .dependOnClassesThat(unexportedEnginePackage)
-            .allowEmptyShould(true);
+            .dependOnClassesThat(unexportedEnginePackage);
     rule.check(importedClasses());
   }
 
@@ -68,8 +65,7 @@ class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(
-                "io.quarkus..", "jakarta..", "com.fasterxml..", SERVICE_PACKAGE + "..")
-            .allowEmptyShould(true);
+                "io.quarkus..", "jakarta..", "com.fasterxml..", SERVICE_PACKAGE + "..");
     rule.check(importedClasses());
   }
 
@@ -80,9 +76,52 @@ class ArchitectureTest {
         new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests())
             .importPath(Path.of("target", "classes"));
-    ArchRule rule =
-        classes().should().resideInAPackage(SERVICE_PACKAGE + "..").allowEmptyShould(true);
+    ArchRule rule = classes().should().resideInAPackage(SERVICE_PACKAGE + "..");
     rule.check(serviceClasses);
+  }
+
+  /** Engine classes the service never touches, though their packages are exported. */
+  private static final Set<String> BEHIND_THE_FACADE =
+      Set.of(
+          "io.flottila.mapping.mapping.MappingModelFormat",
+          "io.flottila.mapping.mapping.Lowering",
+          "io.flottila.mapping.runtime.Interpreter",
+          "io.flottila.mapping.structure.importer.StructureReader",
+          "io.flottila.mapping.ir.IrOptimiser");
+
+  /** Engine packages the service never touches, but for {@code ir.AuthoringId}. */
+  private static final List<String> PACKAGES_BEHIND_THE_FACADE =
+      List.of(
+          "io.flottila.mapping.ir",
+          "io.flottila.mapping.xdm",
+          "io.flottila.mapping.serializer",
+          "io.flottila.mapping.udf",
+          "io.flottila.mapping.xslt.export");
+
+  /**
+   * Rule D: the service reaches the engine only through the facade (ADR-0024, "Service boundary"):
+   * {@code EngineFacade}, {@code Structures} and the model and structure records.
+   */
+  @Test
+  void ruleD_serviceReachesTheEngineOnlyThroughTheFacade() {
+    DescribedPredicate<JavaClass> behindTheFacade =
+        DescribedPredicate.describe(
+            "engine classes behind the facade",
+            c ->
+                BEHIND_THE_FACADE.contains(c.getName())
+                    || (!c.getName().equals("io.flottila.mapping.ir.AuthoringId")
+                        && PACKAGES_BEHIND_THE_FACADE.stream()
+                            .anyMatch(
+                                p ->
+                                    c.getPackageName().equals(p)
+                                        || c.getPackageName().startsWith(p + "."))));
+    ArchRule rule =
+        noClasses()
+            .that()
+            .resideInAPackage(SERVICE_PACKAGE + "..")
+            .should()
+            .dependOnClassesThat(behindTheFacade);
+    rule.check(importedClasses());
   }
 
   @Test

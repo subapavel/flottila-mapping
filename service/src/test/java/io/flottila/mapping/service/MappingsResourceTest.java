@@ -1,0 +1,303 @@
+package io.flottila.mapping.service;
+
+import static io.flottila.mapping.service.Fixtures.CORPUS_MAPPING_ETAG;
+import static io.flottila.mapping.service.Fixtures.FINGERPRINT;
+import static io.flottila.mapping.service.Fixtures.NEW_MAPPING;
+import static io.flottila.mapping.service.Fixtures.NEW_MAPPING_ETAG;
+import static io.flottila.mapping.service.Fixtures.ORDER;
+import static io.flottila.mapping.service.Fixtures.UNWIRED_ETAG;
+import static io.flottila.mapping.service.Fixtures.assertBytes;
+import static io.flottila.mapping.service.Fixtures.bytes;
+import static io.flottila.mapping.service.Fixtures.corpusMapping;
+import static io.flottila.mapping.service.Fixtures.unwired;
+import static io.flottila.mapping.service.Fixtures.workingCopy;
+import static io.flottila.mapping.service.Wire.assertProblem;
+import static io.flottila.mapping.service.Wire.createRequest;
+import static io.flottila.mapping.service.Wire.described;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import io.flottila.mapping.api.EngineFacade;
+import io.flottila.mapping.mapping.Loaded;
+import io.flottila.mapping.mapping.MappingModel;
+import io.quarkus.test.common.http.TestHTTPResource;
+import io.quarkus.test.junit.QuarkusTest;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+/**
+ * {@code /api/mappings} over the temporary workspace (#28; ADR-0014, ADR-0015, ADR-0024). Each test
+ * that writes uses a directory of its own. Expected models are corpus files or the engine's
+ * canonical form, never the service's answer.
+ */
+@QuarkusTest
+class MappingsResourceTest {
+
+  private static final String CORPUS_ID = "mappings/order-id-copy";
+
+  @TestHTTPResource URI root;
+
+  private Http http() {
+    return new Http(root);
+  }
+
+  @Test
+  void listsIdAndNameSortedById() {
+    for (String id : List.of("listing/m", "listing/b/c", "listing/b-c")) {
+      TempWorkspace.write(id + ".mapping.json", corpusMapping());
+    }
+    // never mappings: a dot directory, a name the pattern refuses, a reserved last segment
+    for (String file :
+        List.of(".hidden/x", "bad name", "d/test").stream()
+            .map(f -> "listing/" + f + ".mapping.json")
+            .toList()) {
+      TempWorkspace.write(file, corpusMapping());
+    }
+
+    Http.Reply reply = http().get("api/mappings");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.contentType()).startsWith("application/json");
+    List<String> entries = new ArrayList<>();
+    List<String> ids = new ArrayList<>();
+    for (JsonNode summary : reply.json()) {
+      entries.add(summary.path("id").textValue() + " " + summary.path("name").textValue());
+      ids.add(summary.path("id").textValue());
+    }
+    // sorted by id as text: '-' sorts before '/'
+    assertThat(entries.stream().filter(e -> e.startsWith("listing/")).toList())
+        .containsExactly("listing/b-c b-c", "listing/b/c c", "listing/m m");
+    assertThat(entries).contains(CORPUS_ID + " order-id-copy").doesNotContain("links/out out");
+    assertThat(ids).isSorted();
+  }
+
+  @Test
+  void getReturnsCanonicalModelAndEtag() {
+    Http.Reply reply = http().get("api/mappings/" + CORPUS_ID);
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.contentType()).startsWith("application/json");
+    assertBytes(reply.body(), corpusMapping());
+    assertThat(reply.header("ETag")).contains(CORPUS_MAPPING_ETAG);
+
+    // a stored file out of canonical form is answered in canonical form, not as its raw bytes
+    TempWorkspace.write("getting/reordered.mapping.json", bytes(workingCopy("\"a1\"")));
+    Http.Reply reordered = http().get("api/mappings/getting/reordered");
+
+    assertThat(reordered.status()).as("%s", reordered).isEqualTo(200);
+    assertBytes(reordered.body(), corpusMapping());
+    assertThat(reordered.header("ETag")).contains(CORPUS_MAPPING_ETAG);
+  }
+
+  @Test
+  void getUnknownIdIs404Problem() {
+    assertProblem(http().get("api/mappings/mappings/no-such-mapping"), 404, "not-found");
+  }
+
+  /**
+   * An encoded slash names the same id. Observed 2026-11-02 on Quarkus 3.40.1.1 with a scratch
+   * resource: the router decodes {@code %2F} in {@code {id: .+}}.
+   */
+  @Test
+  void getWithEncodedSlashInId() {
+    Http.Reply reply = http().get("api/mappings/mappings%2Forder-id-copy");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertBytes(reply.body(), corpusMapping());
+    assertThat(reply.header("ETag")).contains(CORPUS_MAPPING_ETAG);
+  }
+
+  @Test
+  void createIs201WithModelEtagAndLocation() {
+    TempWorkspace.mkdirs("creating");
+    String request =
+        createRequest("creating/order-to-order", "../structures/skeleton/order.xsd", ORDER);
+
+    Http.Reply reply = http().post("api/mappings", "application/json", bytes(request));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(201);
+    assertThat(reply.contentType()).startsWith("application/json");
+    assertBytes(reply.body(), bytes(NEW_MAPPING));
+    // the fingerprint is the corpus file's
+    assertThat(reply.json().path("source").path("fingerprint").textValue()).isEqualTo(FINGERPRINT);
+    assertThat(reply.json().path("target").path("fingerprint").textValue()).isEqualTo(FINGERPRINT);
+    assertThat(reply.header("ETag")).contains(NEW_MAPPING_ETAG);
+    assertThat(reply.header("Location"))
+        .hasValueSatisfying(
+            location ->
+                assertThat(root.resolve(location).getPath())
+                    .isEqualTo("/api/mappings/creating/order-to-order"));
+    assertBytes(TempWorkspace.read("creating/order-to-order.mapping.json"), bytes(NEW_MAPPING));
+    Http.Reply get = http().get("api/mappings/creating/order-to-order");
+    assertBytes(get.body(), bytes(NEW_MAPPING));
+    assertThat(get.header("ETag")).contains(NEW_MAPPING_ETAG);
+  }
+
+  @Test
+  void createExistingIdIs409() {
+    String request = createRequest(CORPUS_ID, "../structures/skeleton/order.xsd", ORDER);
+
+    assertProblem(
+        http().post("api/mappings", "application/json", bytes(request)), 409, "mapping-exists");
+    // a create would have written NEW_MAPPING over it
+    assertBytes(TempWorkspace.read(CORPUS_ID + ".mapping.json"), corpusMapping());
+  }
+
+  @Test
+  void createWithUnreadableSchemaIs422() {
+    TempWorkspace.mkdirs("creating-unreadable");
+    String request =
+        createRequest("creating-unreadable/order", "../structures/skeleton/missing.xsd", ORDER);
+
+    JsonNode problem =
+        assertProblem(
+            http().post("api/mappings", "application/json", bytes(request)), 422, "model-refused");
+
+    // both sides name the missing file; the engine reports it at line 1, column 1 of the file
+    assertThat(described(problem.path("diagnostics")))
+        .isNotEmpty()
+        .containsOnly("error schema-unreadable at file ../structures/skeleton/missing.xsd 1:1");
+    assertThat(TempWorkspace.exists("creating-unreadable/order.mapping.json")).isFalse();
+  }
+
+  @Test
+  void saveWritesCanonicalFormAndGetReturnsItByteIdentical() throws Exception {
+    TempWorkspace.write("saving/order.mapping.json", unwired());
+    byte[] body = bytes(workingCopy("\"a1\""));
+    byte[] canonical = engineCanonical(body);
+    assertBytes(canonical, corpusMapping());
+
+    Http.Reply put = http().put("api/mappings/saving/order", "application/json", body);
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertThat(put.contentType()).startsWith("application/json");
+    assertBytes(put.body(), canonical);
+    assertBytes(TempWorkspace.read("saving/order.mapping.json"), canonical);
+    Http.Reply get = http().get("api/mappings/saving/order");
+    assertBytes(get.body(), canonical);
+    assertThat(put.header("ETag")).contains(CORPUS_MAPPING_ETAG);
+    assertThat(get.header("ETag")).isEqualTo(put.header("ETag"));
+  }
+
+  @Test
+  void saveStage1Is422AtPointer() {
+    TempWorkspace.write("saving-stage1/order.mapping.json", unwired());
+    String body = "{\"extra\": 1, " + workingCopy("\"a1\"").substring(1);
+
+    JsonNode problem =
+        assertProblem(
+            http().put("api/mappings/saving-stage1/order", "application/json", bytes(body)),
+            422,
+            "model-refused");
+
+    assertThat(described(problem.path("diagnostics")))
+        .containsExactly("error unknown-member at pointer /extra");
+    assertBytes(TempWorkspace.read("saving-stage1/order.mapping.json"), unwired());
+  }
+
+  @Test
+  void saveStage2Is422AtAuthoringId() {
+    TempWorkspace.write("saving-stage2/order.mapping.json", unwired());
+    String body = workingCopy("\"zz\"");
+
+    JsonNode problem =
+        assertProblem(
+            http().put("api/mappings/saving-stage2/order", "application/json", bytes(body)),
+            422,
+            "model-refused");
+
+    assertThat(described(problem.path("diagnostics")))
+        .containsExactly("error unknown-box-reference at id t1");
+    assertBytes(TempWorkspace.read("saving-stage2/order.mapping.json"), unwired());
+  }
+
+  @Test
+  void saveKeepsStage3Errors() {
+    // an unconnected target field is a stage 3 error: an unfinished mapping saves (F-2)
+    TempWorkspace.write("saving-stage3/order.mapping.json", corpusMapping());
+
+    Http.Reply put =
+        http()
+            .put(
+                "api/mappings/saving-stage3/order", "application/json", bytes(workingCopy("null")));
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertBytes(put.body(), unwired());
+    assertThat(put.header("ETag")).contains(UNWIRED_ETAG);
+    assertBytes(TempWorkspace.read("saving-stage3/order.mapping.json"), unwired());
+  }
+
+  @Test
+  void saveMalformedJsonIs400AndFileUnchanged() {
+    TempWorkspace.write("saving-malformed/order.mapping.json", unwired());
+    String wired = workingCopy("\"a1\"");
+    byte[] withBom = new byte[3 + bytes(wired).length];
+    withBom[0] = (byte) 0xEF;
+    withBom[1] = (byte) 0xBB;
+    withBom[2] = (byte) 0xBF;
+    System.arraycopy(bytes(wired), 0, withBom, 3, bytes(wired).length);
+    Map<String, byte[]> bodies =
+        Map.of(
+            "trailing comma",
+            bytes(wired.replace("\"formatVersion\": 1}", "\"formatVersion\": 1,}")),
+            "duplicate key",
+            bytes(
+                wired.replace(
+                    "\"formatVersion\": 1}", "\"formatVersion\": 1, \"formatVersion\": 1}")),
+            "byte order mark",
+            withBom);
+
+    bodies.forEach(
+        (name, body) -> {
+          assertThat(new String(body, java.nio.charset.StandardCharsets.UTF_8))
+              .as(name)
+              .isNotEqualTo(wired);
+          assertProblem(
+              http().put("api/mappings/saving-malformed/order", "application/json", body),
+              400,
+              "malformed-json");
+          assertBytes(TempWorkspace.read("saving-malformed/order.mapping.json"), unwired());
+        });
+  }
+
+  @Test
+  void saveTextPlainIs415Problem() {
+    TempWorkspace.write("saving-text/order.mapping.json", unwired());
+
+    assertProblem(
+        http().put("api/mappings/saving-text/order", "text/plain", bytes(workingCopy("\"a1\""))),
+        415,
+        "unsupported-media-type");
+    assertBytes(TempWorkspace.read("saving-text/order.mapping.json"), unwired());
+  }
+
+  @Test
+  void saveIgnoresIfMatch() {
+    // spec 1 enforces no If-Match (ADR-0024): a tag that matches nothing still saves
+    TempWorkspace.write("saving-if-match/order.mapping.json", unwired());
+
+    Http.Reply put =
+        http()
+            .put(
+                "api/mappings/saving-if-match/order",
+                "application/json",
+                bytes(workingCopy("\"a1\"")),
+                "If-Match",
+                "\"sha256:" + "0".repeat(64) + "\"");
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertBytes(TempWorkspace.read("saving-if-match/order.mapping.json"), corpusMapping());
+  }
+
+  /** {@code facade.save(facade.load(body))}: the engine's canonical form, the oracle. */
+  private static byte[] engineCanonical(byte[] body) throws Exception {
+    EngineFacade facade = new EngineFacade();
+    if (facade.load(body) instanceof Loaded(MappingModel model)) {
+      return facade.save(model);
+    }
+    throw new AssertionError("the engine refuses the working copy");
+  }
+}
