@@ -15,13 +15,11 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.Config;
@@ -51,7 +49,10 @@ public class Workspace {
 
   private static final String SUFFIX = ".mapping.json";
 
-  /** The mode of a created mapping model file on a POSIX file store (0644). */
+  /**
+   * The mode of a created mapping model file on a POSIX file store (0644), and of a saved one that
+   * is no regular file.
+   */
   private static final Set<PosixFilePermission> CREATED =
       Set.copyOf(PosixFilePermissions.fromString("rw-r--r--"));
 
@@ -153,17 +154,22 @@ public class Workspace {
    * target and keeps the link.
    */
   public void save(String id, byte[] canonical) throws IOException, WorkspacePathException {
+    Path file = existing(id);
     write(
-        existing(id),
+        file,
         canonical,
+        keptMode(file),
         StandardCopyOption.ATOMIC_MOVE,
         StandardCopyOption.REPLACE_EXISTING);
   }
 
-  /** Writes the mapping model file of a new {@code id}; never replaces one. */
+  /**
+   * Writes the mapping model file of a new {@code id}, of mode {@code rw-r--r--}; never replaces
+   * one, and never reads the mode of what is in the way.
+   */
   public void create(String id, byte[] canonical) throws IOException, WorkspacePathException {
     Path file = mappingModelFile(id);
-    write(real(file.getParent()).resolve(file.getFileName()), canonical);
+    write(real(file.getParent()).resolve(file.getFileName()), canonical, CREATED);
   }
 
   /**
@@ -253,23 +259,27 @@ public class Workspace {
   /**
    * Writes a new temporary file with a unique name in the real parent of {@code target}, then moves
    * it onto {@code target} with {@code options}, under the target's lock. No file that existed
-   * before the call is opened, so a {@code .<name>.tmp} left beside the target stays as it is. The
-   * temporary file is created with its final {@link #mode}, and set to it again in case the umask
-   * narrowed it, before any content is written. It never outlives the call.
+   * before the call is opened, so a {@code .<name>.tmp} left beside the target stays as it is. On a
+   * file store with POSIX permissions the temporary file is created with {@code mode}, which the
+   * umask can only narrow, and set to it before any content is written, so no file on the way is
+   * more open than the final one. Elsewhere it gets the file system's default. It never outlives
+   * the call.
    */
-  private void write(Path target, byte[] bytes, CopyOption... options) throws IOException {
+  private void write(
+      Path target, byte[] bytes, Set<PosixFilePermission> mode, CopyOption... options)
+      throws IOException {
     synchronized (locks[Math.floorMod(target.hashCode(), STRIPES)]) {
-      Optional<Set<PosixFilePermission>> mode = mode(target);
-      FileAttribute<?>[] attributes =
-          mode.isPresent()
-              ? new FileAttribute<?>[] {PosixFilePermissions.asFileAttribute(mode.get())}
-              : new FileAttribute<?>[0];
+      Path directory = target.getParent();
+      String prefix = "." + target.getFileName() + ".";
+      boolean posix = posix(directory);
       Path temp =
-          Files.createTempFile(
-              target.getParent(), "." + target.getFileName() + ".", ".tmp", attributes);
+          posix
+              ? Files.createTempFile(
+                  directory, prefix, ".tmp", PosixFilePermissions.asFileAttribute(mode))
+              : Files.createTempFile(directory, prefix, ".tmp");
       try {
-        if (mode.isPresent()) {
-          Files.setPosixFilePermissions(temp, mode.get());
+        if (posix) {
+          Files.setPosixFilePermissions(temp, mode);
         }
         Files.write(temp, bytes, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
         Files.move(temp, target, options);
@@ -280,18 +290,17 @@ public class Workspace {
   }
 
   /**
-   * The POSIX mode {@code target} has after a write: the one it has now, so a save keeps it, or
-   * {@code rw-r--r--} for a new file. Empty on a file store without POSIX permissions, where the
-   * temporary file gets the file system's default.
+   * The mode a save keeps: that of {@code file} when it is a regular file on a file store with
+   * POSIX permissions, otherwise {@code rw-r--r--}. {@code file} is a real path, so a save through
+   * a link keeps its target's mode, never the link's own.
    */
-  private static Optional<Set<PosixFilePermission>> mode(Path target) throws IOException {
-    if (!Files.getFileStore(target.getParent())
-        .supportsFileAttributeView(PosixFileAttributeView.class)) {
-      return Optional.empty();
-    }
-    return Optional.of(
-        Files.exists(target, LinkOption.NOFOLLOW_LINKS)
-            ? Files.getPosixFilePermissions(target, LinkOption.NOFOLLOW_LINKS)
-            : CREATED);
+  private static Set<PosixFilePermission> keptMode(Path file) throws IOException {
+    return Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && posix(file.getParent())
+        ? Files.getPosixFilePermissions(file, LinkOption.NOFOLLOW_LINKS)
+        : CREATED;
+  }
+
+  private static boolean posix(Path directory) throws IOException {
+    return Files.getFileStore(directory).supportsFileAttributeView(PosixFileAttributeView.class);
   }
 }
