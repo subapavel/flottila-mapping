@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/exists.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §7.7 (ambiguity 7, partially resolved): exists gives one value per context, true for a context that holds a value and false for an empty context, from the mapWithDefault equivalence If([]field, exists([]field), Constant) [SAP✓ STD]; #57 ticket: per context (assumed, #33 amb. 7); obs-context-functions ctx-4 f4.xml decides it (#33); observation #61",
+  "expect": "output",
+  "note": "The input of obs-context-functions ctx-4 (f4.xml); to observe in PO: per value or per context. Sku in context Order is a, b | (empty) | (empty) | \"\": o2's one Line has no Sku, o3 has no Line, o4's <Sku/> is the value \"\". exists gives one value per context, true, false, false, true, and removeContexts puts them under the root's one slot. Per value would give true, true, false, false, true; taking \"\" for no value would make the last false."
+}

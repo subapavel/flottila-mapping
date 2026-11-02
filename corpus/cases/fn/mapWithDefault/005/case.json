@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/map-with-default-line.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0004 Consequences: \"An absent parent gives zero contexts, not one empty context\" (assumed); #2 §4 mapWithDefault replaces empty contexts [SAP✓ STD], and a queue with no context has none; observation #61",
+  "expect": "output",
+  "note": "To observe in PO, with fn/mapWithDefault/004: mapWithDefault over no context. <Orders/> has no Line, so Sku in its default context Line has no context at all, and mapWithDefault keeps it so: the root's one slot reads a context the queue lacks and the root is written empty. Filling a queue without contexts with one D would give All D."
+}
