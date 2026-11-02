@@ -20,3 +20,11 @@ Durable facts only (AGENTS.md, Memory).
   and `/comments`. The approved design is in the ticket comments, and it can sanction choices
   that look like standards deviations (hand-built IR in engine/oracle, non-corpus inputs).
 - Worktree logs: `.claude/worktrees/<agent>/.logs/<ticket>-*.log` (enforcer witness, pit).
+- `toRealPath()` guards that catch only `NoSuchFileException`: a link loop (ELOOP) or an
+  unsearchable target is a plain `FileSystemException`/`AccessDeniedException`. Check what a
+  "skip"/"fail closed" ruling needs. Seen: #28 Workspace.insideByRealPath, checkBundle.
+- Config-only guards (Jackson coercion bans, features, partial `&&` conditions in hand-written
+  validators) often ship with one case of several witnessed. Ask for one case per line.
+  Seen: #28 ServiceConfig:45,50-51, RootSelectorJson:49-50.
+- smallrye-openapi drops its generated 2xx once any `@APIResponse` is declared; hand-declared
+  2xx then need a contract-test witness. Seen: #28.
