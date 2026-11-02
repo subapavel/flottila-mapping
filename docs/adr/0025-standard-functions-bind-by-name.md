@@ -22,7 +22,8 @@ Status: accepted (2026-11-02, #50 design, spec #48)
   - `engine/runtime` binds a name once per call site at closure compile and parses the params into the closure. This refines ADR-0021's "queue-operation library": the binding is in `runtime`, the algebra in `xdm`.
   - The bytecode tier calls the same binding.
 - **Export.**
-  - A queue is `array(xs:string*)`, one member per context. #51 widens it for SUPPRESS.
+  - A queue is `array(item()*)`, one member per context; a value is an `xs:string` or `$po:SUPPRESS`, ADR-0004's marker (since #51).
+  - A `Lift` exports as `po:lift((queues), function($in as xs:string*) as xs:string {…})`. The runtime binds a single-value function by name to a string node.
   - A `FunCall` exports as `po:<catalogue name>(args…)`, with one `xsl:function` per function in `po-runtime.xsl`, taking its args in `FunCall` order.
   - Renaming a function breaks exports already handed out.
 - **Stage-3 codes at the box** (added to ADR-0011):
