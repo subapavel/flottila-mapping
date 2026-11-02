@@ -64,6 +64,7 @@ class LiftExportTest {
                 new VarRef("root", AtomicType.INTEGER, T1),
                 0,
                 Long.MAX_VALUE,
+                "slot",
                 "value",
                 new ElementConstructor("", ORDER_ID, all, T1),
                 T1)));
