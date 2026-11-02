@@ -258,7 +258,13 @@ _Avoid_: null, empty (both are different things)
 
 **Slot variable**:
 The variable from which a `Lift` body reads one input's value at the current slot, `in1` … `inN`.
-_Avoid_: argument, parameter
+_Avoid_: argument, parameter; never the `TargetSlots` slot-number variable (that is the slot-number variable)
+
+**Slot-number variable**:
+The variable of a `TargetSlots` (`slotVar`) that holds the slot number of the occurrence being
+written; its children read their queues under it as their parent slot. Its sibling `valueVar`
+holds that slot's value.
+_Avoid_: slot variable (that is a `Lift` input)
 
 **Parent slot**:
 The slot number of the parent occurrence under which a target field's slots are read.
