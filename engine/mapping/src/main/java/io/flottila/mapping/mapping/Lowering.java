@@ -32,8 +32,9 @@ import java.util.Optional;
  *
  * <ul>
  *   <li>a source or target field path the structure lacks: {@code orphaned-reference};
- *   <li>a field that is no leaf element under the root, such as an attribute or the root itself:
- *       {@code unsupported-field};
+ *   <li>a source field that is no leaf element at any depth (#62), or a target field that is no
+ *       leaf element under the root, such as an attribute or the root itself: {@code
+ *       unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
  *   <li>a {@code result} that is a function or UDF box: {@code unsupported-box-kind}, and an
  *       unresolved box: {@code unresolved-function}.
@@ -108,7 +109,7 @@ public final class Lowering {
    * @param order the target root's child fields in target field order
    */
   private Optional<Link> link(String path, TargetFieldMapping mapping, List<FieldPath> order) {
-    return leaf(target, path, mapping.id())
+    return leaf(target, path, mapping.id(), true)
         .flatMap(
             field ->
                 queue(mapping)
@@ -122,23 +123,29 @@ public final class Lowering {
   }
 
   /**
-   * The path of the leaf element under the root that {@code text} names in {@code structure}, or
-   * empty once the reason it names none is reported at {@code at}.
+   * The path of the leaf element that {@code text} names in {@code structure}, or empty once the
+   * reason it names none is reported at {@code at}.
+   *
+   * @param underRoot whether the leaf must be a child of the root: a target leaf under a structure
+   *     field needs the target slots of #52, while a source leaf may stand at any depth (#62)
    */
-  private Optional<FieldPath> leaf(Structure structure, String text, AuthoringId at) {
+  private Optional<FieldPath> leaf(
+      Structure structure, String text, AuthoringId at, boolean underRoot) {
     Optional<FieldPath> path = resolve(structure, text);
     if (path.isEmpty()) {
       report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
       return Optional.empty();
     }
     Field field = structure.field(path.get()).orElseThrow();
-    if (path.get().steps().size() != 2
+    if ((underRoot && path.get().steps().size() != 2)
         || field.step().kind() != FieldKind.ELEMENT
         || field.valueType().isEmpty()) {
       report(
           MappingDiagnostics.UNSUPPORTED_FIELD,
           at,
-          text + " is no leaf element under the root, the only field this engine maps yet");
+          text
+              + " is not a field this engine maps yet: a source leaf element, or a target leaf"
+              + " element under the root");
       return Optional.empty();
     }
     return path;
@@ -179,7 +186,7 @@ public final class Lowering {
     AuthoringId id = mapping.result().get();
     return switch (mapping.boxes().get(id)) {
       case SourceFieldBox box ->
-          leaf(source, box.field(), id)
+          leaf(source, box.field(), id, false)
               .map(field -> new SourceQueue(names(field), contextDepth(box, field), id));
       case StandardFunctionBox box -> unsupportedBox(id, "the function " + box.fn());
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
