@@ -21,9 +21,21 @@ final class QueueLibrary {
    */
   static Node.OfQueue bind(String name, List<Node.OfQueue> inputs) {
     return switch (name) {
+      case "collapseContexts" -> {
+        Node.OfQueue input = inputs.getFirst();
+        yield frame -> ContextFunctions.collapseContexts(input.eval(frame));
+      }
       case "removeContexts" -> {
         Node.OfQueue input = inputs.getFirst();
         yield frame -> ContextFunctions.removeContexts(input.eval(frame));
+      }
+      case "useOneAsMany" -> {
+        Node.OfQueue value = inputs.get(0);
+        Node.OfQueue occurrences = inputs.get(1);
+        Node.OfQueue contexts = inputs.get(2);
+        yield frame ->
+            ContextFunctions.useOneAsMany(
+                value.eval(frame), occurrences.eval(frame), contexts.eval(frame));
       }
       default -> throw new IllegalArgumentException("the runtime library has no function " + name);
     };

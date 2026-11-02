@@ -22,10 +22,41 @@
     <xsl:sequence select="if (exists($max)) then subsequence($context, 1, $max) else $context"/>
   </xsl:function>
 
+  <!-- collapseContexts: the first value of each context of $queue, '' for an empty context, all in
+       one context. A queue with no context at all gives one empty context, as the runtime's
+       ContextFunctions.collapseContexts does. -->
+  <xsl:function name="po:collapseContexts" as="array(xs:string*)">
+    <xsl:param name="queue" as="array(xs:string*)"/>
+    <xsl:sequence select="[for $c in 1 to array:size($queue) return ($queue($c)[1], '')[1]]"/>
+  </xsl:function>
+
   <!-- removeContexts: every value of $queue, in order, in one context. A queue with no context at
        all gives one empty context, as the runtime's ContextFunctions.removeContexts does. -->
   <xsl:function name="po:removeContexts" as="array(xs:string*)">
     <xsl:param name="queue" as="array(xs:string*)"/>
     <xsl:sequence select="[$queue?*]"/>
+  </xsl:function>
+
+  <!-- useOneAsMany: value k of $value, counted across its contexts, once per value of context k of
+       $occurrences, in order, cut into the contexts of $contexts, as the runtime's
+       ContextFunctions.useOneAsMany does. Unless $value has one value per context of $occurrences
+       and $contexts as many values as $occurrences, it raises po:USEONEASMANY, where the runtime
+       refuses the same inputs (an assumed reading, #2 §7.10). -->
+  <xsl:function name="po:useOneAsMany" as="array(xs:string*)">
+    <xsl:param name="value" as="array(xs:string*)"/>
+    <xsl:param name="occurrences" as="array(xs:string*)"/>
+    <xsl:param name="contexts" as="array(xs:string*)"/>
+    <xsl:variable name="values" as="xs:string*" select="$value?*"/>
+    <xsl:variable name="repeated" as="xs:string*"
+        select="for $k in 1 to array:size($occurrences) return $occurrences($k) ! $values[$k]"/>
+    <xsl:sequence select="
+        if (count($values) ne array:size($occurrences) or count($repeated) ne count($contexts?*))
+        then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
+                   'useOneAsMany: the counts of its inputs do not agree')
+        else array:join(
+          for $c in 1 to array:size($contexts)
+          return [subsequence($repeated,
+                              sum(for $j in 1 to $c - 1 return count($contexts($j))) + 1,
+                              count($contexts($c)))])"/>
   </xsl:function>
 </xsl:stylesheet>
