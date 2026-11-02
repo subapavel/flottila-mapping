@@ -62,7 +62,7 @@ if [ "$ui_changed" = true ] && [ -f ui/package.json ]; then
   if [ ! -d ui/node_modules ]; then
     step "4 ui npm ci" "ui/.logs/${ticket}-npm-ci.log" bash -c 'cd ui && npm ci'
   fi
-  for check in typecheck lint test test:browser e2e; do
+  for check in licences typecheck lint test test:browser e2e; do
     step "4 ui $check" "ui/.logs/${ticket}-${check/:/-}.log" bash -c "cd ui && npm run $check"
   done
   step "4 ui gen:types diff" "ui/.logs/${ticket}-gen-types.log" \

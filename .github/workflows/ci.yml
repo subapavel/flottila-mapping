@@ -60,6 +60,8 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - run: npm ci
+      - name: Licences (CLAUDE.md list, exceptions in ui/scripts/licence-exceptions.json)
+        run: npm run licences
       # The pinned @playwright/test (1.63.0) decides the Chromium build.
       - run: npx playwright install --with-deps chromium
       - name: Generated types are up to date
