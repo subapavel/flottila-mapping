@@ -238,7 +238,8 @@
         </executions>
       </plugin>
 
-      <!-- Licences (CLAUDE.md list). Exceptions by groupId:artifactId in .mvn/licence-filters.txt. -->
+      <!-- Licences (CLAUDE.md list). Exceptions by groupId:artifactId in .mvn/licence-filters.txt.
+           npm licences (ui/): exceptions by package name in ui/scripts/licence-exceptions.json. -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>license-maven-plugin</artifactId>
