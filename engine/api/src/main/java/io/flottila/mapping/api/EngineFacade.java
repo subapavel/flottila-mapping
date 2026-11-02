@@ -1,7 +1,6 @@
 package io.flottila.mapping.api;
 
 import io.flottila.mapping.ir.IrOptimiser;
-import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.LoadResult;
@@ -53,9 +52,9 @@ public final class EngineFacade {
 
   /**
    * Compiles a mapping model (ADR-0016): load with stages 1 and 2, the source and target
-   * structures, stage 3 and lowering, the IR verifier and, if asked, the optimiser, then the
-   * closure compile. The first of these that refuses the model gives the result; the structures are
-   * both read before either refusal is reported.
+   * structures, stage 3 and lowering, the optimiser if {@code options} ask for it, then the closure
+   * compile. The first of these that refuses the model gives the result; the structures are both
+   * read before either refusal is reported.
    *
    * @param model the mapping model's bytes
    * @param base the directory the model's schema bundle references are relative to
@@ -80,7 +79,7 @@ public final class EngineFacade {
     return switch (Lowering.lower(model, source.orElseThrow(), target.orElseThrow())) {
       case Refused refused -> new CompileResult.Refused(refused.diagnostics());
       case Lowered(TargetDocument document) -> {
-        IrVerifier.verify(document);
+        // lowering has verified the IR; the optimiser verifies it again (ADR-0006)
         TargetDocument ir = options.optimised() ? IrOptimiser.optimise(document) : document;
         yield new CompileResult.Compiled(
             new CompiledMapping(Interpreter.compile(ir, options.traced())));

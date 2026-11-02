@@ -4,6 +4,7 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
@@ -69,7 +70,7 @@ public final class Lowering {
   /**
    * Lowers {@code model} over the structures its source and target refer to.
    *
-   * @return the IR, or every stage-3 diagnostic
+   * @return the IR, which the IR verifier has accepted, or every stage-3 diagnostic
    */
   public static LowerResult lower(MappingModel model, Structure source, Structure target) {
     return new Lowering(model, source, target).lower();
@@ -92,9 +93,12 @@ public final class Lowering {
     for (Link link : links) {
       content.add(slots(link));
     }
-    return new Lowered(
+    TargetDocument document =
         new TargetDocument(
-            rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content));
+            rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content);
+    // the IR is re-checked after lowering (ADR-0006); a refusal here is a bug of this class
+    IrVerifier.verify(document);
+    return new Lowered(document);
   }
 
   /**

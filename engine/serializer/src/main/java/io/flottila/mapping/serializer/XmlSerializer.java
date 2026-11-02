@@ -63,7 +63,7 @@ public final class XmlSerializer {
     closeStartTag();
     out.write('<');
     writeName(prefix, localName);
-    if (!prefix.isEmpty() && !namespace.equals(boundNamespace(prefix))) {
+    if (!prefix.isEmpty() && !bound(prefix, namespace)) {
       out.write(" xmlns:");
       out.write(prefix);
       out.write("=\"");
@@ -119,14 +119,17 @@ public final class XmlSerializer {
     out.write(localName);
   }
 
-  /** The namespace {@code prefix} is bound to at the innermost open element, or {@code null}. */
-  private String boundNamespace(String prefix) {
+  /**
+   * Whether {@code prefix} is bound to {@code namespace} at the innermost open element: the binding
+   * of the innermost open element with that prefix.
+   */
+  private boolean bound(String prefix, String namespace) {
     for (int k = open.size() - 3; k >= 0; k -= 3) {
       if (open.get(k).equals(prefix)) {
-        return open.get(k + 2);
+        return open.get(k + 2).equals(namespace);
       }
     }
-    return null;
+    return false;
   }
 
   /**

@@ -59,13 +59,13 @@ interface Node {
         return;
       }
       int context = (int) parent - 1;
-      int start = block.start(context);
-      int count = (int) Math.min(block.end(context) - start, max);
-      for (int k = 0; k < count; k++) {
+      int end = block.end(context);
+      long created = 0;
+      for (int slot = block.start(context); slot < end && created < max; slot++, created++) {
         if (Thread.currentThread().isInterrupted()) {
           throw new CancellationException("the mapping run was interrupted");
         }
-        frame.strings[valueSlot] = block.value(start + k);
+        frame.strings[valueSlot] = block.value(slot);
         body.write(frame);
       }
     }
