@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/create-if-row.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 TargetSlots, assumed readings: a SUPPRESS slot creates nothing but keeps its number, so it consumes its child context; SUPPRESS does not count toward minOccurs / maxOccurs; truncated slots keep their numbers; createIf is true for 1 or true in any case (since #51); obs-target-creation decides (#31)",
+  "expect": "output",
+  "note": "obs-target-creation a1 with createIf instead of equalsS (spec 3): Sku no, 1, 1, 1 give the Row queue SUPPRESS, \"\", \"\", \"\" and Qty 1 | 2 | 3 | 4 the Val contexts. SUPPRESS does not count toward maxOccurs 2 and keeps slot 1, so Rows 2 and 3 are created, Val 2 and 3, and slot 4 is truncated. If SUPPRESS counted: one Row, Val 2. If slots were renumbered: Val 1 and 2."
+}
