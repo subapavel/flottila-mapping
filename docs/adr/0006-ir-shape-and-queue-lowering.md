@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -65,6 +65,8 @@ for-each over the source context".
 - The queue of each mapped target field is a `Let`, evaluated lazily on first read. Calls
   therefore run in target document order, as in PO, and a field never created is never
   evaluated.
+  Until `Let` is an IR record (ADR-0025: none in spec 2), each back end evaluates a
+  `TargetSlots` queue at most once per mapping run, on first read (#52).
 - The root is created once with slot number 1.
 - `TargetSlots(queue, parentSlot, min, max, …)` reads context p, where p is the parent's slot
   number. Each slot gets its **slot number**, its position across all contexts of the queue.
@@ -74,6 +76,15 @@ for-each over the source context".
   - Contexts beyond the parent's last slot are never read.
   - Fewer than `min` created occurrences raise `po:MINOCCURS`, the export's error QName.
     SUPPRESS slots do not count toward `min` or `max`.
+  - Since #52: `slotVar` holds the occurrence's slot number in the body and is its children's
+    `parentSlot`; `valueVar` holds its value. A mapped field stands at any depth under mapped
+    ancestors; a mapped field under an unmapped parent is `unsupported-field` until #63.
+  - `min` is checked before the first occurrence of context p is written. A context the queue
+    lacks counts as empty (assumed, #31 d1). `po:MINOCCURS` is raised at the target field
+    mapping (`TargetSlots.origin`). Nothing is padded up to `min`.
+  - The export is `po:at-least(po:slots(queue, p, max), min)`; `po:slots` gives
+    `[slot number, value]` per created occurrence, and `po:at-least` is written only when
+    `min > 0`.
 - A **generating function** (a function graph with no source field) on a target becomes
   `TargetRepeat(max(1, minOccurs))` per parent slot. Its children are numbered
   `(p − 1) · copies + j`.

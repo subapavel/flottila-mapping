@@ -54,3 +54,9 @@ Status: accepted (2026-11-02, #50 design, spec #48)
 - The catalogue and `po-runtime.xsl` hold every family, against CODING_STANDARDS ("no central
   registry"). Spec 2 accepts that, because it adds one family; before spec 3 both split into one
   file per family (F-15).
+- A context function's data error is one code, `po:<CATALOGUE NAME UPPERCASED>`, the same name
+  in the runtime and the export; the message says which count failed (#52). It costs a
+  `RuntimeErrors` constant and an error corpus case. xdm throws `QueueDataException` for data
+  errors only; the binding rethrows it with the code at the box. Assumed (#34): useOneAsMany
+  refuses unless input 1 has one value per context of input 2 and input 3 has as many values
+  as input 2.
