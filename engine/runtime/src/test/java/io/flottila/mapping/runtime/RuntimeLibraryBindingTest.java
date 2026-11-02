@@ -54,6 +54,7 @@ class RuntimeLibraryBindingTest {
                 new VarRef("root", AtomicType.INTEGER, T1),
                 0,
                 Long.MAX_VALUE,
+                "slot",
                 "v",
                 new ElementConstructor("", NOTE, List.of(new TextConstructor(text, T1)), T1),
                 T1)));

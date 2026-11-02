@@ -73,6 +73,7 @@ class LiftInterpreterTest {
                 new VarRef("root", AtomicType.INTEGER, t1),
                 0,
                 max,
+                "slot",
                 "value",
                 new ElementConstructor(
                     "",
