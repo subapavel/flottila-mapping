@@ -47,6 +47,34 @@ jobs:
       - name: contract/ is up to date
         run: git diff --exit-code contract/
 
+  # The owner builds on Windows (#42): drive letters and backslashes in paths. Ticket-gate row 2.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Maven mirror
+        shell: bash
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+      - name: Whole reactor compiles; Spotless, enforcer, licences
+        run: ./mvnw.cmd -B -q -DskipTests verify
+
   ui:
     runs-on: ubuntu-24.04
     defaults:
