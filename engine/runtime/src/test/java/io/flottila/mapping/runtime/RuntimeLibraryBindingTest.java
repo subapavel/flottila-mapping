@@ -237,4 +237,127 @@ class RuntimeLibraryBindingTest {
                 + NS
                 + "\"><Note>fixed</Note><Note>fixed</Note></ns0:Order>");
   }
+
+  // --- sort and sortByKey (#59): the params comparison, then order, each parsed once
+
+  private static final FunctionRef SORT =
+      new FunctionRef("sort", List.of(QUEUE, AtomicType.STRING, AtomicType.STRING), QUEUE);
+  private static final FunctionRef SORT_BY_KEY =
+      new FunctionRef(
+          "sortByKey", List.of(QUEUE, QUEUE, AtomicType.STRING, AtomicType.STRING), QUEUE);
+
+  /** The output of {@link #notes} over {@code queue} for {@code Order} with {@code children}. */
+  private static String run(FunCall queue, String children) throws Exception {
+    TargetDocument document = notes(queue, new VarRef("v", AtomicType.STRING, T1));
+    IrVerifier.verify(document);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    String input = "<s:Order xmlns:s=\"" + NS + "\">" + children + "</s:Order>";
+
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+
+    return out.toString(UTF_8);
+  }
+
+  private static String noteElements(String... values) {
+    StringBuilder notes = new StringBuilder();
+    for (String value : values) {
+      notes.append("<Note>").append(value).append("</Note>");
+    }
+    return notes.toString();
+  }
+
+  private static FunCall sort(String comparison, String order) {
+    AuthoringId box = new AuthoringId("f1");
+    return new FunCall(
+        SORT, List.of(sourceNotes(), new Literal(comparison, box), new Literal(order, box)), box);
+  }
+
+  static Stream<Arguments> sorts() {
+    String[] text = {"b", "B", "10", "9", "a"};
+    String[] numbers = {"10", "9", "-1"};
+    return Stream.of(
+        Arguments.of("lexicographic", "ascending", text, new String[] {"10", "9", "B", "a", "b"}),
+        Arguments.of("lexicographic", "descending", text, new String[] {"b", "a", "B", "9", "10"}),
+        // b and B are equal case-insensitively and keep their input order
+        Arguments.of("caseInsensitive", "ascending", text, new String[] {"10", "9", "a", "b", "B"}),
+        Arguments.of("numeric", "ascending", numbers, new String[] {"-1", "9", "10"}),
+        Arguments.of("numeric", "descending", numbers, new String[] {"10", "9", "-1"}));
+  }
+
+  @ParameterizedTest(name = "{0} {1}")
+  @MethodSource("sorts")
+  void theParamsOfSortSelectItsComparisonAndOrder(
+      String comparison, String order, String[] notes, String[] sorted) throws Exception {
+    assertThat(run(sort(comparison, order), noteElements(notes))).isEqualTo(notesOf(sorted));
+  }
+
+  /**
+   * The keys bind first: Id 2, 1 orders Note x, y as y, x, where the other way round gives 2, 1.
+   */
+  @Test
+  void sortByKeyIsBoundByNameWithItsKeysFirst() throws Exception {
+    AuthoringId box = new AuthoringId("f1");
+    List<Expr> params = List.of(new Literal("numeric", box), new Literal("ascending", box));
+    List<Expr> keysThenValues = new ArrayList<>(List.of(source(1, "a2", "Id"), sourceNotes()));
+    keysThenValues.addAll(params);
+    String children = "<Id>2</Id><Id>1</Id>" + noteElements("x", "y");
+
+    assertThat(run(new FunCall(SORT_BY_KEY, keysThenValues, box), children))
+        .isEqualTo(notesOf("y", "x"));
+    // witness: with Note as the keys, x before y, the Ids keep their order
+    assertThat(
+            run(
+                new FunCall(
+                    SORT_BY_KEY,
+                    List.of(
+                        sourceNotes(),
+                        source(1, "a2", "Id"),
+                        new Literal("lexicographic", box),
+                        new Literal("ascending", box)),
+                    box),
+                children))
+        .isEqualTo(notesOf("2", "1"));
+  }
+
+  static Stream<Arguments> paramValuesTheSortsLack() {
+    AuthoringId box = new AuthoringId("f1");
+    return Stream.of(
+        Arguments.of(sort("caseSensitive", "ascending"), "caseSensitive"),
+        Arguments.of(sort("lexicographic", "desc"), "desc"),
+        Arguments.of(
+            new FunCall(
+                SORT_BY_KEY,
+                List.of(
+                    sourceNotes(),
+                    sourceNotes(),
+                    new Literal("numerical", box),
+                    new Literal("ascending", box)),
+                box),
+            "numerical"),
+        Arguments.of(
+            new FunCall(
+                SORT_BY_KEY,
+                List.of(
+                    sourceNotes(),
+                    sourceNotes(),
+                    new Literal("numeric", box),
+                    new Literal("Descending", box)),
+                box),
+            "Descending"));
+  }
+
+  /** A param is parsed once, when the call binds, so a value lowering would refuse is caught. */
+  @ParameterizedTest(name = "{1}")
+  @MethodSource("paramValuesTheSortsLack")
+  void aSortParamValueTheFunctionLacksIsACompilerBug(FunCall call, String value) {
+    TargetDocument document = notes(call, new VarRef("v", AtomicType.STRING, T1));
+    // witness: the IR is well-formed, and binding is what refuses it
+    IrVerifier.verify(document);
+
+    assertThatThrownBy(() -> Interpreter.compile(document, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(call.function().name())
+        .hasMessageContaining(value);
+  }
 }

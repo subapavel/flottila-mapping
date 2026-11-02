@@ -201,4 +201,65 @@ class FunctionBoxLoweringTest {
 
     assertThat(refused(result)).containsExactly(errorAtId("orphaned-reference", "a2"));
   }
+
+  // --- sort and sortByKey (#59): the params comparison (lexicographic, caseInsensitive, numeric;
+  // default lexicographic) and order (ascending, descending; default ascending), in that order
+
+  @Test
+  void sortTakesItsComparisonThenItsOrderAfterItsInput() {
+    StandardFunctionBox box = function("sort", inputs("a1"), params("order", text("descending")));
+
+    assertThat(loweredQueue(lowerNote(box)))
+        .isEqualTo(
+            new FunCall(
+                new FunctionRef(
+                    "sort", List.of(QUEUE, AtomicType.STRING, AtomicType.STRING), QUEUE),
+                List.of(
+                    NOTES,
+                    new Literal("lexicographic", id("f1")),
+                    new Literal("descending", id("f1"))),
+                id("f1")));
+  }
+
+  /** The keys, then the values, then the params; one box feeds both inputs, lowered per use. */
+  @Test
+  void sortByKeyTakesItsKeysThenItsValuesThenItsParams() {
+    StandardFunctionBox box =
+        function("sortByKey", inputs("a1", "a1"), params("comparison", text("numeric")));
+
+    assertThat(loweredQueue(lowerNote(box)))
+        .isEqualTo(
+            new FunCall(
+                new FunctionRef(
+                    "sortByKey",
+                    List.of(QUEUE, QUEUE, AtomicType.STRING, AtomicType.STRING),
+                    QUEUE),
+                List.of(
+                    NOTES,
+                    NOTES,
+                    new Literal("numeric", id("f1")),
+                    new Literal("ascending", id("f1"))),
+                id("f1")));
+  }
+
+  static Stream<Arguments> refusedSortParams() {
+    return Stream.of(
+        Arguments.of(
+            "the hyphenated spelling",
+            function("sort", inputs("a1"), params("comparison", text("case-insensitive")))),
+        Arguments.of(
+            "caseSensitive, which is lexicographic",
+            function("sort", inputs("a1"), params("comparison", text("caseSensitive")))),
+        Arguments.of(
+            "an order short for descending",
+            function("sortByKey", inputs("a1", "a1"), params("order", text("desc")))));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("refusedSortParams")
+  void aSortParamOutsideItsValuesIsInvalidParameterValue(String why, StandardFunctionBox box) {
+    assertThat(refused(lowerNote(box)))
+        .as(why)
+        .containsExactly(errorAtId("invalid-parameter-value", "f1"));
+  }
 }
