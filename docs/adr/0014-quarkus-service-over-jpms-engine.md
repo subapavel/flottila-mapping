@@ -66,8 +66,8 @@ application on the class path. So the engine stays JPMS and the service does not
 - A test run has a timeout, 10 s by default. On timeout it gives the runtime error
   `flottila:TIMEOUT` with the trace so far. The engine checks for interruption in its loops
   over slots, so cancelling is cooperative. A runaway UDF is #16's concern.
-  Applied since #54 (`flottila.mapping.test-timeout`, `EngineFacade.testRun`). The trace on
-  timeout comes with #53.
+  Applied since #54 (`flottila.mapping.test-timeout`, `EngineFacade.testRun`). Since #53, at
+  timeout the facade snapshots the tracer under its lock, and the run's later reports are dropped.
 - Out of milestone 1: authentication, multi-user editing, several workspaces, and an
   embedding API for Flottila.
 

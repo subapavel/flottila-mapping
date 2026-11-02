@@ -1,6 +1,6 @@
 # The service API: stateless compile and test on the working copy, one diagnostic shape, code-first OpenAPI
 
-Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`)
+Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`); trace shape refined by #53
 
 ADR-0013 makes the editor reach the service only through `ApiClient`, with compile and test
 on the unsaved working copy, and generated wire types only. This ADR fixes the contract and
@@ -72,8 +72,21 @@ contract, and the editor ships with the service.
 - A box whose UDF called `run.log` adds `messages: [string]`, limited like values (ADR-0020).
 - `po:show` text (`1a,2b|S,3c`) is derived from this shape for oracle diffs and logs only. It
   cannot tell a value `S` or a comma from the markers.
-- Limits, both configurable: a test input up to 10 MB (413 above), and up to 10,000 values per
-  box in the trace (above that, `truncated: true` and the total counts).
+- Limits, both configurable: a test input up to 10 MB (413 above), and the trace limit
+  (`flottila.mapping.trace-limit`, 10,000) per entry. Since #53 the cap marker is `capped: true`,
+  not `truncated`, which names a slot cut by `maxOccurs`.
+- Since #53 each entry carries `kind`:
+  - `queue` {contexts, capped, slotCount, contextCount}: at most the limit's slots and contexts,
+    the totals always;
+  - `occurrences`, for a target field mapping {min, max?, parents [{parentSlot, created,
+    slots [{slot, status}]}], capped}: at most the limit's slot and parent records, always
+    keeping the field's last parent. The field's queue is the entry of its `result` box.
+    `created < min` marks the parent slot that raised `po:MINOCCURS`; there is no separate
+    `minOccurs` record.
+  - A box feeding several inputs has one entry, its first report. `{atomic}` waits for the first
+    atomic box, in spec 3.
+- A runtime error returns the trace up to the error. A test run compiled without tracing returns
+  an empty trace.
 
 ## Types
 

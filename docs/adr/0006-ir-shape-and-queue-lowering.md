@@ -108,6 +108,9 @@ for-each over the source context".
   no tracer is set. `Literal`s are shown from the model, not traced. Editor test runs use
   unoptimised IR in the interpreter, so every box has its node. Bytecode emits the hooks only in
   a traced compile.
+  Since #53 a traced `TargetSlots` reports `Tracer.occurrences(field, parentSlot, queue, min,
+  max)` before its min check, so a shortfall is always traced. The slot statuses are derived from
+  context p and max when the trace is built, off the run thread.
 - Milestone 1 does not serialise IR. Mappings compile from the mapping model at deploy
   (FOUNDING §5). The pure-data rule keeps a later SEF-like format mechanical; that format must
   version the node list.
