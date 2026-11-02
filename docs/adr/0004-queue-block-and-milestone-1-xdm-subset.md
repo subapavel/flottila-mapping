@@ -1,6 +1,6 @@
 # Queue block and the milestone-1 XDM subset
 
-Status: accepted (2026-10-30, grilling #4); refined by ADR-0006 and ADR-0008 (a structure field's queue holds `""` per occurrence)
+Status: accepted (2026-10-30, grilling #4); refined by ADR-0006 and ADR-0008 (a structure field's queue holds `""` per occurrence); SUPPRESS bitset shape since #51
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §3, §6 and §7.1/§7.4 for milestone 1. A queue is
 logically `array(item()*)`: one member per context, `xs:string` values, SUPPRESS a marker in the
@@ -58,3 +58,6 @@ nodes when the callee accepts a queue directly. Milestone 1 has no such callee.
 - Assumed readings until observed cases confirm them (ADR-0002):
   - A constant fed into a context or queue function is a queue of one context with one value.
   - An absent parent gives zero contexts, not one empty context.
+- Since #51 the SUPPRESS bitset ends at its last SUPPRESS word, and bit k is set exactly when
+  `values[k]` is null; a block without SUPPRESS has an empty bitset. `withContextStarts` shares the
+  values and the bitset; a per-slot function shares the context starts.

@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -46,6 +46,10 @@ only through `Lift` and `AtomicToQueue`.
     inside the context;
   - SUPPRESS in any input gives a SUPPRESS slot without running the body; the other inputs are
     still consumed.
+- Since #51 the record is `Lift(queues, slotVars, body, origin)`. Slot variable k holds input k's
+  value at the slot. The body sees only the slot variables and is of type STRING; for a box it
+  is the atomic `FunCall`, with the inputs as `VarRef`s and then the params as `Literal`s. Lowering
+  writes one `Lift` per box; fusing them is optimiser work.
 - A single-value call with no queue input stays an atomic `FunCall`.
 - **Context** and **queue** functions, standard or UDF, are `FunCall`s over queue blocks into a
   runtime library, bound by their name in the function catalogue. Box parameters are `Literal`
@@ -131,3 +135,6 @@ for-each over the source context".
   - a constant-only graph through a function (`concat(const, const)`) on a target is a
     generating function; its children are numbered `(p − 1) · copies + j`;
   - an unmapped target leaf with `minOccurs > 0` is a design-time error.
+- Assumed readings since #51, until observed cases confirm them (ADR-0002, #61): a shorter input
+  whose last value is SUPPRESS gives SUPPRESS when reused (#32 lift-3); `createIf` is true for `1`
+  or `true` in any case, and anything else, `""` and SUPPRESS included, gives SUPPRESS.

@@ -1,12 +1,12 @@
 engine/api	97	100
 engine/ir	100	100
-engine/mapping	99	97
+engine/mapping	99	98
 engine/runtime	100	100
 engine/serializer	100	96
 engine/structure	84	100
 engine/structure-import	99	100
 engine/xdm	100	100
-engine/xslt-export	97	100
+engine/xslt-export	98	100
 service	98	94
 ui/src/editor/store	100	100
 ui/src/model	100	100
