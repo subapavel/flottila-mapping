@@ -1,13 +1,12 @@
 # Handoff
 
 state: RUNNING — /run-spec #48 "Spec 2: queues, contexts and node functions"
-integration branch: spec/48-queues-node-functions (from main 3bf9747), tip 5e1b930
-merged: #49 (6513644) · #54 (107524a) · #62 nested XSD (3840154, fix 99a9efd) · #50 removeContexts (a62bd13, ratchet 5e1b930)
-in flight: #51 designer (C) · #55 splitByValue implementer (t/55-split-by-value, builds the param path) · #56 implementer (t/56-collapse-contexts)
-blocked chain: #52 target fields C ← #51 · #53 trace C ← #52 · #60 editor e2e A ← #53
-frontier, held: #58 formatByExample B (third slot kept for the #51 test-author) · #59 sort B ← #55 (params)
-blocked others: #57 exists+mapWithDefault B ← #51 · #61 obs requests A ← #55, #59
-next action: approve the #51 draft, then its test-author; take #55/#56 hand-backs (gate, merge, ratchet, record); start #58 on a free slot.
+integration branch: spec/48-queues-node-functions (from main 3bf9747), tip 82a5160
+merged: #49 · #54 · #62 nested XSD · #50 removeContexts (a62bd13) · #55 splitByValue+params (5300cd9) · #56 (320698d) · ratchet 82a5160
+in flight: #51 implementer (t/51-suppress-lift, red @ 9ec1f65) · #58 implementer (t/58-format-by-example) · #59 implementer (t/59-sort)
+blocked chain: #52 target fields C ← #51 (also runtime-error codes) · #53 trace C ← #52 · #60 editor e2e A ← #53
+blocked others: #57 exists+mapWithDefault B ← #51 · #61 obs requests A ← #59 (and the assumed cases listed on #61)
+next action: take hand-backs (#51 → ticket gate, class-C review; #58/#59 → gate); merge, ratchet, record; then #52 designer and #57.
 spec 1: merged to main 3bf9747 (#46). Carried items: #21 comment 6582060566; the spec-2 lines are in #48.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
