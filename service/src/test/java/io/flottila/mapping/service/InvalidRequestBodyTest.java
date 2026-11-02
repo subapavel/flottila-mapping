@@ -239,7 +239,7 @@ class InvalidRequestBodyTest {
             "{\"wsdl\": {\"interface\": \"OrderService\", \"operation\": 5,"
                 + " \"direction\": \"input\"}}"),
         Named.of(
-            "wsdl without operation but with a fault",
+            "wsdl with a fault but three members: the size check",
             "{\"wsdl\": {\"interface\": \"OrderService\", \"direction\": \"fault\","
                 + " \"fault\": \"Rejected\"}}"),
         Named.of("wsdl a string", "{\"wsdl\": \"OrderService.submit\"}"),

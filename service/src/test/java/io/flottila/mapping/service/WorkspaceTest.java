@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
@@ -572,6 +573,125 @@ class WorkspaceTest {
     assumeTrue(
         Files.getFileStore(root).supportsFileAttributeView(PosixFileAttributeView.class),
         "the file system has POSIX permissions");
+  }
+
+  /** The links a create may land on at {@code a/x.mapping.json} (#28 round 4). */
+  enum LinkTo {
+    /** {@code a/b.mapping.json}, which exists. */
+    INSIDE("b.mapping.json"),
+    OUTSIDE("../../outside/evil.mapping.json"),
+    DANGLING("../../outside/ghost.mapping.json");
+
+    final Path target;
+
+    LinkTo(String target) {
+      this.target = Path.of(target);
+    }
+  }
+
+  /**
+   * A create whose target is a link is 409, as now, and on its way never opens a file more open
+   * than {@code rw-r--r--}: the body is never written into a file the group or the world may write
+   * (#28 round 4). {@link ObservedFileSystem} records each file's mode when it is opened for
+   * writing and just before its move. The witness: a create on a free name is observed too.
+   */
+  @ParameterizedTest(name = "a link to {0}")
+  @EnumSource(LinkTo.class)
+  void createOnALinkIs409AndNeverOpensAFileMoreOpenThan0644(LinkTo link) throws Exception {
+    assumePosix();
+    Path file = root.resolve("a/x.mapping.json");
+    Files.createSymbolicLink(file, link.target);
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    Workspace workspace = new Workspace(observed.path(root));
+
+    assertThatExceptionOfType(FileAlreadyExistsException.class)
+        .isThrownBy(() -> workspace.create("a/x", NEW));
+
+    assertNoneMoreOpenThan(observed.moments(), "rw-r--r--");
+    assertThat(Files.readSymbolicLink(file)).isEqualTo(link.target);
+    assertThat(Files.readAllBytes(root.resolve("a/b.mapping.json")))
+        .asString(UTF_8)
+        .isEqualTo("a/b");
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+    // the witness: the observed file system sees a create's temporary file
+    workspace.create("a/free", NEW);
+    assertThat(observed.moments()).as("moments of a/free").isNotEmpty();
+    assertNoneMoreOpenThan(observed.moments(), "rw-r--r--");
+  }
+
+  /**
+   * The same create, with the link removed after the create looked at the target and before its
+   * move: any mapping model file it makes is a regular {@code rw-r--r--} file, and no file on its
+   * way is more open (#28 round 4).
+   */
+  @ParameterizedTest(name = "a link to {0}")
+  @EnumSource(LinkTo.class)
+  void createOnALinkRemovedBeforeTheMoveMakesNothingMoreOpenThan0644(LinkTo link) throws Exception {
+    assumePosix();
+    Path file = root.resolve("a/x.mapping.json");
+    Files.createSymbolicLink(file, link.target);
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    observed.beforeMove(
+        (source, target) -> {
+          if (Files.isSymbolicLink(target)) {
+            Files.delete(target);
+          }
+        });
+    Workspace workspace = new Workspace(observed.path(root));
+
+    try {
+      workspace.create("a/x", NEW);
+    } catch (FileAlreadyExistsException refusedBeforeTheMove) {
+      // a create may refuse the link before it moves anything: then it made no file
+      assertThat(Files.isSymbolicLink(file)).as("the link is left").isTrue();
+    }
+
+    assertNoneMoreOpenThan(observed.moments(), "rw-r--r--");
+    if (!Files.isSymbolicLink(file)) {
+      assertThat(Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)).isTrue();
+      assertThat(Files.readAllBytes(file)).isEqualTo(NEW);
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
+          .as("mode of the created file")
+          .isEqualTo("rw-r--r--");
+    }
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
+  /**
+   * A save through a link to a file inside of mode {@code rw-r-----} keeps that mode on the real
+   * target, keeps the link a link, and opens no file more open than the target (#28 round 4).
+   */
+  @Test
+  void saveThroughALinkKeepsTheRealTargetsModeAndTheLink() throws Exception {
+    assumePosix();
+    mapping("real/m");
+    Path real = root.resolve("real/m.mapping.json");
+    Files.setPosixFilePermissions(real, PosixFilePermissions.fromString("rw-r-----"));
+    Path alias = root.resolve("alias.mapping.json");
+    Files.createSymbolicLink(alias, Path.of("real/m.mapping.json"));
+    ObservedFileSystem observed = new ObservedFileSystem();
+
+    new Workspace(observed.path(root)).save("alias", NEW);
+
+    assertThat(Files.isSymbolicLink(alias)).as("the link stays a link").isTrue();
+    assertThat(Files.readSymbolicLink(alias)).isEqualTo(Path.of("real/m.mapping.json"));
+    assertThat(Files.readAllBytes(real)).isEqualTo(NEW);
+    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(real)))
+        .as("mode of the real target")
+        .isEqualTo("rw-r-----");
+    assertThat(observed.moments()).as("the save was observed").isNotEmpty();
+    assertNoneMoreOpenThan(observed.moments(), "rw-r-----");
+  }
+
+  /** Every observed mode grants nothing that {@code mode} does not. */
+  private static void assertNoneMoreOpenThan(List<ObservedFileSystem.Moment> moments, String mode) {
+    for (ObservedFileSystem.Moment moment : moments) {
+      assertThat(PosixFilePermissions.fromString(moment.mode()))
+          .as("%s %s is %s", moment.what(), moment.file().getFileName(), moment.mode())
+          .isSubsetOf(PosixFilePermissions.fromString(mode));
+    }
   }
 
   // --- [P] every accepted path resolves inside the workspace ---
