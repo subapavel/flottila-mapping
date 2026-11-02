@@ -52,6 +52,10 @@ application on the class path. So the engine stays JPMS and the service does not
 - In milestone 1 a shared-package reference (`package@version:/path`) is a design-time error,
   "package references need a host resolver". Flottila supplies its resolver later. The engine
   does not change.
+- **Deviation in spec 1 (F-12, `docs/findings/F-12.md`):** there is no `ReferenceResolver` port
+  yet. The service alone guards bundle paths (ADR-0024, three checks), and the engine reads the
+  bundle through `Structures.load`. The package-reference code and the absolute path in
+  `schema-unreadable` wait for the port in spec 4.
 
 ## Running
 
@@ -62,6 +66,8 @@ application on the class path. So the engine stays JPMS and the service does not
 - A test run has a timeout, 10 s by default. On timeout it gives the runtime error
   `flottila:TIMEOUT` with the trace so far. The engine checks for interruption in its loops
   over slots, so cancelling is cooperative. A runaway UDF is #16's concern.
+  **Deviation in spec 1 (F-12):** the 10 s timeout is not applied yet; the engine's slot loops
+  already check for interruption. The timeout comes in spec 2.
 - Out of milestone 1: authentication, multi-user editing, several workspaces, and an
   embedding API for Flottila.
 

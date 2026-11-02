@@ -34,7 +34,7 @@ tickets with native blocking edges. There is no backlog file.
   MIT-0, EDL 1.0: ADR-0014); a dual licence counts under its allowed alternative. The list covers every
   compile, runtime and test dependency and all of `ui/package.json`. Exceptions are per artifact, listed in
   the root POM and ADR-0017: Saxon-HE at test scope (oracle), JMH in `bench/jmh` only, and the Quarkus
-  test framework's own dependencies, and four dev-only npm build tools (#39). Maven plugins are tools, not dependencies (any OSI licence).
+  test framework's own dependencies, and three dev-only npm build tools (#39). Maven plugins are tools, not dependencies (any OSI licence).
 - No secret, customer payload or real partner data in the repo; corpora are synthetic.
 - When practice contradicts an ADR or the architecture: write the finding (`docs/WORKFLOW.md` §7).
 

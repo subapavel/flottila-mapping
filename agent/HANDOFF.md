@@ -1,11 +1,11 @@
 # Handoff
 
 state: RUNNING — /run-spec #21 "Walking skeleton"
-spec: #21 · integration branch: spec/21-walking-skeleton · merged: #22, #23, #24, #25, #40 (ff0f7a7), #26 (741a58f), #27 (8707c1e), #28 (d4af82d), #29 (d15bdb6) · in flight: #30 (implementer on t/30-stack, class A); editor smoke run (verifier) · owner: #31–#38 observation requests · #39 ruled 1 (per-package npm exceptions, ADR-0017; done by #40)
+spec: #21 · integration branch: spec/21-walking-skeleton · merged: #22, #23, #24, #25, #40 (ff0f7a7), #26 (741a58f), #27 (8707c1e), #28 (d4af82d), #29 (d15bdb6), #30 (1bf5d65), #41 (173a8d7) — all tickets closed · in flight: spec gate (verifier, gate-spec.sh 21 @173a8d7), spec-level /code-review (both axes) · owner: #31–#38 observation requests · #39 ruled 1 (per-package npm exceptions, ADR-0017; done by #40)
 closed (map #1): #2–#20 — decisions indexed on the map; specs and post-M1 order in docs/GATE.md "Specs in build order"
-next exact action (architect): resume /run-spec #21 — reconcile in-flight tickets against spec/21-walking-skeleton, then fill the frontier
+next exact action (architect): read spec gate + review hand-backs → verifier commits ratchet/ → one implementer fixes every must-fix finding → gate re-run → /pr spec PR to main (rewrite this file in it)
 spec 1 decisions (#21): full formatVersion 1 schema, other box kinds → `unsupported-box-kind`; flat XSD with one required field; observation kit ticket + 6–8 grouped requests; `po-owner-local` in spec 5; owner protects main after first green CI; empty udf modules with PIT `failWhenNoMutations=false`; `PW_CHROMIUM_EXECUTABLE`; 4 seams
-tickets (#21): #22 skeleton A · #23 observation kit A · #24 model format C · #25 flat XSD B · #26 compile+run C corpus · #27 export C differential · #28 service C · #29 editor B · #30 @stack A
+tickets (#21): #22 skeleton A · #23 observation kit A · #24 model format C · #25 flat XSD B · #26 compile+run C corpus · #27 export C differential · #28 service C · #29 editor B · #30 @stack A · #40 ui licence check A · #41 editor label fix B
 carried to spec review (#24): 3-cycle test, SCC with two cycles, per-member map list in SchemaStage.check, non-string param types
 carried to spec review (F-12, spec 4/2): reference resolver port, package-ref code, schema-unreadable absolute path, 10 s test timeout
 carried to spec review (#29): F1 generated mapping-model type requires $defs (client.ts:19 workaround); virtualisation, unsaved-leave prompt, ?field=, refused-link display, pending-state asserts not built
