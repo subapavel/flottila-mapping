@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-empty.mapping.json",
+  "provenance": "assumed",
+  "ref": "#48 owner decision Q3, mode emptyValue: a context change at \"\", and the \"\" is dropped; #2 §4 labels not seen on SAP pages; obs-context-functions ctx-3 (f3.xml) decides it",
+  "expect": "output",
+  "note": "emptyValue with the empty value first: <Tag/>, a. The \"\" ends context 1 before any value and is dropped, so context 1 is empty and the root's slot creates no All. If a leading \"\" left no empty context, All would be a."
+}

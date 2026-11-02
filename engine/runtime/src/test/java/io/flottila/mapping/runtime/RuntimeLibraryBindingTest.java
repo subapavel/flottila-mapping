@@ -22,7 +22,11 @@ import io.flottila.mapping.ir.VarRef;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The interpreter binds a call by its catalogue name once, when it compiles (ADR-0025), and a
@@ -72,6 +76,64 @@ class RuntimeLibraryBindingTest {
     assertThatThrownBy(() -> Interpreter.compile(document, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
+  }
+
+  static Stream<Arguments> modes() {
+    return Stream.of(
+        Arguments.of("eachValue", "<Note>x</Note>"),
+        Arguments.of("valueChange", "<Note>x</Note><Note>x</Note>"),
+        Arguments.of("emptyValue", "<Note>x</Note><Note>x</Note><Note>y</Note>"));
+  }
+
+  /**
+   * The mode param selects the function the call binds. {@code Note} x, x, y in the root's context
+   * is one context, and the root's slot reads context 1 of the call's queue.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("modes")
+  void theModeParamSelectsTheSplit(String mode, String notes) throws Exception {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall split =
+        new FunCall(
+            new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(sourceNotes(), new Literal(mode, box)),
+            box);
+    TargetDocument document = notes(split, new VarRef("v", AtomicType.STRING, T1));
+    IrVerifier.verify(document);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    String input =
+        "<s:Order xmlns:s=\"" + NS + "\"><Note>x</Note><Note>x</Note><Note>y</Note></s:Order>";
+
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+
+    assertThat(out.toString(UTF_8))
+        .isEqualTo(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><ns0:Order xmlns:ns0=\""
+                + NS
+                + "\">"
+                + notes
+                + "</ns0:Order>");
+  }
+
+  /**
+   * A param is parsed once, when the call binds, so a value lowering would refuse is caught there.
+   */
+  @Test
+  void aParamValueTheFunctionLacksIsACompilerBug() {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall split =
+        new FunCall(
+            new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(sourceNotes(), new Literal("everyOtherValue", box)),
+            box);
+    TargetDocument document = notes(split, new VarRef("v", AtomicType.STRING, T1));
+    // witness: the IR is well-formed, and binding is what refuses it
+    IrVerifier.verify(document);
+
+    assertThatThrownBy(() -> Interpreter.compile(document, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("everyOtherValue");
   }
 
   @Test

@@ -21,9 +21,11 @@ import static io.flottila.mapping.mapping.TestStructures.order;
 import static io.flottila.mapping.mapping.TestStructures.ref;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
@@ -41,8 +43,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Stage 3 and lowering of a reached standard function box (ADR-0025, #50): a function the
  * engine-internal catalogue holds becomes a {@code FunCall} over its inputs' queues; a box that
  * does not fit its catalogue entry is refused at the box, and its inputs are not checked. {@code
- * removeContexts} has one input and no params. {@code Note <- f1} throughout, {@code a1} reading
- * {@code Note}.
+ * removeContexts} has one input and no params; {@code splitByValue} has one input and one param
+ * (#55). {@code Note <- f1} throughout, {@code a1} reading {@code Note}.
  */
 class FunctionBoxLoweringTest {
 
@@ -138,6 +140,59 @@ class FunctionBoxLoweringTest {
             errorAtId("unknown-parameter", "f1"),
             errorAtId("unknown-parameter", "f1"),
             errorAtId("wrong-arity", "f1"));
+  }
+
+  // --- box parameters (#55): splitByValue has one input and the string param mode, whose values
+  // are eachValue, valueChange and emptyValue, and whose default is eachValue
+
+  private static final FunctionRef SPLIT_BY_VALUE =
+      new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE);
+
+  @Test
+  void aParamTheBoxLeavesOutIsItsDefaultAsALiteralAfterTheInputs() {
+    assertThat(loweredQueue(lowerNote(function("splitByValue", inputs("a1"), noParams()))))
+        .isEqualTo(
+            new FunCall(
+                SPLIT_BY_VALUE, List.of(NOTES, new Literal("eachValue", id("f1"))), id("f1")));
+  }
+
+  @Test
+  void aParamTheBoxGivesIsItsStringAsALiteral() {
+    StandardFunctionBox box =
+        function("splitByValue", inputs("a1"), params("mode", text("emptyValue")));
+
+    assertThat(loweredQueue(lowerNote(box)))
+        .isEqualTo(
+            new FunCall(
+                SPLIT_BY_VALUE, List.of(NOTES, new Literal("emptyValue", id("f1"))), id("f1")));
+  }
+
+  static Stream<Arguments> refusedParams() {
+    return Stream.of(
+        Arguments.of(
+            "a table for the string param",
+            params("mode", table("a", "b")),
+            "wrong-parameter-type"),
+        Arguments.of(
+            "a string outside its values", params("mode", text("each")), "invalid-parameter-value"),
+        Arguments.of(
+            "a key the entry lacks beside a valid param",
+            params("mode", text("valueChange"), "order", text("ascending")),
+            "unknown-parameter"));
+  }
+
+  /**
+   * A param refused at the box refuses the call; {@code a2} reads a field the structure lacks, so
+   * the missing {@code orphaned-reference} shows that the box's inputs are not lowered.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("refusedParams")
+  void aParamThatDoesNotFitTheEntryIsRefusedAtTheBox(
+      String why, Map<String, ParamValue> params, String code) {
+    LowerResult result =
+        lowerNote(function("splitByValue", inputs("a2"), params), "a2", source(ORDER + "/Missing"));
+
+    assertThat(refused(result)).as(why).containsExactly(errorAtId(code, "f1"));
   }
 
   @Test

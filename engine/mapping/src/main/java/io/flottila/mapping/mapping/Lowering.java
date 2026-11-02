@@ -6,7 +6,9 @@ import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrType;
 import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
@@ -32,8 +34,9 @@ import java.util.TreeSet;
  * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
  * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, under
  * the root created once. A source-field box gives its {@code SourceQueue}; a standard function box
- * whose function the catalogue holds gives a {@code FunCall} over its inputs' queues (ADR-0025). A
- * box that feeds several inputs is lowered once per use.
+ * whose function the catalogue holds gives a {@code FunCall} over its inputs' queues and then its
+ * params as {@code Literal}s, a param the box leaves out as its catalogue default (ADR-0025). A box
+ * that feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
@@ -47,7 +50,9 @@ import java.util.TreeSet;
  *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
  *   <li>a function box against its catalogue entry: more inputs than the entry has, {@code
  *       wrong-arity}; an input slot of the entry that is {@code null} or absent, {@code
- *       unconnected-input}; a param key the entry lacks, {@code unknown-parameter}.
+ *       unconnected-input}; a param key the entry lacks, {@code unknown-parameter}; a table for a
+ *       string param, {@code wrong-parameter-type}; a string outside the param's values, {@code
+ *       invalid-parameter-value}.
  * </ul>
  *
  * <p>Only the boxes {@code result} reaches are checked: a box it does not reach is not, and the
@@ -223,20 +228,22 @@ public final class Lowering {
   }
 
   /**
-   * The call of {@code box}'s function over its inputs' queues, or empty once its refusals are
-   * reported. Every defect of the box against its catalogue entry is reported at the box before any
-   * input is lowered. No entry has a param yet (#55), so every param key is one the entry lacks.
+   * The call of {@code box}'s function over its inputs' queues and then its params, or empty once
+   * its refusals are reported. Every defect of the box against its catalogue entry is reported at
+   * the box before any input is lowered. Each param is a {@code Literal} at the box: the string the
+   * box gives, or the entry's default when the box leaves the param out (ADR-0025).
    */
   private Optional<Expr> call(TargetFieldMapping mapping, AuthoringId id, StandardFunctionBox box) {
-    Optional<List<String>> entry = FunctionCatalogue.inputs(box.fn());
-    if (entry.isEmpty()) {
+    Optional<FunctionCatalogue.Entry> catalogued = FunctionCatalogue.entry(box.fn());
+    if (catalogued.isEmpty()) {
       report(
           MappingDiagnostics.UNSUPPORTED_BOX_KIND,
           id,
           "the function " + box.fn() + " is not in the catalogue yet, so it cannot be compiled");
       return Optional.empty();
     }
-    List<String> inputs = entry.get();
+    FunctionCatalogue.Entry entry = catalogued.get();
+    List<String> inputs = entry.inputs();
     List<Optional<AuthoringId>> slots = box.inputs();
     int reported = found.size();
     if (slots.size() > inputs.size()) {
@@ -253,8 +260,8 @@ public final class Lowering {
             "the input " + inputs.get(i) + " of " + box.fn() + " is not connected");
       }
     }
-    for (String param : new TreeSet<>(box.params().keySet())) {
-      report(MappingDiagnostics.UNKNOWN_PARAMETER, id, box.fn() + " has no parameter " + param);
+    for (String key : new TreeSet<>(box.params().keySet())) {
+      param(id, box, entry, key);
     }
     if (found.size() > reported) {
       return Optional.empty();
@@ -267,9 +274,50 @@ public final class Lowering {
       }
       args.add(arg.get());
     }
-    return Optional.of(
-        new FunCall(
-            new FunctionRef(box.fn(), Collections.nCopies(inputs.size(), QUEUE), QUEUE), args, id));
+    List<IrType> types = new ArrayList<>(Collections.nCopies(inputs.size(), QUEUE));
+    for (FunctionCatalogue.Param param : entry.params()) {
+      // the box's string, which the check above accepted, or the default
+      ParamValue given = box.params().getOrDefault(param.name(), new Text(param.fallback()));
+      args.add(new Literal(((Text) given).value(), id));
+      types.add(AtomicType.STRING);
+    }
+    return Optional.of(new FunCall(new FunctionRef(box.fn(), types, QUEUE), args, id));
+  }
+
+  /**
+   * Reports what is wrong with the param {@code key} of {@code box} against {@code entry}, at the
+   * box: a key the entry lacks, {@code unknown-parameter}; a table, as every param of the catalogue
+   * is a string param, {@code wrong-parameter-type}; a string outside the param's values, {@code
+   * invalid-parameter-value}. A string among them is reported as nothing.
+   */
+  private void param(
+      AuthoringId id, StandardFunctionBox box, FunctionCatalogue.Entry entry, String key) {
+    Optional<FunctionCatalogue.Param> param = entry.param(key);
+    if (param.isEmpty()) {
+      report(MappingDiagnostics.UNKNOWN_PARAMETER, id, box.fn() + " has no parameter " + key);
+      return;
+    }
+    switch (box.params().get(key)) {
+      case Table _ ->
+          report(
+              MappingDiagnostics.WRONG_PARAMETER_TYPE,
+              id,
+              "the parameter " + key + " of " + box.fn() + " is a string, not a table");
+      case Text(String value) when !param.get().values().contains(value) ->
+          report(
+              MappingDiagnostics.INVALID_PARAMETER_VALUE,
+              id,
+              "the parameter "
+                  + key
+                  + " of "
+                  + box.fn()
+                  + " is one of "
+                  + param.get().values()
+                  + ", not \""
+                  + value
+                  + "\"");
+      case Text _ -> {}
+    }
   }
 
   private static List<Name> names(FieldPath path) {

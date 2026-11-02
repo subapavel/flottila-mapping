@@ -7,5 +7,26 @@
       }
     ],
     "portable": true
+  },
+  "splitByValue": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "eachValue",
+        "name": "mode",
+        "type": "string",
+        "values": [
+          "eachValue",
+          "valueChange",
+          "emptyValue"
+        ]
+      }
+    ],
+    "portable": true
   }
 }

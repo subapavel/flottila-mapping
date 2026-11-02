@@ -658,6 +658,125 @@ class EngineFacadeTest {
     assertTheWellFormedBoxRuns();
   }
 
+  // --- box parameters (#55, ADR-0025): lowering fills in a param the box leaves out with its
+  // catalogue default, and checks a param the box gives against the entry. splitByValue has one
+  // input and the string param mode, whose default is eachValue.
+
+  /**
+   * The output of {@code Note <- box} over {@code Note} x, x, y. {@code Note} is in the root's
+   * context, so the input queue has one context; the root's one slot reads context 1 of the box's
+   * queue, which shows where the box split it: x alone after eachValue, x, x after valueChange, and
+   * all three when nothing splits.
+   */
+  private static String notesThrough(String box) throws Exception {
+    EngineFacade facade = new EngineFacade();
+    byte[] input =
+        utf8(
+            "<src:Order xmlns:src=\""
+                + NS
+                + "\"><OrderId>1</OrderId><Note>x</Note><Note>x</Note><Note>y</Note></src:Order>");
+
+    byte[] output =
+        facade.run(compiled(facade.compile(withFunctionBox(box), skeleton(), DEPLOY)), input);
+
+    return new String(output, UTF_8);
+  }
+
+  /** The output document with {@code OrderId} 1 and one {@code Note} per value of {@code notes}. */
+  private static String withNotes(String... notes) {
+    StringBuilder content = new StringBuilder("<OrderId>1</OrderId>");
+    for (String note : notes) {
+      content.append("<Note>").append(note).append("</Note>");
+    }
+    return DECLARATION + "<ns0:Order xmlns:ns0=\"" + NS + "\">" + content + "</ns0:Order>";
+  }
+
+  @Test
+  void aParamTheBoxLeavesOutTakesTheCatalogueDefault() throws Exception {
+    String output =
+        notesThrough(
+            """
+            {"kind": "function", "fn": "splitByValue", "inputs": ["a2"]}""");
+
+    // eachValue puts every value in a context of its own, so context 1 holds the first x only
+    assertThat(output).isEqualTo(withNotes("x"));
+  }
+
+  static Stream<Arguments> modes() {
+    return Stream.of(
+        Arguments.of("eachValue", new String[] {"x"}),
+        Arguments.of("valueChange", new String[] {"x", "x"}),
+        // no value is "", so nothing splits
+        Arguments.of("emptyValue", new String[] {"x", "x", "y"}));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("modes")
+  void aParamTheBoxGivesIsPassedToTheFunction(String mode, String[] notes) throws Exception {
+    String output =
+        notesThrough(
+            """
+            {"kind": "function", "fn": "splitByValue", "inputs": ["a2"],
+             "params": {"mode": "%s"}}"""
+                .formatted(mode));
+
+    assertThat(output).isEqualTo(withNotes(notes));
+  }
+
+  @Test
+  void aTableForAStringParamIsWrongParameterType() throws Exception {
+    byte[] model =
+        withFunctionBox(
+            """
+            {"kind": "function", "fn": "splitByValue", "inputs": ["a2"],
+             "params": {"mode": {"eachValue": "valueChange"}}}""");
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(atTheFunctionBox("wrong-parameter-type"));
+  }
+
+  static Stream<Arguments> invalidModes() {
+    return Stream.of(
+        // SAP PO's label of the mode, not the catalogue's value
+        Arguments.of("a label", "Each Value"),
+        Arguments.of("another case", "eachvalue"),
+        Arguments.of("the empty string", ""));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("invalidModes")
+  void aStringOutsideTheParamsValuesIsInvalidParameterValue(String why, String mode)
+      throws Exception {
+    byte[] model =
+        withFunctionBox(
+            """
+            {"kind": "function", "fn": "splitByValue", "inputs": ["a2"],
+             "params": {"mode": "%s"}}"""
+                .formatted(mode));
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .as(why)
+        .containsExactlyElementsOf(atTheFunctionBox("invalid-parameter-value"));
+  }
+
+  @Test
+  void aParamKeyBesideAValidParamIsStillUnknownParameter() throws Exception {
+    byte[] model =
+        withFunctionBox(
+            """
+            {"kind": "function", "fn": "splitByValue", "inputs": ["a2"],
+             "params": {"mode": "valueChange", "order": "ascending"}}""");
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(atTheFunctionBox("unknown-parameter"));
+  }
+
   // --- a new mapping (#54, ADR-0016): the facade, not the service, builds it
 
   @Test

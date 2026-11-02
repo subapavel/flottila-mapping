@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-empty.mapping.json",
+  "provenance": "assumed",
+  "ref": "#48 owner decision Q3, mode emptyValue: a context change at \"\", and the \"\" is dropped; #2 §4 labels not seen on SAP pages; obs-context-functions ctx-3 (f3.xml) decides it",
+  "expect": "output",
+  "note": "The input of obs-context-functions ctx-3 (f3.xml): Tag a, a, <Tag/>, b, <Tag/>. emptyValue ends context 1 at the first \"\" and drops it, so All is a, a. All under the root's one slot reads context 1 of S1's queue, so it shows where the first split falls."
+}
