@@ -74,6 +74,36 @@
                               else $po:SUPPRESS)])"/>
   </xsl:function>
 
+  <!-- formatByExample: every value of $values, in order, cut into the contexts of $example, empty
+       ones included, as the runtime's ContextFunctions.formatByExample does; a SUPPRESS of $values
+       stays at its slot, and a SUPPRESS of $example counts as a value (an assumed reading). Unless
+       both hold as many values, empty contexts not counted, it raises po:FORMATBYEXAMPLE, where
+       the runtime refuses the same inputs (#2 §4: the SAP documentation raises an exception). -->
+  <xsl:function name="po:formatByExample" as="array(item()*)">
+    <xsl:param name="values" as="array(item()*)"/>
+    <xsl:param name="example" as="array(item()*)"/>
+    <xsl:variable name="all" as="item()*" select="$values?*"/>
+    <xsl:choose>
+      <xsl:when test="count($all) ne count($example?*)">
+        <xsl:sequence select="error(QName('urn:flottila:mapping:po', 'po:FORMATBYEXAMPLE'),
+            'formatByExample: its inputs do not hold as many values')"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:iterate select="1 to array:size($example)">
+          <xsl:param name="offset" as="xs:integer" select="0"/>
+          <xsl:param name="result" as="array(item()*)" select="[]"/>
+          <xsl:on-completion select="$result"/>
+          <xsl:variable name="size" as="xs:integer" select="count($example(.))"/>
+          <xsl:next-iteration>
+            <xsl:with-param name="offset" select="$offset + $size"/>
+            <xsl:with-param name="result"
+                select="array:append($result, subsequence($all, $offset + 1, $size))"/>
+          </xsl:next-iteration>
+        </xsl:iterate>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:function>
+
   <!-- removeContexts: every value of $queue, in order, in one context, SUPPRESS kept at its slot.
        A queue with no context at all gives one empty context, as the runtime's
        ContextFunctions.removeContexts does. -->

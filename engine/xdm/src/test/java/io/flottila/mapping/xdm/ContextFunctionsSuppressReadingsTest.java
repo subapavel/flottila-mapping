@@ -29,7 +29,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  *   <li>{@code collapseContexts} takes a SUPPRESS first slot for {@code ""}, as SAP is documented
  *       to (#2 §7.4, obs-context-functions ctx-6b);
  *   <li>{@code useOneAsMany} repeats a SUPPRESS value as SUPPRESS, counts a SUPPRESS occurrence as
- *       one, and takes only the boundaries of its third input.
+ *       one, and takes only the boundaries of its third input;
+ *   <li>{@code formatByExample} keeps a SUPPRESS of its values at its slot and counts a SUPPRESS of
+ *       its example as a value.
  * </ul>
  *
  * Worked examples first, then property tests (ADR-0018) over the edges and 200 seeded queues of
@@ -253,5 +255,44 @@ class ContextFunctionsSuppressReadingsTest {
             triple.value().block(), triple.occurrences().block(), triple.contexts().block());
 
     assertThat(read(result)).isEqualTo(triple.expected());
+  }
+
+  // --- formatByExample
+
+  /**
+   * Values {@code a, SUPPRESS | b} in the contexts of example {@code SUPPRESS | x, SUPPRESS}: the
+   * example's SUPPRESS counts as a value, and the values' SUPPRESS stays at its slot.
+   */
+  @Test
+  void formatByExampleKeepsSuppressValuesAndCountsSuppressInTheExample() {
+    QueueBlock values = queue("values", context("a", S), context("b")).block();
+    QueueBlock example = queue("example", context(S), context("x", S)).block();
+
+    QueueBlock result = ContextFunctions.formatByExample(values, example);
+
+    assertThat(read(result)).containsExactly(context("a"), context(S, "b"));
+  }
+
+  /** Every slot of the values, SUPPRESS kept, cut at a seeded example with SUPPRESS among it. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void formatByExampleCutsEverySlotAtTheExamplesContexts(String name, Queue queue) {
+    RandomGenerator random = new SplittableRandom(name.hashCode());
+    List<String> flat = queue.flat();
+    List<String> examples = new ArrayList<>();
+    for (int i = 0; i < flat.size(); i++) {
+      examples.add(random.nextInt(3) == 0 ? S : "e" + i);
+    }
+    Queue example = new Queue("example", cut(examples, random));
+    List<List<String>> expected = new ArrayList<>();
+    int at = 0;
+    for (List<String> context : example.contexts()) {
+      expected.add(flat.subList(at, at + context.size()));
+      at += context.size();
+    }
+
+    QueueBlock result = ContextFunctions.formatByExample(queue.block(), example.block());
+
+    assertThat(read(result)).isEqualTo(expected);
   }
 }

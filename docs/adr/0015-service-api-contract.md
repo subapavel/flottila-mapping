@@ -51,6 +51,9 @@ contract, and the editor ships with the service.
   - with a runtime error, it answers 200 with `error {code, message, authoringId?}` and no
     output. `code` is the error QName (`po:MINOCCURS`, `err:FORG0001`, `flottila:TIMEOUT`, `flottila:UDF-ERROR`).
     The output was buffered and is dropped (ADR-0006). The trace up to the error is returned.
+    Since #52 `authoringId` is the target field mapping for `po:MINOCCURS` and the function box
+    for a context function's data error; `flottila:TIMEOUT` has none. The facade's
+    `TestRunResult.RuntimeError` carries it as `Optional<AuthoringId>`.
 - Transport errors (malformed JSON, unknown id, 409, 413) answer `application/problem+json`
   (RFC 9457).
 

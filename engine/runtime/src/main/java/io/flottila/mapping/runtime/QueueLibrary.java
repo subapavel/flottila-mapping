@@ -32,6 +32,11 @@ final class QueueLibrary {
         Node.OfQueue condition = inputs.getFirst();
         yield frame -> ContextFunctions.createIf(condition.eval(frame));
       }
+      case "formatByExample" -> {
+        Node.OfQueue values = inputs.get(0);
+        Node.OfQueue example = inputs.get(1);
+        yield frame -> ContextFunctions.formatByExample(values.eval(frame), example.eval(frame));
+      }
       case "removeContexts" -> {
         Node.OfQueue input = inputs.getFirst();
         yield frame -> ContextFunctions.removeContexts(input.eval(frame));

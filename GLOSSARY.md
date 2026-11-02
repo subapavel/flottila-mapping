@@ -202,6 +202,12 @@ documentation and migration tools read it. Engine-internal from spec 2 (`functio
 in `engine/mapping`, ADR-0025), published in spec 3.
 _Avoid_: function registry, function list
 
+**Runtime error**:
+An error that stops a mapping run, named by a QName: from the input data (`po:MINOCCURS`, a
+context function's count mismatch) or from a test run's limit (`flottila:TIMEOUT`). The output is
+dropped; a test run returns the code, the message and the authoring id.
+_Avoid_: exception, failure, diagnostic
+
 **Runtime library**:
 The engine's context and queue functions: the algebra over queue blocks in `engine/xdm`, bound by
 catalogue name at compile in `engine/runtime` (ADR-0025). The helper module is its export
@@ -278,6 +284,11 @@ _Avoid_: simulation, preview
 What a test run records: the queue or value each evaluated box produced, by authoring id, and
 the occurrences of each target field per parent slot. The display queue shows it.
 _Avoid_: log, debug output
+
+**Truncated slot**:
+A slot that comes after `maxOccurs` occurrences were created in its context. It creates nothing
+and keeps its slot number, so it still consumes its child context.
+_Avoid_: dropped value
 
 **Diagnostic catalogue**:
 The stable codes of design-time errors and warnings, declared as constants in one
