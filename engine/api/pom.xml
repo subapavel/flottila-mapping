@@ -11,13 +11,6 @@
   <artifactId>flottila-mapping-api</artifactId>
   <name>Flottila Mapping api</name>
 
-  <properties>
-    <!-- No production code yet: PIT skips such a module, and fails "No mutations found" on a first
-         class without mutable bytecode. The first ticket that adds production code (#26) removes
-         this line. The mutation floor is not lowered. -->
-    <pit.failWhenNoMutations>false</pit.failWhenNoMutations>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -45,4 +38,22 @@
       <version>${project.version}</version>
     </dependency>
   </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.pitest</groupId>
+          <artifactId>pitest-maven</artifactId>
+          <configuration>
+            <!-- PIT only; Surefire still runs it: it reads ModuleLayer.boot(), which is empty on
+                 PIT's class path (docs/findings/F-10.md) -->
+            <excludedTestClasses>
+              <param>io.flottila.mapping.api.DiagnosticCatalogueTest</param>
+            </excludedTestClasses>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
 </project>

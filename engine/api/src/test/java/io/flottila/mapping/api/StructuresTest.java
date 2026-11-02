@@ -2,6 +2,9 @@ package io.flottila.mapping.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.flottila.mapping.mapping.AtFilePosition;
+import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import java.nio.file.Files;
@@ -44,13 +47,13 @@ class StructuresTest {
     StructureResult result =
         Structures.load(base, new SchemaBundle(List.of("broken.xsd")), new ElementRoot("Order"));
 
-    assertThat(result).isInstanceOf(StructureResult.Refused.class);
-    StructureResult.Refused refused = (StructureResult.Refused) result;
-    assertThat(refused.code()).isEqualTo("schema-not-well-formed");
-    assertThat(refused.message()).isNotBlank();
-    assertThat(refused.file()).isEqualTo("broken.xsd");
+    if (!(result instanceof StructureResult.Refused(Diagnostic diagnostic))) {
+      throw new AssertionError("expected Refused, got " + result);
+    }
+    assertThat(diagnostic.severity()).isEqualTo(Severity.ERROR);
+    assertThat(diagnostic.code()).isEqualTo("schema-not-well-formed");
+    assertThat(diagnostic.message()).isNotBlank();
     // the attribute list of <xs:schema breaks at the "<" on line 2
-    assertThat(refused.line()).isEqualTo(2);
-    assertThat(refused.column()).isEqualTo(3);
+    assertThat(diagnostic.location()).isEqualTo(new AtFilePosition("broken.xsd", 2, 3));
   }
 }

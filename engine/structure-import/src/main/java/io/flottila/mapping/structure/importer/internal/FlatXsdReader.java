@@ -7,6 +7,7 @@ import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.StructureType;
 import io.flottila.mapping.structure.ValueType;
+import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import io.flottila.mapping.structure.importer.StructureLoadException;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ public final class FlatXsdReader {
     XmlSchemaElement rootElement = schema.getElementByName(root);
     if (rootElement == null) {
       throw new StructureLoadException(
-          "schema-root-not-found",
+          StructureImportDiagnostics.SCHEMA_ROOT_NOT_FOUND,
           file,
           schemaTag.line(),
           schemaTag.column(),

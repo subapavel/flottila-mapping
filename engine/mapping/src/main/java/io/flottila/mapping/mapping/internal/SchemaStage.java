@@ -17,6 +17,7 @@ import com.github.erosb.jsonsKema.Validator;
 import io.flottila.mapping.mapping.AtPointer;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.MalformedJsonException;
+import io.flottila.mapping.mapping.MappingDiagnostics;
 import io.flottila.mapping.mapping.Severity;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,7 +58,7 @@ public final class SchemaStage {
       return List.of(
           new Diagnostic(
               Severity.ERROR,
-              "format-version-unsupported",
+              MappingDiagnostics.FORMAT_VERSION_UNSUPPORTED,
               new AtPointer("/formatVersion"),
               "formatVersion is newer than " + FORMAT_VERSION + ", the newest this engine reads"));
     }
@@ -141,7 +142,7 @@ public final class SchemaStage {
         if (BOX_KINDS.equals(schema)) {
           // only a box whose kind names no branch meets the oneOf (Schemas.box)
           put(
-              "unknown-box-kind",
+              MappingDiagnostics.UNKNOWN_BOX_KIND,
               text(pointerOf(oneOf).plus("kind")),
               "kind is none of source, function, udf and unresolved");
         } else if (PARAM_VALUE_KINDS.equals(schema)) {
@@ -169,7 +170,7 @@ public final class SchemaStage {
                   branch -> branch.flatten().stream().noneMatch(f -> value.equals(pointerOf(f))))
               .toList();
       if (table.isEmpty()) {
-        put("wrong-type", text(value), "a parameter value is a string or a table");
+        put(MappingDiagnostics.WRONG_TYPE, text(value), "a parameter value is a string or a table");
       } else {
         table.forEach(this::translate);
       }
@@ -179,12 +180,13 @@ public final class SchemaStage {
       Keyword keyword = failure.getKeyword();
       String code =
           switch (keyword) {
-            case FALSE -> "unknown-member"; // additionalProperties: false
-            case REQUIRED -> "missing-member";
-            case TYPE -> "wrong-type";
-            case PATTERN -> "pattern-mismatch";
-            case ENUM, CONST, MIN_ITEMS, MIN_PROPERTIES, UNIQUE_ITEMS -> "invalid-value";
-            default -> "schema-violation"; // fails closed on any other keyword
+            case FALSE -> MappingDiagnostics.UNKNOWN_MEMBER; // additionalProperties: false
+            case REQUIRED -> MappingDiagnostics.MISSING_MEMBER;
+            case TYPE -> MappingDiagnostics.WRONG_TYPE;
+            case PATTERN -> MappingDiagnostics.PATTERN_MISMATCH;
+            case ENUM, CONST, MIN_ITEMS, MIN_PROPERTIES, UNIQUE_ITEMS ->
+                MappingDiagnostics.INVALID_VALUE;
+            default -> MappingDiagnostics.SCHEMA_VIOLATION; // fails closed on any other keyword
           };
       String message =
           keyword == Keyword.FALSE ? "not a member here in formatVersion 1" : failure.getMessage();

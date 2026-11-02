@@ -4,6 +4,7 @@ import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.AtAuthoringId;
 import io.flottila.mapping.mapping.Box;
 import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.mapping.MappingDiagnostics;
 import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.mapping.SourceFieldBox;
@@ -60,7 +61,7 @@ public final class ModelCheck {
         (id, count) -> {
           if (count > 1) {
             add(
-                "duplicate-authoring-id",
+                MappingDiagnostics.DUPLICATE_AUTHORING_ID,
                 id,
                 "the id " + id.value() + " is used " + count + " times");
           }
@@ -85,14 +86,17 @@ public final class ModelCheck {
                         .ifPresent(
                             context ->
                                 add(
-                                    "context-not-ancestor",
+                                    MappingDiagnostics.CONTEXT_NOT_ANCESTOR,
                                     id,
                                     "the context "
                                         + context
                                         + " is not a proper ancestor of "
                                         + s.field()));
                 case UdfBox u when !model.udfs().containsKey(u.udf()) ->
-                    add("undeclared-udf", id, "the UDF " + u.udf() + " is not declared in udfs");
+                    add(
+                        MappingDiagnostics.UNDECLARED_UDF,
+                        id,
+                        "the UDF " + u.udf() + " is not declared in udfs");
                 case StandardFunctionBox _, UdfBox _, UnresolvedFunctionBox _ -> {
                   // no check of its own
                 }
@@ -109,12 +113,12 @@ public final class ModelCheck {
     }
     if (allBoxes.contains(target)) {
       add(
-          "cross-target-field-reference",
+          MappingDiagnostics.CROSS_TARGET_FIELD_REFERENCE,
           consumer,
           what + " names " + target.value() + ", a box of another target field mapping");
     } else {
       add(
-          "unknown-box-reference",
+          MappingDiagnostics.UNKNOWN_BOX_REFERENCE,
           consumer,
           what + " names " + target.value() + ", which is no box of this target field mapping");
     }
@@ -248,7 +252,7 @@ public final class ModelCheck {
       if (component.size() > 1 || Arrays.stream(reads[box]).anyMatch(input -> input == box)) {
         AuthoringId smallest = Collections.min(component, Comparator.comparing(AuthoringId::value));
         add(
-            "box-cycle",
+            MappingDiagnostics.BOX_CYCLE,
             smallest,
             "the boxes "
                 + component.stream()

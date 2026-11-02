@@ -3,11 +3,13 @@ package io.flottila.mapping.mapping;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.ir.TargetDocument;
 import java.util.List;
 
 /**
- * Reads a {@link LoadResult} for an assertion. Tests match a diagnostic on its severity, code and
- * location, never on its message (ADR-0015); the message only has to be there.
+ * Reads a {@link LoadResult} or a {@link LowerResult} for an assertion. Tests match a diagnostic on
+ * its severity, code and location, never on its message (ADR-0015); the message only has to be
+ * there.
  */
 final class LoadResults {
 
@@ -25,6 +27,23 @@ final class LoadResults {
   static List<String> refused(LoadResult result) {
     return switch (result) {
       case Loaded l -> throw new AssertionError("expected Refused, got Loaded " + l.model());
+      case Refused r -> render(r);
+    };
+  }
+
+  /** The lowered document; a refusal fails the test and lists its diagnostics. */
+  static TargetDocument lowered(LowerResult result) {
+    return switch (result) {
+      case Lowered(TargetDocument document) -> document;
+      case Refused r -> throw new AssertionError("expected Lowered, got Refused " + render(r));
+    };
+  }
+
+  /** A lowering refusal's diagnostics as {@code "<severity> <code> at <location>"}, in order. */
+  static List<String> refused(LowerResult result) {
+    return switch (result) {
+      case Lowered(TargetDocument document) ->
+          throw new AssertionError("expected Refused, got Lowered " + document);
       case Refused r -> render(r);
     };
   }
@@ -60,6 +79,7 @@ final class LoadResults {
     return switch (location) {
       case AtPointer p -> "pointer " + p.pointer();
       case AtAuthoringId a -> "id " + a.id().value();
+      case AtFilePosition f -> "file " + f.file() + ":" + f.line() + ":" + f.column();
     };
   }
 }

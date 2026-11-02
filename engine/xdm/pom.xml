@@ -10,11 +10,4 @@
   </parent>
   <artifactId>flottila-mapping-xdm</artifactId>
   <name>Flottila Mapping xdm</name>
-
-  <properties>
-    <!-- No production code yet: PIT skips such a module, and fails "No mutations found" on a first
-         class without mutable bytecode. The first ticket that adds production code (#26) removes
-         this line. The mutation floor is not lowered. -->
-    <pit.failWhenNoMutations>false</pit.failWhenNoMutations>
-  </properties>
 </project>
