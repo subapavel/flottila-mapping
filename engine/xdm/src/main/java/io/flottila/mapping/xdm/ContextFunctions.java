@@ -1,7 +1,10 @@
 package io.flottila.mapping.xdm;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.concurrent.CancellationException;
+import java.util.regex.Pattern;
 
 /**
  * The context functions of the runtime library over queue blocks (ADR-0025): the algebra, where the
@@ -35,6 +38,134 @@ public final class ContextFunctions {
    */
   public static QueueBlock removeContexts(QueueBlock queue) {
     return queue.withContextStarts(new int[] {0, queue.slots()});
+  }
+
+  // sort and sortByKey (#59, owner decision Q4 of #48): each context on its own, a stable sort
+  // (#2 §4), so equal keys keep their input order in either direction. The runtime binds the
+  // comparison and the direction once per call site.
+
+  /** How a sort compares two keys (owner decision Q4 of #48). */
+  public enum Comparison {
+    /** {@link String#compareTo}: by UTF-16 code unit, so U+1F600 comes before U+FF21. */
+    LEXICOGRAPHIC,
+    /** {@link String#compareToIgnoreCase}: by code point, each folded to lower of upper case. */
+    CASE_INSENSITIVE,
+    /**
+     * By decimal value. Every key must be in the {@code xs:decimal} lexical form (ADR-0005), XML
+     * whitespace around it allowed, as the export's cast collapses it; anything else stops the sort.
+     */
+    NUMERIC
+  }
+
+  /** The {@code xs:decimal} lexical form (ADR-0005), with XML whitespace on either side. */
+  private static final Pattern DECIMAL =
+      Pattern.compile("[ \t\r\n]*[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)[ \t\r\n]*");
+
+  /**
+   * {@code sort}: the values of each context of {@code queue} in the order of {@code comparison},
+   * ascending or {@code descending}. The contexts stay as they are; the result copies references
+   * only and shares the context starts (ADR-0004).
+   *
+   * @throws IllegalArgumentException when {@code comparison} is numeric and a value is no decimal
+   * @throws CancellationException when the thread is interrupted
+   */
+  public static QueueBlock sort(QueueBlock queue, Comparison comparison, boolean descending) {
+    return sorted("sort", queue, queue, comparison, descending);
+  }
+
+  /**
+   * {@code sortByKey}: the values of each context of {@code values} in the order of the keys at the
+   * same slots of {@code keys} (#2 §4), by {@code comparison}, ascending or {@code descending}.
+   * Only the keys are compared, so only they are parsed. The result copies references only and
+   * shares the context starts of {@code values} (ADR-0004).
+   *
+   * @throws IllegalArgumentException unless both queues have the same number of contexts and each
+   *     context as many keys as values, or when {@code comparison} is numeric and a key is no
+   *     decimal
+   * @throws CancellationException when the thread is interrupted
+   */
+  public static QueueBlock sortByKey(
+      QueueBlock keys, QueueBlock values, Comparison comparison, boolean descending) {
+    if (keys.contexts() != values.contexts()) {
+      throw new IllegalArgumentException(
+          "sortByKey needs one context of keys per context of values; contexts of keys: "
+              + keys.contexts()
+              + ", of values: "
+              + values.contexts());
+    }
+    return sorted("sortByKey", keys, values, comparison, descending);
+  }
+
+  /**
+   * The values of {@code values}, each context ordered by the keys at the same slots of {@code
+   * keys}, which has as many contexts. A context with more or fewer keys than values stops it; the
+   * contexts before it had as many, so the two queues' starts agree up to it.
+   */
+  private static QueueBlock sorted(
+      String function,
+      QueueBlock keys,
+      QueueBlock values,
+      Comparison comparison,
+      boolean descending) {
+    String[] sorted = new String[values.slots()];
+    for (int c = 0; c < values.contexts(); c++) {
+      // one check per context: a context's slots are read and sorted below, bounded by their count
+      checkInterrupt(function);
+      if (keys.end(c) != values.end(c)) {
+        throw new IllegalArgumentException(
+            function
+                + " needs as many keys as values in each context; in context "
+                + (c + 1)
+                + " keys: "
+                + (keys.end(c) - keys.start(c))
+                + ", values: "
+                + (values.end(c) - values.start(c)));
+      }
+      int start = values.start(c);
+      Integer[] slots = new Integer[values.end(c) - start];
+      for (int k = 0; k < slots.length; k++) {
+        slots[k] = start + k;
+      }
+      Comparator<Integer> order = order(function, keys, start, slots.length, comparison);
+      // Arrays.sort of objects is stable, and a reversed order keeps ties as they are
+      Arrays.sort(slots, descending ? order.reversed() : order);
+      for (int k = 0; k < slots.length; k++) {
+        sorted[start + k] = values.value(slots[k]);
+      }
+    }
+    return values.withValues(sorted);
+  }
+
+  /**
+   * The order of the slots {@code start} to {@code start + size} of {@code keys}, by their keys.
+   */
+  private static Comparator<Integer> order(
+      String function, QueueBlock keys, int start, int size, Comparison comparison) {
+    return switch (comparison) {
+      case LEXICOGRAPHIC -> (i, j) -> keys.value(i).compareTo(keys.value(j));
+      case CASE_INSENSITIVE -> (i, j) -> keys.value(i).compareToIgnoreCase(keys.value(j));
+      case NUMERIC -> {
+        // every key is parsed, once, even alone in its context where nothing is compared
+        BigDecimal[] numbers = new BigDecimal[size];
+        for (int k = 0; k < size; k++) {
+          numbers[k] = decimal(function, keys.value(start + k));
+        }
+        yield (i, j) -> numbers[i - start].compareTo(numbers[j - start]);
+      }
+    };
+  }
+
+  /** {@code value} as a decimal, read as the export's {@code xs:decimal} cast reads it. */
+  private static BigDecimal decimal(String function, String value) {
+    if (!DECIMAL.matcher(value).matches()) {
+      throw new IllegalArgumentException(
+          function
+              + " compares numerically, and \""
+              + value
+              + "\" is not in the xs:decimal lexical form (ADR-0005)");
+    }
+    // the pattern allows only XML whitespace around the number, which trim removes
+    return new BigDecimal(value.trim());
   }
 
   // splitByValue (#55): one function per mode, which the runtime binds once per call site. Each
