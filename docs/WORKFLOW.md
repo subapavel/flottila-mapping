@@ -128,6 +128,9 @@ most one gate that builds `service` at a time.
    - `regen --all` reads `.logs/<spec>-jmh.json` too, so the verifier runs this step before
      step 4. A baseline moves only on a gain beyond the tolerance (ADR-0019).
 
+Run order: 1, 1b, 2, 5, 4, 3. Regen reads the reports of 1 and 1b, and step 3's `clean`
+(mandatory with `-Pui`, ADR-0017) deletes them. The spec-1 review found this (#21).
+
 **CI** (GitHub Actions, `.github/workflows/ci.yml`, every PR and push to `main`; required on
 `main`):
 

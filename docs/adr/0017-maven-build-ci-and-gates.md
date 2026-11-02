@@ -127,6 +127,10 @@ scripts.
 5. the JMH scenarios (ADR-0021) into `bench/RESULTS.md`, machine label `claude-cloud-4vcpu`.
    Regression is checked there against the baseline with the same label, never on CI.
 
+The spec gate runs these in the order 1, 2, 5, 4, 3, not as numbered. Regen (4) reads the JMH
+results of 5 and the JaCoCo and PIT reports of 1. Step 3's `clean`, which is mandatory with
+`-Pui`, deletes those reports. The spec-1 review found this (#21).
+
 ## Concurrency (`AGENTS.md`)
 
 At most three writers and `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4` stay. The verifier runs at
