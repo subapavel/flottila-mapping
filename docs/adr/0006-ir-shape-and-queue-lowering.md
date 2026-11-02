@@ -149,3 +149,14 @@ for-each over the source context".
 - Assumed readings since #51, until observed cases confirm them (ADR-0002, #61): a shorter input
   whose last value is SUPPRESS gives SUPPRESS when reused (#32 lift-3); `createIf` is true for `1`
   or `true` in any case, and anything else, `""` and SUPPRESS included, gives SUPPRESS.
+- SUPPRESS through the context functions since #51, each a corpus and differential case
+  (`assumed` unless marked):
+  - `removeContexts`, `splitByValue`, `useOneAsMany`, `formatByExample`, `sort` keep SUPPRESS
+    as a slot with its bit. In `splitByValue` valueChange, SUPPRESS equals only SUPPRESS; in
+    emptyValue, SUPPRESS is not `""`. `useOneAsMany` repeats and counts SUPPRESS like a value.
+    `formatByExample` counts a SUPPRESS slot toward its equal-count rule.
+  - `collapseContexts` takes a SUPPRESS first slot as `""` (#2 §3 [SAP✓ STD]: "Empty contexts
+    (= ResultList.SUPPRESS) are replaced by empty strings"; documented).
+  - `sort` and `sortByKey` order a SUPPRESS value or key as the smallest in every comparison,
+    so it comes first ascending and last descending, except that a numeric `sortByKey` key
+    must not be SUPPRESS: it raises `po:SORTBYKEY` (#2 §3 [SAP✓ STD]; documented).
