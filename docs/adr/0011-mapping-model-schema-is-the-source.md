@@ -68,6 +68,14 @@ there is one.
   - `box-cycle`: reported once per strongly connected component, at its smallest id;
   - `context-not-ancestor`;
   - `undeclared-udf`.
+- Stage 3 codes in spec 1 (#26) are located at the box's or target field mapping's
+  `{authoringId}`:
+  - `unsupported-box-kind`: a reached `function` or `udf` box, until its spec lands;
+  - `unresolved-function`: a reached `unresolved` box;
+  - `unconnected-target-field`: `result` is `null`;
+  - `unsupported-field` and `orphaned-reference` guard what spec 1's lowering cannot yet express.
+  A box that `result` does not reach is not lowered and gives no error, so the model still runs.
+  The `unreachable-box` warning arrives with the editor's diagnostics (spec 6).
 - `Diagnostic`, its `Location` and the load result live in `engine/mapping`. `engine/api`
   requires that module transitively and translates the errors of other modules into it.
 - Renaming a code is a contract change.
