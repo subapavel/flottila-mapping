@@ -20,7 +20,8 @@ import java.util.Map;
 /**
  * The portable XSLT 3.0 export of unoptimised IR (ADR-0023): one stylesheet that imports the helper
  * module from its own directory. Each instruction and literal element starts a line of its own, two
- * spaces deeper than its parent; a text's {@code xsl:value-of} stays on its element's line.
+ * spaces deeper than its parent. An element whose content is a single text keeps its {@code
+ * xsl:value-of} and end tag on its own line; any other element's end tag starts a line.
  *
  * <ul>
  *   <li>Every (prefix, URI) pair is declared once, on {@code xsl:stylesheet}, under {@code
@@ -165,7 +166,13 @@ public final class XsltExporter {
         for (Expr content : e.content()) {
           instruction(content, depth + 1, out);
         }
-        out.append("</").append(name).append('>');
+        String end = "</" + name + ">";
+        if (e.content().size() == 1 && e.content().getFirst() instanceof TextConstructor) {
+          // a single text stays on its element's line; any other content ends on a line of its own
+          out.append(end);
+        } else {
+          line(out, depth, end);
+        }
       }
       case TextConstructor t -> out.append(VALUE_OF.formatted(expression(t.value())));
       case SourceQueue q -> throw misplaced(q, "content");

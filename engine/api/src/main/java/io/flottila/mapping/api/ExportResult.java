@@ -1,7 +1,6 @@
 package io.flottila.mapping.api;
 
 import io.flottila.mapping.mapping.Diagnostic;
-import java.util.ArrayList;
 import java.util.List;
 
 /** The result of an export: the stylesheet and its helper module, or the refusing diagnostics. */
@@ -24,9 +23,7 @@ public sealed interface ExportResult {
   record Refused(List<Diagnostic> diagnostics) implements ExportResult {
 
     public Refused {
-      List<Diagnostic> sorted = new ArrayList<>(diagnostics);
-      sorted.sort(Diagnostic.ORDER);
-      diagnostics = List.copyOf(sorted);
+      diagnostics = DiagnosticOrder.sorted(diagnostics);
     }
   }
 }

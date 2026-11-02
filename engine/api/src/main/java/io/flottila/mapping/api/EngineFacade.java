@@ -65,7 +65,7 @@ public final class EngineFacade {
    */
   public CompileResult compile(byte[] model, Path base, CompileOptions options)
       throws MalformedJsonException {
-    return lower(
+    return loadAndLower(
         model,
         base,
         CompileResult.Refused::new,
@@ -88,7 +88,7 @@ public final class EngineFacade {
    * @throws MalformedJsonException if the bytes are no JSON document
    */
   public ExportResult export(byte[] model, Path base) throws MalformedJsonException {
-    return lower(
+    return loadAndLower(
         model,
         base,
         ExportResult.Refused::new,
@@ -102,7 +102,7 @@ public final class EngineFacade {
    * diagnostics, which the result sorts; the structures are both read before either refusal is
    * reported. A model that lowers gives {@code lowered} its unoptimised IR.
    */
-  private static <R> R lower(
+  private static <R> R loadAndLower(
       byte[] model,
       Path base,
       Function<List<Diagnostic>, R> refused,
