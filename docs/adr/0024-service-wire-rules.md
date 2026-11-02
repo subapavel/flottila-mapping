@@ -63,7 +63,9 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
 - It calls only:
   - `EngineFacade.load`, `save`, `compile` and `run`;
   - `Structures.load`;
-  - `Structure.fingerprint()`.
+  - `Structure.fingerprint()` and the structure's read accessors (root field and type definitions), which
+    `/api/structures` maps to `FieldDto`.
+- A request with a missing or null non-`Optional` member, or an empty body, is 400 `invalid-request`, never 500.
 
 ## Considered options
 
