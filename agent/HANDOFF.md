@@ -1,12 +1,12 @@
 # Handoff
 
 state: RUNNING — /run-spec #48 "Spec 2: queues, contexts and node functions"
-integration branch: spec/48-queues-node-functions (from main 3bf9747), tip c5c510c
-merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 (3efb702) · ratchet c5c510c · evidence on each ticket
-in flight: #52 test-author (t/52-target-fields from 308ff4e; test list scratchpad d52-tests.md) · #57 implementer (t/57-exists-map-with-default)
-blocked chain: #52 target fields C (tests now) · #53 trace C ← #52 · #60 editor e2e A ← #53 · #63 unmapped parents B ← #52
-blocked others: #61 obs requests A ← #52, #57
-next action: approve #52 red tests, then its implementer; #57 hand-back → gate, merge, ratchet; then #53 designer and #63.
+integration branch: spec/48-queues-node-functions (from main 3bf9747), tip 90f92d4
+merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 #57 (625d954) · ratchet 90f92d4 · evidence on each ticket
+in flight: #52 test-author (t/52-target-fields; IR+runtime tests pushed, resumed after the turn cap; list in scratchpad d52-tests.md)
+blocked chain: #53 trace C ← #52 (design approved 6fc9e3b, list d53-tests.md) · #60 editor e2e A ← #53 · #63 unmapped parents B ← #52
+blocked others: #61 obs requests A ← #52
+next action: approve the #52 red tests → implementer → gate, class-C review, merge; then #53 test-author, #63 and #61 in parallel.
 spec 1: merged to main 3bf9747 (#46). Carried items: #21 comment 6582060566; the spec-2 lines are in #48.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
