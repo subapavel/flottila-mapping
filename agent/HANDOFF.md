@@ -3,7 +3,7 @@
 state: SPEC PR OPEN. Spec #21 "Walking skeleton" goes to main through the spec PR from `spec/21-walking-skeleton`, merge commit only.
 tickets (#21), all closed: #22–#30, #40, #41, review fixes, #42 Windows build, #43 dev port, #44 Windows ids, #45 Swagger $ref.
 spec gate: VERIFIED_PASS @68c81fc, ratchet 4c954c4. #42–#45 merged after it, each with a green ticket gate. jmh is NOT_RUN (no harness until spec 5).
-next exact action (architect): watch spec-PR CI, including the first `windows` job. When it is green, merge, open "owner: protect main", and cut spec 2 (/to-spec).
+next action: watch spec-PR CI, including the first `windows` job. When it is green, merge, open "owner: protect main", and cut spec 2 (/to-spec).
 carried out of spec 1, by spec: #21 comment 6582060566. Each spec picks up its lines when it is cut.
 findings open: F-12 (resolver port, timeout → spec 4/2), F-13 (gate budget missed → spec 5).
 owner: observation requests #31–#38 open (GATE checks 4, 6). Owner may veto the po URI. §11 trailers missing on old commits, accepted unless vetoed.
