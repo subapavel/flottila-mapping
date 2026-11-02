@@ -54,6 +54,69 @@
     ],
     "portable": true
   },
+  "sort": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "lexicographic",
+        "name": "comparison",
+        "type": "string",
+        "values": [
+          "lexicographic",
+          "caseInsensitive",
+          "numeric"
+        ]
+      },
+      {
+        "default": "ascending",
+        "name": "order",
+        "type": "string",
+        "values": [
+          "ascending",
+          "descending"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "sortByKey": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "keys"
+      },
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "lexicographic",
+        "name": "comparison",
+        "type": "string",
+        "values": [
+          "lexicographic",
+          "caseInsensitive",
+          "numeric"
+        ]
+      },
+      {
+        "default": "ascending",
+        "name": "order",
+        "type": "string",
+        "values": [
+          "ascending",
+          "descending"
+        ]
+      }
+    ],
+    "portable": true
+  },
   "splitByValue": {
     "executionKind": "context",
     "inputs": [

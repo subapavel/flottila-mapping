@@ -977,4 +977,100 @@ class EngineFacadeTest {
         .isInstanceOf(IllegalStateException.class)
         .hasCauseInstanceOf(IllegalArgumentException.class);
   }
+
+  // --- the runtime errors of sort and sortByKey (#59). No runtime error has a code before #52, so
+  // a run reports them as unchecked failures; #52's code replaces these tests, and corpus cases
+  // follow them. The export raises po:SORT and po:SORTBYKEY for the same inputs (ADR-0025, #52).
+
+  /**
+   * sort of Tag with {@code params}, on {@code Out/All}: context 1 of the queue, the first Order.
+   */
+  private static byte[] sortOfTags(String params) {
+    return """
+        {"formatVersion": 1,
+         "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Orders"}},
+         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Out"}},
+         "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "s1",
+           "boxes": {"s1": {"kind": "function", "fn": "sort", "inputs": ["a1"],
+                            "params": %2$s},
+                     "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
+        """
+        .formatted(FINGERPRINT, params)
+        .getBytes(UTF_8);
+  }
+
+  /**
+   * A numeric sort over a value that is no xs:decimal stops the run (#48 Q4, assumed), here {@code
+   * x} beside 10 and 9, and the run writes nothing.
+   */
+  @Test
+  void aNumericSortOverANonNumberStopsTheRun() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    Path observations = CorpusStructures.directory("observations");
+    byte[] input = utf8("<Orders><Order><Tag>10</Tag><Tag>x</Tag><Tag>9</Tag></Order></Orders>");
+    CompiledMapping lexicographic =
+        compiled(facade.compile(sortOfTags("{}"), observations, DEPLOY));
+    // witness: lexicographically the same Tags sort
+    assertThat(new String(facade.run(lexicographic, input), UTF_8))
+        .isEqualTo(DECLARATION + "<Out><All>10</All><All>9</All><All>x</All></Out>");
+    CompiledMapping numeric =
+        compiled(facade.compile(sortOfTags("{\"comparison\": \"numeric\"}"), observations, DEPLOY));
+
+    assertThatThrownBy(() -> facade.run(numeric, input))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("sort")
+        .hasMessageContaining("\"x\"");
+  }
+
+  /** sortByKey of Qty by Sku, both in context Order, on {@code Out/All}. */
+  private static final byte[] SORT_BY_KEY =
+      """
+      {"formatVersion": 1,
+       "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                  "root": {"element": "Orders"}},
+       "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+                  "root": {"element": "Out"}},
+       "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "k1",
+         "boxes": {"k1": {"kind": "function", "fn": "sortByKey", "inputs": ["a1", "a2"]},
+                   "a1": {"kind": "source", "field": "/Orders/Order/Line/Sku",
+                          "context": "/Orders/Order"},
+                   "a2": {"kind": "source", "field": "/Orders/Order/Line/Qty",
+                          "context": "/Orders/Order"}}}}}
+      """
+          .formatted(FINGERPRINT)
+          .getBytes(UTF_8);
+
+  /**
+   * A key/value count mismatch stops the run (#2 §4, documented): the second Line has a Sku but no
+   * Qty, so the Order has two keys and one value.
+   */
+  @Test
+  void aSortByKeyCountMismatchStopsTheRun() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(SORT_BY_KEY, CorpusStructures.directory("observations"), DEPLOY));
+    // witness: with a Qty on every Line the values follow their keys
+    assertThat(
+            new String(
+                facade.run(
+                    mapping,
+                    utf8(
+                        "<Orders><Order><Line><Sku>b</Sku><Qty>1</Qty></Line>"
+                            + "<Line><Sku>a</Sku><Qty>2</Qty></Line></Order></Orders>")),
+                UTF_8))
+        .isEqualTo(DECLARATION + "<Out><All>2</All><All>1</All></Out>");
+
+    assertThatThrownBy(
+            () ->
+                facade.run(
+                    mapping,
+                    utf8(
+                        "<Orders><Order><Line><Sku>b</Sku><Qty>1</Qty></Line>"
+                            + "<Line><Sku>a</Sku></Line></Order></Orders>")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("sortByKey")
+        .hasMessageContaining("keys: 2, values: 1");
+  }
 }

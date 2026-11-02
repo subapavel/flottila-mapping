@@ -1,6 +1,7 @@
 package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.xdm.ContextFunctions;
+import io.flottila.mapping.xdm.ContextFunctions.Comparison;
 import java.util.List;
 
 /**
@@ -41,6 +42,21 @@ final class QueueLibrary {
         Node.OfQueue input = inputs.getFirst();
         yield frame -> ContextFunctions.removeContexts(input.eval(frame));
       }
+      case "sort" -> {
+        Node.OfQueue input = inputs.getFirst();
+        Comparison comparison = comparison(name, params.get(0));
+        boolean descending = descending(name, params.get(1));
+        yield frame -> ContextFunctions.sort(input.eval(frame), comparison, descending);
+      }
+      case "sortByKey" -> {
+        Node.OfQueue keys = inputs.get(0);
+        Node.OfQueue values = inputs.get(1);
+        Comparison comparison = comparison(name, params.get(0));
+        boolean descending = descending(name, params.get(1));
+        yield frame ->
+            ContextFunctions.sortByKey(
+                keys.eval(frame), values.eval(frame), comparison, descending);
+      }
       case "splitByValue" -> splitByValue(inputs.getFirst(), params.getFirst());
       case "useOneAsMany" -> {
         Node.OfQueue value = inputs.get(0);
@@ -61,6 +77,25 @@ final class QueueLibrary {
       case "valueChange" -> frame -> ContextFunctions.splitByValueChange(input.eval(frame));
       case "emptyValue" -> frame -> ContextFunctions.splitByEmptyValue(input.eval(frame));
       default -> throw new IllegalArgumentException("splitByValue has no mode " + mode);
+    };
+  }
+
+  /** The {@code comparison} param of {@code function}, a sort. */
+  private static Comparison comparison(String function, String comparison) {
+    return switch (comparison) {
+      case "lexicographic" -> Comparison.LEXICOGRAPHIC;
+      case "caseInsensitive" -> Comparison.CASE_INSENSITIVE;
+      case "numeric" -> Comparison.NUMERIC;
+      default -> throw new IllegalArgumentException(function + " has no comparison " + comparison);
+    };
+  }
+
+  /** Whether the {@code order} param of {@code function}, a sort, is descending. */
+  private static boolean descending(String function, String order) {
+    return switch (order) {
+      case "ascending" -> false;
+      case "descending" -> true;
+      default -> throw new IllegalArgumentException(function + " has no order " + order);
     };
   }
 }
