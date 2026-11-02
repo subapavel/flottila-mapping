@@ -17,6 +17,10 @@
     "a3 trace (level all): the root Create start tag is written before the error on /Create/Row.",
     "create-b: Check (save) reported no error and no warning.",
     "b1 and b2 give the same output: 2 Gen per Grp (minOccurs), V 1,2 and 3,4. b2 shows numbering by position across orders: Qty 3 of order 1 lands in Grp 2, not lost per order.",
-    "create-c: Req (unmapped, 1..1) is a design-time error: Check reports it, activation of the change list is canceled (Problem 1, Warning 0), and the Test tab refuses to run (no compilation, no output). Head (unmapped, 1..1, child A mapped) is not reported."
+    "create-c: Req (unmapped, 1..1) is a design-time error: Check reports it, activation of the change list is canceled (Problem 1, Warning 0), and the Test tab refuses to run (no compilation, no output). Head (unmapped, 1..1, child A mapped) is not reported.",
+    "create-d: Check (save) reported no error and no warning.",
+    "d1 confirms: an absent Memo among present ones gives no context; queue [a][c]; Item 3 empty.",
+    "d2 confirms: an empty Memo gives an empty context; mapWithDefault fills D; Item 2 = D.",
+    "d3 CONTRADICTS ADR-0004 bullet 2: with no Memo anywhere, the queue is one empty context, mapWithDefault gives [D], Item 1 = D, Item 2 empty. Assumed was no V at all."
   ]
 }
