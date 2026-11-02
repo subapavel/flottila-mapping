@@ -946,6 +946,38 @@ class EngineFacadeTest {
         .hasCauseInstanceOf(IllegalArgumentException.class);
   }
 
+  // --- formatByExample's count mismatch (#58): documented as an exception (#2 §4)
+
+  /**
+   * The corpus mapping of fn/formatByExample, Tag formatted by Sku in context Order, run on three
+   * Tags but two Skus: the SAP documentation requires equal value counts and raises an exception
+   * otherwise; to observe on PO 7.5 and CPI (#61). The run stops and writes nothing. No runtime
+   * error has a code before #52, so a test run reports it as an unchecked failure; #52's code
+   * replaces this test, and a corpus case follows it.
+   */
+  @Test
+  void aFormatByExampleCountMismatchStopsTheRun() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    Path mapping =
+        CorpusStructures.directory("observations")
+            .resolve("../../mappings/format-by-example.mapping.json")
+            .normalize();
+    byte[] model = Files.readAllBytes(mapping);
+    CompiledMapping deployed = compiled(facade.compile(model, mapping.getParent(), DEPLOY));
+    // witness: with as many Tags as Skus the mapping runs
+    assertThat(new String(facade.run(deployed, order(2, 2)), UTF_8))
+        .isEqualTo(DECLARATION + "<Out><All>t</All><All>t</All></Out>");
+
+    assertThatThrownBy(() -> facade.run(deployed, order(3, 2)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("formatByExample");
+    CompiledMapping tested =
+        compiled(facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN));
+    assertThatThrownBy(() -> facade.testRun(tested, order(3, 2), Duration.ofSeconds(10)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasCauseInstanceOf(IllegalArgumentException.class);
+  }
+
   // --- the runtime errors of sort and sortByKey (#59). No runtime error has a code before #52, so
   // a run reports them as unchecked failures; #52's code replaces these tests, and corpus cases
   // follow them. The export raises err:FORG0001 and po:SORTBYKEY for the same inputs.
