@@ -11,13 +11,6 @@
   <artifactId>flottila-mapping-ir</artifactId>
   <name>Flottila Mapping ir</name>
 
-  <properties>
-    <!-- The only production code is AuthoringId (#24), a record without logic of its own and
-         without a test in this module. #26, which adds the IR and its tests, removes this line.
-         The mutation floor is not lowered. -->
-    <pit.failWhenNoMutations>false</pit.failWhenNoMutations>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>

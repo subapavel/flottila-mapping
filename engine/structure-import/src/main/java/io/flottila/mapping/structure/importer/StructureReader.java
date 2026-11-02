@@ -37,7 +37,7 @@ public final class StructureReader {
     if (bundle.files().size() != 1) {
       String file = bundle.files().isEmpty() ? "" : bundle.files().get(1);
       throw new StructureLoadException(
-          "schema-construct-unsupported",
+          StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
           file,
           1,
           1,
@@ -55,14 +55,18 @@ public final class StructureReader {
       content = Files.readAllBytes(base.resolve(file));
     } catch (IOException e) {
       throw new StructureLoadException(
-          "schema-unreadable", file, 1, 1, "cannot read the schema file: " + e);
+          StructureImportDiagnostics.SCHEMA_UNREADABLE,
+          file,
+          1,
+          1,
+          "cannot read the schema file: " + e);
     }
     return FlatXsdReader.read(file, content, element);
   }
 
   private static StructureLoadException unsupportedRoot(String file, String what) {
     return new StructureLoadException(
-        "root-selector-unsupported",
+        StructureImportDiagnostics.ROOT_SELECTOR_UNSUPPORTED,
         file,
         1,
         1,

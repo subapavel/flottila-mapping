@@ -1,5 +1,6 @@
 package io.flottila.mapping.structure.importer.internal;
 
+import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import io.flottila.mapping.structure.importer.StructureLoadException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -32,8 +33,8 @@ import org.xml.sax.helpers.NamespaceSupport;
  */
 final class FlatSubsetCheck extends DefaultHandler {
 
-  static final String UNSUPPORTED = "schema-construct-unsupported";
-  static final String INVALID = "schema-invalid";
+  static final String UNSUPPORTED = StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED;
+  static final String INVALID = StructureImportDiagnostics.SCHEMA_INVALID;
 
   private static final Pattern COUNT = Pattern.compile("[0-9]{1,18}");
   private static final Pattern BOOLEAN = Pattern.compile("true|false");
@@ -128,7 +129,11 @@ final class FlatSubsetCheck extends DefaultHandler {
           e.code, file, e.getLineNumber(), e.getColumnNumber(), e.getMessage());
     } catch (SAXParseException e) {
       throw new StructureLoadException(
-          "schema-not-well-formed", file, e.getLineNumber(), e.getColumnNumber(), e.getMessage());
+          StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
+          file,
+          e.getLineNumber(),
+          e.getColumnNumber(),
+          e.getMessage());
     } catch (ParserConfigurationException | SAXException | IOException e) {
       // the JDK parser supports both features, and the input is in memory
       throw new IllegalStateException(e);

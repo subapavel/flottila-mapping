@@ -8,7 +8,7 @@ import java.util.List;
  * EQName's {@code Q{namespace}} may itself hold a {@code /}. ADR-0011 checks contexts on this text;
  * nothing here knows the structure.
  */
-final class FieldPathText {
+public final class FieldPathText {
 
   private FieldPathText() {}
 
@@ -30,7 +30,7 @@ final class FieldPathText {
   }
 
   /** The steps of a path; the leading {@code /} gives an empty first step. */
-  private static List<String> steps(String path) {
+  public static List<String> steps(String path) {
     List<String> steps = new ArrayList<>();
     boolean inNamespace = false;
     int start = 0;
