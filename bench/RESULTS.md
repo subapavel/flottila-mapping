@@ -46,6 +46,23 @@ Budget (ADR-0019): an engine ticket gate including `engine/oracle` under 30 s wi
 parallel; one that builds `service` under 60 s. Not yet measured on the real modules: the skeleton
 ticket measures it here.
 
+## Ticket-gate budget after spec 1 (#21, story 33)
+
+Machine `claude-cloud-4vcpu` (`nproc` 4), 2026-11-02, JDK 25 (Temurin, `/opt/temurin-25`), commit
+68c81fc on `spec/21-walking-skeleton`. Real modules, detached worktrees sharing `~/.m2`, without
+`clean`. Wall seconds. The verifier measured these; the raw timings are summarised here and the
+logs were not kept.
+
+| Command | Wall s |
+| --- | --- |
+| step 1, engine ticket (`-B -pl engine/xdm,engine/oracle -am verify`), 3 in parallel, warm-up | 114.8 / 114.8 / 116.5 |
+| same, measured | 109.8 / 110.1 / 109.9 |
+| step 1, service ticket (`-B -pl service,engine/oracle -am verify`), alone | 79.5 |
+| step 2 (`-B -q -DskipTests verify`), alone | 23.5 |
+
+Budget (WORKFLOW §6, ADR-0019): engine under 30 s with three in parallel, service under 60 s,
+step 2 about 15 s. **All three are missed** (F-13).
+
 ## UDF trial (grilling #16, ADR-0020)
 
 Machine `claude-cloud-4vcpu`, 2026-10-30, JDK 25.0.5, scratch reactors (not a repo commit), test
