@@ -269,7 +269,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description The output, or the diagnostics that refuse the working copy */
+                /** @description The output, the diagnostics that refuse the working copy, or the runtime error */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -460,6 +460,10 @@ export interface components {
             detail: string;
             diagnostics: components["schemas"]["DiagnosticDto"][];
         };
+        RuntimeErrorDto: {
+            code: string;
+            message: string;
+        };
         StructureChoice: {
             bundle: string[];
             root: components["schemas"]["rootSelector"];
@@ -490,6 +494,15 @@ export interface components {
             root: components["schemas"]["rootSelector"];
         };
         StructureResponse: components["schemas"]["StructureLoaded"] | components["schemas"]["StructureRefused"];
+        TestError: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "error";
+            error: components["schemas"]["RuntimeErrorDto"];
+            diagnostics: components["schemas"]["DiagnosticDto"][];
+        };
         TestOutput: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -511,7 +524,7 @@ export interface components {
             model: components["schemas"]["mapping-model.schema"];
             input: string;
         };
-        TestResult: components["schemas"]["TestOutput"] | components["schemas"]["TestRefused"];
+        TestResult: components["schemas"]["TestOutput"] | components["schemas"]["TestRefused"] | components["schemas"]["TestError"];
         /** ElementRoot */
         elementRoot: {
             /** @description The root element's EQName. */
