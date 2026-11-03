@@ -54,9 +54,12 @@ final class SaxonRunner {
     return out.toByteArray();
   }
 
-  /** The namespace URI of each prefix a runtime error's QName takes (ADR-0015, ADR-0025). */
+  /**
+   * The namespace URI of each prefix a runtime error's QName takes (ADR-0015, ADR-0025): {@code
+   * err} for a malformed number or date, {@code err:FORG0001}, and the like (spec #70).
+   */
   private static final Map<String, String> ERROR_NAMESPACES =
-      Map.of("po", "urn:flottila:mapping:po");
+      Map.of("po", "urn:flottila:mapping:po", "err", "http://www.w3.org/2005/xqt-errors");
 
   /**
    * The error Saxon raises when it runs {@code stylesheet} on {@code input}, as {@link #run} does;

@@ -10,6 +10,7 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:array="http://www.w3.org/2005/xpath-functions/array"
     xmlns:po="urn:flottila:mapping:po"
+    xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
   <!-- collapseContexts: the first value of each context of $queue, '' for an empty context, all in
@@ -57,7 +58,7 @@
     <xsl:variable name="all" as="item()*" select="$values?*"/>
     <xsl:choose>
       <xsl:when test="count($all) ne count($example?*)">
-        <xsl:sequence select="po:data-error('po:FORMATBYEXAMPLE', $box,
+        <xsl:sequence select="po:data-error(xs:QName('po:FORMATBYEXAMPLE'), $box,
             'formatByExample: its inputs do not hold as many values')"/>
       </xsl:when>
       <xsl:otherwise>
@@ -163,7 +164,7 @@
                      then 'a numeric key is SUPPRESS' else ())[1]"/>
     <xsl:sequence select="
         if (exists($defect))
-        then po:data-error('po:' || upper-case($function), $box,
+        then po:data-error(QName('urn:flottila:mapping:po', 'po:' || upper-case($function)), $box,
                    $function || ': ' || $defect)
         else array:join(for $c in 1 to $contexts
                         return [po:sortByKey-context($keys($c), $values($c), $comparison, $order)])"/>
@@ -276,12 +277,12 @@
         select="for $k in 1 to array:size($occurrences) return $occurrences($k) ! $values[$k]"/>
     <xsl:sequence select="
         if (count($values) ne array:size($occurrences))
-        then po:data-error('po:USEONEASMANY', $box,
+        then po:data-error(xs:QName('po:USEONEASMANY'), $box,
                    'useOneAsMany needs one value of its first input per context of its second: the'
                    || ' first has ' || count($values) || ' values, the second '
                    || array:size($occurrences) || ' contexts')
         else if (count($repeated) ne count($contexts?*))
-        then po:data-error('po:USEONEASMANY', $box,
+        then po:data-error(xs:QName('po:USEONEASMANY'), $box,
                    'useOneAsMany needs as many slots in its third input as in its second: the third'
                    || ' has ' || count($contexts?*) || ' slots, the second ' || count($repeated))
         else array:join(

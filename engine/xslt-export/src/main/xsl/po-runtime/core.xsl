@@ -10,6 +10,7 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:array="http://www.w3.org/2005/xpath-functions/array"
     xmlns:po="urn:flottila:mapping:po"
+    xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
   <!-- SUPPRESS in a queue (ADR-0004): a map, so reading it as a string fails at once (FOTY0013).
@@ -84,14 +85,14 @@
                            else $body($in)])"/>
   </xsl:function>
 
-  <!-- The data error $code, a QName of the po namespace such as po:USEONEASMANY, that the
-       function box $box raises (ADR-0026, F-19): its message is 'the function box ', $box, ': '
-       and $message, as the runtime's is. -->
+  <!-- The data error $code, a QName such as po:USEONEASMANY or err:FORG0001, that the function
+       box $box raises (ADR-0026, F-19): its message is 'the function box ', $box, ': ' and
+       $message, as the runtime's is. -->
   <xsl:function name="po:data-error" as="item()*">
-    <xsl:param name="code" as="xs:string"/>
+    <xsl:param name="code" as="xs:QName"/>
     <xsl:param name="box" as="xs:string"/>
     <xsl:param name="message" as="xs:string"/>
-    <xsl:sequence select="error(QName('urn:flottila:mapping:po', $code),
+    <xsl:sequence select="error($code,
                                 'the function box ' || $box || ': ' || $message)"/>
   </xsl:function>
 </xsl:stylesheet>

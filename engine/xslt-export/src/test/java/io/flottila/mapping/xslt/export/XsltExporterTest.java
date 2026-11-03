@@ -951,10 +951,11 @@ class XsltExporterTest {
 
   /**
    * The packed helper module of main at 9c6fd1a, before the split, re-pinned once by #71 (ADR-0026
-   * Consequences): core gains po:data-error, the five declarations that raise a data error
-   * (formatByExample, sort, sortByKey, sort-contexts, useOneAsMany) gain {@code box} as their last
-   * param and raise through it, and the header names the box; every other byte is main's. The
-   * assertions below are #69's, unchanged.
+   * Consequences): core gains po:data-error, whose code is an {@code xs:QName} so that a family can
+   * raise {@code err:FORG0001} through it, and the root declares {@code err} (#71 review); the five
+   * declarations that raise a data error (formatByExample, sort, sortByKey, sort-contexts,
+   * useOneAsMany) gain {@code box} as their last param and raise through it, and the header names
+   * the box; every other byte is main's. The assertions below are #69's, unchanged.
    */
   private static final String MAIN_HELPER_MODULE =
       "engine/xslt-export/src/test/resources/pinned-71/po-runtime.xsl";
