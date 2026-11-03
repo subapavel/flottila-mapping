@@ -331,7 +331,8 @@
        ContextFunctions.useOneAsMany does; a SUPPRESS value is repeated as SUPPRESS, and a SUPPRESS
        of $occurrences counts as an occurrence. Unless $value has one value per context of
        $occurrences and $contexts as many values as $occurrences, it raises po:USEONEASMANY, where
-       the runtime refuses the same inputs (an assumed reading, #2 §7.10). -->
+       the runtime refuses the same inputs (an assumed reading, #2 §7.10), checked in the same
+       order and said in the same words, with the count that failed (ADR-0025). -->
   <xsl:function name="po:useOneAsMany" as="array(item()*)">
     <xsl:param name="value" as="array(item()*)"/>
     <xsl:param name="occurrences" as="array(item()*)"/>
@@ -340,9 +341,15 @@
     <xsl:variable name="repeated" as="item()*"
         select="for $k in 1 to array:size($occurrences) return $occurrences($k) ! $values[$k]"/>
     <xsl:sequence select="
-        if (count($values) ne array:size($occurrences) or count($repeated) ne count($contexts?*))
+        if (count($values) ne array:size($occurrences))
         then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
-                   'useOneAsMany: the counts of its inputs do not agree')
+                   'useOneAsMany needs one value of its first input per context of its second: the'
+                   || ' first has ' || count($values) || ' values, the second '
+                   || array:size($occurrences) || ' contexts')
+        else if (count($repeated) ne count($contexts?*))
+        then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
+                   'useOneAsMany needs as many slots in its third input as in its second: the third'
+                   || ' has ' || count($contexts?*) || ' slots, the second ' || count($repeated))
         else array:join(
           for $c in 1 to array:size($contexts)
           return [subsequence($repeated,

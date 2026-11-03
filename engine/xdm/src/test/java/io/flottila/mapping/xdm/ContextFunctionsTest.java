@@ -649,8 +649,8 @@ class ContextFunctionsTest {
 
   /**
    * splitByValue in each mode, over a queue with a context of two slots and an empty one: its loop
-   * over contexts checks, and names the function, as building the result block checks too, but
-   * with a message of its own (ADR-0021).
+   * over contexts checks, and names the function, as building the result block checks too, but with
+   * a message of its own (ADR-0021).
    */
   static Stream<Arguments> interruptibleSplits() {
     QueueBlock queue = new Queue("", List.of(List.of("a", ""), List.of())).block();

@@ -801,6 +801,7 @@ class XsltExporterTest {
     }
     StringLiteral literal = StringLiteral.at(select, start);
     assertThat(literal.value()).isEqualTo(value);
-    assertThat(select.substring(literal.end())).matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *, *'t1' *\\)");
+    assertThat(select.substring(literal.end()))
+        .matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *, *'t1' *\\)");
   }
 }

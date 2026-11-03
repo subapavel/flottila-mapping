@@ -42,11 +42,10 @@ import org.junit.jupiter.params.provider.MethodSource;
  * a seeded {@code Doc/Grp/Row/Val} target over seeded Orders, each level a source field in one of
  * its contexts or createIf over it, with seeded min and max, runs on our runtime and, exported, on
  * Saxon-HE. Both write the same document, or both raise {@code po:MINOCCURS} with the same QName,
- * and both messages name the target field mapping that fell short.
- * The generator makes SUPPRESS, truncated slots, missing and empty contexts and min shortfalls; the
- * runtime's TargetSlotsInterpreterTest checks the same shape against a reference. This class is no
- * corpus or differential class, so the ratchet does not read its tests as case ids
- * (scripts/ratchet.java).
+ * and both messages name the target field mapping that fell short. The generator makes SUPPRESS,
+ * truncated slots, missing and empty contexts and min shortfalls; the runtime's
+ * TargetSlotsInterpreterTest checks the same shape against a reference. This class is no corpus or
+ * differential class, so the ratchet does not read its tests as case ids (scripts/ratchet.java).
  */
 class NestedSlotsAgreementTest {
 
@@ -225,7 +224,8 @@ class NestedSlotsAgreementTest {
           SaxonRunner.raised(stylesheet, XsltExporter.helperModule(), input, dir, what);
       SaxonRunner.assertSameError(saxon, MINOCCURS, what);
       // both name the target field mapping that fell short (CODING_STANDARDS, mapping location)
-      String mapping = "the target field mapping " + ((MappingRunException) thrown).authoringId().value();
+      String mapping =
+          "the target field mapping " + ((MappingRunException) thrown).authoringId().value();
       assertThat(thrown.getMessage()).as(what).contains(mapping + " creates ");
       assertThat(saxon.getMessage()).as(what).contains(mapping + " creates ");
     } else {

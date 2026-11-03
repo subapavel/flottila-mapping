@@ -55,7 +55,9 @@ class TraceLimitStartupTest {
   }
 
   @Test
-  @Launch(value = {}, exitCode = 1)
+  @Launch(
+      value = {},
+      exitCode = 1)
   void aTraceLimitOfZeroStopsTheServiceAtStartup(LaunchResult result) {
     assertThat(result.getOutput() + result.getErrorOutput())
         .contains("flottila.mapping.trace-limit is 0, but a trace limit is at least 1");

@@ -41,16 +41,17 @@ import java.util.stream.IntStream;
  * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). An
  * unmapped structure field whose effective occurrence is {@code n..n} with {@code n > 0} becomes
  * {@code TargetRepeat} of n copies, whatever is mapped below it, an unmapped optional field is left
- * out with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The slot-number variable of a field at
- * depth d is {@code slot<d>}, a mapped field's value variable {@code value<d>}, and a field reads
- * its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A leaf's
- * element holds its value, a structure field's its children in target field order. A source-field
- * box gives its {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63). A standard
- * function box whose function the catalogue holds gives, by its execution kind, a {@code FunCall}
- * over its inputs' queues and then its params as {@code Literal}s for a context or queue function,
- * or a {@code Lift} over its inputs' queues whose body is the atomic {@code FunCall} over the slot
- * variables and then the params for a single-value function (ADR-0006, ADR-0025). A param the box
- * leaves out is its catalogue default. A box that feeds several inputs is lowered once per use.
+ * out with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused.
+ * The slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value
+ * variable {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or
+ * the parent's {@code slot<d - 1>}. A leaf's element holds its value, a structure field's its
+ * children in target field order. A source-field box gives its {@code SourceQueue}, of a leaf or of
+ * a structure field (ADR-0008; #63). A standard function box whose function the catalogue holds
+ * gives, by its execution kind, a {@code FunCall} over its inputs' queues and then its params as
+ * {@code Literal}s for a context or queue function, or a {@code Lift} over its inputs' queues whose
+ * body is the atomic {@code FunCall} over the slot variables and then the params for a single-value
+ * function (ADR-0006, ADR-0025). A param the box leaves out is its catalogue default. A box that
+ * feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
@@ -482,10 +483,10 @@ public final class Lowering {
    * so it is refused at its absent target field mapping with {@code unmapped-mandatory-leaf}
    * (ADR-0006), and the walk goes on. An unmapped child structure field with {@code 0 < min < max}
    * needs a mapping in PO, so it is refused there with {@code unsupported-field}, and the walk goes
-   * on without entering it. An unmapped {@code n..n} structure field whose type its path
-   * already repeats {@link #RECURSION_CAP} times would be created without end, so it is refused at
-   * the model's {@code /target} with {@code unsupported-field} (ADR-0008), and that refusal stops
-   * the walk.
+   * on without entering it. An unmapped {@code n..n} structure field whose type its path already
+   * repeats {@link #RECURSION_CAP} times would be created without end, so it is refused at the
+   * model's {@code /target} with {@code unsupported-field} (ADR-0008), and that refusal stops the
+   * walk.
    */
   private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();

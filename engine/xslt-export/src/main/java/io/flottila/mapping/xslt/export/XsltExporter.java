@@ -40,8 +40,8 @@ import java.util.stream.Collectors;
  *   <li>{@code TargetSlots} is an {@code xsl:for-each} over {@code po:slots} of its queue, its
  *       parent's slot number and its {@code max}, {@code ()} when unbounded, inside {@code
  *       po:at-least} with its {@code min} and the id of its target field mapping, its origin, when
- *       the min is above 0 (ADR-0006 since #52). Each item is
- *       {@code [slot number, value]}, bound to its slot-number and value variables.
+ *       the min is above 0 (ADR-0006 since #52). Each item is {@code [slot number, value]}, bound
+ *       to its slot-number and value variables.
  *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
  *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
  *       slot number (ADR-0006; #63).
