@@ -217,6 +217,32 @@ class InterpreterTest {
   }
 
   /**
+   * A source queue has at least one context (ADR-0004 as amended, F-17, observed #31 d3): Name in
+   * Item's context, and no Item occurs, so the queue is one empty context {@code {0,0}}, not none.
+   * Where Item occurs, each occurrence is one context and nothing is added.
+   */
+  @Test
+  void aContextElementThatNeverOccursGivesOneEmptyContext() throws Exception {
+    TargetDocument names =
+        document(
+            leaf(
+                "Name",
+                new SourceQueue(List.of(ORDER, local("Item"), local("Name")), 2, id("a1")),
+                0,
+                UNBOUNDED,
+                "t1"));
+    Tracer absent = new Tracer();
+    Tracer present = new Tracer();
+
+    byte[] out = run(names, true, sourceOrder("<Other/>").getBytes(UTF_8), absent);
+    run(names, true, sourceOrder("<Item/><Item><Name>y</Name></Item>").getBytes(UTF_8), present);
+
+    assertThat(tracedOnce(absent, "a1")).containsExactly(List.of());
+    assertThat(new String(out, UTF_8)).isEqualTo(DECLARATION + EMPTY_ROOT);
+    assertThat(tracedOnce(present, "a1")).containsExactly(List.of(), List.of("y"));
+  }
+
+  /**
    * The same input under the required field: no occurrence is created, fewer than its min of 1, so
    * the run raises {@code po:MINOCCURS} at the target field mapping (ADR-0006 since #52).
    */
@@ -248,8 +274,9 @@ class InterpreterTest {
   }
 
   /**
-   * The source root is not there, so its queues have no context at all, not one empty context: the
-   * root slot 1 names none, and the root is written without the field, as for an empty source.
+   * The source root is not there, so each of its queues is one empty context (ADR-0004 as amended,
+   * F-17): the root slot 1 names it, it holds no value, and the root is written without the field,
+   * as for an empty source.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("wrongRoots")

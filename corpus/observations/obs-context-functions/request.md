@@ -126,7 +126,7 @@ Target wires: C1 -> `Out/All`. Nothing else is mapped.
 | --- | --- | --- |
 | `fn/collapseContexts/001` | `f5.xml` | The input of obs-context-functions ctx-5 (f5.xml), the queue of the SAP figure. Qty in context Order is 3,2 \| 10,11,43,2 \| 7 \| (empty), as o4 has no Line. collapseContexts keeps the first value of each context, gives the empty context "", and puts them all in one context, so All is 3, 10, 7, "". The last value would give 2, 2, 7, ""; without collapseContexts the root's slot would read 3, 2 alone. To observe in PO: first or last. |
 | `fn/collapseContexts/002` | `collapseContexts-002.xml` | Empty contexts keep their place. o1 has no Line and o2's one Line has no Qty, so Qty in context Order is (empty) \| (empty) \| 5,6. collapseContexts replaces each empty context with "" ahead of o3's first value: All is "", "", 5. If empty contexts were dropped, All would be 5 alone; if the last value were kept, 6. To observe in PO, with obs-context-functions ctx-5 o4. |
-| `fn/collapseContexts/003` | `collapseContexts-003.xml` | An empty input: <Orders/> has no Order, so Qty in context Order has no context at all, not one empty context. collapseContexts gives one context with no value, and the root's one slot creates no All. If a missing context counted as an empty one, All would be one empty element. |
+| `fn/collapseContexts/003` | `collapseContexts-003.xml` | An empty input: <Orders/> has no Order, so Qty in context Order is one empty context (F-17). collapseContexts replaces it with "": one context holding "", so the root's one slot creates one empty All. Before F-17 the queue had no context at all and the root was written without an All. |
 
 ## Mapping spec2-exists
 
@@ -255,7 +255,7 @@ Target wires: M1 -> `Out/All`. Nothing else is mapped.
 
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
-| `fn/mapWithDefault/004` | `collapseContexts-003.xml` | To observe in PO: removeContexts over an empty input. <Orders/> has no Order and no Line, so Sku in its default context Line has no context at all. removeContexts gives one empty context, which mapWithDefault fills with D, so the root's one slot creates one All D. A removeContexts that kept zero contexts, or a no-op, would leave the root empty (fn/mapWithDefault/005). |
+| `fn/mapWithDefault/004` | `collapseContexts-003.xml` | To observe in PO: removeContexts over an empty input. <Orders/> has no Order and no Line, so Sku in its default context Line is one empty context (F-17). removeContexts keeps one empty context, which mapWithDefault fills with D, so the root's one slot creates one All D, as in fn/mapWithDefault/005 without removeContexts. Since F-17 the input is no longer zero contexts, so this case no longer tells removeContexts apart from a no-op; ContextFunctionsTest does, over {0}. |
 
 ## Mapping spec2-map-with-default-line
 
@@ -272,7 +272,7 @@ Target wires: M1 -> `Out/All`. Nothing else is mapped.
 
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
-| `fn/mapWithDefault/005` | `collapseContexts-003.xml` | To observe in PO, with fn/mapWithDefault/004: mapWithDefault over no context. <Orders/> has no Line, so Sku in its default context Line has no context at all, and mapWithDefault keeps it so: the root's one slot reads a context the queue lacks and the root is written empty. Filling a queue without contexts with one D would give All D. |
+| `fn/mapWithDefault/005` | `collapseContexts-003.xml` | To observe in PO, with fn/mapWithDefault/004: mapWithDefault over an empty input. <Orders/> has no Line, so Sku in its default context Line is one empty context (F-17), and mapWithDefault fills it with D: the root's one slot creates one All D, as removeContexts first gives in fn/mapWithDefault/004. Before F-17 the queue had no context at all and the root was written empty. |
 
 ## Mapping spec2-remove-contexts
 
@@ -290,7 +290,7 @@ Target wires: R1 -> `Out/All`. Nothing else is mapped.
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
 | `fn/removeContexts/002` | `f1.xml` | The input of obs-context-functions ctx-1 (f1.xml). Sku in context Line is a \| (empty) \| "" \| b: o2's Line has no Sku and gives an empty context, o3 has no Line and gives no context, o4's <Sku/> is the value "". removeContexts drops the empty context and keeps the empty string, so All is a, "", b. If empty contexts were kept as "", there would be a fourth All. |
-| `fn/removeContexts/003` | `collapseContexts-003.xml` | An empty input: <Orders/> has no Order and no Line, so the Sku queue has no context at all. removeContexts gives at most one context and it holds no value, so the root's one slot creates no All and the root is written empty. |
+| `fn/removeContexts/003` | `collapseContexts-003.xml` | An empty input: <Orders/> has no Order and no Line, so the Sku queue is one empty context (F-17). removeContexts gives one context and it holds no value, so the root's one slot creates no All and the root is written empty. |
 
 ## Mapping spec2-sort
 

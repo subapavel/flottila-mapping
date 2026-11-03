@@ -15,6 +15,14 @@
        Every other value of a queue is an xs:string, so a function tells SUPPRESS by its type. -->
   <xsl:variable name="po:SUPPRESS" as="map(*)" select="map{'po:marker': 'SUPPRESS'}"/>
 
+  <!-- A SourceQueue (ADR-0004 as amended, F-17): $queue has one context per occurrence of the
+       context field; when that field never occurs, $queue has none and the source queue is one
+       empty context, as the runtime's Projection gives. -->
+  <xsl:function name="po:source-queue" as="array(item()*)">
+    <xsl:param name="queue" as="array(item()*)"/>
+    <xsl:sequence select="if (array:size($queue) eq 0) then [()] else $queue"/>
+  </xsl:function>
+
   <!-- The occurrences TargetSlots creates of context $parentSlot of $queue (ADR-0006 since #52),
        as the runtime's Node.Slots does: [slot number, value] per created slot. A slot number is
        the slot's position across all contexts of the queue, so a SUPPRESS slot and a truncated

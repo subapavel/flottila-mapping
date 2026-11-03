@@ -109,7 +109,7 @@ class XsltExporterTest {
           <xsl:variable name="root" as="xs:integer" select="1"/>
           <ns0:Order>
             <xsl:for-each \
-      select="po:at-least(po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1), 1)">
+      select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1)">
               <xsl:variable name="slot2" as="xs:integer" select="?1"/>
               <xsl:variable name="value2" as="xs:string" select="?2"/>
               <OrderId><xsl:value-of select="$value2"/></OrderId>
@@ -206,9 +206,9 @@ class XsltExporterTest {
         .contains("<Order>", "</Order>", "<ns0:Item>", "<ns1:Note>", "<ns1:Remark>", "<ns0:Again>")
         // source names in walk order; a step without a namespace stays bare
         .contains(
-            "array:join(/s0:Order ! [s0:Item ! string()])",
-            "array:join(/s0:Order ! [s1:Note ! string()])",
-            "array:join(/s0:Order ! [Plain ! string()])");
+            "po:source-queue(array:join(/s0:Order ! [s0:Item ! string()]))",
+            "po:source-queue(array:join(/s0:Order ! [s1:Note ! string()]))",
+            "po:source-queue(array:join(/s0:Order ! [Plain ! string()]))");
   }
 
   @Test
@@ -218,14 +218,14 @@ class XsltExporterTest {
 
     assertThat(unbounded)
         .contains(
-            "<xsl:for-each select=\"po:at-least(po:slots(array:join(/s0:Order ! [OrderId !"
-                + " string()]), $root, ()), 1)\">")
+            "<xsl:for-each select=\"po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId !"
+                + " string()])), $root, ()), 1)\">")
         .doesNotContain(Long.toString(UNBOUNDED));
     // witness: a bounded max is written as its number
     assertThat(three)
         .contains(
-            "<xsl:for-each select=\"po:at-least(po:slots(array:join(/s0:Order ! [OrderId !"
-                + " string()]), $root, 3), 1)\">");
+            "<xsl:for-each select=\"po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId !"
+                + " string()])), $root, 3), 1)\">");
   }
 
   /** {@code OrderId <- OrderId} at {@code min..max}. */
@@ -245,7 +245,8 @@ class XsltExporterTest {
    */
   @Test
   void minAboveZeroWrapsPoAtLeast() {
-    String slots = "po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 3)";
+    String slots =
+        "po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 3)";
 
     assertThat(XsltExporter.export(fieldLink(0, 3)))
         .contains("<xsl:for-each select=\"" + slots + "\">")
@@ -422,10 +423,10 @@ class XsltExporterTest {
               <xsl:template match="/">
                 <xsl:variable name="root" as="xs:integer" select="1"/>
                 <xsl:variable name="po:queue1" as="array(item()*)" \
-            select="array:join(/s0:Order/Item ! [Name ! string()])"/>
+            select="po:source-queue(array:join(/s0:Order/Item ! [Name ! string()]))"/>
                 <ns0:Order>
                   <xsl:for-each \
-            select="po:slots(array:join(/s0:Order ! [Item ! string()]), $root, ())">
+            select="po:slots(po:source-queue(array:join(/s0:Order ! [Item ! string()])), $root, ())">
                     <xsl:variable name="slot2" as="xs:integer" select="?1"/>
                     <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <Item>
@@ -497,9 +498,9 @@ class XsltExporterTest {
         .as("the top of the template")
         .contains(
             "<xsl:variable name=\"po:queue1\" as=\"array(item()*)\""
-                + " select=\"array:join(/s0:Order/Item ! [Line ! string()])\"/>\n"
+                + " select=\"po:source-queue(array:join(/s0:Order/Item ! [Line ! string()]))\"/>\n"
                 + "    <xsl:variable name=\"po:queue2\" as=\"array(item()*)\""
-                + " select=\"array:join(/s0:Order/Item/Line ! [Sku ! string()])\"/>\n"
+                + " select=\"po:source-queue(array:join(/s0:Order/Item/Line ! [Sku ! string()]))\"/>\n"
                 + "    "
                 + root);
     // everything after Item's slot-number variable stands inside Item's occurrences
@@ -537,7 +538,7 @@ class XsltExporterTest {
                 <xsl:variable name="root" as="xs:integer" select="1"/>
                 <ns0:Order>
                   <xsl:for-each \
-            select="po:at-least(po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1), 1)">
+            select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1)">
                     <xsl:variable name="slot2" as="xs:integer" select="?1"/>
                     <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <OrderId>
@@ -592,7 +593,7 @@ class XsltExporterTest {
   @Test
   void aFunCallIsItsPoFunction() {
     SourceQueue orderIds = underRoot(ORDER, ORDER_ID, "a1");
-    String queue = "array:join(/s0:Order ! [OrderId ! string()])";
+    String queue = "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
     String once = "po:slots(po:removeContexts(" + queue + "), $root, 1)";
     String nested = "po:slots(po:removeContexts(po:removeContexts(" + queue + ")), $root, 1)";
     String fieldLink = "po:slots(" + queue + ", $root, 1)";
@@ -727,7 +728,7 @@ class XsltExporterTest {
             List.of(underRoot(ORDER, ORDER_ID, "a1"), new Literal(value, id("s1"))),
             id("s1"));
     String call =
-        "po:at-least(po:slots(po:splitByValue(array:join(/s0:Order ! [OrderId ! string()])";
+        "po:at-least(po:slots(po:splitByValue(po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
 
     String select =
         attributeValue(
