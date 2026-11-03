@@ -24,11 +24,13 @@ import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.xdm.QueueBlock;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SplittableRandom;
+import java.util.concurrent.FutureTask;
 import java.util.random.RandomGenerator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -415,6 +417,117 @@ class TargetSlotsInterpreterTest {
         () -> run(exactlyTwo, orders(order("o1", line("a", "1"))), tracer, true), MINOCCURS, "t2");
     assertThat(reports(tracer, "a2")).as("Row's queue").hasSize(1);
     assertThat(reports(tracer, "a3")).as("Val's queue").isEmpty();
+  }
+
+  // --- tracing the occurrences (ADR-0006 since #53)
+
+  /** Each occurrences report: the target field mapping, the parent slot, min..max (* unbounded). */
+  private static List<String> occurrences(Tracer tracer) {
+    return tracer.occurrences().stream()
+        .map(
+            o ->
+                o.field().value()
+                    + " "
+                    + o.parentSlot()
+                    + " "
+                    + o.min()
+                    + ".."
+                    + (o.max() == UNBOUNDED ? "*" : o.max()))
+        .toList();
+  }
+
+  /**
+   * A traced TargetSlots reports its field, parent slot, queue, min and max before its min check
+   * (ADR-0006 since #53), so a shortfall is traced. Row is 1..2; the second Order has no Line, so
+   * its Grp's Row reads the empty context 2 and raises po:MINOCCURS at t2. Its report, the last, is
+   * already made: parent slot 2 over Row's queue [a] | [], whose context 2 shows the shortfall. A
+   * report after the check, or after the slots were written, would have none for parent slot 2.
+   */
+  @Test
+  void aTracedTargetSlotsReportsBeforeItsMinCheck() throws Exception {
+    Tracer tracer = new Tracer();
+
+    assertRuntimeError(
+        () ->
+            run(groupsOfRows(1, 2), orders(order("o1", line("a", "1")), order("o2")), tracer, true),
+        MINOCCURS,
+        "t2");
+
+    assertThat(occurrences(tracer))
+        .containsExactly("t1 1 0..*", "t2 1 1..2", "t3 1 0..1", "t2 2 1..2");
+    Tracer.Occurrences shortfall = tracer.occurrences().getLast();
+    assertThat(contexts(shortfall.queue())).containsExactly(List.of("a"), List.of());
+    assertThat(shortfall.queue()).isSameAs(reports(tracer, "a2").getFirst());
+  }
+
+  /**
+   * The tracer's lists may be read while the run reports, as the facade does at a timeout (ADR-0014
+   * since #53): each read is a consistent snapshot, the reports made so far in order, so every read
+   * extends the one before it and the last read is a prefix of the run's whole list. Grp per Id,
+   * Row per Sku in Order's context, over 100,000 Orders: Row reports once per Grp while the run
+   * writes. Up to five runs are read until a read falls while the run reports.
+   */
+  @Test
+  void aSnapshotWhileTheRunReportsIsConsistent() throws Exception {
+    TargetDocument rows =
+        document(
+            DOC,
+            node(
+                GRP,
+                2,
+                source("a1", 1, ORDERS, ORDER, ID),
+                0,
+                UNBOUNDED,
+                "t1",
+                leaf(ROW, 3, source("a2", 2, ORDERS, ORDER, LINE, SKU), 0, UNBOUNDED, "t2")));
+    StringBuilder xml = new StringBuilder("<Orders>");
+    for (int o = 1; o <= 100_000; o++) {
+      xml.append(order("o" + o, line("s" + o, null)));
+    }
+    byte[] input = xml.append("</Orders>").toString().getBytes(UTF_8);
+    ExecutableMapping mapping = Interpreter.compile(rows, true);
+
+    boolean midRun = false;
+    for (int attempt = 0; attempt < 5 && !midRun; attempt++) {
+      Tracer tracer = new Tracer();
+      FutureTask<Void> run =
+          new FutureTask<>(
+              () -> {
+                mapping.run(
+                    new ByteArrayInputStream(input), OutputStream.nullOutputStream(), tracer);
+                return null;
+              });
+      Thread.ofPlatform().name("traced run").daemon(true).start(run);
+      List<Tracer.Occurrences> previous = List.of();
+      List<Map.Entry<AuthoringId, QueueBlock>> previousValues = List.of();
+      int reads = 0;
+      while (!run.isDone()) {
+        List<Tracer.Occurrences> read = tracer.occurrences();
+        List<Map.Entry<AuthoringId, QueueBlock>> values = tracer.values();
+        assertThat(read.size()).as("read %d", reads).isGreaterThanOrEqualTo(previous.size());
+        assertThat(read.subList(0, previous.size())).as("read %d", reads).isEqualTo(previous);
+        assertThat(values.size())
+            .as("values %d", reads)
+            .isGreaterThanOrEqualTo(previousValues.size());
+        assertThat(values.subList(0, previousValues.size()))
+            .as("values %d", reads)
+            .isEqualTo(previousValues);
+        midRun |= !read.isEmpty() && read.size() < 100_001;
+        previous = read;
+        previousValues = values;
+        reads++;
+      }
+      run.get();
+      List<Tracer.Occurrences> all = tracer.occurrences();
+
+      assertThat(all).hasSize(100_001);
+      assertThat(all.subList(0, previous.size())).isEqualTo(previous);
+      assertThat(all.getFirst().field()).isEqualTo(id("t1"));
+      assertThat(all.getLast().field()).isEqualTo(id("t2"));
+      assertThat(all.getLast().parentSlot()).isEqualTo(100_000);
+      assertThat(tracer.values().subList(0, previousValues.size())).isEqualTo(previousValues);
+    }
+    assertThat(midRun).as("witness: a read while the run reported").isTrue();
   }
 
   // --- evaluation (ADR-0006: a queue is evaluated at most once per run, on first read)
