@@ -13,7 +13,10 @@ context. Physically it is a **queue block**, an immutable struct-of-arrays:
   SUPPRESS slot has its bit set and a `null` value, so reading it as a string fails at once, as
   `FOTY0013` does in the export.
 
-A queue with no contexts (`{0}`) differs from a queue with one empty context (`{0,0}`). Queue
+A queue with no contexts (`{0}`) differs from a queue with one empty context (`{0,0}`). A source
+queue always has at least one context: its contexts are the occurrences of its context element,
+and when that element never occurs in the message the queue is one empty context `{0,0}`
+(observed on PO 7.5 and CPI, #31, F-17). `{0}` stays legal as a function result. Queue
 values are always strings. Typed values exist only inside a function call. Context operations
 never copy characters:
 
@@ -44,8 +47,10 @@ nodes when the callee accepts a queue directly. Milestone 1 has no such callee.
   output.
 - **`xs:untypedAtomic` source values**: rejected. XPath promotes them to `xs:double` in
   arithmetic, against ADR-0002.
-- **No end sentinel, or a minimum of one context**: rejected. The first makes every operation
-  special-case the last context. The second cannot express an absent parent.
+- **No end sentinel, or a minimum of one context for every queue**: rejected. The first makes
+  every operation special-case the last context. The second cannot express a function result
+  with no context. PO does have the minimum for source queues (F-17), and the projection keeps it;
+  the block itself still holds `{0}`.
 - **Tiny tree or projected buffer in milestone 1**: deferred. No milestone-1 mapping needs them,
   and JMH (gate check 7) decides when they come.
 
@@ -57,7 +62,9 @@ nodes when the callee accepts a queue directly. Milestone 1 has no such callee.
   the same invariants.
 - Assumed readings until observed cases confirm them (ADR-0002):
   - A constant fed into a context or queue function is a queue of one context with one value.
-  - An absent parent gives zero contexts, not one empty context.
+  - ~~An absent parent gives zero contexts, not one empty context.~~ Observed otherwise (#31,
+    F-17): a parent absent under one occurrence adds no context, as assumed (d1), but a context
+    element absent from the whole message gives one empty context (d3). Replaced by the rule above.
 - Since #51 the SUPPRESS bitset ends at its last SUPPRESS word, and bit k is set exactly when
   `values[k]` is null; a block without SUPPRESS has an empty bitset. `withContextStarts` shares the
   values and the bitset; a per-slot function shares the context starts.
