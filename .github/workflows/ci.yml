@@ -19,6 +19,37 @@ env:
   MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
 
 jobs:
+  # #67: Ticket, Co-authored-by and exactly one Signed-off-by on every non-merge commit and every merger-written merge
+  # commit of the range. GitHub's own PR merge commit is skipped by the script; commits already on main are out of range.
+  trailers:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Script tests
+        run: |
+          scripts/test/trailers-test.sh
+          scripts/test/pit-summary-test.sh
+      - name: Commit trailers
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            range="$BASE_SHA..$HEAD_SHA"
+          elif [ "$BEFORE" = 0000000000000000000000000000000000000000 ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            # new branch or forced push: everything not on origin/main
+            range="origin/main..$AFTER"
+          else
+            range="$BEFORE..$AFTER"
+          fi
+          scripts/check-trailers.sh "$range"
+
   backend:
     runs-on: ubuntu-24.04
     steps:
