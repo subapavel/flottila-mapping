@@ -21,7 +21,14 @@ import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -803,5 +810,115 @@ class XsltExporterTest {
     assertThat(literal.value()).isEqualTo(value);
     assertThat(select.substring(literal.end()))
         .matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *, *'t1' *\\)");
+  }
+
+  // --- the helper module's sources (ADR-0025 "Families", F-15): core.xsl and one module per
+  // function family, which the build joins into po-runtime.xsl, core first, then the families by
+  // id; ADR-0023's one-file export is unchanged
+
+  private static final String HELPER_SOURCES = "engine/xslt-export/src/main/xsl/po-runtime";
+
+  private static final String CORE = "core.xsl";
+
+  /** The packed helper module of main at 9c6fd1a, before the split, copied byte for byte. */
+  private static final String MAIN_HELPER_MODULE =
+      "engine/xslt-export/src/test/resources/main-9c6fd1a/po-runtime.xsl";
+
+  /** Surefire runs in the module directory: the root is the nearest ancestor holding mvnw. */
+  private static Path repoRoot() {
+    for (Path p = Path.of("").toAbsolutePath(); p != null; p = p.getParent()) {
+      if (Files.isRegularFile(p.resolve("mvnw")) && Files.isDirectory(p.resolve("contract"))) {
+        return p;
+      }
+    }
+    throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
+  }
+
+  private static final Pattern FUNCTION_NAME =
+      Pattern.compile("<xsl:function\\s[^>]*?\\bname=\"([^\"]*)\"");
+
+  /** The names of the {@code xsl:function} elements of {@code stylesheet}, in document order. */
+  private static List<String> functionNames(String stylesheet) {
+    List<String> names = new ArrayList<>();
+    Matcher function = FUNCTION_NAME.matcher(stylesheet);
+    while (function.find()) {
+      names.add(function.group(1));
+    }
+    return names;
+  }
+
+  @Test
+  void theHelperModuleIsCoreThenItsFamilyModules() throws Exception {
+    // witness: a function's name is read whatever attribute comes first
+    assertThat(
+            functionNames(
+                "<xsl:function name=\"po:a\" as=\"xs:string\"/><xsl:function as=\"item()\""
+                    + " name=\"po:b\"/><xsl:variable name=\"po:c\"/>"))
+        .containsExactly("po:a", "po:b");
+
+    Path dir = repoRoot().resolve(HELPER_SOURCES);
+    assertThat(dir).as("the helper module's sources").isDirectory();
+    String core = Files.readString(dir.resolve(CORE), UTF_8);
+    SortedMap<String, String> families = new TreeMap<>();
+    List<Path> modules;
+    try (Stream<Path> listing = Files.list(dir)) {
+      modules = listing.filter(p -> p.getFileName().toString().endsWith(".xsl")).toList();
+    }
+    for (Path module : modules) {
+      String name = module.getFileName().toString();
+      if (!name.equals(CORE)) {
+        families.put(
+            name.substring(0, name.length() - ".xsl".length()), Files.readString(module, UTF_8));
+      }
+    }
+    // core holds SUPPRESS, source-queue, slots, at-least and lift; today's eleven functions form
+    // the family context (ADR-0025)
+    assertThat(core).contains("<xsl:variable name=\"po:SUPPRESS\"");
+    assertThat(functionNames(core))
+        .contains("po:source-queue", "po:slots", "po:at-least", "po:lift");
+    assertThat(families).as("the family modules beside %s", CORE).containsKey("context");
+    assertThat(functionNames(families.get("context")))
+        .contains("po:removeContexts", "po:replaceValue");
+
+    // every module carries core's root start tag, byte for byte
+    String coreTag = stylesheetStartTag(core);
+    assertThat(coreTag).contains("xmlns:po=\"urn:flottila:mapping:po\"");
+    families.forEach(
+        (family, module) ->
+            assertThat(stylesheetStartTag(module))
+                .as("the root start tag of %s.xsl", family)
+                .isEqualTo(coreTag));
+
+    // core's functions, then each family's, the families by id, each declared once
+    List<String> expected = new ArrayList<>(functionNames(core));
+    families.values().forEach(module -> expected.addAll(functionNames(module)));
+    assertThat(expected).as("the functions the modules declare").doesNotHaveDuplicates();
+    String packed = XsltExporter.helperModule();
+
+    assertThat(functionNames(packed))
+        .as("the packed helper module's functions")
+        .containsExactlyElementsOf(expected);
+    // one root, core's, and core's prolog up to it begins the packed module
+    assertThat(occurrences(packed, coreTag))
+        .as("core's root start tag in the packed module")
+        .isEqualTo(1);
+    assertThat(packed).startsWith(core.substring(0, core.indexOf(coreTag) + coreTag.length()));
+  }
+
+  /** The split changes no byte of the helper module (ADR-0025 "Families", ADR-0023). */
+  @Test
+  void thePackedHelperModuleIsMainsByteForByte() throws Exception {
+    byte[] main = Files.readAllBytes(repoRoot().resolve(MAIN_HELPER_MODULE));
+    // witness: main's copy is the helper module of spec 2, with po:useOneAsMany
+    assertThat(functionNames(new String(main, UTF_8))).contains("po:slots", "po:useOneAsMany");
+    byte[] packed;
+    try (InputStream in = XsltExporter.class.getResourceAsStream(XsltExporter.HELPER_MODULE)) {
+      assertThat(in).as("resource io/flottila/mapping/xslt/export/po-runtime.xsl").isNotNull();
+      packed = in.readAllBytes();
+    }
+
+    assertThat(new String(packed, UTF_8)).isEqualTo(new String(main, UTF_8));
+    assertThat(packed).isEqualTo(main);
+    assertThat(XsltExporter.helperModule().getBytes(UTF_8)).isEqualTo(main);
   }
 }

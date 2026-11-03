@@ -1,0 +1,181 @@
+{
+  "collapseContexts": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "createIf": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "condition"
+      }
+    ],
+    "portable": true
+  },
+  "exists": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "formatByExample": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "values"
+      },
+      {
+        "name": "example"
+      }
+    ],
+    "portable": true
+  },
+  "mapWithDefault": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "default",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "removeContexts": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "replaceValue": {
+    "executionKind": "single",
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "replacement",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "sort": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "lexicographic",
+        "name": "comparison",
+        "type": "string",
+        "values": [
+          "lexicographic",
+          "caseInsensitive",
+          "numeric"
+        ]
+      },
+      {
+        "default": "ascending",
+        "name": "order",
+        "type": "string",
+        "values": [
+          "ascending",
+          "descending"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "sortByKey": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "keys"
+      },
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "lexicographic",
+        "name": "comparison",
+        "type": "string",
+        "values": [
+          "lexicographic",
+          "caseInsensitive",
+          "numeric"
+        ]
+      },
+      {
+        "default": "ascending",
+        "name": "order",
+        "type": "string",
+        "values": [
+          "ascending",
+          "descending"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "splitByValue": {
+    "executionKind": "context",
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "eachValue",
+        "name": "mode",
+        "type": "string",
+        "values": [
+          "eachValue",
+          "valueChange",
+          "emptyValue"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "useOneAsMany": {
+    "executionKind": "queue",
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "occurrences"
+      },
+      {
+        "name": "contexts"
+      }
+    ],
+    "portable": true
+  }
+}
