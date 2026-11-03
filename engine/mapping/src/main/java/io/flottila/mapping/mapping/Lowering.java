@@ -371,6 +371,15 @@ public final class Lowering {
     for (String key : new TreeSet<>(box.params().keySet())) {
       param(id, box, entry, key);
     }
+    List<Expr> params = new ArrayList<>();
+    for (FunctionCatalogue.Param param : entry.params()) {
+      // the box's string, or the default when the box leaves the param out
+      switch (box.params().getOrDefault(param.name(), new Text(param.fallback()))) {
+        case Text(String value) -> params.add(new Literal(value, id));
+        // reported above as wrong-parameter-type, so the call is not lowered
+        case Table _ -> {}
+      }
+    }
     if (found.size() > reported) {
       return Optional.empty();
     }
@@ -381,12 +390,6 @@ public final class Lowering {
         return Optional.empty();
       }
       queues.add(arg.get());
-    }
-    List<Expr> params = new ArrayList<>();
-    for (FunctionCatalogue.Param param : entry.params()) {
-      // the box's string, which the check above accepted, or the default
-      ParamValue given = box.params().getOrDefault(param.name(), new Text(param.fallback()));
-      params.add(new Literal(((Text) given).value(), id));
     }
     return Optional.of(
         switch (entry.executionKind()) {
