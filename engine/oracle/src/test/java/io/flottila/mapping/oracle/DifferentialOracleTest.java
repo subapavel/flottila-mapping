@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import net.sf.saxon.s9api.SaxonApiException;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,6 +47,13 @@ class DifferentialOracleTest {
     assertThat(covered)
         .as("cases under %s that expect output or none", CaseFiles.cases())
         .isNotEmpty();
+    // witness: the runtime-error branch below meets both places a message names (ADR-0026)
+    assertThat(
+            covered.stream()
+                .filter(GoldenCorpusTest::expectsRuntimeError)
+                .map(c -> (String) c.expectedError().get("code")))
+        .as("the codes of the runtime-error cases")
+        .contains("po:MINOCCURS", "po:USEONEASMANY");
     return IntStream.range(0, covered.size())
         .mapToObj(
             i ->
@@ -68,17 +76,24 @@ class DifferentialOracleTest {
     }
 
     if (GoldenCorpusTest.expectsRuntimeError(c)) {
-      // ADR-0018 since #52: both sides raise the case's error QName on its input
+      // ADR-0018 since #52: both sides raise the case's error QName on its input; since #71 both
+      // messages start with the place expected-error.json names (ADR-0026, F-19)
       String code = (String) c.expectedError().get("code");
-      SaxonRunner.assertSameError(
+      String authoringId = (String) c.expectedError().get("authoringId");
+      SaxonApiException saxon =
           SaxonRunner.raised(
-              exported.stylesheet(), exported.helperModule(), input, caseDir, c.id()),
-          code,
-          c.id());
+              exported.stylesheet(), exported.helperModule(), input, caseDir, c.id());
+      SaxonRunner.assertSameError(saxon, code, c.id());
+      SaxonRunner.assertNamesItsPlace(saxon.getMessage(), code, authoringId, c.id() + " Saxon's");
       assertThatThrownBy(() -> facade.run(compiled, input))
           .as("%s: ours", c.id())
           .isInstanceOfSatisfying(
-              MappingRunException.class, e -> assertThat(e.code()).isEqualTo(code));
+              MappingRunException.class,
+              e -> {
+                assertThat(e.code()).isEqualTo(code);
+                SaxonRunner.assertNamesItsPlace(
+                    e.getMessage(), code, authoringId, c.id() + " ours");
+              });
       return;
     }
 

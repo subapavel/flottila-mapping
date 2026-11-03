@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import net.sf.saxon.s9api.SaxonApiException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -107,6 +108,39 @@ class RuntimeErrorCheckTest {
     // a stylesheet that writes output raises nothing: the comparison fails before it starts
     assertThatThrownBy(() -> raised(NO_OUTPUT_ERROR, dir.resolve("c")))
         .isInstanceOf(AssertionError.class);
+  }
+
+  /**
+   * The differential oracle's check of the place a runtime error's message names (ADR-0026): the
+   * function box and its id, then a colon, or for po:MINOCCURS the target field mapping and its id.
+   */
+  @Test
+  void aMessageThatDoesNotNameItsPlaceFails() {
+    String data = "po:USEONEASMANY";
+    String min = "po:MINOCCURS";
+    // witness: a message that names its place passes
+    assertThatCode(
+            () -> SaxonRunner.assertNamesItsPlace("the function box U1: x", data, "U1", "box"))
+        .doesNotThrowAnyException();
+    assertThatCode(
+            () ->
+                SaxonRunner.assertNamesItsPlace(
+                    "the target field mapping T1 creates 0 occurrences", min, "T1", "mapping"))
+        .doesNotThrowAnyException();
+
+    for (String[] wrong :
+        List.of(
+            new String[] {"useOneAsMany needs one value", data, "U1"},
+            new String[] {"the function box U2: x", data, "U1"},
+            new String[] {"the function box U10: x", data, "U1"},
+            new String[] {"the function box U1 x", data, "U1"},
+            new String[] {"the target field mapping U1 creates", data, "U1"},
+            new String[] {"the function box T1: x", min, "T1"},
+            new String[] {"the target field mapping T10 creates", min, "T1"})) {
+      assertThatThrownBy(() -> SaxonRunner.assertNamesItsPlace(wrong[0], wrong[1], wrong[2], "x"))
+          .as("%s for %s at %s", (Object[]) wrong)
+          .isInstanceOf(AssertionError.class);
+    }
   }
 
   private static final String NO_OUTPUT_ERROR =

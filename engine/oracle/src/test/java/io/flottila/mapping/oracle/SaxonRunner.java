@@ -91,6 +91,19 @@ final class SaxonRunner {
         .isEqualTo("Q{" + namespace + "}" + code.substring(colon + 1));
   }
 
+  /**
+   * The message of the runtime error {@code code} starts with the place it is raised at (ADR-0026,
+   * F-19): {@code the target field mapping <id> } for {@code po:MINOCCURS}, {@code the function box
+   * <id>: } for a function's data error, {@code <id>} being {@code authoringId}.
+   */
+  static void assertNamesItsPlace(String message, String code, String authoringId, String what) {
+    String place =
+        code.equals("po:MINOCCURS")
+            ? "the target field mapping " + authoringId + " "
+            : "the function box " + authoringId + ": ";
+    assertThat(message).as("%s: the message names its place", what).startsWith(place);
+  }
+
   /** {@code saxon} and {@code ours} agree: identical, and declared on the same elements. */
   static void assertAgree(byte[] saxon, byte[] ours, String what) {
     assertThat(OracleVerdict.identical(saxon, ours).hasDifferences())
