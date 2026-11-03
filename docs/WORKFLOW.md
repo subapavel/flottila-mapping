@@ -94,6 +94,7 @@ directories, comma-separated, e.g. `engine/xdm,engine/ir`):
 | # | Command | Log | When |
 | --- | --- | --- | --- |
 | 1 | `./mvnw -B -pl <modules>,engine/oracle -am verify` | `.logs/<t>-build.log` | always: tests and JaCoCo floors of touched and upstream modules, the whole golden corpus and the differential oracle (ADR-0018); `service` adds ArchUnit and `@QuarkusTest` |
+| 1b | `./mvnw -B -pl <class-C modules among <modules>> -am test-compile org.pitest:pitest-maven:mutationCoverage`, then `scripts/pit-summary.sh ratchet/mutation.tsv <modules>` | `.logs/<t>-pit.log` | a class-C engine module is touched (#67): a score below its `ratchet/` floor is `EXECUTED_FAIL`; none touched prints `NOT_RUN`. The last lines of the script are `module killed/generated score% floor N% ok|DROP`, one per module |
 | 2 | `./mvnw -B -q -DskipTests verify` | `.logs/<t>-compile-all.log` | always: the whole reactor compiles; Spotless, enforcer, licences |
 | 2b | `scripts/check-lf-checkout.sh` | `.logs/<t>-lf-checkout.log` | always: every tracked file checks out byte-identical on Windows (`.gitattributes`, #49) |
 | 3 | `git diff --exit-code contract/` | — | the service or `contract/` changed |
@@ -112,7 +113,8 @@ most one gate that builds `service` at a time.
    1b. PIT on the class-C modules the spec touched:
    `./mvnw -B -pl <class-C modules> -am test-compile org.pitest:pitest-maven:mutationCoverage`
    (`pit.skip` skips the modules without a mutation floor, F-5) (floor 80 %,
-   ADR-0019) → `.logs/<spec>-pit.log`; above 10 minutes it narrows to the modules class-C tickets
+   ADR-0019) → `.logs/<spec>-pit.log`; `gate-spec.sh` ends with one line per module
+   (`module killed/generated score% floor N% ok|DROP`) and the corpus and differential case counts (#67); above 10 minutes it narrows to the modules class-C tickets
    touched;
 2. in `ui/`: `npm ci`, every step of ticket-gate row 4, `npm run build`;
 3. the stack: `./mvnw -B -Pui -pl service -am clean package -DskipTests`, then `npm run e2e:stack`;
@@ -135,6 +137,8 @@ Run order: 1, 1b, 2, 5, 4, 3. Regen reads the reports of 1 and 1b, and step 3's 
 **CI** (GitHub Actions, `.github/workflows/ci.yml`, every PR and push to `main`; required on
 `main`):
 
+- `trailers` (PRs and `t/**` pushes, #67): `scripts/check-trailers.sh` over the PR or push range, plus the
+  script tests under `scripts/test/`;
 - `backend`: `./mvnw -B -Pbench verify`, then `git diff --exit-code contract/`;
 - `ui`: `npm ci`, `npx playwright install --with-deps chromium`, generated types with an empty
   diff, `typecheck`, `lint`, `test`, `test:browser`, `e2e`, `build` → artefact;

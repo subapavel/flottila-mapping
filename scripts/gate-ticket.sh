@@ -10,7 +10,8 @@
 #                    changed against it; without it they always run.
 #
 # Every step runs even if an earlier one failed. Each prints an evidence word (VERIFIED_PASS, EXECUTED_FAIL, NOT_RUN)
-# and its log. Exit 1 if any step failed.
+# and its log. Exit 1 if any step failed. The last lines are the PIT summary, one per class-C module among <modules>:
+#   <module> <killed>/<generated> <score>% floor <N>% ok|DROP
 set -uo pipefail
 
 if [ $# -lt 2 ]; then
@@ -42,6 +43,27 @@ skipped() { echo "NOT_RUN         $1  ($2)"; }
 # 1: touched and upstream modules, plus the oracle (which pulls in the whole engine)
 step "1 build $modules,engine/oracle" ".logs/${ticket}-build.log" \
   ./mvnw -B -pl "${modules},engine/oracle" -am verify
+
+# 1b: PIT on the class-C engine modules among <modules> (floor in ratchet/mutation.tsv, ADR-0019). test-compile first:
+# PIT needs the classes of a clean tree; -am puts upstream modules in the reactor, where pit.skip skips those without
+# a mutation floor. A score below the floor is EXECUTED_FAIL. The summary lines are printed last.
+class_c="engine/xdm engine/ir engine/runtime engine/serializer engine/mapping engine/xslt-export engine/api engine/udf-api engine/udf"
+pit_modules=()
+for m in ${modules//,/ }; do
+  case " $class_c " in *" $m "*) pit_modules+=("$m") ;; esac
+done
+pit_summary=""
+if [ ${#pit_modules[@]} -gt 0 ]; then
+  pit_list=$(IFS=,; echo "${pit_modules[*]}")
+  step "1b pit $pit_list" ".logs/${ticket}-pit.log" \
+    ./mvnw -B -pl "$pit_list" -am test-compile org.pitest:pitest-maven:mutationCoverage
+  pit_summary=$(scripts/pit-summary.sh ratchet/mutation.tsv "${pit_modules[@]}") || {
+    echo "EXECUTED_FAIL  1b pit floor  (ratchet/mutation.tsv)"
+    status=1
+  }
+else
+  skipped "1b pit" "no class-C engine module among $modules"
+fi
 
 # 2: the whole reactor compiles; Spotless, enforcer, licences
 step "2 compile-all" ".logs/${ticket}-compile-all.log" \
@@ -79,4 +101,5 @@ fi
 step "5 ratchet" ".logs/${ticket}-ratchet.log" \
   java scripts/ratchet.java check
 
+[ -n "$pit_summary" ] && echo "$pit_summary"
 exit "$status"
