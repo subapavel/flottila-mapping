@@ -13,6 +13,7 @@ import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.StructureResult;
 import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.api.TestRunResult;
+import io.flottila.mapping.api.Trace;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.Loaded;
@@ -78,11 +79,15 @@ public class MappingsResource {
   /** {@code flottila.mapping.test-timeout}: how long a test run may take (ADR-0014). */
   private final Duration timeout;
 
+  /** {@code flottila.mapping.trace-limit}: the most one trace entry keeps (ADR-0015, "Trace"). */
+  private final int traceLimit;
+
   @Inject
   MappingsResource(Workspace workspace, ObjectMapper json, Config config) {
     this.workspace = workspace;
     this.json = json;
     this.timeout = config.getValue("flottila.mapping.test-timeout", Duration.class);
+    this.traceLimit = ServiceConfig.traceLimit(config);
   }
 
   /** The workspace's mappings, sorted by id. */
@@ -312,7 +317,7 @@ public class MappingsResource {
 
   /**
    * Checks the working copy's bundle references, then compiles it and runs it for at most the
-   * test-run timeout.
+   * test-run timeout, with the engine's trace capped at the trace limit.
    */
   private TestResult run(Path directory, byte[] model, MappingModel loaded, String input)
       throws IOException, WorkspacePathException, MalformedJsonException, MalformedInputException {
@@ -322,16 +327,18 @@ public class MappingsResource {
       case CompileResult.Refused(List<Diagnostic> diagnostics) ->
           new TestRefused(DiagnosticDto.all(diagnostics));
       case CompileResult.Compiled(CompiledMapping compiled) ->
-          switch (facade.testRun(compiled, input.getBytes(UTF_8), timeout)) {
-            case TestRunResult.Output(byte[] output) ->
-                new TestOutput(new String(output, UTF_8), List.of());
+          switch (facade.testRun(compiled, input.getBytes(UTF_8), timeout, traceLimit)) {
+            case TestRunResult.Output(byte[] output, Trace trace) ->
+                new TestOutput(new String(output, UTF_8), List.of(), TraceEntryDto.all(trace));
             case TestRunResult.RuntimeError(
                     String code,
                     String message,
-                    Optional<AuthoringId> authoringId) ->
+                    Optional<AuthoringId> authoringId,
+                    Trace trace) ->
                 new TestError(
                     new RuntimeErrorDto(code, message, authoringId.map(AuthoringId::value)),
-                    List.of());
+                    List.of(),
+                    TraceEntryDto.all(trace));
           };
     };
   }

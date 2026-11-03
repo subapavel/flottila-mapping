@@ -41,7 +41,9 @@ class OpenApiContractTest {
                   "file-position", "FilePositionLocation"),
           "TestResult",
               Map.of("output", "TestOutput", "refused", "TestRefused", "error", "TestError"),
-          "StructureResponse", Map.of("loaded", "StructureLoaded", "refused", "StructureRefused"));
+          "StructureResponse", Map.of("loaded", "StructureLoaded", "refused", "StructureRefused"),
+          // ADR-0015 "Trace" since #53: an entry by kind
+          "TraceEntryDto", Map.of("queue", "TraceQueueDto", "occurrences", "TraceOccurrencesDto"));
 
   /**
    * Properties and, after the bar, the required ones (#28 design, "Endpoints", "Shared shapes").
@@ -53,9 +55,18 @@ class OpenApiContractTest {
           Map.entry("StructureChoice", "bundle root | bundle root"),
           Map.entry("TestRequest", "input model | input model"),
           Map.entry("StructureRequest", "base bundle root | base bundle root"),
-          Map.entry("TestOutput", "diagnostics kind output | diagnostics kind output"),
+          // since #53 output and error carry the trace; refused never ran, so it has none
+          Map.entry("TestOutput", "diagnostics kind output trace | diagnostics kind output trace"),
           Map.entry("TestRefused", "diagnostics kind | diagnostics kind"),
-          Map.entry("TestError", "diagnostics error kind | diagnostics error kind"),
+          Map.entry("TestError", "diagnostics error kind trace | diagnostics error kind trace"),
+          // ADR-0015 "Trace" since #53; max is absent when unbounded
+          Map.entry(
+              "TraceQueueDto",
+              "capped contextCount contexts kind slotCount"
+                  + " | capped contextCount contexts kind slotCount"),
+          Map.entry("TraceOccurrencesDto", "capped kind max min parents | capped kind min parents"),
+          Map.entry("ParentSlotDto", "created parentSlot slots | created parentSlot slots"),
+          Map.entry("SlotStatusDto", "slot status | slot status"),
           // ADR-0015 since #52 (O2): authoringId, absent for flottila:TIMEOUT
           Map.entry("RuntimeErrorDto", "authoringId code message | code message"),
           Map.entry("StructureLoaded", "fingerprint kind root types | fingerprint kind root types"),
@@ -163,6 +174,62 @@ class OpenApiContractTest {
     assertThat(records)
         .as("service records among the schemas")
         .isGreaterThanOrEqualTo(RECORDS.size());
+  }
+
+  /**
+   * ADR-0015 "Trace" since #53: output and error carry the trace, an object of entries by authoring
+   * id; a queue's contexts are arrays of strings or null, null for SUPPRESS; a slot's status is
+   * created, suppressed or truncated. A {@code $ref} into the contract directory is followed (the
+   * fallback of O2), as is one to a component.
+   */
+  @Test
+  void theTraceIsAnObjectOfEntriesWhoseContextsHoldStringsOrNull() throws IOException {
+    JsonNode schemas = schemas();
+
+    for (String result : List.of("TestOutput", "TestError")) {
+      JsonNode trace = resolved(schemas.path(result).path("properties").path("trace"));
+      assertThat(trace.path("type").textValue()).as("%s.trace", result).isEqualTo("object");
+      assertThat(trace.path("additionalProperties").path("$ref").textValue())
+          .as("%s.trace entries", result)
+          .isEqualTo(SCHEMAS + "TraceEntryDto");
+    }
+    JsonNode contexts = resolved(schemas.path("TraceQueueDto").path("properties").path("contexts"));
+    assertThat(contexts.path("type").textValue()).as("contexts").isEqualTo("array");
+    JsonNode context = resolved(contexts.path("items"));
+    assertThat(context.path("type").textValue()).as("a context").isEqualTo("array");
+    JsonNode value = resolved(context.path("items"));
+    assertThat(strings(value.path("type")))
+        .as("a value: %s", value)
+        .isEqualTo(words("null string"));
+    JsonNode status = resolved(schemas.path("SlotStatusDto").path("properties").path("status"));
+    assertThat(strings(status.path("enum")))
+        .as("a slot status: %s", status)
+        .isEqualTo(words("created suppressed truncated"));
+    JsonNode parents =
+        resolved(schemas.path("TraceOccurrencesDto").path("properties").path("parents"));
+    assertThat(parents.path("items").path("$ref").textValue())
+        .as("parents")
+        .isEqualTo(SCHEMAS + "ParentSlotDto");
+    JsonNode slots = resolved(schemas.path("ParentSlotDto").path("properties").path("slots"));
+    assertThat(slots.path("items").path("$ref").textValue())
+        .as("slots")
+        .isEqualTo(SCHEMAS + "SlotStatusDto");
+  }
+
+  /**
+   * {@code schema}, or what its {@code $ref} names: a component, or a file in the contract
+   * directory.
+   */
+  private static JsonNode resolved(JsonNode schema) throws IOException {
+    String ref = schema.path("$ref").textValue();
+    if (ref == null) {
+      return schema;
+    }
+    if (ref.startsWith(SCHEMAS)) {
+      return resolved(schemas().path(ref.substring(SCHEMAS.length())));
+    }
+    assertThat(ref).as("a relative ref").startsWith("./");
+    return resolved(Wire.read(Files.readAllBytes(contractDirectory().resolve(ref.substring(2)))));
   }
 
   @Test

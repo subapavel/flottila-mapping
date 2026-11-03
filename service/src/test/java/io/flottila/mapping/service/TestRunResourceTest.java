@@ -19,6 +19,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import org.eclipse.microprofile.config.Config;
 import org.junit.jupiter.api.Test;
@@ -57,8 +58,171 @@ class TestRunResourceTest {
     assertThat(result.path("kind").textValue()).isEqualTo("output");
     assertThat(result.path("output").textValue()).isEqualTo(OUTPUT);
     assertThat(described(result.path("diagnostics"))).isEmpty();
-    assertThat(result.has("trace")).as("no trace in spec 1").isFalse();
+    // since #53 the trace of the working copy's box and target field mapping (ADR-0015, "Trace")
+    assertThat(names(result.path("trace"))).containsExactlyInAnyOrder("a1", "t1");
     assertBytes(TempWorkspace.read("testing/order.mapping.json"), unwired());
+  }
+
+  // --- the trace (ADR-0015 "Trace" since #53): built by the engine, translated by the service
+
+  /** The member names of a JSON object. */
+  private static List<String> names(JsonNode object) {
+    assertThat(object.isObject()).as("an object: %s", object).isTrue();
+    List<String> names = new ArrayList<>();
+    object.fieldNames().forEachRemaining(names::add);
+    return names;
+  }
+
+  /**
+   * A working copy over {@code order.xsd} with {@code OrderId <- a1} at t1 (1..1) and {@code Note
+   * <- result} at t2 (0..unbounded), whose boxes are {@code boxes}; {@code a2} reads the source
+   * {@code Note}.
+   */
+  private static String notesThrough(String result, String boxes) {
+    String side =
+        """
+        {"bundle": ["../structures/skeleton/order.xsd"], "fingerprint": "%s", \
+        "root": {"element": "%s"}}"""
+            .formatted(Fixtures.FINGERPRINT, Fixtures.ORDER);
+    return """
+        {"formatVersion": 1, "source": %2$s, "target": %2$s, "targetFieldMappings": {
+          "/%1$s/OrderId": {"id": "t1", "result": "a1",
+            "boxes": {"a1": {"kind": "source", "field": "/%1$s/OrderId"}}},
+          "/%1$s/Note": {"id": "t2", "result": "%3$s", "boxes": {%4$s}}}}
+        """
+        .formatted(
+            Fixtures.ORDER, side, result, boxes.replace("NOTE", "/" + Fixtures.ORDER + "/Note"));
+  }
+
+  /** {@code Note <- c1}, {@code c1} createIf over {@code a2}. */
+  private static String createIfNotes() {
+    return notesThrough(
+        "c1",
+        """
+        "c1": {"kind": "function", "fn": "createIf", "inputs": ["a2"]},
+        "a2": {"kind": "source", "field": "NOTE"}""");
+  }
+
+  /** {@code Note <- a2}: the source Notes as they are. */
+  static String notesLink() {
+    return notesThrough("a2", "\"a2\": {\"kind\": \"source\", \"field\": \"NOTE\"}");
+  }
+
+  /**
+   * OrderId 4711 and the Notes 1, x, true, all in the root's one context: createIf gives "" for 1
+   * and true and SUPPRESS for x (#2 §4), so t2 creates slots 1 and 3 and suppresses slot 2. On the
+   * wire SUPPRESS is JSON null, a queue entry has kind queue and an occurrences entry kind
+   * occurrences, and t2's unbounded max is an absent member (ADR-0015, ADR-0024).
+   */
+  @Test
+  void aTestRunAnswersTheTraceKeyedByAuthoringId() {
+    TempWorkspace.write("testing-trace/order.mapping.json", corpusMapping());
+    String input =
+        "<src:Order xmlns:src=\""
+            + NS
+            + "\"><OrderId>4711</OrderId><Note>1</Note><Note>x</Note><Note>true</Note></src:Order>";
+
+    Http.Reply reply = test("testing-trace/order", testRequest(createIfNotes(), input));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", result).isEqualTo("output");
+    JsonNode trace = result.path("trace");
+    assertThat(trace.path("c1").path("contexts").path(0).path(1).isNull())
+        .as("SUPPRESS is JSON null: %s", trace.path("c1"))
+        .isTrue();
+    // the wire keeps the engine's first-report order, which JSON equality below ignores (#53)
+    assertThat(names(trace)).as("first-report order").containsExactly("a1", "t1", "a2", "c1", "t2");
+    assertThat(trace)
+        .isEqualTo(
+            Wire.read(
+                bytes(
+                    """
+                    {"a1": {"kind": "queue", "contexts": [["4711"]], "capped": false,
+                            "slotCount": 1, "contextCount": 1},
+                     "t1": {"kind": "occurrences", "min": 1, "max": 1, "capped": false,
+                            "parents": [{"parentSlot": 1, "created": 1,
+                                         "slots": [{"slot": 1, "status": "created"}]}]},
+                     "a2": {"kind": "queue", "contexts": [["1", "x", "true"]], "capped": false,
+                            "slotCount": 3, "contextCount": 1},
+                     "c1": {"kind": "queue", "contexts": [["", null, ""]], "capped": false,
+                            "slotCount": 3, "contextCount": 1},
+                     "t2": {"kind": "occurrences", "min": 0, "capped": false,
+                            "parents": [{"parentSlot": 1, "created": 2,
+                                         "slots": [{"slot": 1, "status": "created"},
+                                                   {"slot": 2, "status": "suppressed"},
+                                                   {"slot": 3, "status": "created"}]}]}}
+                    """)));
+  }
+
+  /**
+   * ADR-0015: a runtime error returns the trace up to the error. The empty source gives OrderId's
+   * box one empty context, and t1's one parent slot creates 0, fewer than its min 1: the slot that
+   * raised {@code po:MINOCCURS}, with no separate minOccurs record.
+   */
+  @Test
+  void aMinOccursShortfallAnswersErrorWithItsTrace() {
+    TempWorkspace.write("testing-trace-minoccurs/order.mapping.json", corpusMapping());
+
+    Http.Reply reply =
+        test(
+            "testing-trace-minoccurs/order",
+            testRequest(workingCopy("\"a1\""), "<src:Order xmlns:src=\"" + NS + "\"/>"));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", result).isEqualTo("error");
+    assertThat(result.path("error").path("code").textValue()).isEqualTo("po:MINOCCURS");
+    assertThat(result.path("trace"))
+        .isEqualTo(
+            Wire.read(
+                bytes(
+                    """
+                    {"a1": {"kind": "queue", "contexts": [[]], "capped": false,
+                            "slotCount": 0, "contextCount": 1},
+                     "t1": {"kind": "occurrences", "min": 1, "max": 1, "capped": false,
+                            "parents": [{"parentSlot": 1, "created": 0, "slots": []}]}}
+                    """)));
+  }
+
+  /** {@code OrderId 4711} and the Notes {@code n1} … {@code n<count>}. */
+  static String notes(int count) {
+    StringBuilder input =
+        new StringBuilder("<src:Order xmlns:src=\"" + NS + "\"><OrderId>4711</OrderId>");
+    for (int n = 1; n <= count; n++) {
+      input.append("<Note>n").append(n).append("</Note>");
+    }
+    return input.append("</src:Order>").toString();
+  }
+
+  /**
+   * ADR-0015 and the ticket: the trace limit is 10,000 unless configured. A box with 10,000 values
+   * keeps them all; one with 10,001 keeps the first 10,000, is capped and keeps its totals.
+   */
+  @Test
+  void theTraceLimitIs10000ByDefault() {
+    TempWorkspace.write("testing-trace-limit/order.mapping.json", corpusMapping());
+
+    JsonNode atTheLimit =
+        test("testing-trace-limit/order", testRequest(notesLink(), notes(10_000)))
+            .json()
+            .path("trace");
+    JsonNode aboveIt =
+        test("testing-trace-limit/order", testRequest(notesLink(), notes(10_001)))
+            .json()
+            .path("trace");
+
+    assertThat(atTheLimit.path("a2").path("capped").booleanValue()).isFalse();
+    assertThat(atTheLimit.path("a2").path("contexts").path(0).size()).isEqualTo(10_000);
+    assertThat(atTheLimit.path("t2").path("capped").booleanValue()).isFalse();
+    assertThat(aboveIt.path("a2").path("capped").booleanValue()).as("%s", "a2").isTrue();
+    assertThat(aboveIt.path("a2").path("slotCount").intValue()).isEqualTo(10_001);
+    assertThat(aboveIt.path("a2").path("contextCount").intValue()).isEqualTo(1);
+    assertThat(aboveIt.path("a2").path("contexts").size()).isEqualTo(1);
+    assertThat(aboveIt.path("a2").path("contexts").path(0).size()).isEqualTo(10_000);
+    assertThat(aboveIt.path("a2").path("contexts").path(0).path(9_999).textValue())
+        .isEqualTo("n10000");
+    assertThat(aboveIt.path("t2").path("capped").booleanValue()).as("%s", "t2").isTrue();
   }
 
   /**
@@ -105,6 +269,8 @@ class TestRunResourceTest {
     assertThat(described(result.path("diagnostics")))
         .containsExactly("error unconnected-target-field at id t1");
     assertThat(result.has("output")).isFalse();
+    // a refused working copy never ran, so it has no trace (#53)
+    assertThat(result.has("trace")).isFalse();
   }
 
   @Test

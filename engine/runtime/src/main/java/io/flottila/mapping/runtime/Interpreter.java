@@ -30,7 +30,8 @@ import java.util.Map;
  * projection plan, a context or single-value function is bound by its name once per call site
  * (ADR-0025), and nothing is looked up by name while a mapping runs. A traced compile reports every
  * source queue, context function call and {@code Lift} it evaluates to the run's tracer, at its
- * box; an untraced compile has no hook at all.
+ * box, and each {@code TargetSlots}' occurrences per parent slot, at its target field mapping; an
+ * untraced compile has no hook at all.
  */
 public final class Interpreter {
 
@@ -208,7 +209,8 @@ public final class Interpreter {
   /**
    * A {@code TargetSlots} (ADR-0006 since #52): its queue and parent slot in {@code scope}, and its
    * body in {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own,
-   * and its value variable, a {@code STRING} one.
+   * and its value variable, a {@code STRING} one. A traced compile reports its occurrences per
+   * parent slot (since #53).
    */
   private Node.OfContent slots(TargetSlots s, Map<String, Integer> scope) {
     Node.OfQueue queue = (Node.OfQueue) compile(s.queue(), scope);
@@ -219,16 +221,18 @@ public final class Interpreter {
     Map<String, Integer> body = new HashMap<>(scope);
     body.put(s.slotVar(), slotNumberIndex);
     body.put(s.valueVar(), valueIndex);
-    return new Node.Slots(
-        queue,
-        queueIndex,
-        parentSlot,
-        s.min(),
-        s.max(),
-        slotNumberIndex,
-        valueIndex,
-        (Node.OfContent) compile(s.body(), body),
-        s.origin());
+    Node.Slots slots =
+        new Node.Slots(
+            queue,
+            queueIndex,
+            parentSlot,
+            s.min(),
+            s.max(),
+            slotNumberIndex,
+            valueIndex,
+            (Node.OfContent) compile(s.body(), body),
+            s.origin());
+    return traced ? slots.traced() : slots;
   }
 
   /**

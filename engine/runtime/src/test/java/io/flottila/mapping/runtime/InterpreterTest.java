@@ -44,7 +44,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * names (ADR-0006). Inputs are written by hand; expected outputs are byte literals (ADR-0022).
  *
  * <p>{@code Tracer.values()} lists every report in the order made, as an entry of the box's
- * authoring id and the queue block, so a second report of one box is visible.
+ * authoring id and the queue block, so a second report of one box is visible; since #53 {@code
+ * Tracer.occurrences()} lists every report of a traced {@code TargetSlots}, one per parent slot.
  */
 class InterpreterTest {
 
@@ -378,8 +379,14 @@ class InterpreterTest {
     run(threeLinks(), true, THREE_LINKS_INPUT.getBytes(UTF_8), witness);
 
     assertThat(untraced.values()).isEmpty();
-    // the same mapping and input do report when traced, so the silence is the untraced compile's
+    // since #53 an untraced compile builds bare TargetSlots, which report no occurrences either
+    assertThat(untraced.occurrences()).isEmpty();
+    // the same mapping and input do report when traced, so the silence is the untraced compile's:
+    // a queue per box and, per target field mapping, its root's one parent slot
     assertThat(witness.values()).hasSize(3);
+    assertThat(witness.occurrences())
+        .extracting(o -> o.field().value() + " " + o.parentSlot())
+        .containsExactly("t1 1", "t2 1", "t3 1");
   }
 
   /**

@@ -87,6 +87,10 @@ class EngineFacadeTest {
   // serializer. The structures are the skeleton's, read from corpus/structures/skeleton.
 
   private static final String NS = "urn:flottila:corpus:skeleton";
+
+  /** The trace limit of ADR-0015 (#53). */
+  private static final int TRACE_LIMIT = 10_000;
+
   private static final String ORDER = "/Q{" + NS + "}Order";
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
@@ -651,10 +655,12 @@ class EngineFacadeTest {
             facade.testRun(
                 tested,
                 utf8("<src:Order xmlns:src=\"" + NS + "\"><OrderId>1</OrderId></src:Order>"),
-                Duration.ofSeconds(10)))
+                Duration.ofSeconds(10),
+                TRACE_LIMIT))
         .isInstanceOf(TestRunResult.Output.class);
 
-    assertRuntimeError(facade.testRun(tested, input, Duration.ofSeconds(10)), "po:MINOCCURS", "t1");
+    assertRuntimeError(
+        facade.testRun(tested, input, Duration.ofSeconds(10), TRACE_LIMIT), "po:MINOCCURS", "t1");
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
       assertRunThrows(
           facade,
@@ -684,7 +690,8 @@ class EngineFacadeTest {
 
     for (var run :
         List.of(Map.entry(fieldLink, emptySource), Map.entry(useOneAsMany, order(2, 3)))) {
-      TestRunResult result = facade.testRun(run.getKey(), run.getValue(), Duration.ofSeconds(10));
+      TestRunResult result =
+          facade.testRun(run.getKey(), run.getValue(), Duration.ofSeconds(10), TRACE_LIMIT);
       assertThat(result).isInstanceOf(TestRunResult.RuntimeError.class);
       TestRunResult.RuntimeError error = (TestRunResult.RuntimeError) result;
 
@@ -1180,7 +1187,7 @@ class EngineFacadeTest {
 
     byte[] run = facade.run(mapping, input);
 
-    TestRunResult result = facade.testRun(mapping, input, Duration.ofSeconds(10));
+    TestRunResult result = facade.testRun(mapping, input, Duration.ofSeconds(10), TRACE_LIMIT);
 
     assertThat(result)
         .isInstanceOfSatisfying(
@@ -1193,7 +1200,7 @@ class EngineFacadeTest {
     CompiledMapping mapping =
         compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
 
-    TestRunResult result = facade.testRun(mapping, largeInput(), Duration.ZERO);
+    TestRunResult result = facade.testRun(mapping, largeInput(), Duration.ZERO, TRACE_LIMIT);
 
     assertThat(result)
         .isInstanceOfSatisfying(
@@ -1214,7 +1221,7 @@ class EngineFacadeTest {
     CompiledMapping mapping =
         compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
 
-    TestRunResult result = facade.testRun(mapping, largeInput(), Duration.ZERO);
+    TestRunResult result = facade.testRun(mapping, largeInput(), Duration.ZERO, TRACE_LIMIT);
 
     assertThat(result)
         .isInstanceOfSatisfying(
@@ -1260,7 +1267,7 @@ class EngineFacadeTest {
     }
     assertThat(aPlatformThreadRunsAMapping()).as("before the test run").isFalse();
     FutureTask<TestRunResult> caller =
-        new FutureTask<>(() -> facade.testRun(mapping, input, Duration.ofSeconds(30)));
+        new FutureTask<>(() -> facade.testRun(mapping, input, Duration.ofSeconds(30), TRACE_LIMIT));
     // not a daemon, so only the run's own thread passes the daemon filter
     Thread.ofPlatform().name("test-run caller").daemon(false).start(caller);
 
@@ -1282,7 +1289,10 @@ class EngineFacadeTest {
     assertThatThrownBy(
             () ->
                 facade.testRun(
-                    mapping, utf8("<src:Order xmlns:src=\"" + NS + "\">"), Duration.ofSeconds(10)))
+                    mapping,
+                    utf8("<src:Order xmlns:src=\"" + NS + "\">"),
+                    Duration.ofSeconds(10),
+                    TRACE_LIMIT))
         .isInstanceOf(MalformedInputException.class);
   }
 
@@ -1292,7 +1302,7 @@ class EngineFacadeTest {
     CompiledMapping mapping =
         compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
 
-    assertThatThrownBy(() -> facade.testRun(mapping, null, Duration.ofSeconds(10)))
+    assertThatThrownBy(() -> facade.testRun(mapping, null, Duration.ofSeconds(10), TRACE_LIMIT))
         .isInstanceOf(IllegalStateException.class)
         .hasCauseInstanceOf(NullPointerException.class);
   }
@@ -1306,7 +1316,7 @@ class EngineFacadeTest {
 
     Thread.currentThread().interrupt();
     try {
-      assertThatThrownBy(() -> facade.testRun(mapping, input, Duration.ofSeconds(10)))
+      assertThatThrownBy(() -> facade.testRun(mapping, input, Duration.ofSeconds(10), TRACE_LIMIT))
           .isInstanceOf(CancellationException.class);
     } finally {
       assertThat(Thread.interrupted()).as("the interrupt is kept").isTrue();
@@ -1361,7 +1371,9 @@ class EngineFacadeTest {
     CompiledMapping tested =
         compiled(facade.compile(USE_ONE_AS_MANY, observations, CompileOptions.TEST_RUN));
     assertRuntimeError(
-        facade.testRun(tested, order(2, 3), Duration.ofSeconds(10)), "po:USEONEASMANY", "u1");
+        facade.testRun(tested, order(2, 3), Duration.ofSeconds(10), TRACE_LIMIT),
+        "po:USEONEASMANY",
+        "u1");
   }
 
   // --- formatByExample's count mismatch (#58): documented as an exception (#2 §4)
@@ -1390,7 +1402,9 @@ class EngineFacadeTest {
     CompiledMapping tested =
         compiled(facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN));
     assertRuntimeError(
-        facade.testRun(tested, order(3, 2), Duration.ofSeconds(10)), "po:FORMATBYEXAMPLE", "F1");
+        facade.testRun(tested, order(3, 2), Duration.ofSeconds(10), TRACE_LIMIT),
+        "po:FORMATBYEXAMPLE",
+        "F1");
   }
 
   // --- the runtime errors of sort and sortByKey (#59): since #52 one code per function at its box,

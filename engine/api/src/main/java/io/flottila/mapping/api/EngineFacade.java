@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,8 +45,36 @@ public final class EngineFacade {
   /** The runtime error of a test run that exceeds its timeout (ADR-0014, ADR-0015). */
   private static final String TIMEOUT = "flottila:TIMEOUT";
 
-  /** A facade; it holds no state. */
-  public EngineFacade() {}
+  /** How {@link #testRun} waits for its run: the wall clock, unless a test gives its own. */
+  private final Deadline deadline;
+
+  /** A facade; it holds no state, and its test runs wait by the wall clock. */
+  public EngineFacade() {
+    this((run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
+  }
+
+  /** A facade whose test runs wait by {@code deadline}: a test's fake clock (CODING_STANDARDS). */
+  EngineFacade(Deadline deadline) {
+    this.deadline = deadline;
+  }
+
+  /**
+   * How a test run waits for its run until its timeout (ADR-0014): the wall clock, or a test's
+   * clock that reaches the timeout at a point of the run it picks by the run's tracer.
+   */
+  @FunctionalInterface
+  interface Deadline {
+
+    /**
+     * The run's output once it is done.
+     *
+     * @throws TimeoutException once the timeout is reached first
+     * @throws ExecutionException when the run failed, its cause
+     * @throws InterruptedException when the waiting thread is interrupted
+     */
+    byte[] await(Future<byte[]> run, Duration timeout, Tracer tracer)
+        throws InterruptedException, ExecutionException, TimeoutException;
+  }
 
   /**
    * Loads a mapping model through validation stages 1 and 2 (ADR-0011).
@@ -162,7 +191,7 @@ public final class EngineFacade {
 
   /**
    * Runs one input message through a compiled mapping and returns the target message's bytes. A
-   * test-run compile's trace is recorded and dropped: spec 1 returns no trace.
+   * test-run compile's trace is recorded and dropped; {@link #testRun} returns it.
    *
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws MappingRunException when the run meets a runtime error in its data, with its code and
@@ -170,9 +199,15 @@ public final class EngineFacade {
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
    */
   public byte[] run(CompiledMapping mapping, byte[] input) throws MalformedInputException {
+    return run(mapping, input, new Tracer());
+  }
+
+  /** {@link #run}, reporting to {@code tracer}. */
+  private static byte[] run(CompiledMapping mapping, byte[] input, Tracer tracer)
+      throws MalformedInputException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     try {
-      mapping.executable().run(new ByteArrayInputStream(input), out, new Tracer());
+      mapping.executable().run(new ByteArrayInputStream(input), out, tracer);
     } catch (IOException e) {
       // only the output stream can throw it, and a ByteArrayOutputStream never does
       throw new UncheckedIOException(e);
@@ -186,30 +221,51 @@ public final class EngineFacade {
    * runtime error, with its code, message and authoring id (ADR-0015 since #52). Past the timeout
    * the run is interrupted, never stopped, and the result is the runtime error {@code
    * flottila:TIMEOUT}, with no authoring id; the run itself ends at its next interrupt check, in
-   * the parse or a slot loop. No trace is returned yet.
+   * the parse or a slot loop.
+   *
+   * <p>Each result carries the run's trace (ADR-0015 "Trace" since #53), built here from the
+   * tracer's reports, with each entry capped at {@code traceLimit}: the whole trace with the
+   * output, the trace up to the error with a runtime error, and at the timeout a snapshot of the
+   * reports so far, which the run's later reports never reach (ADR-0014 since #53). A compile
+   * without tracing never reports, so its trace is empty.
    *
    * @param mapping a compiled mapping
    * @param input the input message's bytes
    * @param timeout how long the run may take
+   * @param traceLimit the trace limit: the most slots, contexts or occurrence records one trace
+   *     entry keeps, at least 1
    * @return the target message, or the runtime error that stopped the run
+   * @throws IllegalArgumentException when {@code traceLimit} is less than 1; nothing runs
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws CancellationException when the calling thread is interrupted while it waits; its
    *     interrupt status is kept, and the run is interrupted too
    * @throws IllegalStateException when the run fails with an unchecked throwable, its cause
    */
-  public TestRunResult testRun(CompiledMapping mapping, byte[] input, Duration timeout)
+  public TestRunResult testRun(
+      CompiledMapping mapping, byte[] input, Duration timeout, int traceLimit)
       throws MalformedInputException {
-    FutureTask<byte[]> task = new FutureTask<>(() -> run(mapping, input));
+    if (traceLimit < 1) {
+      throw new IllegalArgumentException("a trace limit is at least 1, not " + traceLimit);
+    }
+    Tracer tracer = new Tracer();
+    FutureTask<byte[]> task = new FutureTask<>(() -> run(mapping, input, tracer));
     // a daemon, as a virtual thread is, so that a run which ignores its interrupt never holds
     // the JVM open (ADR-0020)
     Thread.ofPlatform().name("flottila test run").daemon(true).start(task);
     try {
-      return new TestRunResult.Output(task.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
+      byte[] output = deadline.await(task, timeout, tracer);
+      return new TestRunResult.Output(output, TraceBuilder.build(tracer.reports(), traceLimit));
     } catch (TimeoutException late) {
+      // the run reports on until its next interrupt check: first the snapshot, a copy of the
+      // reports so far taken under the tracer's lock, then the interrupt, and last the trace,
+      // built from the copy (ADR-0014 since #53)
+      List<Tracer.Report> soFar = tracer.reports();
+      task.cancel(true);
       return new TestRunResult.RuntimeError(
           TIMEOUT,
           "the test run took longer than its timeout of " + timeout.toMillis() + " ms",
-          Optional.empty());
+          Optional.empty(),
+          TraceBuilder.build(soFar, traceLimit));
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new CancellationException("the test run was interrupted while it was awaited");
@@ -219,12 +275,15 @@ public final class EngineFacade {
         case MalformedInputException malformed -> throw malformed;
         case MappingRunException error -> {
           return new TestRunResult.RuntimeError(
-              error.code(), error.getMessage(), Optional.of(error.authoringId()));
+              error.code(),
+              error.getMessage(),
+              Optional.of(error.authoringId()),
+              TraceBuilder.build(tracer.reports(), traceLimit));
         }
         default -> throw new IllegalStateException("the test run failed", failed.getCause());
       }
     } finally {
-      // a no-op once the run is done; otherwise it interrupts the run's thread
+      // a no-op once the run is done or cancelled; otherwise it interrupts the run's thread
       task.cancel(true);
     }
   }
