@@ -35,8 +35,40 @@ Status: accepted (2026-11-02, #50 design, spec #48)
 
   A function name the catalogue does not hold stays `unsupported-box-kind` until its spec lands. `unresolved-function` remains the code of an unresolved box.
 
+- **Families (F-15, owner 2026-11-03, spec-3 grilling Q14).**
+  - A function family is the standard functions of one SAP PO palette group. Each family has one
+    file per module: `catalogue/<family>.json` (mapping), `<Family>Family.java` (runtime: name →
+    binder), `po-runtime/<family>.xsl` (xslt-export), and `<Family>Functions.java` (xdm) when it
+    has queue algebra.
+  - The build scans these directories and writes `function-catalogue.json` (canonical key order),
+    `po-runtime.xsl` (`core.xsl`, then the families by id) and the runtime's family index. A name
+    in two families fails the build. Nothing hand-written lists the families.
+  - The merged catalogue gives each entry its `family` (Q16). Artifact names, their bytes for the
+    same entries, the IR and ADR-0023's one-file export are unchanged.
+  - Today's eleven functions form the family `context`. `RuntimeErrors` stays one shared,
+    append-only file (Q15).
+  - A family is the PO palette group: `ifWithoutElse` belongs to `boolean`, `formatNum` to
+    `arithmetic`, whatever their execution kind. Two tickets of one family add whole entries to
+    the same files; the merger resolves that as a mechanical adjacent edit.
+  - A `<Family>Family` binds each name through a package-private method, not a lambda in a
+    static initializer: PIT makes no mutants for the latter (#69).
+  - Helpers that several families share go into `core.xsl`; it only grows, and the #69 byte test
+    pins main's declarations, not the absence of new ones.
+- **Names and fidelity (spec-3 grilling, owner 2026-11-03).**
+  - A function id is camelCase (`constant`, `copyValue`, `fixValues`, `formatNum`, `dateTrans`,
+    `equalsS`). The catalogue holds no PO spelling, which is the migration tool's business (Q8,
+    Q8b).
+  - Every entry has `fidelity`: `exact`, `deviation` (with a short text) or `assumed`. Spec 3
+    adds `function-catalogue.schema.json` and `GET /api/catalogue` (Q2, Q3).
+- **Data errors name their box (F-19, Q12).** A data error of a standard function carries the
+  authoring id of the box that raised it, in the API and in the export's message. Each `po:`
+  function that can raise one takes the box id as its last argument. A malformed number or date
+  is `err:FORG0001` in both back ends (Q10).
+
 ## Considered options
 
+- **ServiceLoader per family (F-15)**: rejected. Under JPMS one `provides … with A, B` lists every provider, so `module-info.java` becomes the shared list, and the providers must be public.
+- **A hand-written family list**: rejected. Every new family would edit the same line, which is the conflict F-15 removes.
 - **Catalogue as Java code in `engine/ir`**: rejected. Spec 3 would have to generate the published data from code, and the glossary calls the catalogue data.
 - **The runtime reads the catalogue**: rejected. `runtime` cannot require `mapping` (ADR-0016), and a total IR makes it unnecessary.
 - **Named params in `FunCall`**: rejected. ADR-0006 says `Literal` arguments, and one positional list also serves `Lift` bodies.
@@ -44,10 +76,10 @@ Status: accepted (2026-11-02, #50 design, spec #48)
 
 ## Consequences
 
-- Each new function costs:
+- Each new function costs, in its family's files (F-15):
   - one catalogue entry;
-  - one `ContextFunctions` method;
-  - one runtime binding case;
+  - one algebra method when the family has queue algebra;
+  - one runtime binding entry;
   - one `po:` function;
   - its corpus and differential cases.
 - In formatVersion 1, a box feeding several inputs is lowered once per use. There is no `Let` in spec 2, and the trace (#53) reports such a box once.

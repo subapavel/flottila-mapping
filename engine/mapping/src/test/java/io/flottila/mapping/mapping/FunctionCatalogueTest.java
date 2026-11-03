@@ -8,11 +8,15 @@ import io.flottila.mapping.mapping.JsonTree.Null;
 import io.flottila.mapping.mapping.JsonTree.Num;
 import io.flottila.mapping.mapping.JsonTree.Obj;
 import io.flottila.mapping.mapping.JsonTree.Str;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -231,5 +235,131 @@ class FunctionCatalogueTest {
     assertThat(catalogue)
         .isInstanceOfSatisfying(Obj.class, o -> assertThat(o.members()).isNotEmpty());
     assertThat(defaultProblems(catalogue)).isEmpty();
+  }
+
+  // --- function families (ADR-0025 "Families", F-15): one canonical file per family, which the
+  // build merges into the packed catalogue, giving each entry its family
+
+  static final String FAMILY_DIR = "engine/mapping/src/main/catalogue";
+
+  /** The packed catalogue of main at 9c6fd1a, before the split, copied byte for byte. */
+  static final String MAIN_CATALOGUE =
+      "engine/mapping/src/test/resources/main-9c6fd1a/function-catalogue.json";
+
+  /** Every {@code *.json} of {@value #FAMILY_DIR}, by its family: the file's stem. */
+  static SortedMap<String, Path> familyFiles() throws IOException {
+    Path dir = Fixtures.repoRoot().resolve(FAMILY_DIR);
+    assertThat(dir).as("the family files' directory").isDirectory();
+    SortedMap<String, Path> families = new TreeMap<>();
+    List<Path> files;
+    try (Stream<Path> listing = Files.list(dir)) {
+      files = listing.filter(p -> p.getFileName().toString().endsWith(".json")).toList();
+    }
+    for (Path file : files) {
+      String name = file.getFileName().toString();
+      families.put(name.substring(0, name.length() - ".json".length()), file);
+    }
+    // today's eleven functions form the family context (ADR-0025)
+    assertThat(families).as("the family files in %s", dir).containsKey("context");
+    return families;
+  }
+
+  /** The functions of a catalogue or a family file, keyed by name. */
+  static Map<String, JsonTree> functions(JsonTree tree, String what) {
+    if (!(tree instanceof Obj(Map<String, JsonTree> functions))) {
+      throw new AssertionError(what + " is no JSON object");
+    }
+    return functions;
+  }
+
+  /** The members of the entry {@code name}. */
+  static Map<String, JsonTree> members(JsonTree entry, String name) {
+    if (!(entry instanceof Obj(Map<String, JsonTree> members))) {
+      throw new AssertionError("the entry " + name + " is no JSON object");
+    }
+    return members;
+  }
+
+  @Test
+  void everyFamilyFileIsCanonical() throws Exception {
+    // witness: a file whose keys are out of order is not its own canonical form
+    String unsorted = "{\n  \"b\": \"1\",\n  \"a\": \"2\"\n}\n";
+    assertThat(stringify(JsonTree.parse(unsorted), "") + "\n").isNotEqualTo(unsorted);
+
+    for (Map.Entry<String, Path> family : familyFiles().entrySet()) {
+      byte[] bytes = Files.readAllBytes(family.getValue());
+      String text = Fixtures.strictUtf8(bytes);
+      JsonTree tree = JsonTree.parse(text);
+      String what = "the family file " + family.getKey() + ".json";
+
+      // keyed by function name, as the catalogue it merges into (ADR-0011)
+      assertThat(functions(tree, what)).as(what).isNotEmpty();
+      assertThat(emptyCollections(tree, "", ""))
+          .as("empty arrays and objects of %s", what)
+          .isEmpty();
+      // sorted keys, JSON.stringify's two-space indent, LF line ends and a final LF, no BOM
+      assertThat(text).as(what).isEqualTo(stringify(tree, "") + "\n");
+      assertThat(bytes).as(what).isEqualTo(Fixtures.utf8(stringify(tree, "") + "\n"));
+    }
+  }
+
+  /**
+   * The build merges the family files: every entry of every family file, given its {@code family}
+   * (the file's stem), in one catalogue in canonical form, whose key order comes from the canonical
+   * form and never from the order the files are listed in.
+   */
+  @Test
+  void thePackedCatalogueIsTheMergeOfItsFamilyFiles() throws Exception {
+    Map<String, JsonTree> merged = new LinkedHashMap<>();
+    List<String> inTwoFamilies = new ArrayList<>();
+    for (Map.Entry<String, Path> family : familyFiles().entrySet()) {
+      String what = "the family file " + family.getKey() + ".json";
+      JsonTree tree = JsonTree.parse(Fixtures.strictUtf8(Files.readAllBytes(family.getValue())));
+      for (Map.Entry<String, JsonTree> function : functions(tree, what).entrySet()) {
+        Map<String, JsonTree> entry =
+            new LinkedHashMap<>(members(function.getValue(), function.getKey()));
+        entry.put("family", new Str(family.getKey()));
+        if (merged.put(function.getKey(), new Obj(entry)) != null) {
+          inTwoFamilies.add(function.getKey());
+        }
+      }
+    }
+    assertThat(inTwoFamilies).as("names in two family files").isEmpty();
+
+    Fixtures.assertBytes(stringify(new Obj(merged), "") + "\n", catalogue());
+  }
+
+  /**
+   * The split changes no entry (ADR-0025 "Families"): today's eleven functions form the family
+   * {@code context}, and the packed entries of that family, their {@code family} taken out, are
+   * main's catalogue before the split, byte for byte. Entries of the families spec 3 adds leave it
+   * as it is.
+   */
+  @Test
+  void thePackedCatalogueOfTheContextFamilyIsMainsByteForByte() throws Exception {
+    byte[] main = Files.readAllBytes(Fixtures.repoRoot().resolve(MAIN_CATALOGUE));
+    Map<String, JsonTree> mains =
+        functions(JsonTree.parse(Fixtures.strictUtf8(main)), "main's catalogue");
+    // witness: main's copy is the catalogue of the eleven functions spec 2 left
+    assertThat(mains).hasSize(11).containsKeys("collapseContexts", "replaceValue", "useOneAsMany");
+
+    Map<String, JsonTree> packed =
+        functions(JsonTree.parse(Fixtures.strictUtf8(catalogue())), "the packed catalogue");
+    Map<String, JsonTree> context = new LinkedHashMap<>();
+    List<String> withoutFamily = new ArrayList<>();
+    for (Map.Entry<String, JsonTree> function : packed.entrySet()) {
+      Map<String, JsonTree> entry =
+          new LinkedHashMap<>(members(function.getValue(), function.getKey()));
+      JsonTree family = entry.remove("family");
+      if (!(family instanceof Str)) {
+        withoutFamily.add(function.getKey());
+      } else if (family.equals(new Str("context"))) {
+        context.put(function.getKey(), new Obj(entry));
+      }
+    }
+    assertThat(withoutFamily).as("entries without a string family").isEmpty();
+
+    Fixtures.assertBytes(
+        Fixtures.strictUtf8(main), Fixtures.utf8(stringify(new Obj(context), "") + "\n"));
   }
 }

@@ -21,7 +21,16 @@ import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -803,5 +812,269 @@ class XsltExporterTest {
     assertThat(literal.value()).isEqualTo(value);
     assertThat(select.substring(literal.end()))
         .matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *, *'t1' *\\)");
+  }
+
+  // --- the helper module's sources (ADR-0025 "Families", F-15): core.xsl and one module per
+  // function family, which the build joins into po-runtime.xsl, core first, then the families by
+  // id; ADR-0023's one-file export is unchanged
+
+  private static final String HELPER_SOURCES = "engine/xslt-export/src/main/xsl/po-runtime";
+
+  private static final String CORE = "core.xsl";
+
+  /** The packed helper module of main at 9c6fd1a, before the split, copied byte for byte. */
+  private static final String MAIN_HELPER_MODULE =
+      "engine/xslt-export/src/test/resources/main-9c6fd1a/po-runtime.xsl";
+
+  /** Surefire runs in the module directory: the root is the nearest ancestor holding mvnw. */
+  private static Path repoRoot() {
+    for (Path p = Path.of("").toAbsolutePath(); p != null; p = p.getParent()) {
+      if (Files.isRegularFile(p.resolve("mvnw")) && Files.isDirectory(p.resolve("contract"))) {
+        return p;
+      }
+    }
+    throw new IllegalStateException("no repository root above " + Path.of("").toAbsolutePath());
+  }
+
+  private static final Pattern FUNCTION_NAME =
+      Pattern.compile("<xsl:function\\s[^>]*?\\bname=\"([^\"]*)\"");
+
+  /** The names of the {@code xsl:function} elements of {@code stylesheet}, in document order. */
+  private static List<String> functionNames(String stylesheet) {
+    List<String> names = new ArrayList<>();
+    Matcher function = FUNCTION_NAME.matcher(stylesheet);
+    while (function.find()) {
+      names.add(function.group(1));
+    }
+    return names;
+  }
+
+  @Test
+  void theHelperModuleIsCoreThenItsFamilyModules() throws Exception {
+    // witness: a function's name is read whatever attribute comes first
+    assertThat(
+            functionNames(
+                "<xsl:function name=\"po:a\" as=\"xs:string\"/><xsl:function as=\"item()\""
+                    + " name=\"po:b\"/><xsl:variable name=\"po:c\"/>"))
+        .containsExactly("po:a", "po:b");
+
+    Path dir = repoRoot().resolve(HELPER_SOURCES);
+    assertThat(dir).as("the helper module's sources").isDirectory();
+    String core = Files.readString(dir.resolve(CORE), UTF_8);
+    SortedMap<String, String> families = new TreeMap<>();
+    List<Path> modules;
+    try (Stream<Path> listing = Files.list(dir)) {
+      modules = listing.filter(p -> p.getFileName().toString().endsWith(".xsl")).toList();
+    }
+    for (Path module : modules) {
+      String name = module.getFileName().toString();
+      if (!name.equals(CORE)) {
+        families.put(
+            name.substring(0, name.length() - ".xsl".length()), Files.readString(module, UTF_8));
+      }
+    }
+    // core holds SUPPRESS, source-queue, slots, at-least and lift; today's eleven functions form
+    // the family context (ADR-0025)
+    assertThat(core).contains("<xsl:variable name=\"po:SUPPRESS\"");
+    assertThat(functionNames(core))
+        .contains("po:source-queue", "po:slots", "po:at-least", "po:lift");
+    assertThat(families).as("the family modules beside %s", CORE).containsKey("context");
+    assertThat(functionNames(families.get("context")))
+        .contains("po:removeContexts", "po:replaceValue");
+
+    // every module carries core's root start tag, byte for byte
+    String coreTag = stylesheetStartTag(core);
+    assertThat(coreTag).contains("xmlns:po=\"urn:flottila:mapping:po\"");
+    families.forEach(
+        (family, module) ->
+            assertThat(stylesheetStartTag(module))
+                .as("the root start tag of %s.xsl", family)
+                .isEqualTo(coreTag));
+
+    // core's functions, then each family's, the families by id, each declared once
+    List<String> expected = new ArrayList<>(functionNames(core));
+    families.values().forEach(module -> expected.addAll(functionNames(module)));
+    assertThat(expected).as("the functions the modules declare").doesNotHaveDuplicates();
+    String packed = XsltExporter.helperModule();
+
+    assertThat(functionNames(packed))
+        .as("the packed helper module's functions")
+        .containsExactlyElementsOf(expected);
+    // one root, core's, and core's prolog up to it begins the packed module
+    assertThat(occurrences(packed, coreTag))
+        .as("core's root start tag in the packed module")
+        .isEqualTo(1);
+    assertThat(packed).startsWith(core.substring(0, core.indexOf(coreTag) + coreTag.length()));
+  }
+
+  /** The index just past the {@code >} of the tag that starts at {@code start}, quotes skipped. */
+  private static int tagEnd(String module, int start) {
+    char quote = 0;
+    for (int i = start + 1; i < module.length(); i++) {
+      char c = module.charAt(i);
+      if (quote != 0) {
+        if (c == quote) {
+          quote = 0;
+        }
+      } else if (c == '"' || c == '\'') {
+        quote = c;
+      } else if (c == '>') {
+        return i + 1;
+      }
+    }
+    throw new AssertionError("a tag at " + start + " never ends");
+  }
+
+  /**
+   * The spans {@code [start, end)} of a module's tags: first the root's start tag, then each
+   * top-level declaration inside the root, a whole element. Comments, processing instructions and
+   * CDATA sections are skipped.
+   */
+  private static List<int[]> declarations(String module) {
+    List<int[]> spans = new ArrayList<>();
+    int depth = 0;
+    int start = -1;
+    for (int i = module.indexOf('<'); i >= 0; i = module.indexOf('<', i)) {
+      if (module.startsWith("<!--", i)) {
+        i = module.indexOf("-->", i) + "-->".length();
+      } else if (module.startsWith("<?", i)) {
+        i = module.indexOf("?>", i) + "?>".length();
+      } else if (module.startsWith("<![CDATA[", i)) {
+        i = module.indexOf("]]>", i) + "]]>".length();
+      } else {
+        int end = tagEnd(module, i);
+        if (module.charAt(i + 1) == '/') {
+          depth--;
+          if (depth == 1) {
+            spans.add(new int[] {start, end});
+          }
+        } else if (module.charAt(end - 2) == '/') {
+          if (depth == 1) {
+            spans.add(new int[] {i, end});
+          }
+        } else {
+          if (depth == 0) {
+            spans.add(new int[] {i, end});
+          } else if (depth == 1) {
+            start = i;
+          }
+          depth++;
+        }
+        i = end;
+      }
+    }
+    return spans;
+  }
+
+  /** The text of each top-level declaration of {@code module}. */
+  private static List<String> declarationTexts(String module) {
+    List<int[]> spans = declarations(module);
+    return spans.subList(1, spans.size()).stream()
+        .map(span -> module.substring(span[0], span[1]))
+        .toList();
+  }
+
+  /**
+   * {@code module} without each top-level declaration whose text is one of {@code removed}, each
+   * taken out together with what stands between it and the declaration (or the root start tag)
+   * before it: its comments and the whitespace ahead of it.
+   */
+  private static String withoutDeclarations(String module, Set<String> removed) {
+    List<int[]> spans = declarations(module);
+    int previous = spans.getFirst()[1];
+    StringBuilder kept = new StringBuilder(module.substring(0, previous));
+    for (int[] span : spans.subList(1, spans.size())) {
+      if (!removed.contains(module.substring(span[0], span[1]))) {
+        kept.append(module, previous, span[1]);
+      }
+      previous = span[1];
+    }
+    return kept.append(module.substring(previous)).toString();
+  }
+
+  /** A top-level declaration's element and its {@code name}, empty when it has none. */
+  private static String declarationName(String declaration) {
+    String startTag = declaration.substring(0, tagEnd(declaration, 0));
+    Matcher element = Pattern.compile("\\A<([^\\s/>]+)").matcher(startTag);
+    Matcher name = Pattern.compile("\\sname=\"([^\"]*)\"").matcher(startTag);
+    return (element.find() ? element.group(1) : "") + " " + (name.find() ? name.group(1) : "");
+  }
+
+  /**
+   * {@code module} without each top-level declaration whose element and name {@code main} does not
+   * declare, each taken out with the comments and whitespace ahead of it.
+   */
+  private static String restrictedTo(String module, String main) {
+    Set<String> mains =
+        new HashSet<>(
+            declarationTexts(main).stream().map(XsltExporterTest::declarationName).toList());
+    Set<String> removed =
+        new HashSet<>(
+            declarationTexts(module).stream()
+                .filter(declaration -> !mains.contains(declarationName(declaration)))
+                .toList());
+    return withoutDeclarations(module, removed);
+  }
+
+  /**
+   * The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
+   * helper module, every top-level declaration that main's copy before the split does not declare
+   * taken out with the comments and whitespace ahead of it, is main's copy, byte for byte. A
+   * declaration is known by its element and its name, so one of main's that changes, moves or goes
+   * fails this, and one that core or a family module adds leaves it as it is: spec 3 adds shared
+   * helpers to core.xsl (#74) and may not edit this test.
+   */
+  @Test
+  void thePackedHelperModuleOfCoreAndTheContextFamilyIsMainsByteForByte() throws Exception {
+    // witness: a declaration goes with its comment and the whitespace ahead of it, and only it
+    String sample =
+        "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <!-- one -->\n"
+            + "  <f n=\"1\"><p>x</p><q/></f>\n\n  <v n=\"2\"/>\n\n  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n";
+    assertThat(declarationTexts(sample))
+        .containsExactly("<f n=\"1\"><p>x</p><q/></f>", "<v n=\"2\"/>", "<f n=\"3\">t</f>");
+    assertThat(withoutDeclarations(sample, Set.of())).isEqualTo(sample);
+    assertThat(withoutDeclarations(sample, Set.of("<v n=\"2\"/>")))
+        .isEqualTo(
+            "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <!-- one -->\n"
+                + "  <f n=\"1\"><p>x</p><q/></f>\n\n  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n");
+    assertThat(withoutDeclarations(sample, Set.of("<f n=\"1\"><p>x</p><q/></f>")))
+        .isEqualTo(
+            "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <v n=\"2\"/>\n\n"
+                + "  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n");
+    // witness: a declaration is its element and its name, whatever attribute comes first
+    assertThat(declarationName("<xsl:function as=\"xs:string\" name=\"po:a\"><p name=\"b\"/>"))
+        .isEqualTo("xsl:function po:a");
+
+    byte[] main = Files.readAllBytes(repoRoot().resolve(MAIN_HELPER_MODULE));
+    String mains = new String(main, UTF_8);
+    // witness: main's copy is the helper module of spec 2, with po:useOneAsMany
+    assertThat(functionNames(mains)).contains("po:slots", "po:useOneAsMany");
+    // witness: a declaration that core adds is taken out (#74); one of main's that changes or goes
+    // is not, so the restriction is no longer main's copy
+    String added =
+        mains.replace(
+            "\n  <!-- A SourceQueue",
+            "\n  <!-- A shared helper of core. -->\n"
+                + "  <xsl:function name=\"po:shared-helper\" as=\"xs:string\"/>\n\n"
+                + "  <!-- A SourceQueue");
+    assertThat(added).isNotEqualTo(mains);
+    assertThat(restrictedTo(added, mains)).isEqualTo(mains);
+    String changed = mains.replace("then [()] else $queue", "then [] else $queue");
+    assertThat(changed).isNotEqualTo(mains);
+    assertThat(restrictedTo(changed, mains)).isNotEqualTo(mains);
+    String gone = withoutDeclarations(mains, Set.of(declarationTexts(mains).get(1)));
+    assertThat(restrictedTo(gone, mains)).isNotEqualTo(mains);
+
+    byte[] packed;
+    try (InputStream in = XsltExporter.class.getResourceAsStream(XsltExporter.HELPER_MODULE)) {
+      assertThat(in).as("resource io/flottila/mapping/xslt/export/po-runtime.xsl").isNotNull();
+      packed = in.readAllBytes();
+    }
+    assertThat(XsltExporter.helperModule().getBytes(UTF_8)).isEqualTo(packed);
+
+    String restricted = restrictedTo(new String(packed, UTF_8), mains);
+
+    assertThat(restricted).isEqualTo(mains);
+    assertThat(restricted.getBytes(UTF_8)).isEqualTo(main);
   }
 }

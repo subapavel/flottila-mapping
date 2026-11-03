@@ -1,12 +1,12 @@
 # Handoff
 
-state: SPEC_DONE — spec 2 #48 merged to main 86bf5ed (PR #66)
+state: PREP — spec 3 published as #70 (grilling done, decisions in ADR-0025 amendment 9c6fd1a, F-19); F-15 prefactor #69 in flight
 integration branch: none (spec/48-queues-node-functions merged)
 merged: spec 2, tickets #49–#65, review rounds 1–2, ratchet 0f6dca8
-in flight: none
+in flight: #69 (class C) test-author on t/69-function-families (from 9c6fd1a, branch claude/nifty-bohr-dm6yv7)
 blocked chain: none
 carried: spec-2 items by target spec in #48 comment 6595876651
-next action: owner — /retro on spec 2; then spec 3 (standard functions): F-15 prefactor (split registries per family) first, then /to-spec.
+next action: #69 tests → approve → implementer → gate → class-C review → merge into claude/nifty-bohr-dm6yv7 → PR to main; owner runs /to-tickets #70; then /run-spec #70.
 spec 1: merged to main 3bf9747 (#46); carried #21 comment 6582060566. spec 2: merged 86bf5ed (#66); carried #48 comment 6595876651.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required

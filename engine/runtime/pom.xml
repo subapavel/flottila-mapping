@@ -33,4 +33,48 @@
       <version>${project.version}</version>
     </dependency>
   </dependencies>
+  <build>
+    <plugins>
+      <!-- the family index FamilyIndex.java, which the build writes from the <Family>Family.java
+           files of the package (ADR-0025 "Families", F-15) -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>function-families</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <arguments>
+                <argument>${maven.multiModuleProjectDirectory}/scripts/function-families.java</argument>
+                <argument>index</argument>
+                <argument>${project.build.directory}/generated-sources/function-families/io/flottila/mapping/runtime/FamilyIndex.java</argument>
+                <argument>${project.basedir}/src/main/java/io/flottila/mapping/runtime</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>function-families</id>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/function-families</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

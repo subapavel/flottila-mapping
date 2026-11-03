@@ -138,8 +138,9 @@ Run order: 1, 1b, 2, 5, 4, 3. Regen reads the reports of 1 and 1b, and step 3's 
 `main`):
 
 - `trailers` (PRs and `t/**` pushes, #67): `scripts/check-trailers.sh` over the PR or push range, plus the
-  script tests under `scripts/test/`;
-- `backend`: `./mvnw -B -Pbench verify`, then `git diff --exit-code contract/`;
+  script tests that need no JDK;
+- `backend`: `./mvnw -B -Pbench verify`, then `git diff --exit-code contract/`, plus the script
+  tests that need JDK 25 (`function-families*-test.sh`, #69);
 - `ui`: `npm ci`, `npx playwright install --with-deps chromium`, generated types with an empty
   diff, `typecheck`, `lint`, `test`, `test:browser`, `e2e`, `build` → artefact;
 - `stack` (after both): `-Pui` jar, `npm run e2e:stack`.
