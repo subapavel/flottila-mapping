@@ -463,9 +463,10 @@ class TargetSlotsInterpreterTest {
   /**
    * The tracer's lists may be read while the run reports, as the facade does at a timeout (ADR-0014
    * since #53): each read is a consistent snapshot, the reports made so far in order, so every read
-   * extends the one before it and the last read is a prefix of the run's whole list. Grp per Id,
-   * Row per Sku in Order's context, over 100,000 Orders: Row reports once per Grp while the run
-   * writes. Up to five runs are read until a read falls while the run reports.
+   * extends the one before it, a read is a copy the later reports never reach, and the last read is
+   * a prefix of the run's whole list. Grp per Id, Row per Sku in Order's context, over 100,000
+   * Orders: Row reports once per Grp while the run writes. Up to five runs are read until a read
+   * falls while the run reports.
    */
   @Test
   void aSnapshotWhileTheRunReportsIsConsistent() throws Exception {
@@ -488,6 +489,8 @@ class TargetSlotsInterpreterTest {
     ExecutableMapping mapping = Interpreter.compile(rows, true);
 
     boolean midRun = false;
+    List<Tracer.Occurrences> midRead = null;
+    int midSize = 0;
     for (int attempt = 0; attempt < 5 && !midRun; attempt++) {
       Tracer tracer = new Tracer();
       FutureTask<Void> run =
@@ -512,7 +515,11 @@ class TargetSlotsInterpreterTest {
         assertThat(values.subList(0, previousValues.size()))
             .as("values %d", reads)
             .isEqualTo(previousValues);
-        midRun |= !read.isEmpty() && read.size() < 100_001;
+        if (!midRun && !read.isEmpty() && read.size() < 100_001) {
+          midRun = true;
+          midRead = read;
+          midSize = read.size();
+        }
         previous = read;
         previousValues = values;
         reads++;
@@ -520,6 +527,10 @@ class TargetSlotsInterpreterTest {
       run.get();
       List<Tracer.Occurrences> all = tracer.occurrences();
 
+      // a read is a copy: the reports after it never reach it
+      if (midRead != null) {
+        assertThat(midRead).as("a read during the run, after it").hasSize(midSize);
+      }
       assertThat(all).hasSize(100_001);
       assertThat(all.subList(0, previous.size())).isEqualTo(previous);
       assertThat(all.getFirst().field()).isEqualTo(id("t1"));
