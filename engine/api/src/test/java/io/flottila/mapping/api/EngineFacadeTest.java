@@ -1216,7 +1216,6 @@ class EngineFacadeTest {
         .isFalse();
   }
 
-  /** ADR-0015 since #52: {@code flottila:TIMEOUT} has no authoring id. */
   // --- the published catalogue (ADR-0026): the facade serves the packed bytes
 
   /** The one {@code function-catalogue.json} engine/mapping packs, read without the facade. */
@@ -1266,6 +1265,7 @@ class EngineFacadeTest {
     assertThat(facade.catalogue()).isEqualTo(packed).isNotSameAs(first);
   }
 
+  /** ADR-0015 since #52: {@code flottila:TIMEOUT} has no authoring id. */
   @Test
   void aTimeoutHasNoAuthoringId() throws Exception {
     EngineFacade facade = new EngineFacade();

@@ -3,6 +3,7 @@ package io.flottila.mapping.api;
 import io.flottila.mapping.ir.IrOptimiser;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.mapping.FunctionCatalogue;
 import io.flottila.mapping.mapping.LoadResult;
 import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Lowered;
@@ -90,6 +91,15 @@ public final class EngineFacade {
   /** The canonical form of {@code model} (ADR-0010). */
   public byte[] save(MappingModel model) {
     return MappingModelFormat.save(model);
+  }
+
+  /**
+   * The published function catalogue (ADR-0026): the bytes of the packed {@code
+   * function-catalogue.json}, an instance of {@code contract/function-catalogue.schema.json}. Each
+   * call gives a copy of its own.
+   */
+  public byte[] catalogue() {
+    return FunctionCatalogue.bytes();
   }
 
   /**
