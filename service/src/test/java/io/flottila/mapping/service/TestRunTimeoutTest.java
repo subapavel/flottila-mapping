@@ -65,6 +65,15 @@ class TestRunTimeoutTest {
     assertThat(result.path("error").has("authoringId")).isFalse();
     assertThat(described(result.path("diagnostics"))).isEmpty();
     assertThat(result.has("output")).as("the buffered output is dropped").isFalse();
-    assertThat(result.has("trace")).as("the trace comes with #53").isFalse();
+    // ADR-0014 since #53: the trace so far, an object of entries each with its kind
+    JsonNode trace = result.path("trace");
+    assertThat(trace.isObject()).as("the trace at timeout: %s", result).isTrue();
+    trace
+        .properties()
+        .forEach(
+            e ->
+                assertThat(e.getValue().path("kind").textValue())
+                    .as("kind of %s", e.getKey())
+                    .isIn("queue", "occurrences"));
   }
 }
