@@ -43,7 +43,11 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   branch % (the ratchet floors it: 97.9 is 97). Keep a shared check in one method.
 - Saxon 12.5 s9api `QName.getNamespaceURI()` is deprecated (`-Werror` fails): `getNamespace()`.
 - Saxon: inside `xsl:for-each` over arrays the focus is no node, a leading `/` is static
-  XPTY0020; read a global `<xsl:variable select="/">` (the s9api transform sets the global item).
+  XPTY0020. A global `select="/"` was rejected in review (an export must not need a global
+  context item): bind the value at the template's top. Saxon 12.5 evaluates a template
+  `xsl:variable` lazily (observed: unread, its error is never raised).
+- Review asks for a mutant per new guard: stage the work, `sed` the mutants, run with
+  `-Dmaven.test.failure.ignore=true -Dtest=…`, then `git checkout -- <files>` restores.
 - Error messages in engine classes must not hold a kebab-case constant with a hyphen (e.g. a param
   value `case-insensitive`): `DiagnosticCatalogueTest` treats it as an uncatalogued code (read in
   its source, not observed failing).
