@@ -44,12 +44,34 @@
           <include>mapping-model.schema.json</include>
         </includes>
       </resource>
-      <!-- the module's own resources: the engine-internal function catalogue (ADR-0025) -->
+      <!-- the engine-internal function catalogue (ADR-0025), which the build merges from the family
+           files in src/main/catalogue (ADR-0025 "Families", F-15) -->
       <resource>
-        <directory>src/main/resources</directory>
+        <directory>${project.build.directory}/generated-resources/function-families</directory>
       </resource>
     </resources>
     <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>function-families</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <arguments>
+                <argument>${maven.multiModuleProjectDirectory}/scripts/function-families.java</argument>
+                <argument>catalogue</argument>
+                <argument>${project.build.directory}/generated-resources/function-families/io/flottila/mapping/mapping/function-catalogue.json</argument>
+                <argument>${project.basedir}/src/main/catalogue</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
