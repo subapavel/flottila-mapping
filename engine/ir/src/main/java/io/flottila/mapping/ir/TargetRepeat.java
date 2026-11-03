@@ -17,5 +17,4 @@ package io.flottila.mapping.ir;
  *     model spells it, which no authoring id can be (ADR-0010 allows no {@code /} in one)
  */
 public record TargetRepeat(
-    long copies, Expr parentSlot, String slotVar, Expr body, AuthoringId origin)
-    implements Expr {}
+    long copies, Expr parentSlot, String slotVar, Expr body, AuthoringId origin) implements Expr {}

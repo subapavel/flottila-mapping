@@ -14,6 +14,7 @@ import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -21,6 +22,7 @@ import io.flottila.mapping.mapping.internal.FieldPathText;
 import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
+import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.Structure;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,29 +33,32 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.IntStream;
 
 /**
  * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
  * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, in its
- * parent's element: the root's, created once, or a mapped structure field's (ADR-0006 since #52).
- * Its slot-number and value variables at depth d are {@code slot<d>} and {@code value<d>}, and it
- * reads its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A
- * leaf's element holds its value, a structure field's its mapped children in target field order. A
- * source-field box gives its {@code SourceQueue}. A standard function box whose function the
- * catalogue holds gives, by its execution kind, a {@code FunCall} over its inputs' queues and then
- * its params as {@code Literal}s for a context or queue function, or a {@code Lift} over its
- * inputs' queues whose body is the atomic {@code FunCall} over the slot variables and then the
- * params for a single-value function (ADR-0006, ADR-0025). A param the box leaves out is its
- * catalogue default. A box that feeds several inputs is lowered once per use.
+ * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). An
+ * unmapped structure field whose effective occurrence is {@code n..n} with {@code n > 0} becomes
+ * {@code TargetRepeat} of n copies, whatever is mapped below it, and any other unmapped field is
+ * left out with its subtree (ADR-0006 "Target fields"; #63). The slot-number variable of a field at
+ * depth d is {@code slot<d>}, a mapped field's value variable {@code value<d>}, and a field reads
+ * its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A leaf's
+ * element holds its value, a structure field's its children in target field order. A source-field
+ * box gives its {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63). A standard
+ * function box whose function the catalogue holds gives, by its execution kind, a {@code FunCall}
+ * over its inputs' queues and then its params as {@code Literal}s for a context or queue function,
+ * or a {@code Lift} over its inputs' queues whose body is the atomic {@code FunCall} over the slot
+ * variables and then the params for a single-value function (ADR-0006, ADR-0025). A param the box
+ * leaves out is its catalogue default. A box that feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
  * <ul>
  *   <li>a source or target field path the structure lacks: {@code orphaned-reference};
- *   <li>a source field that is no leaf element at any depth (#62), or a target field that is no
- *       element under the root or under mapped parents, such as an attribute, the root itself or a
- *       field under an unmapped parent (#63): {@code unsupported-field};
+ *   <li>a source field that is no element below the root (#62, #63), or a target field that is no
+ *       element below the root, such as an attribute or the root itself, or that stands under an
+ *       unmapped parent which is neither {@code n..n} with {@code n > 0} nor optional, so that PO
+ *       requires it to be mapped (#63): {@code unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
  *   <li>a UDF box, or a function box whose function the catalogue does not hold yet: {@code
  *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
@@ -153,9 +158,11 @@ public final class Lowering {
   }
 
   /**
-   * The path of the target element that {@code text} names, under the root and mapped parents, or
-   * empty once the reason it names none is reported at the target field mapping {@code at}. A field
-   * under an unmapped parent waits for #63 (#52 design, O1).
+   * The path of the target element below the root that {@code text} names, or empty once the reason
+   * it names none is reported at the target field mapping {@code at}. Its parents are walked from
+   * the root down: a mapped parent and an unmapped {@code n..n} one ({@code n > 0}) are created, an
+   * unmapped optional one is left out with the field in its subtree, which is accepted, and an
+   * unmapped one with {@code 0 < min < max} is refused, because PO requires its mapping (#2 §2).
    *
    * @param mapped the target fields that have a target field mapping
    */
@@ -164,38 +171,60 @@ public final class Lowering {
         .flatMap(
             path -> {
               List<FieldPath.Step> steps = path.steps();
-              boolean parentsMapped =
-                  IntStream.range(UNDER_ROOT, steps.size())
-                      .allMatch(depth -> mapped.contains(new FieldPath(steps.subList(0, depth))));
-              if (steps.size() < UNDER_ROOT
-                  || steps.getLast().kind() != FieldKind.ELEMENT
-                  || !parentsMapped) {
+              if (steps.size() < UNDER_ROOT || steps.getLast().kind() != FieldKind.ELEMENT) {
                 report(
                     MappingDiagnostics.UNSUPPORTED_FIELD,
                     at,
                     text
-                        + " is not a target field this engine maps yet: an element under the root"
-                        + " or under mapped parents");
+                        + " is not a target field this engine maps yet: an element below the"
+                        + " root");
+                return Optional.empty();
+              }
+              for (int depth = UNDER_ROOT; depth < steps.size(); depth++) {
+                FieldPath parent = new FieldPath(steps.subList(0, depth));
+                Occurrence occurrence = target.field(parent).orElseThrow().occurrence();
+                if (mapped.contains(parent) || repeated(occurrence)) {
+                  continue;
+                }
+                if (occurrence.min() == 0) {
+                  // left out with its subtree, so the field is never created
+                  break;
+                }
+                report(
+                    MappingDiagnostics.UNSUPPORTED_FIELD,
+                    at,
+                    text
+                        + " stands under the unmapped "
+                        + parent
+                        + " ("
+                        + occurrence
+                        + "), which needs a target field mapping of its own");
                 return Optional.empty();
               }
               return Optional.of(path);
             });
   }
 
+  /** Whether an unmapped field of {@code occurrence} is created n times: {@code n..n}, n > 0. */
+  private static boolean repeated(Occurrence occurrence) {
+    return occurrence.min() > 0 && occurrence.min() == occurrence.max();
+  }
+
   /**
-   * The path of the leaf element that {@code text} names in the source structure, at any depth
-   * (#62), or empty once the reason it names none is reported at the box {@code at}.
+   * The source element below the root that {@code text} names, a leaf or a structure field, at any
+   * depth (#62, #63), or empty once the reason it names none is reported at the box {@code at}.
    */
-  private Optional<FieldPath> sourceLeaf(String text, AuthoringId at) {
+  private Optional<FieldPath> sourceField(String text, AuthoringId at) {
     return named(source, text, at)
         .flatMap(
             path -> {
               Field field = source.field(path).orElseThrow();
-              if (field.step().kind() != FieldKind.ELEMENT || field.valueType().isEmpty()) {
+              if (path.steps().size() < UNDER_ROOT || field.step().kind() != FieldKind.ELEMENT) {
                 report(
                     MappingDiagnostics.UNSUPPORTED_FIELD,
                     at,
-                    text + " is not a source field this engine maps yet: a leaf element");
+                    text
+                        + " is not a source field this engine maps yet: an element below the root");
                 return Optional.empty();
               }
               return Optional.of(path);
@@ -253,8 +282,14 @@ public final class Lowering {
   private Optional<Expr> queue(TargetFieldMapping mapping, AuthoringId id) {
     return switch (mapping.boxes().get(id)) {
       case SourceFieldBox box ->
-          sourceLeaf(box.field(), id)
-              .map(field -> new SourceQueue(names(field), contextDepth(box, field), id));
+          sourceField(box.field(), id)
+              .map(
+                  field ->
+                      new SourceQueue(
+                          names(field),
+                          contextDepth(box, field),
+                          source.field(field).orElseThrow().valueType().isEmpty(),
+                          id));
       case StandardFunctionBox box -> call(mapping, id, box);
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
       case UnresolvedFunctionBox box -> {
@@ -413,30 +448,61 @@ public final class Lowering {
   }
 
   /**
-   * The {@code TargetSlots} of the mapped child fields of {@code parent}, in target field order.
+   * The content of {@code parent}, in target field order: the {@code TargetSlots} of each mapped
+   * child field, and the {@code TargetRepeat} of each unmapped child structure field that is {@code
+   * n..n} with {@code n > 0}. Every other unmapped child is left out with its subtree.
    */
   private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();
     for (FieldPath child : target.children(parent)) {
       Link link = links.get(child);
+      Field field = target.field(child).orElseThrow();
       if (link != null) {
         content.add(slots(child, link, links));
+      } else if (field.valueType().isEmpty() && repeated(field.occurrence())) {
+        // an attribute is a leaf (ADR-0008), so only an element gets here
+        content.add(repeat(child, field, links));
       }
     }
     return content;
   }
 
   /**
+   * The {@code TargetRepeat} of the unmapped structure field {@code field} at {@code path}, {@code
+   * n..n}: n copies of its element, which holds its children. No authoring element creates it, so
+   * its nodes carry its field path as their origin, which no authoring id can spell (ADR-0010). Its
+   * prefix is taken before its children's (ADR-0022).
+   */
+  private TargetRepeat repeat(FieldPath path, Field field, Map<FieldPath, Link> links) {
+    int depth = path.steps().size();
+    AuthoringId origin = new AuthoringId(path.toString());
+    FieldPath.Step step = field.step();
+    String prefix = prefix(step.namespace());
+    return new TargetRepeat(
+        field.occurrence().min(),
+        new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
+        SLOT + depth,
+        new ElementConstructor(
+            prefix, new Name(step.namespace(), step.localName()), children(path, links), origin),
+        origin);
+  }
+
+  /** The parent's slot-number variable of a field at {@code depth}. */
+  private static String parentSlot(int depth) {
+    return depth == UNDER_ROOT ? ROOT_SLOT : SLOT + (depth - 1);
+  }
+
+  /**
    * The {@code TargetSlots} of the mapped field at {@code path}: its variables by its depth, its
    * parent's slot number, its effective occurrence, and its element, which holds its value for a
-   * leaf and its mapped children for a structure field. Its prefix is taken before its children's,
-   * so prefixes follow document order (ADR-0022).
+   * leaf and its children for a structure field. Its prefix is taken before its children's, so
+   * prefixes follow document order (ADR-0022).
    */
   private TargetSlots slots(FieldPath path, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
     String slotVar = SLOT + depth;
     String valueVar = VALUE + depth;
-    String parentSlot = depth == UNDER_ROOT ? ROOT_SLOT : SLOT + (depth - 1);
+    String parentSlot = parentSlot(depth);
     Field field = link.field();
     FieldPath.Step step = field.step();
     AuthoringId origin = link.mapping();

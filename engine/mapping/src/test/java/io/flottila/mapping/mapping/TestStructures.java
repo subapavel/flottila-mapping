@@ -121,6 +121,25 @@ final class TestStructures {
         structureField("Grp", 0, Occurrence.UNBOUNDED, "/Doc/Grp"));
   }
 
+  /**
+   * A target with two unmapped structure fields under its root {@code Doc} (#63): {@code None}
+   * 0..0, holding the leaf {@code X}, and {@code Pair} 2..2, holding the leaf {@code V}. No
+   * namespace.
+   */
+  static Structure repeated() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/None",
+            new StructureType("/Doc/None", List.of(leaf("", "X", 0, 1, ValueType.STRING))),
+            "/Doc/Pair",
+            new StructureType(
+                "/Doc/Pair", List.of(leaf("", "V", 0, Occurrence.UNBOUNDED, ValueType.STRING)))),
+        structureField("None", 0, 0, "/Doc/None"),
+        structureField("Pair", 2, 2, "/Doc/Pair"));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =

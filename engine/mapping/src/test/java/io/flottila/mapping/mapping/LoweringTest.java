@@ -29,11 +29,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -150,16 +152,22 @@ class LoweringTest {
         .isEqualTo(new SourceQueue(streetNames, 1, id("a1")));
   }
 
+  /**
+   * Until #63 this was unsupported-field at t1 (#52 design, O1). Street's parent Address is
+   * unmapped and optional (0..1), so it is left out with its subtree: the mapping compiles and
+   * Street is never created (ADR-0006 "Target fields").
+   */
   @Test
-  void aTargetLeafBelowAStructureFieldIsStillUnsupportedField() {
-    // Street's parent Address is unmapped: unsupported-field until #63 (#52 design, O1)
+  void aTargetLeafBelowAnUnmappedOptionalParentIsLeftOutWithIt() {
     MappingModel model =
         orderToOrder(
             targetFieldMappings(
                 ADDRESS + "/Street",
                 targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID)))));
 
-    assertThat(refused(lower(model))).containsExactly(errorAtId("unsupported-field", "t1"));
+    // OrderId (1..1) is an unmapped leaf, never created either (ADR-0006: a design-time error
+    // that is not built yet)
+    assertThat(lowered(lower(model)).content()).isEmpty();
   }
 
   @Test
@@ -405,8 +413,13 @@ class LoweringTest {
             errorAtId("unsupported-field", "a1"), errorAtId("unsupported-field", "t2"));
   }
 
+  /**
+   * The root is no field to map, as a source or a target. Since #63 a source structure field lowers
+   * to its queue of one {@code ""} per occurrence (a3, ADR-0008), and since #52 the target
+   * structure field Address under the root lowers from a source leaf (t4).
+   */
   @Test
-  void aStructureFieldIsUnsupportedField() {
+  void theRootIsUnsupportedFieldAsASourceAndAsATarget() {
     MappingModel model =
         orderToOrder(
             targetFieldMappings(
@@ -419,15 +432,25 @@ class LoweringTest {
                 ADDRESS,
                 targetFieldMapping("t4", "a4", boxes("a4", source(ORDER_ID)))));
 
-    // the root is no field to map, as a source or a target; a source structure field has no value
-    // of its own (a source structure field to a target structure field is #63). Since #52 the
-    // target structure field Address under the root lowers from a source leaf (t4), as
-    // aLeafAtDepthFourLowersUnderItsMappedParents shows at depth 4
+    // until #63 a3, the source structure field Address, was unsupported-field too
     assertThat(refused(lower(model)))
         .containsExactly(
-            errorAtId("unsupported-field", "a1"),
-            errorAtId("unsupported-field", "a3"),
-            errorAtId("unsupported-field", "t2"));
+            errorAtId("unsupported-field", "a1"), errorAtId("unsupported-field", "t2"));
+
+    TargetDocument document =
+        lowered(
+            lower(
+                orderToOrder(
+                    targetFieldMappings(
+                        QUANTITY,
+                        targetFieldMapping("t3", "a3", boxes("a3", source(ADDRESS))),
+                        ORDER_ID,
+                        targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID)))))));
+    assertThat(document.content())
+        .map(e -> ((TargetSlots) e).queue())
+        .containsExactly(
+            new SourceQueue(List.of(ORDER_NAME, new Name("", "OrderId")), 1, false, id("a1")),
+            new SourceQueue(List.of(ORDER_NAME, new Name("", "Address")), 1, true, id("a3")));
   }
 
   // --- target fields at any depth (ADR-0006 since #52): a mapped field under mapped ancestors;
@@ -523,18 +546,75 @@ class LoweringTest {
   }
 
   /**
-   * O1 of the #52 design: a mapped field under an unmapped parent is refused with unsupported-field
-   * at its target field mapping until #63. Val's parent Row is unmapped, with Grp mapped or not.
+   * O1 of the #52 design refused a mapped field under any unmapped parent until #63. Since #63 Val
+   * under the unmapped Row (1..2) is still unsupported-field at its target field mapping, because
+   * PO requires a mapping for {@code 0 < minOccurs < maxOccurs} (#2 §2). With Grp unmapped too, Grp
+   * (0..unbounded) is optional and left out with Row and Val, so the mapping compiles and creates
+   * nothing below the root.
    */
   @Test
-  void aMappedFieldUnderAnUnmappedParentIsUnsupportedField() {
+  void aMappedFieldUnderAnUnmappedParentNeedingAMappingIsUnsupportedField() {
     // witness: with Row mapped the same Val lowers (aLeafAtDepthFourLowersUnderItsMappedParents)
     assertThat(lowerNested(nestedMappings(true, true))).isInstanceOf(Lowered.class);
 
     assertThat(refused(lowerNested(nestedMappings(true, false))))
         .containsExactly(errorAtId("unsupported-field", "t3"));
-    assertThat(refused(lowerNested(nestedMappings(false, false))))
-        .containsExactly(errorAtId("unsupported-field", "t3"));
+    // until #63 this was unsupported-field at t3 too
+    assertThat(lowered(lowerNested(nestedMappings(false, false))).content()).isEmpty();
+  }
+
+  /**
+   * #63: the unmapped Pair (2..2) becomes TargetRepeat of 2 copies under the root's slot number,
+   * whose slot-number variable at depth 2 is its child V's parentSlot. Its nodes carry its field
+   * path, as no authoring element creates it. The unmapped None (0..0) is left out, and so is X
+   * below it, mapped or not.
+   */
+  @Test
+  void anUnmappedNByNStructureFieldLowersToTargetRepeat() {
+    Map<String, TargetFieldMapping> mappings =
+        targetFieldMappings(
+            "/Doc/Pair/V",
+            targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order/Tag"))),
+            "/Doc/None/X",
+            targetFieldMapping("t2", "a2", boxes("a2", source("/Orders/Order/Id"))));
+
+    TargetDocument document =
+        lowered(
+            Lowering.lower(
+                model(
+                    ref(TestStructures.orders()),
+                    ref(TestStructures.repeated()),
+                    mappings,
+                    Map.of()),
+                TestStructures.orders(),
+                TestStructures.repeated()));
+
+    AuthoringId pair = new AuthoringId("/Doc/Pair");
+    TargetSlots v =
+        new TargetSlots(
+            new SourceQueue(List.of(ORDERS_NAME, ORDER_ELEMENT, new Name("", "Tag")), 2, id("a1")),
+            integer("slot2", "t1"),
+            0,
+            Long.MAX_VALUE,
+            "slot3",
+            "value3",
+            new ElementConstructor(
+                "",
+                new Name("", "V"),
+                List.of(
+                    new TextConstructor(
+                        new VarRef("value3", AtomicType.STRING, id("t1")), id("t1"))),
+                id("t1")),
+            id("t1"));
+    assertThat(document.content())
+        .containsExactly(
+            new TargetRepeat(
+                2,
+                new VarRef("root", AtomicType.INTEGER, pair),
+                "slot2",
+                new ElementConstructor("", new Name("", "Pair"), List.of(v), pair),
+                pair));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
   }
 
   @Test

@@ -10,6 +10,7 @@ import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -40,6 +41,9 @@ import java.util.stream.Collectors;
  *       parent's slot number and its {@code max}, {@code ()} when unbounded, inside {@code
  *       po:at-least} with its {@code min} when that is above 0 (ADR-0006 since #52). Each item is
  *       {@code [slot number, value]}, bound to its slot-number and value variables.
+ *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
+ *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
+ *       slot number (ADR-0006; #63).
  *   <li>Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
  *       since #52). A {@code TargetSlots} directly under the root is written outside any {@code
  *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
@@ -48,9 +52,10 @@ import java.util.stream.Collectors;
  *       template, and {@code po:slots} reads the variable.
  *   <li>A queue is an {@code array(item()*)} with one member per context, each value an {@code
  *       xs:string} or {@code $po:SUPPRESS}. A {@code SourceQueue} reads the source document as
- *       {@code /}, the template's focus wherever a queue is written. A {@code FunCall} is {@code
- *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
- *       (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
+ *       {@code /}, the template's focus wherever a queue is written; a leaf field's member holds
+ *       its {@code string()} per occurrence, a structure field's {@code ''} (ADR-0008; #63). A
+ *       {@code FunCall} is {@code po:<catalogue name>} of the helper module over its args in {@code
+ *       FunCall} order (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -128,10 +133,27 @@ public final class XsltExporter {
   /** The name of the n-th queue variable, in the po namespace, where no IR variable name is. */
   private static final String QUEUE_NAME = "po:queue%d";
 
-  /** A {@code SourceQueue}: its context's path from the root, then its field's path under it. */
+  /**
+   * A {@code SourceQueue}: its context's path from the root, its field's path under it, and what
+   * each occurrence gives.
+   */
   private static final String QUEUE =
       """
-      array:join(/%s ! [%s ! string()])""";
+      array:join(/%s ! [%s ! %s])""";
+
+  /** What an occurrence of a leaf field gives in its queue: its text. */
+  private static final String LEAF_VALUE = "string()";
+
+  /** What an occurrence of a structure field gives in its queue (ADR-0008). */
+  private static final String STRUCTURE_VALUE = "''";
+
+  /** The occurrences of a {@code TargetRepeat}: its copies. */
+  private static final String REPEAT = "1 to %d";
+
+  /** The slot number of a {@code TargetRepeat}'s occurrence: its name, parent slot, copies. */
+  private static final String REPEAT_SLOT_VARIABLE =
+      """
+      <xsl:variable name="%s" as="xs:integer" select="(%s - 1) * %d + ."/>""";
 
   /**
    * A {@code Lift} (ADR-0025): {@code po:lift} over its queues, and over the inline function that
@@ -234,6 +256,16 @@ public final class XsltExporter {
         instruction(s.body(), depth + 1, true, out);
         line(out, depth, END_FOR_EACH);
       }
+      case TargetRepeat r -> {
+        line(out, depth, FOR_EACH.formatted(REPEAT.formatted(r.copies())));
+        line(
+            out,
+            depth + 1,
+            REPEAT_SLOT_VARIABLE.formatted(
+                r.slotVar(), attribute(expression(r.parentSlot())), r.copies()));
+        instruction(r.body(), depth + 1, true, out);
+        line(out, depth, END_FOR_EACH);
+      }
       case ElementConstructor e -> {
         String name =
             outputName(e.prefix(), e.name(), "ElementConstructor of " + e.origin().value());
@@ -265,7 +297,8 @@ public final class XsltExporter {
         String where = "SourceQueue of " + q.origin().value();
         yield QUEUE.formatted(
             path(q.field().subList(0, q.contextDepth()), where),
-            path(q.field().subList(q.contextDepth(), q.field().size()), where));
+            path(q.field().subList(q.contextDepth(), q.field().size()), where),
+            q.structureField() ? STRUCTURE_VALUE : LEAF_VALUE);
       }
       case VarRef v -> "$" + v.name();
       case Literal l -> "'" + l.value().replace("'", "''") + "'";
@@ -275,6 +308,7 @@ public final class XsltExporter {
               .collect(Collectors.joining(", ", "po:" + c.function().name() + "(", ")"));
       case Lift l -> lift(l);
       case TargetSlots s -> throw misplaced(s, "an expression");
+      case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
     };

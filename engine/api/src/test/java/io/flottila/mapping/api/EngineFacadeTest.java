@@ -276,13 +276,13 @@ class EngineFacadeTest {
             """);
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      CompileResult result = facade.compile(model, CorpusStructures.directory("observations"), options);
+      CompileResult result =
+          facade.compile(model, CorpusStructures.directory("observations"), options);
       byte[] output = facade.run(compiled(result), TWO_ORDERS);
 
       assertThat(new String(output, UTF_8))
           .as("%s", options)
-          .isEqualTo(
-              DECLARATION + "<Parents><Head><Id>o1</Id></Head><Pair/><Pair/></Parents>");
+          .isEqualTo(DECLARATION + "<Parents><Head><Id>o1</Id></Head><Pair/><Pair/></Parents>");
     }
   }
 
@@ -308,7 +308,8 @@ class EngineFacadeTest {
     String twins = "<Twin/><Twin/>";
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      CompileResult result = facade.compile(model, CorpusStructures.directory("observations"), options);
+      CompileResult result =
+          facade.compile(model, CorpusStructures.directory("observations"), options);
       byte[] output = facade.run(compiled(result), TWO_ORDERS);
 
       assertThat(new String(output, UTF_8))
