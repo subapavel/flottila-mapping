@@ -15,16 +15,17 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The engine-internal function catalogue (ADR-0025): {@code function-catalogue.json}, a resource of
- * this package, read once. Only lowering reads it, and only what lowering needs: a function's
- * execution kind, the names of its inputs and its params, in order, with each param's default and
- * the values it takes.
+ * The function catalogue (ADR-0025, ADR-0026): {@code function-catalogue.json}, a resource of this
+ * package, read once and published as it is packed, through {@link #bytes()}. Only lowering reads
+ * its entries, and only what lowering needs: a function's execution kind, the names of its inputs
+ * and its params, in order, with each param's default and the values it takes; {@code family},
+ * {@code portable} and {@code fidelity} are read past.
  *
  * <p>Every param of the catalogue is a string param, which lowering makes a {@code Literal}: one
  * with {@code values} takes only those, one without them any string. A table param adds what is
  * read here when its function lands.
  */
-final class FunctionCatalogue {
+public final class FunctionCatalogue {
 
   /**
    * A string param of a function.
@@ -56,22 +57,42 @@ final class FunctionCatalogue {
     }
   }
 
-  private static final Map<String, Entry> ENTRIES = read();
+  /** The packed catalogue's bytes, never handed out: {@link #bytes()} copies them. */
+  private static final byte[] PACKED;
+
+  private static final Map<String, Entry> ENTRIES;
+
+  static {
+    try (InputStream in = FunctionCatalogue.class.getResourceAsStream("function-catalogue.json")) {
+      PACKED = in.readAllBytes();
+      ENTRIES = read(PACKED);
+    } catch (IOException | MalformedJsonException e) {
+      throw new IllegalStateException("the packed function catalogue cannot be read", e);
+    }
+  }
 
   private FunctionCatalogue() {}
+
+  /**
+   * The packed catalogue as it is published (ADR-0026): its bytes in canonical form, an instance of
+   * {@code contract/function-catalogue.schema.json}. Each call gives a copy of its own.
+   */
+  public static byte[] bytes() {
+    return PACKED.clone();
+  }
 
   /** The entry of function {@code name}, or empty when the catalogue has no such one. */
   static Optional<Entry> entry(String name) {
     return Optional.ofNullable(ENTRIES.get(name));
   }
 
-  private static Map<String, Entry> read() {
-    IJsonObject functions;
-    try (InputStream in = FunctionCatalogue.class.getResourceAsStream("function-catalogue.json")) {
-      functions = (IJsonObject) StrictJsonReader.read(in.readAllBytes());
-    } catch (IOException | MalformedJsonException e) {
-      throw new IllegalStateException("the packed function catalogue cannot be read", e);
-    }
+  /**
+   * The entries of {@code catalogue}, a function catalogue's bytes, by function name.
+   *
+   * @throws MalformedJsonException if the bytes are no JSON document
+   */
+  static Map<String, Entry> read(byte[] catalogue) throws MalformedJsonException {
+    IJsonObject functions = (IJsonObject) StrictJsonReader.read(catalogue);
     Map<String, Entry> entries = new HashMap<>();
     functions
         .getProperties()
@@ -80,15 +101,18 @@ final class FunctionCatalogue {
   }
 
   /**
-   * {@code entry}'s execution kind, inputs and params; a function without params leaves {@code
-   * params} out, and a param that takes any string leaves {@code values} out.
+   * {@code entry}'s execution kind, inputs and params; a function without inputs, as {@code
+   * constant}, or without params leaves the member out, and a param that takes any string leaves
+   * {@code values} out.
    */
   private static Entry entry(IJsonObject entry) {
     ExecutionKind kind =
         ExecutionKind.valueOf(string(entry, "executionKind").toUpperCase(Locale.ROOT));
     List<String> inputs = new ArrayList<>();
-    for (IJsonValue input : elements(entry, "inputs")) {
-      inputs.add(string((IJsonObject) input, "name"));
+    if (entry.get("inputs") != null) {
+      for (IJsonValue input : elements(entry, "inputs")) {
+        inputs.add(string((IJsonObject) input, "name"));
+      }
     }
     List<Param> params = new ArrayList<>();
     if (entry.get("params") != null) {
