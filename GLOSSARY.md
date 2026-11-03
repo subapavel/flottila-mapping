@@ -196,11 +196,16 @@ files most of them under "Node functions".
 _Avoid_: node function
 
 **Function catalogue**:
-The data that lists every standard function: its name, its SAP PO/CPI name, execution kind,
-parameters, whether it is portable, and its fidelity. The editor's palette, the function
+The data that lists every standard function: its camelCase name, its function family, execution
+kind, parameters, whether it is portable, and its fidelity. The editor's palette, the function
 documentation and migration tools read it. Engine-internal from spec 2 (`function-catalogue.json`
 in `engine/mapping`, ADR-0025), published in spec 3.
 _Avoid_: function registry, function list
+
+**Function family**:
+The standard functions of one SAP PO palette group (context, text, arithmetic, date …): one file
+per engine module, found by the build, never by a hand-written list (ADR-0025, F-15).
+_Avoid_: category, group
 
 **Runtime error**:
 An error that stops a mapping run, named by a QName: from the input data (`po:MINOCCURS`, a
@@ -428,7 +433,8 @@ _Avoid_: differential case (it is a second oracle over the same cases, not a kin
 **Helper module**:
 The XSLT module `po-runtime.xsl` that every portable export imports. It holds the PO queue
 semantics as `po:` functions in `urn:flottila:mapping:po` (`po:slots`, later `po:lift`,
-`po:at-least`, `po:show`).
+`po:at-least`, `po:show`). The build joins `core.xsl` and one module per function family into it
+(F-15).
 _Avoid_: runtime library (that is the engine's), helper stylesheet
 
 **Golden corpus**:
