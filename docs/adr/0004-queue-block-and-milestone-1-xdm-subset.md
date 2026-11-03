@@ -21,7 +21,8 @@ values are always strings. Typed values exist only inside a function call. Conte
 never copy characters:
 
 - `removeContexts` shares the value array.
-- `splitByValue` builds only a new `int[]`.
+- `splitByValue` builds only a new `int[]`; since #55 the `emptyValue` mode also builds a new
+  value array of references to the kept strings (no characters copied).
 - `collapseContexts` and `useOneAsMany` copy references only.
 
 The milestone-1 XDM is `XdmValue → Item → AtomicValue` (sealed, records). Its atomic types are
