@@ -48,7 +48,7 @@ public final class EngineFacade {
   /** How {@link #testRun} waits for its run: the wall clock, unless a test gives its own. */
   private final Deadline deadline;
 
-  /** A facade; it holds no state, and its test runs wait by the wall clock. */
+  /** A facade; it holds no mutable state, and its test runs wait by the wall clock. */
   public EngineFacade() {
     this((run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
   }
