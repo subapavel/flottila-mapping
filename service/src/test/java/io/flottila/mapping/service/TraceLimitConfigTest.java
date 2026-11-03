@@ -12,7 +12,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 /**
  * A trace limit below 1 is a configuration error (ADR-0015, "Trace"; #53 ruling): the startup check
  * refuses {@code flottila.mapping.trace-limit}, so the service does not start, Integer.MIN_VALUE
- * too. Witness: the least limit, 1, is read as it is.
+ * too. Witness: the least limit, 1, is read as it is. {@code TraceLimitStartupTest} shows the
+ * check is wired to the startup.
  */
 class TraceLimitConfigTest {
 
