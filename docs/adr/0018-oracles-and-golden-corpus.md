@@ -36,7 +36,8 @@ corpus/
   permanent: a case is never renamed, deleted or reused. Tickets (`oracle:corpus`) and the
   ratchet cite it.
 - `expect` is `output` (`expected.xml`), `error` (`expected-error.json` with the error QName or
-  diagnostic code and the `AuthoringId`) or `none` (the case only feeds the differential oracle).
+  diagnostic code and the `AuthoringId`, or since #65 the `pointer` of a diagnostic with no
+  authoring element) or `none` (the case only feeds the differential oracle).
 - `provenance` says where the expected output comes from, with `ref` pointing at the source:
   - `observed`: the owner's run on PO 7.5 and CPI, `ref` = obs-id;
   - `documented`: the SAP documentation, `ref` = a `SAP✓` claim of #2;

@@ -41,7 +41,9 @@ contract, and the editor ships with the service.
     (`unconnected-target-field`, `orphaned-reference`, `unreachable-box` …). Tests and the
     editor match on the code, never on the message.
   - `message` is English. Milestone 1 has no i18n.
-  - `location` is exactly one of `{authoringId}`, `{pointer}` (stage 1, ADR-0011),
+  - `location` is exactly one of `{authoringId}`, `{pointer}` (stage 1, ADR-0011; since #65 also
+    `unmapped-mandatory-leaf` at `/targetFieldMappings/<field path>`, the member the missing
+    mapping would occupy, since an unmapped field has no `AuthoringId`),
     `{side, fieldPath}` or `{file, line, column}` (a schema load error).
 - Diagnostics are a result, not a failed request. Compile always answers 200.
 - Save checks stages 1 and 2 only and answers 422 with diagnostics when they fail. Stage 3
