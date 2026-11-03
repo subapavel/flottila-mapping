@@ -40,8 +40,8 @@ import java.util.stream.IntStream;
  * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, in its
  * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). An
  * unmapped structure field whose effective occurrence is {@code n..n} with {@code n > 0} becomes
- * {@code TargetRepeat} of n copies, whatever is mapped below it, and any other unmapped field is
- * left out with its subtree (ADR-0006 "Target fields"; #63). The slot-number variable of a field at
+ * {@code TargetRepeat} of n copies, whatever is mapped below it, an unmapped optional field is left
+ * out with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The slot-number variable of a field at
  * depth d is {@code slot<d>}, a mapped field's value variable {@code value<d>}, and a field reads
  * its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A leaf's
  * element holds its value, a structure field's its children in target field order. A source-field
@@ -61,6 +61,9 @@ import java.util.stream.IntStream;
  *       unmapped parent which is neither {@code n..n} with {@code n > 0} nor optional, so that PO
  *       requires it to be mapped (#63): {@code unsupported-field}; at {@code /target}, an unmapped
  *       field that would be created beyond the recursion cap (ADR-0008): {@code unsupported-field};
+ *       once every target field mapping lowers, at {@code /targetFieldMappings/<field path>}, an
+ *       unmapped structure field with {@code 0 < minOccurs < maxOccurs} under a parent that is
+ *       created, as PO requires its mapping: {@code unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
  *   <li>once every target field mapping lowers, at {@code /targetFieldMappings/<field path>}, a
  *       target leaf with {@code minOccurs > 0} that has no target field mapping and stands under a
@@ -143,7 +146,8 @@ public final class Lowering {
     String rootPrefix = prefix(root.namespace());
     List<Expr> content = children(target.rootPath(), links);
     if (!found.isEmpty()) {
-      // the walk met an unmapped mandatory leaf or an unmapped field beyond the recursion cap
+      // the walk met an unmapped mandatory leaf, an unmapped structure field that needs a mapping
+      // or an unmapped field beyond the recursion cap
       return new Refused(found);
     }
     TargetDocument document =
@@ -473,10 +477,12 @@ public final class Lowering {
   /**
    * The content of {@code parent}, in target field order: the {@code TargetSlots} of each mapped
    * child field, and the {@code TargetRepeat} of each unmapped child structure field that is {@code
-   * n..n} with {@code n > 0}. Every other unmapped child is left out with its subtree. An unmapped
+   * n..n} with {@code n > 0}. An unmapped optional child is left out with its subtree. An unmapped
    * child leaf with {@code minOccurs > 0} would be missing from every occurrence of {@code parent},
    * so it is refused at its absent target field mapping with {@code unmapped-mandatory-leaf}
-   * (ADR-0006), and the walk goes on. An unmapped {@code n..n} structure field whose type its path
+   * (ADR-0006), and the walk goes on. An unmapped child structure field with {@code 0 < min < max}
+   * needs a mapping in PO, so it is refused there with {@code unsupported-field}, and the walk goes
+   * on without entering it. An unmapped {@code n..n} structure field whose type its path
    * already repeats {@link #RECURSION_CAP} times would be created without end, so it is refused at
    * the model's {@code /target} with {@code unsupported-field} (ADR-0008), and that refusal stops
    * the walk.
@@ -523,6 +529,18 @@ public final class Lowering {
         } else {
           content.add(repeat(child, field, links));
         }
+      } else if (field.occurrence().min() > 0) {
+        // 0 < min < max: a mapped field below would have been refused at its own mapping already
+        found.add(
+            new Diagnostic(
+                Severity.ERROR,
+                MappingDiagnostics.UNSUPPORTED_FIELD,
+                new AtPointer("/targetFieldMappings/" + pointerSegment(child)),
+                "the unmapped "
+                    + child
+                    + " ("
+                    + field.occurrence()
+                    + ") needs a target field mapping of its own"));
       }
     }
     return content;

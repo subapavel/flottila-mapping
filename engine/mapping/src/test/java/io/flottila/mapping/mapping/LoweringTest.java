@@ -579,6 +579,25 @@ class LoweringTest {
   }
 
   /**
+   * ADR-0006 creates only an unmapped {@code n..n} structure field and leaves out only an unmapped
+   * optional one. With Grp alone mapped, the unmapped Row (1..2) has nothing mapped below it, and
+   * PO needs a mapping there as when Val is mapped: unsupported-field, at its absent target field
+   * mapping, as no authoring element names it. Leaving it out would write each Grp without the Row
+   * it needs.
+   */
+  @Test
+  void anUnmappedStructureFieldNeedingAMappingWithNothingBelowIsUnsupportedField() {
+    Map<String, TargetFieldMapping> grpOnly = nestedMappings(true, true);
+    grpOnly.remove(ROW);
+    grpOnly.remove(VAL);
+    // witness: with Row mapped too, the same Grp lowers
+    assertThat(lowerNested(nestedMappings(true, true))).isInstanceOf(Lowered.class);
+
+    assertThat(refused(lowerNested(grpOnly)))
+        .containsExactly(errorAtPointer("unsupported-field", unmapped(ROW)));
+  }
+
+  /**
    * #63: the unmapped Pair (2..2) becomes TargetRepeat of 2 copies under the root's slot number,
    * whose slot-number variable at depth 2 is its child V's parentSlot. Its nodes carry its field
    * path, as no authoring element creates it. The unmapped None (0..0) is left out, and so is X
