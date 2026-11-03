@@ -86,12 +86,35 @@ interface Node {
 
     @Override
     public void write(Frame frame) throws IOException {
+      write(frame, block(frame), parentSlot.eval(frame));
+    }
+
+    /**
+     * This node in a traced compile (ADR-0006 since #53): under each parent slot it reports its
+     * field, the parent slot, its queue, min and max to the run's tracer before its min check, so a
+     * shortfall is traced. The untraced node itself holds no hook.
+     */
+    OfContent traced() {
+      return frame -> {
+        QueueBlock block = block(frame);
+        long parent = parentSlot.eval(frame);
+        frame.tracer.occurrences(origin, parent, block, min, max);
+        write(frame, block, parent);
+      };
+    }
+
+    /** The queue's block, evaluated on first read and then kept in the frame. */
+    private QueueBlock block(Frame frame) {
       QueueBlock block = frame.targetQueues[queueIndex];
       if (block == null) {
         block = queue.eval(frame);
         frame.targetQueues[queueIndex] = block;
       }
-      long parent = parentSlot.eval(frame);
+      return block;
+    }
+
+    /** The occurrences under the parent slot {@code parent}, read from {@code block}. */
+    private void write(Frame frame, QueueBlock block, long parent) throws IOException {
       int start = 0;
       int end = 0;
       if (parent <= block.contexts()) {
