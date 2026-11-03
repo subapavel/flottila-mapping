@@ -989,7 +989,8 @@ class EngineFacadeTest {
     assertThat(aPlatformThreadRunsAMapping()).as("before the test run").isFalse();
     FutureTask<TestRunResult> caller =
         new FutureTask<>(() -> facade.testRun(mapping, input, Duration.ofSeconds(30)));
-    Thread.ofPlatform().name("test-run caller").start(caller);
+    // not a daemon, so only the run's own thread passes the daemon filter
+    Thread.ofPlatform().name("test-run caller").daemon(false).start(caller);
 
     boolean seen = false;
     while (!caller.isDone() && !seen) {
