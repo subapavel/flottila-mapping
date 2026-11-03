@@ -15,11 +15,6 @@
        Every other value of a queue is an xs:string, so a function tells SUPPRESS by its type. -->
   <xsl:variable name="po:SUPPRESS" as="map(*)" select="map{'po:marker': 'SUPPRESS'}"/>
 
-  <!-- The source document, the global context item, from which a queue inside a target field's
-       occurrence reads its field: there the focus is the occurrence's [slot number, value], not a
-       node (ADR-0006 since #52). A queue directly under the root reads the template's focus. -->
-  <xsl:variable name="po:source" as="document-node()" select="/"/>
-
   <!-- The occurrences TargetSlots creates of context $parentSlot of $queue (ADR-0006 since #52),
        as the runtime's Node.Slots does: [slot number, value] per created slot. A slot number is
        the slot's position across all contexts of the queue, so a SUPPRESS slot and a truncated

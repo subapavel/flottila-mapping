@@ -366,8 +366,9 @@ class XsltExporterTest {
    * A {@code TargetSlots} inside a mapped field's element, as lowering gives it since #52: each
    * level is two spaces deeper, one element per line (#27 design), the inner queue's context is
    * {@code Item}, and the inner field reads Item's slot number {@code $slot2} as its parent's. The
-   * inner queue reads the source from {@code $po:source}: inside an occurrence the focus is its
-   * {@code [slot number, value]}, where a leading {@code /} is Saxon's static XPTY0020.
+   * inner queue is bound once at the top of the template, where the focus is the source document,
+   * and the inner {@code xsl:for-each} reads it by name: each back end evaluates a queue at most
+   * once per mapping run (ADR-0006 since #52).
    */
   @Test
   void aTargetFieldInsideAnElementIsWrittenOneLevelDeeper() {
@@ -420,14 +421,15 @@ class XsltExporterTest {
             omit-xml-declaration="no"/>
               <xsl:template match="/">
                 <xsl:variable name="root" as="xs:integer" select="1"/>
+                <xsl:variable name="po:queue1" as="array(item()*)" \
+            select="array:join(/s0:Order/Item ! [Name ! string()])"/>
                 <ns0:Order>
                   <xsl:for-each \
             select="po:slots(array:join(/s0:Order ! [Item ! string()]), $root, ())">
                     <xsl:variable name="slot2" as="xs:integer" select="?1"/>
                     <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <Item>
-                      <xsl:for-each \
-            select="po:slots(array:join($po:source/s0:Order/Item ! [Name ! string()]), $slot2, 1)">
+                      <xsl:for-each select="po:slots($po:queue1, $slot2, 1)">
                         <xsl:variable name="slot3" as="xs:integer" select="?1"/>
                         <xsl:variable name="value3" as="xs:string" select="?2"/>
                         <Name><xsl:value-of select="$value3"/></Name>
@@ -438,6 +440,76 @@ class XsltExporterTest {
               </xsl:template>
             </xsl:stylesheet>
             """);
+  }
+
+  /**
+   * {@code TargetSlots} of {@code queue} under the parent slot {@code parentSlot}, unbounded,
+   * binding {@code slot<depth>} and {@code value<depth>}, with {@code content} in its element.
+   */
+  private static TargetSlots nested(
+      SourceQueue queue, String parentSlot, int depth, Name element, List<Expr> content) {
+    AuthoringId origin = id("t" + depth);
+    return new TargetSlots(
+        queue,
+        new VarRef(parentSlot, AtomicType.INTEGER, origin),
+        0,
+        UNBOUNDED,
+        "slot" + depth,
+        "value" + depth,
+        new ElementConstructor("", element, content, origin),
+        origin);
+  }
+
+  /**
+   * Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
+   * since #52), and an {@code xsl:for-each} evaluates its select once per occurrence of its parent:
+   * no queue is written inside an occurrence, at any depth. Each queue inside one is bound once at
+   * the top of the template, in IR walk order, and read there by name.
+   */
+  @Test
+  void noQueueIsWrittenInsideAnOccurrence() {
+    Name item = new Name("", "Item");
+    Name line = new Name("", "Line");
+    Name sku = new Name("", "Sku");
+    TargetSlots skus =
+        nested(
+            new SourceQueue(List.of(ORDER, item, line, sku), 3, id("a3")),
+            "slot3",
+            4,
+            sku,
+            List.of(
+                new TextConstructor(new VarRef("value4", AtomicType.STRING, id("t4")), id("t4"))));
+    TargetSlots lines =
+        nested(
+            new SourceQueue(List.of(ORDER, item, line), 2, id("a2")), SLOT, 3, line, List.of(skus));
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(nested(underRoot(ORDER, item, "a1"), ROOT, 2, item, List.of(lines))));
+    IrVerifier.verify(document);
+
+    String stylesheet = XsltExporter.export(document);
+
+    String root = "<ns0:Order>";
+    assertThat(stylesheet.substring(0, stylesheet.indexOf(root) + root.length()))
+        .as("the top of the template")
+        .contains(
+            "<xsl:variable name=\"po:queue1\" as=\"array(item()*)\""
+                + " select=\"array:join(/s0:Order/Item ! [Line ! string()])\"/>\n"
+                + "    <xsl:variable name=\"po:queue2\" as=\"array(item()*)\""
+                + " select=\"array:join(/s0:Order/Item/Line ! [Sku ! string()])\"/>\n"
+                + "    "
+                + root);
+    // everything after Item's slot variable stands inside Item's occurrences
+    String inside = stylesheet.substring(stylesheet.indexOf("select=\"?1\""));
+    assertThat(inside)
+        .as("inside an occurrence")
+        .doesNotContain("array:join")
+        .contains(
+            "<xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">",
+            "<xsl:for-each select=\"po:slots($po:queue2, $slot3, ())\">");
   }
 
   /**
