@@ -27,6 +27,7 @@ import static io.flottila.mapping.mapping.TestStructures.ref;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
@@ -39,6 +40,7 @@ import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -615,6 +617,37 @@ class LoweringTest {
                 new ElementConstructor("", new Name("", "Pair"), List.of(v), pair),
                 pair));
     assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * #63: an unmapped 1..1 Self whose type requires Self again would be created without end.
+   * ADR-0008 lets a recursive path repeat one type at most 16 times, so lowering refuses the 17th
+   * Self with unsupported-field. No authoring element names an unmapped field, so the diagnostic
+   * stands at the model's target structure, {@code /target}. A regression fails on the timeout, not
+   * by hanging the build.
+   */
+  @Test
+  void anUnmappedTypeThatRequiresItselfIsRefusedAtTheRecursionCap() {
+    Map<String, TargetFieldMapping> mappings =
+        targetFieldMappings(
+            "/Doc/Self/V",
+            targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order/Id", "/Orders"))));
+
+    LowerResult result =
+        assertTimeoutPreemptively(
+            Duration.ofSeconds(5),
+            () ->
+                Lowering.lower(
+                    model(
+                        ref(TestStructures.orders()),
+                        ref(TestStructures.selfRequired()),
+                        mappings,
+                        Map.of()),
+                    TestStructures.orders(),
+                    TestStructures.selfRequired()));
+
+    assertThat(refused(result))
+        .containsExactly(LoadResults.error("unsupported-field", new AtPointer("/target")));
   }
 
   @Test

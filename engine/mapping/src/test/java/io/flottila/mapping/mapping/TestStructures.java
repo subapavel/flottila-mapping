@@ -140,6 +140,28 @@ final class TestStructures {
         structureField("Pair", 2, 2, "/Doc/Pair"));
   }
 
+  /**
+   * A target whose type requires itself twice (#63): {@code Doc/Self} 1..1 of the type {@code
+   * /Doc/Self}, which holds the leaf {@code V} 0..1, then {@code Self} and {@code Again}, both 1..1
+   * of the same type. No instance is finite, and the unmapped {@code Self} is created whatever the
+   * mapping. No namespace.
+   */
+  static Structure selfRequired() {
+    Field self = structureField("Self", 1, 1, "/Doc/Self");
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Self",
+            new StructureType(
+                "/Doc/Self",
+                List.of(
+                    leaf("", "V", 0, 1, ValueType.STRING),
+                    self,
+                    structureField("Again", 1, 1, "/Doc/Self")))),
+        self);
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =

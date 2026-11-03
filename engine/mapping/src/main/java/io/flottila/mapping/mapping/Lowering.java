@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 /**
  * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
@@ -58,7 +59,8 @@ import java.util.TreeSet;
  *   <li>a source field that is no element below the root (#62, #63), or a target field that is no
  *       element below the root, such as an attribute or the root itself, or that stands under an
  *       unmapped parent which is neither {@code n..n} with {@code n > 0} nor optional, so that PO
- *       requires it to be mapped (#63): {@code unsupported-field};
+ *       requires it to be mapped (#63): {@code unsupported-field}; at {@code /target}, an unmapped
+ *       field that would be created beyond the recursion cap (ADR-0008): {@code unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
  *   <li>a UDF box, or a function box whose function the catalogue does not hold yet: {@code
  *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
@@ -86,6 +88,9 @@ public final class Lowering {
 
   /** The depth of a field directly under the root, whose parent's slot number is the root's. */
   private static final int UNDER_ROOT = 2;
+
+  /** The most times a recursive path may repeat one type (ADR-0008). */
+  private static final int RECURSION_CAP = 16;
 
   private static final QueueType QUEUE = new QueueType();
 
@@ -130,6 +135,10 @@ public final class Lowering {
     // the root's namespace is met first, so it is ns0
     String rootPrefix = prefix(root.namespace());
     List<Expr> content = children(target.rootPath(), links);
+    if (!found.isEmpty()) {
+      // the walk met an unmapped field beyond the recursion cap
+      return new Refused(found);
+    }
     TargetDocument document =
         new TargetDocument(
             rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content);
@@ -450,21 +459,51 @@ public final class Lowering {
   /**
    * The content of {@code parent}, in target field order: the {@code TargetSlots} of each mapped
    * child field, and the {@code TargetRepeat} of each unmapped child structure field that is {@code
-   * n..n} with {@code n > 0}. Every other unmapped child is left out with its subtree.
+   * n..n} with {@code n > 0}. Every other unmapped child is left out with its subtree. Such a field
+   * whose type its path already repeats {@link #RECURSION_CAP} times would be created without end,
+   * so it is refused at the model's {@code /target} with {@code unsupported-field} (ADR-0008), and
+   * that refusal stops the walk.
    */
   private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();
     for (FieldPath child : target.children(parent)) {
+      if (!found.isEmpty()) {
+        break;
+      }
       Link link = links.get(child);
       Field field = target.field(child).orElseThrow();
       if (link != null) {
         content.add(slots(child, link, links));
       } else if (field.valueType().isEmpty() && repeated(field.occurrence())) {
         // an attribute is a leaf (ADR-0008), so only an element gets here
-        content.add(repeat(child, field, links));
+        if (repeats(child, field) > RECURSION_CAP) {
+          found.add(
+              new Diagnostic(
+                  Severity.ERROR,
+                  MappingDiagnostics.UNSUPPORTED_FIELD,
+                  new AtPointer("/target"),
+                  "the unmapped "
+                      + child
+                      + " ("
+                      + field.occurrence()
+                      + ") repeats its type more than "
+                      + RECURSION_CAP
+                      + " times on its path, so it would be created without end"));
+        } else {
+          content.add(repeat(child, field, links));
+        }
       }
     }
     return content;
+  }
+
+  /** How many fields of {@code path}, the root and {@code field} included, have its type. */
+  private long repeats(FieldPath path, Field field) {
+    List<FieldPath.Step> steps = path.steps();
+    return IntStream.rangeClosed(1, steps.size())
+        .mapToObj(depth -> target.field(new FieldPath(steps.subList(0, depth))).orElseThrow())
+        .filter(f -> f.type().equals(field.type()))
+        .count();
   }
 
   /**
