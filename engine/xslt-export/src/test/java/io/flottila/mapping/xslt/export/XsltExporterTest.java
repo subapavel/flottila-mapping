@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -777,6 +778,72 @@ class XsltExporterTest {
     assertThatThrownBy(() -> XsltExporter.export(fieldLinkWith(unknown, List.of(valueText()))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
+  }
+
+  /** formatByExample can raise po:FORMATBYEXAMPLE, so its box id comes after its two queues. */
+  @Test
+  void formatByExampleTakesItsBoxIdLast() {
+    String queue = "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+    FunCall formatByExample =
+        call(
+            "formatByExample",
+            List.of(underRoot(ORDER, ORDER_ID, "a1"), underRoot(ORDER, ORDER_ID, "a2")),
+            0,
+            "f1");
+
+    assertThat(XsltExporter.export(fieldLinkWith(formatByExample, List.of(valueText()))))
+        .contains("po:slots(po:formatByExample(" + queue + ", " + queue + ", 'f1'), $root, 1)");
+  }
+
+  /**
+   * How the exporter reads the helper's signatures (ADR-0026): a function's own params are the
+   * {@code xsl:param} right after its start tag, in any attribute order, so the params of an {@code
+   * xsl:iterate} in its body, as formatByExample has, are none of them; a function without params
+   * ends in no box.
+   */
+  @Test
+  void aSignatureIsTheFunctionsOwnParams() {
+    String helper =
+        """
+        <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:array="http://www.w3.org/2005/xpath-functions/array" xmlns:po="urn:flottila:mapping:po">
+          <xsl:variable name="po:SUPPRESS" as="map(*)" select="map{}"/>
+          <xsl:function name="po:formatLike" as="array(item()*)">
+            <xsl:param name="values" as="array(item()*)"/>
+            <xsl:param name="example" as="array(item()*)"/>
+            <xsl:param name="box" as="xs:string"/>
+            <xsl:variable name="all" as="item()*" select="$values?*"/>
+            <xsl:iterate select="1 to array:size($example)">
+              <xsl:param name="offset" as="xs:integer" select="0"/>
+              <xsl:on-completion select="$values"/>
+            </xsl:iterate>
+          </xsl:function>
+          <xsl:function name="po:copyLike" as="array(item()*)">
+            <xsl:param name="queue" as="array(item()*)"/>
+            <xsl:iterate select="1 to 2">
+              <xsl:param name="box" as="xs:string" select="''"/>
+              <xsl:on-completion select="$queue"/>
+            </xsl:iterate>
+          </xsl:function>
+          <xsl:function as="xs:string" name="po:nameLast">
+            <xsl:param as="xs:string" name="value"/>
+            <xsl:param as="xs:string" name="box"/>
+            <xsl:sequence select="$value"/>
+          </xsl:function>
+          <xsl:function name="po:none" as="xs:string">
+            <xsl:sequence select="''"/>
+          </xsl:function>
+        </xsl:stylesheet>
+        """;
+
+    assertThat(XsltExporter.signatures(helper))
+        .isEqualTo(
+            Map.of(
+                "po:formatLike", new XsltExporter.Signature(3, true),
+                "po:copyLike", new XsltExporter.Signature(1, false),
+                "po:nameLast", new XsltExporter.Signature(2, true),
+                "po:none", new XsltExporter.Signature(0, false)));
   }
 
   /**

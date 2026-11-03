@@ -193,7 +193,7 @@ public final class XsltExporter {
    * A function of the helper module: the number of its own params, and whether the last is {@link
    * #BOX}.
    */
-  private record Signature(int params, boolean box) {}
+  record Signature(int params, boolean endsInBox) {}
 
   /**
    * An {@code xsl:function} start tag of the helper module, its name, and its params: the {@code
@@ -272,7 +272,7 @@ public final class XsltExporter {
    * them. In XSLT 3.0 a function's param is empty (XTSE0760), so it is written as an empty-element
    * tag.
    */
-  private static Map<String, Signature> signatures(String helper) {
+  static Map<String, Signature> signatures(String helper) {
     Map<String, Signature> signatures = new HashMap<>();
     Matcher function = FUNCTION.matcher(helper);
     while (function.find()) {
@@ -387,7 +387,7 @@ public final class XsltExporter {
     for (Expr arg : c.args()) {
       args.add(expression(arg));
     }
-    if (signature.box()) {
+    if (signature.endsInBox()) {
       args.add(literal(c.origin().value()));
     }
     if (args.size() != signature.params()) {
