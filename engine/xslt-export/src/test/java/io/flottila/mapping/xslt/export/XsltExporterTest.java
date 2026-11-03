@@ -8,10 +8,15 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -36,10 +41,15 @@ class XsltExporterTest {
   private static final Name ORDER_ID = new Name("", "OrderId");
   private static final long UNBOUNDED = Long.MAX_VALUE;
 
-  /** The variables lowering binds: the root's slot number and a slot's value. */
+  /**
+   * The variables lowering binds: the root's slot number, and a field's slot number and value at
+   * depth 2, directly under the root (ADR-0006 since #52).
+   */
   private static final String ROOT = "root";
 
-  private static final String VALUE = "value";
+  private static final String SLOT = "slot2";
+
+  private static final String VALUE = "value2";
 
   // --- IR, built by hand as lowering gives it (Lowering, ADR-0022)
 
@@ -56,6 +66,7 @@ class XsltExporterTest {
         new VarRef(ROOT, AtomicType.INTEGER, origin),
         min,
         max,
+        SLOT,
         VALUE,
         new ElementConstructor(
             prefix,
@@ -79,7 +90,11 @@ class XsltExporterTest {
         List.of(slots(underRoot(ORDER, ORDER_ID, "a1"), 1, max, "", ORDER_ID, "t1")));
   }
 
-  /** The #27 design's stylesheet of the field link: one element per line, two-space indent. */
+  /**
+   * The #27 design's stylesheet of the field link: one element per line, two-space indent. Since
+   * #52 (ADR-0006) {@code po:slots} gives {@code [slot number, value]} per created occurrence,
+   * bound to the slot and value variables, and {@code po:at-least} checks OrderId's min of 1.
+   */
   private static final String FIELD_LINK_STYLESHEET =
       """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -95,9 +110,10 @@ class XsltExporterTest {
           <xsl:variable name="root" as="xs:integer" select="1"/>
           <ns0:Order>
             <xsl:for-each \
-      select="po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1)">
-              <xsl:variable name="value" as="xs:string" select="."/>
-              <OrderId><xsl:value-of select="$value"/></OrderId>
+      select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1, 't1')">
+              <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+              <xsl:variable name="value2" as="xs:string" select="?2"/>
+              <OrderId><xsl:value-of select="$value2"/></OrderId>
             </xsl:for-each>
           </ns0:Order>
         </xsl:template>
@@ -191,9 +207,9 @@ class XsltExporterTest {
         .contains("<Order>", "</Order>", "<ns0:Item>", "<ns1:Note>", "<ns1:Remark>", "<ns0:Again>")
         // source names in walk order; a step without a namespace stays bare
         .contains(
-            "array:join(/s0:Order ! [s0:Item ! string()])",
-            "array:join(/s0:Order ! [s1:Note ! string()])",
-            "array:join(/s0:Order ! [Plain ! string()])");
+            "po:source-queue(array:join(/s0:Order ! [s0:Item ! string()]))",
+            "po:source-queue(array:join(/s0:Order ! [s1:Note ! string()]))",
+            "po:source-queue(array:join(/s0:Order ! [Plain ! string()]))");
   }
 
   @Test
@@ -203,14 +219,45 @@ class XsltExporterTest {
 
     assertThat(unbounded)
         .contains(
-            "<xsl:for-each select=\"po:slots(array:join(/s0:Order ! [OrderId ! string()]),"
-                + " $root, ())\">")
+            "<xsl:for-each select=\"po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId !"
+                + " string()])), $root, ()), 1, 't1')\">")
         .doesNotContain(Long.toString(UNBOUNDED));
     // witness: a bounded max is written as its number
     assertThat(three)
         .contains(
-            "<xsl:for-each select=\"po:slots(array:join(/s0:Order ! [OrderId ! string()]),"
-                + " $root, 3)\">");
+            "<xsl:for-each select=\"po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId !"
+                + " string()])), $root, 3), 1, 't1')\">");
+  }
+
+  /** {@code OrderId <- OrderId} at {@code min..max}. */
+  private static TargetDocument fieldLink(long min, long max) {
+    return new TargetDocument(
+        "ns0",
+        ORDER,
+        ROOT,
+        List.of(slots(underRoot(ORDER, ORDER_ID, "a1"), min, max, "", ORDER_ID, "t1")));
+  }
+
+  /**
+   * ADR-0006 since #52: the export of TargetSlots is {@code po:at-least(po:slots(queue, p, max),
+   * min, mapping)}, and {@code po:at-least} is written only when min is above 0. The helper module
+   * holds both functions, po:slots with its queue, parent slot and max, po:at-least with the slots,
+   * the min and the id of the target field mapping, which its error names.
+   */
+  @Test
+  void minAboveZeroWrapsPoAtLeast() {
+    String slots =
+        "po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 3)";
+
+    assertThat(XsltExporter.export(fieldLink(0, 3)))
+        .contains("<xsl:for-each select=\"" + slots + "\">")
+        .doesNotContain("po:at-least");
+    assertThat(XsltExporter.export(fieldLink(1, 3)))
+        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 1, 't1')\">");
+    assertThat(XsltExporter.export(fieldLink(2, 3)))
+        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 2, 't1')\">");
+    assertThat(helperParams("po:slots")).isEqualTo(3);
+    assertThat(helperParams("po:at-least")).isEqualTo(3);
   }
 
   /** The field link with {@code Note} in {@code namespace} under {@code prefix} added. */
@@ -265,6 +312,7 @@ class XsltExporterTest {
                 new VarRef(ROOT, AtomicType.INTEGER, t1),
                 1,
                 1,
+                SLOT,
                 VALUE,
                 new ElementConstructor("", ORDER_ID, content, t1),
                 t1)));
@@ -303,6 +351,19 @@ class XsltExporterTest {
                 List.of(
                     new TextConstructor(
                         slots(underRoot(ORDER, ORDER_ID, "a2"), 0, 1, "", ORDER_ID, "x9"),
+                        id("t1"))))),
+        Arguments.of(
+            "a TargetRepeat as a text's value",
+            fieldLinkWith(
+                queue,
+                List.of(
+                    new TextConstructor(
+                        new TargetRepeat(
+                            1,
+                            new VarRef(ROOT, AtomicType.INTEGER, x9),
+                            "slot3",
+                            new ElementConstructor("", ORDER_ID, List.of(), x9),
+                            x9),
                         id("t1"))))));
   }
 
@@ -317,9 +378,12 @@ class XsltExporterTest {
   }
 
   /**
-   * IrVerifier accepts a {@code TargetSlots} inside an element, which spec 1's lowering does not
-   * give yet: each level is two spaces deeper, one element per line (#27 design), and the inner
-   * queue's context is {@code Item}.
+   * A {@code TargetSlots} inside a mapped field's element, as lowering gives it since #52: each
+   * level is two spaces deeper, one element per line (#27 design), the inner queue's context is
+   * {@code Item}, and the inner field reads Item's slot number {@code $slot2} as its parent's. The
+   * inner queue is bound once at the top of the template, where the focus is the source document,
+   * and the inner {@code xsl:for-each} reads it by name: each back end evaluates a queue at most
+   * once per mapping run (ADR-0006 since #52).
    */
   @Test
   void aTargetFieldInsideAnElementIsWrittenOneLevelDeeper() {
@@ -330,14 +394,15 @@ class XsltExporterTest {
     TargetSlots names =
         new TargetSlots(
             new SourceQueue(List.of(ORDER, item, name), 2, id("a2")),
-            new VarRef(ROOT, AtomicType.INTEGER, t2),
+            new VarRef(SLOT, AtomicType.INTEGER, t2),
             0,
             1,
-            "name",
+            "slot3",
+            "value3",
             new ElementConstructor(
                 "",
                 name,
-                List.of(new TextConstructor(new VarRef("name", AtomicType.STRING, t2), t2)),
+                List.of(new TextConstructor(new VarRef("value3", AtomicType.STRING, t2), t2)),
                 t2),
             t2);
     TargetDocument document =
@@ -351,6 +416,7 @@ class XsltExporterTest {
                     new VarRef(ROOT, AtomicType.INTEGER, t1),
                     0,
                     UNBOUNDED,
+                    SLOT,
                     VALUE,
                     new ElementConstructor("", item, List.of(names), t1),
                     t1)));
@@ -370,17 +436,171 @@ class XsltExporterTest {
             omit-xml-declaration="no"/>
               <xsl:template match="/">
                 <xsl:variable name="root" as="xs:integer" select="1"/>
+                <xsl:variable name="po:queue1" as="array(item()*)" \
+            select="po:source-queue(array:join(/s0:Order/Item ! [Name ! string()]))"/>
                 <ns0:Order>
                   <xsl:for-each \
-            select="po:slots(array:join(/s0:Order ! [Item ! string()]), $root, ())">
-                    <xsl:variable name="value" as="xs:string" select="."/>
+            select="po:slots(po:source-queue(array:join(/s0:Order ! [Item ! string()])), $root, ())">
+                    <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+                    <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <Item>
-                      <xsl:for-each \
-            select="po:slots(array:join(/s0:Order/Item ! [Name ! string()]), $root, 1)">
-                        <xsl:variable name="name" as="xs:string" select="."/>
-                        <Name><xsl:value-of select="$name"/></Name>
+                      <xsl:for-each select="po:slots($po:queue1, $slot2, 1)">
+                        <xsl:variable name="slot3" as="xs:integer" select="?1"/>
+                        <xsl:variable name="value3" as="xs:string" select="?2"/>
+                        <Name><xsl:value-of select="$value3"/></Name>
                       </xsl:for-each>
                     </Item>
+                  </xsl:for-each>
+                </ns0:Order>
+              </xsl:template>
+            </xsl:stylesheet>
+            """);
+  }
+
+  /**
+   * {@code TargetSlots} of {@code queue} under the parent slot {@code parentSlot}, unbounded,
+   * binding {@code slot<depth>} and {@code value<depth>}, with {@code content} in its element.
+   */
+  private static TargetSlots nested(
+      SourceQueue queue, String parentSlot, int depth, Name element, List<Expr> content) {
+    AuthoringId origin = id("t" + depth);
+    return new TargetSlots(
+        queue,
+        new VarRef(parentSlot, AtomicType.INTEGER, origin),
+        0,
+        UNBOUNDED,
+        "slot" + depth,
+        "value" + depth,
+        new ElementConstructor("", element, content, origin),
+        origin);
+  }
+
+  /**
+   * Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
+   * since #52), and an {@code xsl:for-each} evaluates its select once per occurrence of its parent:
+   * no queue is written inside an occurrence, at any depth. Each queue inside one is bound once at
+   * the top of the template, in IR walk order, and read there by name.
+   */
+  @Test
+  void noQueueIsWrittenInsideAnOccurrence() {
+    Name item = new Name("", "Item");
+    Name line = new Name("", "Line");
+    Name sku = new Name("", "Sku");
+    TargetSlots skus =
+        nested(
+            new SourceQueue(List.of(ORDER, item, line, sku), 3, id("a3")),
+            "slot3",
+            4,
+            sku,
+            List.of(
+                new TextConstructor(new VarRef("value4", AtomicType.STRING, id("t4")), id("t4"))));
+    TargetSlots lines =
+        nested(
+            new SourceQueue(List.of(ORDER, item, line), 2, id("a2")), SLOT, 3, line, List.of(skus));
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(nested(underRoot(ORDER, item, "a1"), ROOT, 2, item, List.of(lines))));
+    IrVerifier.verify(document);
+
+    String stylesheet = XsltExporter.export(document);
+
+    String root = "<ns0:Order>";
+    assertThat(stylesheet.substring(0, stylesheet.indexOf(root) + root.length()))
+        .as("the top of the template")
+        .contains(
+            "<xsl:variable name=\"po:queue1\" as=\"array(item()*)\""
+                + " select=\"po:source-queue(array:join(/s0:Order/Item ! [Line ! string()]))\"/>\n"
+                + "    <xsl:variable name=\"po:queue2\" as=\"array(item()*)\""
+                + " select=\"po:source-queue(array:join(/s0:Order/Item/Line ! [Sku ! string()]))\"/>\n"
+                + "    "
+                + root);
+    // everything after Item's slot-number variable stands inside Item's occurrences
+    String inside = stylesheet.substring(stylesheet.indexOf("select=\"?1\""));
+    assertThat(inside)
+        .as("inside an occurrence")
+        .doesNotContain("array:join")
+        .contains(
+            "<xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">",
+            "<xsl:for-each select=\"po:slots($po:queue2, $slot3, ())\">");
+  }
+
+  /**
+   * A {@code TargetRepeat} under the root, as lowering gives an unmapped {@code Pair} of 2..2 since
+   * #63: an {@code xsl:for-each} over {@code 1 to 2} that binds its slot-number variable to {@code
+   * ($root - 1) * 2 + .}, the j-th copy under parent slot p (ADR-0006). Inside it stands an
+   * occurrence, so the queue of the {@code TargetSlots} below is bound at the top of the template.
+   * That queue is of the structure field {@code Item}: one {@code ''} per occurrence (ADR-0008).
+   */
+  @Test
+  void aTargetRepeatIsAForEachOverItsCopiesNumberedAcrossItsParentsSlots() {
+    Name pair = new Name("", "Pair");
+    Name item = new Name("", "Item");
+    AuthoringId origin = id("/Order/Pair");
+    TargetSlots items =
+        nested(new SourceQueue(List.of(ORDER, item), 1, true, id("a1")), SLOT, 3, item, List.of());
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    2,
+                    new VarRef(ROOT, AtomicType.INTEGER, origin),
+                    SLOT,
+                    new ElementConstructor("", pair, List.of(items), origin),
+                    origin)));
+    IrVerifier.verify(document);
+
+    String stylesheet = XsltExporter.export(document);
+
+    assertThat(stylesheet)
+        .contains(
+            "<xsl:variable name=\"po:queue1\" as=\"array(item()*)\""
+                + " select=\"po:source-queue(array:join(/s0:Order ! [Item ! '']))\"/>\n"
+                + "    <ns0:Order>\n"
+                + "      <xsl:for-each select=\"1 to 2\">\n"
+                + "        <xsl:variable name=\"slot2\" as=\"xs:integer\""
+                + " select=\"($root - 1) * 2 + .\"/>\n"
+                + "        <Pair>\n"
+                + "          <xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">")
+        // the copies' xsl:for-each ends after Pair, on a line of its own
+        .contains("        </Pair>\n      </xsl:for-each>\n    </ns0:Order>\n");
+  }
+
+  /**
+   * IrVerifier accepts an element without content, which spec 1's lowering does not give yet: like
+   * any content but a single text, its end tag stands on a line of its own (#27 design, #49).
+   */
+  @Test
+  void anElementWithoutContentEndsOnALineOfItsOwn() {
+    TargetDocument document = fieldLinkWith(underRoot(ORDER, ORDER_ID, "a1"), List.of());
+    IrVerifier.verify(document);
+
+    assertThat(XsltExporter.export(document))
+        .isEqualTo(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" \
+            xmlns:xs="http://www.w3.org/2001/XMLSchema" \
+            xmlns:array="http://www.w3.org/2005/xpath-functions/array" \
+            xmlns:po="urn:flottila:mapping:po" xmlns:s0="urn:flottila:corpus:skeleton" \
+            xmlns:ns0="urn:flottila:corpus:skeleton" exclude-result-prefixes="#all">
+              <xsl:import href="po-runtime.xsl"/>
+              <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="no" \
+            omit-xml-declaration="no"/>
+              <xsl:template match="/">
+                <xsl:variable name="root" as="xs:integer" select="1"/>
+                <ns0:Order>
+                  <xsl:for-each \
+            select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1, 't1')">
+                    <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+                    <xsl:variable name="value2" as="xs:string" select="?2"/>
+                    <OrderId>
+                    </OrderId>
                   </xsl:for-each>
                 </ns0:Order>
               </xsl:template>
@@ -403,5 +623,185 @@ class XsltExporterTest {
         .contains("xmlns:po=\"urn:flottila:mapping:po\"")
         .contains("<xsl:function ")
         .contains("name=\"po:slots\"");
+  }
+
+  // --- function calls (#50, ADR-0025): a FunCall is po:<catalogue name>(args…), its args in
+  // FunCall order, the inputs and then every param as a Literal; the back ends bind by name only
+
+  private static final QueueType QUEUE = new QueueType();
+
+  private static FunCall removeContexts(Expr queue, String box) {
+    return new FunCall(
+        new FunctionRef("removeContexts", List.of(QUEUE), QUEUE), List.of(queue), id(box));
+  }
+
+  /** The number of {@code xsl:param} of the helper module's {@code xsl:function} {@code name}. */
+  private static int helperParams(String name) {
+    String helper = XsltExporter.helperModule();
+    int at = helper.indexOf("name=\"" + name + "\"");
+    assertThat(at).as("%s in the helper module", name).isNotNegative();
+    assertThat(helper.substring(helper.lastIndexOf('<', at)))
+        .as("the element named %s", name)
+        .startsWith("<xsl:function ");
+    int end = helper.indexOf("</xsl:function>", at);
+    assertThat(end).as("the end of %s", name).isGreaterThan(at);
+    return occurrences(helper.substring(at, end), "<xsl:param ");
+  }
+
+  @Test
+  void aFunCallIsItsPoFunction() {
+    SourceQueue orderIds = underRoot(ORDER, ORDER_ID, "a1");
+    String queue = "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+    String once = "po:slots(po:removeContexts(" + queue + "), $root, 1)";
+    String nested = "po:slots(po:removeContexts(po:removeContexts(" + queue + ")), $root, 1)";
+    String fieldLink = "po:slots(" + queue + ", $root, 1)";
+    assertThat(FIELD_LINK_STYLESHEET).as("the field link's call").contains(fieldLink);
+
+    // the field link's stylesheet with the call around its queue, and nothing else changed
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(removeContexts(orderIds, "r1"), List.of(valueText()))))
+        .isEqualTo(FIELD_LINK_STYLESHEET.replace(fieldLink, once));
+    // an argument is any queue expression, a call included
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(
+                    removeContexts(removeContexts(orderIds, "r1"), "r2"), List.of(valueText()))))
+        .contains("<xsl:for-each select=\"po:at-least(" + nested + ", 1, 't1')\">");
+    // the helper module holds the function, with one parameter per argument
+    assertThat(helperParams("po:removeContexts")).isEqualTo(1);
+  }
+
+  /**
+   * The raw value of the first {@code xsl:for-each}'s {@code select}, as written between quotes.
+   */
+  private static String forEachSelect(String stylesheet) {
+    String start = "<xsl:for-each select=\"";
+    int at = stylesheet.indexOf(start);
+    assertThat(at).as("an xsl:for-each with a select").isNotNegative();
+    int from = at + start.length();
+    return stylesheet.substring(from, stylesheet.indexOf('"', from));
+  }
+
+  /**
+   * The value an XML 1.0 parser gives for an attribute value written as {@code raw} in double
+   * quotes: line ends normalised (§2.11), then references resolved and every literal white-space
+   * character made a space (§3.3.3). A raw {@code <} or an {@code &} that starts no reference is no
+   * well-formed XML.
+   */
+  private static String attributeValue(String raw) {
+    String text = raw.replace("\r\n", "\n").replace('\r', '\n');
+    StringBuilder value = new StringBuilder();
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      assertThat(c).as("a raw < in the attribute %s", raw).isNotEqualTo('<');
+      if (c == '&') {
+        int semicolon = text.indexOf(';', i);
+        assertThat(semicolon).as("a reference at %d of %s", i, raw).isGreaterThan(i + 1);
+        String name = text.substring(i + 1, semicolon);
+        if (name.startsWith("#x")) {
+          value.appendCodePoint(Integer.parseInt(name.substring(2), 16));
+        } else if (name.startsWith("#")) {
+          value.appendCodePoint(Integer.parseInt(name.substring(1)));
+        } else {
+          String entity =
+              switch (name) {
+                case "amp" -> "&";
+                case "lt" -> "<";
+                case "gt" -> ">";
+                case "quot" -> "\"";
+                case "apos" -> "'";
+                default ->
+                    throw new AssertionError("no predefined entity &" + name + "; in " + raw);
+              };
+          value.append(entity);
+        }
+        i = semicolon;
+      } else if (c == ' ' || c == '\t' || c == '\n') {
+        value.append(' ');
+      } else {
+        value.append(c);
+      }
+    }
+    return value.toString();
+  }
+
+  /**
+   * An XPath 3.1 StringLiteral starting at {@code at}: in apostrophes or quotation marks, where the
+   * delimiter doubled stands for itself; its value and the index after it.
+   */
+  private record StringLiteral(String value, int end) {
+
+    static StringLiteral at(String expression, int at) {
+      char delimiter = expression.charAt(at);
+      assertThat(delimiter).as("a string literal at %d of %s", at, expression).isIn('\'', '"');
+      StringBuilder value = new StringBuilder();
+      int i = at + 1;
+      while (true) {
+        assertThat(i)
+            .as("the end of the literal in %s", expression)
+            .isLessThan(expression.length());
+        char c = expression.charAt(i);
+        if (c == delimiter
+            && i + 1 < expression.length()
+            && expression.charAt(i + 1) == delimiter) {
+          value.append(delimiter);
+          i += 2;
+        } else if (c == delimiter) {
+          return new StringLiteral(value.toString(), i + 1);
+        } else {
+          value.append(c);
+          i++;
+        }
+      }
+    }
+  }
+
+  static Stream<Arguments> literals() {
+    return Stream.of(
+        Arguments.of("the empty string", ""),
+        Arguments.of("plain text", "each value"),
+        Arguments.of("an apostrophe", "it's"),
+        Arguments.of("quotation marks", "say \"hi\""),
+        Arguments.of("both delimiters, doubled", "'\"''\"\""),
+        Arguments.of("markup characters", "a&b<c>d&amp;"),
+        Arguments.of("a tab, a line feed and a carriage return", "a\tb\nc\rd"),
+        Arguments.of("a CR LF pair and leading and trailing spaces", " a\r\nb "),
+        Arguments.of("braces, which select never treats as a template", "{x}"),
+        Arguments.of("non-ASCII and a character outside the BMP", "Grüße 😀"));
+  }
+
+  /**
+   * A box parameter is a {@code Literal} argument. Read back as an XML parser and then an XPath
+   * parser read it, the literal is the parameter's value, whatever characters it holds; how it is
+   * quoted and escaped is the exporter's choice. The function name stands for any context function
+   * with a parameter: the exporter binds by name only.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("literals")
+  void aLiteralIsQuotedAndEscaped(String why, String value) {
+    FunCall split =
+        new FunCall(
+            new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(underRoot(ORDER, ORDER_ID, "a1"), new Literal(value, id("s1"))),
+            id("s1"));
+    String call =
+        "po:at-least(po:slots(po:splitByValue(po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+
+    String select =
+        attributeValue(
+            forEachSelect(XsltExporter.export(fieldLinkWith(split, List.of(valueText())))));
+
+    assertThat(select).startsWith(call);
+    int comma = select.indexOf(',', call.length());
+    assertThat(select.substring(call.length(), comma)).as("before the second argument").isBlank();
+    int start = comma + 1;
+    while (select.charAt(start) == ' ') {
+      start++;
+    }
+    StringLiteral literal = StringLiteral.at(select, start);
+    assertThat(literal.value()).isEqualTo(value);
+    assertThat(select.substring(literal.end()))
+        .matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *, *'t1' *\\)");
   }
 }

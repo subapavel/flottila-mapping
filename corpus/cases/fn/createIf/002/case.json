@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/create-if.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, assumed readings since #51: createIf is true for 1 or true in any case, and anything else, \"\" and SUPPRESS included, gives SUPPRESS; from #2 §5: Boolean inputs \"1\" and \"true\" (not case-sensitive) are true, all else false [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm]; observation #61",
+  "expect": "output",
+  "note": "One context of six conditions: TRUE, 1, yes, 0, \" true\" and \"\". Only TRUE and 1 are true, so two empty All. A case-sensitive rule gives one, a rule that trims or takes yes gives three."
+}

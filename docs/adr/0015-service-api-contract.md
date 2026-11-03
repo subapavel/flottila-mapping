@@ -1,6 +1,6 @@
 # The service API: stateless compile and test on the working copy, one diagnostic shape, code-first OpenAPI
 
-Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`)
+Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`); trace shape refined by #53
 
 ADR-0013 makes the editor reach the service only through `ApiClient`, with compile and test
 on the unsaved working copy, and generated wire types only. This ADR fixes the contract and
@@ -41,7 +41,9 @@ contract, and the editor ships with the service.
     (`unconnected-target-field`, `orphaned-reference`, `unreachable-box` …). Tests and the
     editor match on the code, never on the message.
   - `message` is English. Milestone 1 has no i18n.
-  - `location` is exactly one of `{authoringId}`, `{pointer}` (stage 1, ADR-0011),
+  - `location` is exactly one of `{authoringId}`, `{pointer}` (stage 1, ADR-0011; since #65 also
+    `unmapped-mandatory-leaf` at `/targetFieldMappings/<field path>`, the member the missing
+    mapping would occupy, since an unmapped field has no `AuthoringId`),
     `{side, fieldPath}` or `{file, line, column}` (a schema load error).
 - Diagnostics are a result, not a failed request. Compile always answers 200.
 - Save checks stages 1 and 2 only and answers 422 with diagnostics when they fail. Stage 3
@@ -49,8 +51,11 @@ contract, and the editor ships with the service.
 - Test:
   - with compile errors, it answers 200 with the diagnostics and no output;
   - with a runtime error, it answers 200 with `error {code, message, authoringId?}` and no
-    output. `code` is the error QName (`po:MINOCCURS`, `err:FORG0001`, `flottila:TIMEOUT`, `flottila:UDF-ERROR`).
+    output. `code` is the error QName (`po:MINOCCURS`, `po:SORT`, `flottila:TIMEOUT`, `flottila:UDF-ERROR`).
     The output was buffered and is dropped (ADR-0006). The trace up to the error is returned.
+    Since #52 `authoringId` is the target field mapping for `po:MINOCCURS` and the function box
+    for a context function's data error; `flottila:TIMEOUT` has none. The facade's
+    `TestRunResult.RuntimeError` carries it as `Optional<AuthoringId>`.
 - Transport errors (malformed JSON, unknown id, 409, 413) answer `application/problem+json`
   (RFC 9457).
 
@@ -60,7 +65,8 @@ contract, and the editor ships with the service.
   for example `[["1a","2b"],[null,"3c"],[]]`. Values are always strings, and `""` is a value
   (xsi:nil, JSON null, a structure field), so `null` is unambiguous.
 - An atomic value (a single-value call with no queue input) is `{atomic: {type, value}}`.
-- The trace is an object keyed by `AuthoringId`. It holds every box that was evaluated.
+- The trace is an object keyed by `AuthoringId`, in first-report order (since #53, on the wire
+  too). It holds every box that was evaluated.
   Constants are not traced; the editor shows them from the model (ADR-0006). A box that was
   never evaluated, because its field was never created, is absent.
 - A target field mapping's entry adds `occurrences`: per parent slot, the list of slots
@@ -69,8 +75,26 @@ contract, and the editor ships with the service.
 - A box whose UDF called `run.log` adds `messages: [string]`, limited like values (ADR-0020).
 - `po:show` text (`1a,2b|S,3c`) is derived from this shape for oracle diffs and logs only. It
   cannot tell a value `S` or a comma from the markers.
-- Limits, both configurable: a test input up to 10 MB (413 above), and up to 10,000 values per
-  box in the trace (above that, `truncated: true` and the total counts).
+- Limits, both configurable: a test input up to 10 MB (413 above), and the trace limit
+  (`flottila.mapping.trace-limit`, 10,000) per entry; a limit below 1 is refused at startup and
+  by the facade (#53). Since #53 the cap marker is `capped: true`,
+  not `truncated`, which names a slot cut by `maxOccurs`.
+- Since #53 each entry carries `kind`:
+  - `queue` {contexts, capped, slotCount, contextCount}: at most the limit's slots and contexts,
+    the totals always;
+  - `occurrences`, for a target field mapping {min, max?, parents [{parentSlot, created,
+    slots [{slot, status}]}], capped}: at most the limit's slot and parent records, always
+    keeping the field's last parent. The field's queue is the entry of its `result` box.
+    `created < min` marks the parent slot that raised `po:MINOCCURS`; there is no separate
+    `minOccurs` record.
+  - A box feeding several inputs has one entry, its first report. `{atomic}` waits for the first
+    atomic box, in spec 3.
+- Since #53 the slot budget of an occurrences entry is spent in parent order, so the kept last
+  parent can show `created` without its slot records; a cut queue shows its first contexts, and
+  the last one shown may look empty. The editor reads `capped` and the totals (spec 6). The
+  nullable slot of a context is the schema-only type `TraceValue` (`string | null`), code-first.
+- A runtime error returns the trace up to the error. A test run compiled without tracing returns
+  an empty trace.
 
 ## Types
 

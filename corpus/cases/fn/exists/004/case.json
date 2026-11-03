@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/exists-create-if.mapping.json",
+  "provenance": "assumed",
+  "ref": "#57 decision: SUPPRESS is no value for exists, so a context of SUPPRESS only gives false and a context with a value next to a SUPPRESS true; it follows the mapWithDefault equivalence If([]field, exists([]field), Constant) [SAP✓ STD] with a SUPPRESS-only context empty for mapWithDefault (#2 §7.6, assumed, fn/mapWithDefault/002); createIf true → \"\", false → SUPPRESS (#2 §4 [SAP✓]); obs-context-functions ctx-2 (#33) decides the mapWithDefault side; observation #61",
+  "expect": "output",
+  "note": "To observe in PO: exists over a SUPPRESS-only context. Tag in its default context Order is false | false, true | (none) | true, so createIf gives SUPPRESS | SUPPRESS, \"\" | (empty) | \"\". exists gives false, true, false, true, and removeContexts puts them under the root's one slot. Counting SUPPRESS as a value would make the first true."
+}

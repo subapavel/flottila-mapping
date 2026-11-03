@@ -16,18 +16,21 @@ public final class ExecutableMapping {
   private final Node.OfContent root;
   private final int integerSlotCount;
   private final int stringSlotCount;
+  private final int targetQueueCount;
 
   ExecutableMapping(
       Projection projection,
       int rootSlot,
       Node.OfContent root,
       int integerSlotCount,
-      int stringSlotCount) {
+      int stringSlotCount,
+      int targetQueueCount) {
     this.projection = projection;
     this.rootSlot = rootSlot;
     this.root = root;
     this.integerSlotCount = integerSlotCount;
     this.stringSlotCount = stringSlotCount;
+    this.targetQueueCount = targetQueueCount;
   }
 
   /**
@@ -39,13 +42,19 @@ public final class ExecutableMapping {
    * @param tracer receives the reports of a traced compile; an untraced compile never calls it
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws IOException when {@code out} cannot be written
+   * @throws MappingRunException when the run meets a runtime error in its data (ADR-0015)
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
    */
   public void run(InputStream in, OutputStream out, Tracer tracer)
       throws MalformedInputException, IOException {
     Frame frame =
         new Frame(
-            projection.read(in), tracer, new XmlSerializer(out), integerSlotCount, stringSlotCount);
+            projection.read(in),
+            tracer,
+            new XmlSerializer(out),
+            integerSlotCount,
+            stringSlotCount,
+            targetQueueCount);
     frame.integers[rootSlot] = 1;
     frame.out.startDocument();
     root.write(frame);

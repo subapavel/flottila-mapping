@@ -36,7 +36,8 @@ corpus/
   permanent: a case is never renamed, deleted or reused. Tickets (`oracle:corpus`) and the
   ratchet cite it.
 - `expect` is `output` (`expected.xml`), `error` (`expected-error.json` with the error QName or
-  diagnostic code and the `AuthoringId`) or `none` (the case only feeds the differential oracle).
+  diagnostic code and the `AuthoringId`, or since #65 the `pointer` of a diagnostic with no
+  authoring element) or `none` (the case only feeds the differential oracle).
 - `provenance` says where the expected output comes from, with `ref` pointing at the source:
   - `observed`: the owner's run on PO 7.5 and CPI, `ref` = obs-id;
   - `documented`: the SAP documentation, `ref` = a `SAP✓` claim of #2;
@@ -120,6 +121,12 @@ modules' public API. It checks that every code is kebab-case and unique across m
 every code-shaped string in the engine's classes is a catalogue code. `engine/oracle` checks that
 no case expects a code that does not exist, and, from spec 2 on, that at least one corpus case
 raises each runtime error code (F-9).
+Since #52 an `expected-error.json` whose code is a QName expects a runtime error: every variant
+compiles, and the run raises that code at that authoring id. Its input meets exactly one error
+condition. A portable runtime-error case is also differential: Saxon-HE raises the same error
+QName (namespace URI and local name). F-9 counts the errors a run raises from its data
+(`RuntimeErrors` in `engine/runtime`); the facade's tests cover `flottila:TIMEOUT`, which no
+corpus case can raise.
 
 Property tests cover the algebra of queues in `xdm` and `runtime`: context functions, block
 invariants, and `Lift` against a reference implementation in the test. They are JUnit 6

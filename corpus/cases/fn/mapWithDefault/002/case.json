@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/map-with-default-create-if.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §7.6 (open): whether a SUPPRESS-only context counts as empty for mapWithDefault; #57 ticket: it counts as empty (assumed, #33); obs-context-functions ctx-2 f2.xml decides it (#33); createIf true → \"\", false → SUPPRESS (#2 §4 [SAP✓]); observation #61",
+  "expect": "output",
+  "note": "To observe in PO (obs-context-functions ctx-2 o2, o4). Tag in its default context Order is false | false, true | (none) | true, so createIf gives SUPPRESS | SUPPRESS, \"\" | (empty) | \"\". mapWithDefault takes the SUPPRESS-only context for empty and gives it one D, keeps SUPPRESS, \"\" (SUPPRESS next to a value), fills the empty context, keeps \"\": removeContexts gives D, SUPPRESS, \"\", D, \"\", and the root's slot skips the SUPPRESS: D, \"\", D, \"\". A SUPPRESS-only context kept would give \"\", D, \"\"; a D per SUPPRESS slot would give D, D, \"\", D, \"\"."
+}

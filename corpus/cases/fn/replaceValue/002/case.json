@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/replace-value-create-if.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences: SUPPRESS in a Lift input gives SUPPRESS, for every single-value function (assumed reading); obs-lift-reuse lift-2 (#32): W assumed A, C, a single-value function passes SUPPRESS on; observation #61",
+  "expect": "output",
+  "note": "replaceValue(createIf(Tag), yes) with Tag true, false, true in context Orders. createIf gives \"\", SUPPRESS, \"\"; replaceValue replaces each value with yes and passes the SUPPRESS on, so All is yes, yes. Replacing the SUPPRESS too would give a third yes."
+}

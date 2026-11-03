@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/suppress-collapse.mapping.json",
+  "provenance": "documented",
+  "ref": "#2 §3 and §4 collapseContexts, STD: \"Empty contexts (= ResultList.SUPPRESS) are replaced by empty strings\" [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm]; ADR-0006 Consequences since #51: a SUPPRESS first slot is \"\" (documented)",
+  "expect": "output",
+  "note": "Tag in its default context Order is false, true | true | (none), so createIf gives SUPPRESS, \"\" | \"\" | (empty). Each context's first slot, SUPPRESS and the empty context alike, is \"\": three empty All. A SUPPRESS kept as the first value gives two."
+}

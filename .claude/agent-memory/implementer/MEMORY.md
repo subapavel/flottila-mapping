@@ -19,7 +19,43 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   the public `internal` classes; JFR (`-XX:StartFlightRecording`) plus `jfr print` for hot spots.
   Surefire's per-test `time` includes a cold JIT and the JaCoCo agent.
 
+- Worktree-isolated agents: the guard refuses any Bash line that mixes `git` with pipes, `$(…)`,
+  `for` loops or `&&` chains it cannot verify. Run each `git` command plainly on its own line.
+- PIT (gate-spec 1b) mutates each module against that module's own tests only: a path covered
+  only by `EngineFacadeTest` survives in `engine/mapping` / `engine/runtime`. Add module tests.
+- Saxon-HE is test scope in `engine/oracle` only (enforcer): an XSLT helper is run only through
+  the corpus differential oracle, and a root-level target reads context 1 of its queue only.
+- Observing a corpus red after the code exists: put the base `function-catalogue.json` back
+  (`git show <base>:<path> > <path>`), run the oracle, restore it.
+- Probing XPath on Saxon outside the build: a scratch script running `java -cp
+  ~/.m2/.../Saxon-HE-12.5.jar:<xmlresolver jar> net.sf.saxon.Query -q:<file.xq> '!method=text'`.
+  An XSLT helper is proved by hand-made mutants of po-runtime.xsl run through the differential.
+- Saxon 12.5 (observed): `upper-case`/`lower-case` use Saxon's own tables (`net.sf.saxon.str.
+  ToUpper`), full mappings; `fn:sort` is stable and compares sequence keys item by item, shorter
+  prefix first. Java `compareTo` is UTF-16 order, `compareToIgnoreCase` code-point order (JDK src).
+- engine/xdm is at 100 % PIT: an interrupt check that `QueueBlock.of`'s own check duplicates dies
+  only if the test asserts the function's name in the CancellationException message.
+- `-pl engine/oracle` without `-am` takes sibling SNAPSHOT jars from `~/.m2`, stale ones: a
+  "cannot find symbol" for a new engine class. Always `-am`.
+- A ticket branch checked out in another worktree: reset the agent branch to it, then
+  `git push origin HEAD:<ticket-branch>`.
+- Splitting a shared helper copies its branches; a copy no test reaches drops the module's
+  branch % (the ratchet floors it: 97.9 is 97). Keep a shared check in one method.
+- Saxon 12.5 s9api `QName.getNamespaceURI()` is deprecated (`-Werror` fails): `getNamespace()`.
+- Saxon: inside `xsl:for-each` over arrays the focus is no node, a leading `/` is static
+  XPTY0020. A global `select="/"` was rejected in review (an export must not need a global
+  context item): bind the value at the template's top. Saxon 12.5 evaluates a template
+  `xsl:variable` lazily (observed: unread, its error is never raised).
+- Review asks for a mutant per new guard: stage the work, `sed` the mutants, run with
+  `-Dmaven.test.failure.ignore=true -Dtest=…`, then `git checkout -- <files>` restores.
+- Error messages in engine classes must not hold a kebab-case constant with a hyphen (e.g. a param
+  value `case-insensitive`): `DiagnosticCatalogueTest` treats it as an uncatalogued code (read in
+  its source, not observed failing).
+
 ## json-sKema 0.32.0 (observed, engine/mapping)
+
+- `IJsonObject.get(String)` is `getProperties().get(new JsonString(key))`: `null` when absent
+  (javap -c).
 
 - Automatic module `json.sKema`; needs `-Xlint:-requires-automatic` under `-Werror`.
 - `patternProperties`: the visitor keeps `firstOrNull()` of the per-member results, so only the

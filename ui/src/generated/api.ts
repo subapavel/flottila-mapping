@@ -269,7 +269,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description The output, or the diagnostics that refuse the working copy */
+                /** @description The output, the diagnostics that refuse the working copy, or the runtime error */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -435,6 +435,13 @@ export interface components {
             id: string;
             name: string;
         };
+        ParentSlotDto: {
+            /** Format: int64 */
+            parentSlot: number;
+            /** Format: int64 */
+            created: number;
+            slots: components["schemas"]["SlotStatusDto"][];
+        };
         PointerLocation: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -459,6 +466,17 @@ export interface components {
             status: number;
             detail: string;
             diagnostics: components["schemas"]["DiagnosticDto"][];
+        };
+        RuntimeErrorDto: {
+            code: string;
+            message: string;
+            authoringId?: string;
+        };
+        SlotStatusDto: {
+            /** Format: int64 */
+            slot: number;
+            /** @enum {string} */
+            status: "created" | "suppressed" | "truncated";
         };
         StructureChoice: {
             bundle: string[];
@@ -490,6 +508,18 @@ export interface components {
             root: components["schemas"]["rootSelector"];
         };
         StructureResponse: components["schemas"]["StructureLoaded"] | components["schemas"]["StructureRefused"];
+        TestError: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "error";
+            error: components["schemas"]["RuntimeErrorDto"];
+            diagnostics: components["schemas"]["DiagnosticDto"][];
+            trace: {
+                [key: string]: components["schemas"]["TraceEntryDto"];
+            };
+        };
         TestOutput: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -498,6 +528,9 @@ export interface components {
             kind: "output";
             output: string;
             diagnostics: components["schemas"]["DiagnosticDto"][];
+            trace: {
+                [key: string]: components["schemas"]["TraceEntryDto"];
+            };
         };
         TestRefused: {
             /**
@@ -511,7 +544,36 @@ export interface components {
             model: components["schemas"]["mapping-model.schema"];
             input: string;
         };
-        TestResult: components["schemas"]["TestOutput"] | components["schemas"]["TestRefused"];
+        TestResult: components["schemas"]["TestOutput"] | components["schemas"]["TestRefused"] | components["schemas"]["TestError"];
+        TraceContext: components["schemas"]["TraceValue"][];
+        TraceEntryDto: components["schemas"]["TraceQueueDto"] | components["schemas"]["TraceOccurrencesDto"];
+        TraceOccurrencesDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "occurrences";
+            /** Format: int64 */
+            min: number;
+            /** Format: int64 */
+            max?: number;
+            parents: components["schemas"]["ParentSlotDto"][];
+            capped: boolean;
+        };
+        TraceQueueDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "queue";
+            contexts: components["schemas"]["TraceContext"][];
+            capped: boolean;
+            /** Format: int32 */
+            slotCount: number;
+            /** Format: int32 */
+            contextCount: number;
+        };
+        TraceValue: string | null;
         /** ElementRoot */
         elementRoot: {
             /** @description The root element's EQName. */

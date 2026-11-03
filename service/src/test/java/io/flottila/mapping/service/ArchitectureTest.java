@@ -10,6 +10,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
+import io.flottila.mapping.mapping.MappingModel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.ModuleDescriptor;
@@ -121,6 +122,24 @@ class ArchitectureTest {
             .resideInAPackage(SERVICE_PACKAGE + "..")
             .should()
             .dependOnClassesThat(behindTheFacade);
+    rule.check(importedClasses());
+  }
+
+  /**
+   * Rule E: the service builds no mapping model (ADR-0016, #54): a new one comes from {@code
+   * EngineFacade.newMapping}, so the format version and its defaults stay in the engine.
+   */
+  @Test
+  void ruleE_serviceBuildsNoMappingModel() {
+    ArchRule rule =
+        noClasses()
+            .that()
+            .resideInAPackage(SERVICE_PACKAGE + "..")
+            .should()
+            .callConstructorWhere(
+                DescribedPredicate.describe(
+                    "a MappingModel constructor",
+                    call -> call.getTargetOwner().isEquivalentTo(MappingModel.class)));
     rule.check(importedClasses());
   }
 

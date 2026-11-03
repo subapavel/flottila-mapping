@@ -100,7 +100,8 @@ _Avoid_: source node
 
 **Box parameter**:
 A constant setting of a function box (a string or a table of strings), named as in the function
-catalogue, such as a date pattern or the mode of `splitByValue`.
+catalogue, such as a date pattern or the mode of `splitByValue`. A parameter the box leaves
+out takes the catalogue's default.
 _Avoid_: argument, input
 
 **Unresolved function**:
@@ -197,8 +198,21 @@ _Avoid_: node function
 **Function catalogue**:
 The data that lists every standard function: its name, its SAP PO/CPI name, execution kind,
 parameters, whether it is portable, and its fidelity. The editor's palette, the function
-documentation and migration tools read it.
+documentation and migration tools read it. Engine-internal from spec 2 (`function-catalogue.json`
+in `engine/mapping`, ADR-0025), published in spec 3.
 _Avoid_: function registry, function list
+
+**Runtime error**:
+An error that stops a mapping run, named by a QName: from the input data (`po:MINOCCURS`, a
+context function's count mismatch) or from a test run's limit (`flottila:TIMEOUT`). The output is
+dropped; a test run returns the code, the message and the authoring id.
+_Avoid_: exception, failure, diagnostic
+
+**Runtime library**:
+The engine's context and queue functions: the algebra over queue blocks in `engine/xdm`, bound by
+catalogue name at compile in `engine/runtime` (ADR-0025). The helper module is its export
+counterpart.
+_Avoid_: function registry
 
 **Fidelity**:
 How a standard function relates to SAP PO/CPI behaviour: _exact_, _deviation_ (a documented
@@ -234,12 +248,28 @@ in slots.
 _Avoid_: entry, element, item (reserved for XDM)
 
 **Empty context**:
-A context with no slots, as under a parent occurrence without children. A queue with no contexts
-at all (the parent is absent) is a different thing.
+A context with no slots, as under a parent occurrence without children. A source queue whose
+context element never occurs in the message is one empty context (F-17). A queue with no contexts
+at all (`{0}`) is a different thing; only a function result can be one.
 
 **SUPPRESS**:
-The marker for a value that is present as a slot but produces no target field.
+The marker for a value that is present as a slot but produces no target field. In a queue block,
+a set bit with a null value; in the export, `$po:SUPPRESS`.
 _Avoid_: null, empty (both are different things)
+
+**Slot variable**:
+The variable from which a `Lift` body reads one input's value at the current slot, `in1` … `inN`.
+_Avoid_: argument, parameter; never the `TargetSlots` slot-number variable (that is the slot-number variable)
+
+**Slot-number variable**:
+The variable of a `TargetSlots` (`slotVar`) that holds the slot number of the occurrence being
+written; its children read their queues under it as their parent slot. Its sibling `valueVar`
+holds that slot's value.
+_Avoid_: slot variable (that is a `Lift` input)
+
+**Parent slot**:
+The slot number of the parent occurrence under which a target field's slots are read.
+_Avoid_: parent index
 
 **Slot number**:
 The position of a slot counted across all contexts of a queue, starting at 1. A target
@@ -263,8 +293,19 @@ _Avoid_: simulation, preview
 
 **Trace**:
 What a test run records: the queue or value each evaluated box produced, by authoring id, and
-the occurrences of each target field per parent slot. The display queue shows it.
+the occurrences of each target field per parent slot: each slot created, suppressed or truncated,
+the count created, and the field's min and max. The display queue shows it.
 _Avoid_: log, debug output
+
+**Trace limit**:
+The most slots, contexts or occurrence records one trace entry holds, 10,000 by default and
+configurable. An entry above it is _capped_ and keeps its totals.
+_Avoid_: truncated (a slot cut by `maxOccurs`)
+
+**Truncated slot**:
+A slot that comes after `maxOccurs` occurrences were created in its context. It creates nothing
+and keeps its slot number, so it still consumes its child context.
+_Avoid_: dropped value
 
 **Diagnostic catalogue**:
 The stable codes of design-time errors and warnings, declared as constants in one

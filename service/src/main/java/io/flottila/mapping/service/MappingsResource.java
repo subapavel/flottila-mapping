@@ -12,6 +12,9 @@ import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.StructureResult;
 import io.flottila.mapping.api.Structures;
+import io.flottila.mapping.api.TestRunResult;
+import io.flottila.mapping.api.Trace;
+import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.MalformedJsonException;
@@ -36,11 +39,12 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -72,10 +76,18 @@ public class MappingsResource {
   private final ObjectMapper json;
   private final EngineFacade facade = new EngineFacade();
 
+  /** {@code flottila.mapping.test-timeout}: how long a test run may take (ADR-0014). */
+  private final Duration timeout;
+
+  /** {@code flottila.mapping.trace-limit}: the most one trace entry keeps (ADR-0015, "Trace"). */
+  private final int traceLimit;
+
   @Inject
-  MappingsResource(Workspace workspace, ObjectMapper json) {
+  MappingsResource(Workspace workspace, ObjectMapper json, Config config) {
     this.workspace = workspace;
     this.json = json;
+    this.timeout = config.getValue("flottila.mapping.test-timeout", Duration.class);
+    this.traceLimit = ServiceConfig.traceLimit(config);
   }
 
   /** The workspace's mappings, sorted by id. */
@@ -154,10 +166,7 @@ public class MappingsResource {
           "a structure of the new mapping cannot be loaded", DiagnosticDto.all(refusals));
     }
     byte[] canonical =
-        canonical(
-            facade.save(
-                new MappingModel(
-                    1, source.orElseThrow(), target.orElseThrow(), Map.of(), Map.of())));
+        canonical(facade.save(facade.newMapping(source.orElseThrow(), target.orElseThrow())));
     workspace.create(request.id(), canonical);
     return model(Response.created(URI.create("/api/mappings/" + request.id())), canonical);
   }
@@ -269,7 +278,8 @@ public class MappingsResource {
   @Produces(APPLICATION_JSON)
   @APIResponse(
       responseCode = "200",
-      description = "The output, or the diagnostics that refuse the working copy",
+      description =
+          "The output, the diagnostics that refuse the working copy, or the runtime error",
       content =
           @Content(
               mediaType = APPLICATION_JSON,
@@ -305,7 +315,10 @@ public class MappingsResource {
     };
   }
 
-  /** Checks the working copy's bundle references, then compiles and runs it. */
+  /**
+   * Checks the working copy's bundle references, then compiles it and runs it for at most the
+   * test-run timeout, with the engine's trace capped at the trace limit.
+   */
   private TestResult run(Path directory, byte[] model, MappingModel loaded, String input)
       throws IOException, WorkspacePathException, MalformedJsonException, MalformedInputException {
     workspace.checkBundle(directory, loaded.source().bundle().files());
@@ -314,7 +327,19 @@ public class MappingsResource {
       case CompileResult.Refused(List<Diagnostic> diagnostics) ->
           new TestRefused(DiagnosticDto.all(diagnostics));
       case CompileResult.Compiled(CompiledMapping compiled) ->
-          new TestOutput(new String(facade.run(compiled, input.getBytes(UTF_8)), UTF_8), List.of());
+          switch (facade.testRun(compiled, input.getBytes(UTF_8), timeout, traceLimit)) {
+            case TestRunResult.Output(byte[] output, Trace trace) ->
+                new TestOutput(new String(output, UTF_8), List.of(), TraceEntryDto.all(trace));
+            case TestRunResult.RuntimeError(
+                    String code,
+                    String message,
+                    Optional<AuthoringId> authoringId,
+                    Trace trace) ->
+                new TestError(
+                    new RuntimeErrorDto(code, message, authoringId.map(AuthoringId::value)),
+                    List.of(),
+                    TraceEntryDto.all(trace));
+          };
     };
   }
 

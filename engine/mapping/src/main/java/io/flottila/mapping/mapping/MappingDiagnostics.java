@@ -54,7 +54,10 @@ public final class MappingDiagnostics {
 
   // stage 3, compile (#26)
 
-  /** A box of a kind spec 1 does not compile that {@code result} reaches, at the box. */
+  /**
+   * A box that {@code result} reaches and that this engine does not compile yet, at the box: a UDF
+   * box, or a function box whose function the catalogue does not hold yet (ADR-0025).
+   */
   public static final String UNSUPPORTED_BOX_KIND = "unsupported-box-kind";
 
   /** An unresolved function box that {@code result} reaches, at the box. */
@@ -73,6 +76,32 @@ public final class MappingDiagnostics {
 
   /** A target field mapping whose {@code result} is {@code null} (F-2). */
   public static final String UNCONNECTED_TARGET_FIELD = "unconnected-target-field";
+
+  /**
+   * A target leaf whose effective occurrence has {@code minOccurs > 0}, that has no target field
+   * mapping and stands under a parent that is created (ADR-0006, #65), at its absent member {@code
+   * /targetFieldMappings/<field path>}.
+   */
+  public static final String UNMAPPED_MANDATORY_LEAF = "unmapped-mandatory-leaf";
+
+  // stage 3, a reached standard function box against its catalogue entry (ADR-0025)
+
+  /** A function box with more inputs than its catalogue entry has, at the box. */
+  public static final String WRONG_ARITY = "wrong-arity";
+
+  /**
+   * A function box input slot of its catalogue entry that is {@code null} or absent, at the box.
+   */
+  public static final String UNCONNECTED_INPUT = "unconnected-input";
+
+  /** A function box param whose key its catalogue entry lacks, at the box. */
+  public static final String UNKNOWN_PARAMETER = "unknown-parameter";
+
+  /** A function box param of another type than its catalogue entry's, at the box. */
+  public static final String WRONG_PARAMETER_TYPE = "wrong-parameter-type";
+
+  /** A function box param whose string is none of its catalogue entry's values, at the box. */
+  public static final String INVALID_PARAMETER_VALUE = "invalid-parameter-value";
 
   private MappingDiagnostics() {}
 }

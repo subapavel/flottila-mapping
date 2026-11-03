@@ -52,7 +52,7 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
 - `/api/structures` answers a structure load error with 200 `refused`.
 - Unions use the discriminator `kind`:
   - location: `pointer`, `authoring-id` or `file-position`;
-  - test result: `output` or `refused`;
+  - test result: `output`, `refused` or `error` (a runtime error, #54);
   - structure result: `loaded` or `refused`.
 - The optional marker is a `java.util.Optional` record component. Every other component is required.
 
@@ -61,7 +61,7 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
 - The service bypasses Jackson for model bytes on GET, PUT and create, so the strict reader and byte
   identity hold.
 - It calls only:
-  - `EngineFacade.load`, `save`, `compile` and `run`;
+  - `EngineFacade.load`, `save`, `compile`, `run`, `newMapping` and `testRun` (#54);
   - `Structures.load`;
   - `Structure.fingerprint()` and the structure's read accessors (root field and type definitions), which
     `/api/structures` maps to `FieldDto`.

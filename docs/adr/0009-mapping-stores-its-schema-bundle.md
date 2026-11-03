@@ -1,6 +1,6 @@
 # A mapping stores its schema bundle; the structure is re-derived and guarded by a fingerprint
 
-Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied)
+Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied); anonymous type ids since #62
 
 A mapping stores three things for each side:
 
@@ -22,6 +22,11 @@ Re-importing a new schema version compares the two structures by field path (ADR
   editor marks it. Compiling raises a design-time error with the `AuthoringId` of the box that
   uses it.
 - A changed occurrence or value type is a warning.
+
+An anonymous complex type has no name of its own, so its canonical type id is the field path
+of the element that declares it. Sibling structure fields that share one step get ids `path`,
+`path#2`, `path#3` in document order (#62). The suffix is part of the canonical text, so reordering
+such siblings changes the fingerprint; that is intended, because their order is what the compiler reads.
 
 How the bundle sits inside the mapping model is decided by ADR-0010 (#6). The mapping refers to
 the bundle files by a path relative to the mapping file, or by a file in a shared package at a

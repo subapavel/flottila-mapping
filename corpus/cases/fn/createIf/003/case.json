@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/create-if-twice.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, assumed readings since #51: createIf of anything but 1 or true, \"\" and SUPPRESS included, gives SUPPRESS; observation #61",
+  "expect": "output",
+  "note": "createIf(createIf(Tag)) with Tag true, false, 1 in context Orders. The inner createIf gives \"\", SUPPRESS, \"\"; the outer one takes neither \"\" nor SUPPRESS as true, so every slot is SUPPRESS and the root is written empty. Taking \"\" as true would give two All."
+}

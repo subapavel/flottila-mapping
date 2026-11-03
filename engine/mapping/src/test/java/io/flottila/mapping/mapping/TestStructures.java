@@ -63,6 +63,155 @@ final class TestStructures {
         leaf("urn:u", "Other", 0, 1, ValueType.STRING));
   }
 
+  /**
+   * A target whose root {@code Invoice} has no namespace and whose leaves meet {@code urn:v} before
+   * {@code urn:u}, against the order of their names: {@code Plain} in none, {@code Ref} and {@code
+   * Other} in {@code urn:v}, {@code Number} in {@code urn:u}.
+   */
+  static Structure invoiceWithoutNamespace() {
+    return structure(
+        "",
+        "Invoice",
+        Map.of(),
+        leaf("", "Plain", 0, 1, ValueType.STRING),
+        leaf("urn:v", "Ref", 0, 1, ValueType.STRING),
+        leaf("urn:u", "Number", 1, 1, ValueType.STRING),
+        leaf("urn:v", "Other", 0, 1, ValueType.STRING));
+  }
+
+  /**
+   * The shape of {@code corpus/structures/observations/src-orders.xsd} without {@code Memo}: {@code
+   * Orders/Order} 0..unbounded with {@code Id}, {@code Tag} and {@code Line} 0..unbounded with
+   * {@code Sku} and {@code Qty}. No namespace.
+   */
+  static Structure orders() {
+    return structure(
+        "",
+        "Orders",
+        Map.of(
+            "/Orders/Order",
+            new StructureType(
+                "/Orders/Order",
+                List.of(
+                    leaf("", "Id", 0, 1, ValueType.STRING),
+                    leaf("", "Tag", 0, Occurrence.UNBOUNDED, ValueType.STRING),
+                    structureField("Line", 0, Occurrence.UNBOUNDED, "/Orders/Order/Line"))),
+            "/Orders/Order/Line",
+            new StructureType(
+                "/Orders/Order/Line",
+                List.of(
+                    leaf("", "Sku", 0, 1, ValueType.STRING),
+                    leaf("", "Qty", 0, 1, ValueType.STRING)))),
+        structureField("Order", 0, Occurrence.UNBOUNDED, "/Orders/Order"));
+  }
+
+  /**
+   * The shape of {@code corpus/structures/tgt-nested.xsd} (#52): {@code Doc/Grp} 0..unbounded,
+   * {@code Row} 1..2 in each Grp, {@code Val} 0..1 in each Row, a leaf at depth 4. No namespace.
+   */
+  static Structure nested() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Grp",
+            new StructureType("/Doc/Grp", List.of(structureField("Row", 1, 2, "/Doc/Grp/Row"))),
+            "/Doc/Grp/Row",
+            new StructureType("/Doc/Grp/Row", List.of(leaf("", "Val", 0, 1, ValueType.STRING)))),
+        structureField("Grp", 0, Occurrence.UNBOUNDED, "/Doc/Grp"));
+  }
+
+  /**
+   * A target with two unmapped structure fields under its root {@code Doc} (#63): {@code None}
+   * 0..0, holding the leaf {@code X}, and {@code Pair} 2..2, holding the leaf {@code V}. No
+   * namespace.
+   */
+  static Structure repeated() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/None",
+            new StructureType("/Doc/None", List.of(leaf("", "X", 0, 1, ValueType.STRING))),
+            "/Doc/Pair",
+            new StructureType(
+                "/Doc/Pair", List.of(leaf("", "V", 0, Occurrence.UNBOUNDED, ValueType.STRING)))),
+        structureField("None", 0, 0, "/Doc/None"),
+        structureField("Pair", 2, 2, "/Doc/Pair"));
+  }
+
+  /**
+   * A target whose type requires itself twice (#63): {@code Doc/Self} 1..1 of the type {@code
+   * /Doc/Self}, which holds the leaf {@code V} 0..1, then {@code Self} and {@code Again}, both 1..1
+   * of the same type. No instance is finite, and the unmapped {@code Self} is created whatever the
+   * mapping. No namespace.
+   */
+  static Structure selfRequired() {
+    Field self = structureField("Self", 1, 1, "/Doc/Self");
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Self",
+            new StructureType(
+                "/Doc/Self",
+                List.of(
+                    leaf("", "V", 0, 1, ValueType.STRING),
+                    self,
+                    structureField("Again", 1, 1, "/Doc/Self")))),
+        self);
+  }
+
+  /**
+   * A finite recursion through two types (#63): the root {@code Doc} holds {@code Fix} 1..1 of the
+   * type {@code /T}, and {@code /T} holds the leaf {@code V} 0..1 and {@code Down} 0..1 of the
+   * root's type {@code /Doc}. The unmapped Fix under each mapped Down repeats {@code /T} once more
+   * on its path, and an unmapped Down ends the chain. No namespace.
+   */
+  static Structure fixDown() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/T",
+            new StructureType(
+                "/T",
+                List.of(
+                    leaf("", "V", 0, 1, ValueType.STRING), structureField("Down", 0, 1, "/Doc")))),
+        structureField("Fix", 1, 1, "/T"));
+  }
+
+  /** The namespace of {@link #mandatory()}'s {@code Tilde}, whose {@code ~} a pointer escapes. */
+  static final String TILDE = "urn:a~b";
+
+  /**
+   * A target with mandatory leaves under each kind of parent (#65): {@code Doc/Head} 1..1 holds
+   * {@code A} 0..1 and {@code Req} 1..1; {@code Opt} 0..1 holds {@code Must} 1..1; {@code Item}
+   * 0..unbounded holds {@code Need} 1..1; then the leaves {@code Tilde} 1..1 in {@link #TILDE} and
+   * {@code Free} 0..1. Otherwise no namespace.
+   */
+  static Structure mandatory() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Head",
+            new StructureType(
+                "/Doc/Head",
+                List.of(
+                    leaf("", "A", 0, 1, ValueType.STRING),
+                    leaf("", "Req", 1, 1, ValueType.STRING))),
+            "/Doc/Opt",
+            new StructureType("/Doc/Opt", List.of(leaf("", "Must", 1, 1, ValueType.STRING))),
+            "/Doc/Item",
+            new StructureType("/Doc/Item", List.of(leaf("", "Need", 1, 1, ValueType.STRING)))),
+        structureField("Head", 1, 1, "/Doc/Head"),
+        structureField("Opt", 0, 1, "/Doc/Opt"),
+        structureField("Item", 0, Occurrence.UNBOUNDED, "/Doc/Item"),
+        leaf(TILDE, "Tilde", 1, 1, ValueType.STRING),
+        leaf("", "Free", 0, 1, ValueType.STRING));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =

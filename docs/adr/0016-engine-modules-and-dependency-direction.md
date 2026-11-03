@@ -37,7 +37,7 @@ module's row is fixed now (ADR-0021); its spec comes after milestone 1.
   a named module, `permits` cannot reach into another module.
 - `mapping` does not depend on `runtime`. The facade `engine/api` joins them. It runs the chain
   load → three-stage validation (ADR-0011) → lowering → closure compile in `runtime` (ADR-0021) → interpreter with a tracer → output or
-  runtime error with the trace, and it applies the test timeout (ADR-0014; not yet applied in spec 1, F-12, due in spec 2). The service
+  runtime error with the trace, and it applies the test timeout (ADR-0014; `testRun`, since #54). The service
   translates between the facade and the wire DTOs and holds no engine logic. The facade is not
   the embedding API for Flottila, which is still out of milestone 1 (ADR-0014). It carries no
   compatibility promise.

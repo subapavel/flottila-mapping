@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/split-by-value-change.mapping.json",
+  "provenance": "assumed",
+  "ref": "#48 owner decision Q3, mode valueChange: a context change where the value differs from the previous one; #2 §4 labels not seen on SAP pages; obs-context-functions ctx-3 (f3.xml) decides it; #2 §7.6 (a <Tag/> is the value \"\")",
+  "expect": "output",
+  "note": "valueChange with the empty value first: <Tag/>, <Tag/>, a gives \"\", \"\", a. The two \"\" are equal and a differs, so context 1 is \"\", \"\" and All is two empty All. All under the root's one slot reads context 1 of S1's queue, so it shows where the first split falls."
+}

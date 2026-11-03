@@ -4,18 +4,24 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.Lift;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The portable XSLT 3.0 export of unoptimised IR (ADR-0023): one stylesheet that imports the helper
@@ -31,8 +37,32 @@ import java.util.Map;
  *       pair met again is not declared again.
  *   <li>A name without a namespace stays bare. There is never a default namespace and never an
  *       {@code xpath-default-namespace}.
- *   <li>{@code TargetSlots} is {@code po:slots} over its queue, its parent's slot number and its
- *       {@code max}, {@code ()} when unbounded; spec 1 does not enforce {@code min} (ADR-0006).
+ *   <li>{@code TargetSlots} is an {@code xsl:for-each} over {@code po:slots} of its queue, its
+ *       parent's slot number and its {@code max}, {@code ()} when unbounded, inside {@code
+ *       po:at-least} with its {@code min} and the id of its target field mapping, its origin, when
+ *       the min is above 0 (ADR-0006 since #52). Each item is {@code [slot number, value]}, bound
+ *       to its slot-number and value variables.
+ *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
+ *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
+ *       slot number (ADR-0006; #63).
+ *   <li>Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
+ *       since #52). A {@code TargetSlots} directly under the root is written outside any {@code
+ *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
+ *       where the {@code xsl:for-each} runs once per occurrence of the parent, the queue is bound
+ *       once instead, as {@code po:queue1}, {@code po:queue2} … in IR walk order at the top of the
+ *       template, and {@code po:slots} reads the variable.
+ *   <li>A queue is an {@code array(item()*)} with one member per context, each value an {@code
+ *       xs:string} or {@code $po:SUPPRESS}. A {@code SourceQueue} reads the source document as
+ *       {@code /}, the template's focus wherever a queue is written, and has at least one context
+ *       ({@code po:source-queue}, F-17); a leaf field's member holds its {@code string()} per
+ *       occurrence, a structure field's {@code ''} (ADR-0008; #63). A {@code FunCall} is {@code
+ *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
+ *       (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
+ *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
+ *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
+ *       body (ADR-0025 since #51).
+ *   <li>An expression is escaped for the attribute it stands in, so a literal keeps every
+ *       character, white space included.
  * </ul>
  *
  * <p>An IR it cannot write is a compiler bug, as in {@code IrVerifier}, so it throws {@link
@@ -46,8 +76,9 @@ public final class XsltExporter {
   public static final String HELPER_MODULE = "po-runtime.xsl";
 
   /**
-   * The stylesheet: its declarations, the helper module, the root's slot variable, the root's name
-   * and its content, each line of which starts with its own line break.
+   * The stylesheet: its declarations, the helper module, the root's slot-number variable, the queue
+   * variables, the root's name and its content. Each line of the queue variables and of the content
+   * starts with its own line break.
    */
   private static final String STYLESHEET =
       """
@@ -57,9 +88,9 @@ public final class XsltExporter {
         <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="no" \
       omit-xml-declaration="no"/>
         <xsl:template match="/">
-          <xsl:variable name="%3$s" as="xs:integer" select="1"/>
-          <%4$s>%5$s
-          </%4$s>
+          <xsl:variable name="%3$s" as="xs:integer" select="1"/>%4$s
+          <%5$s>%6$s
+          </%5$s>
         </xsl:template>
       </xsl:stylesheet>
       """;
@@ -69,11 +100,24 @@ public final class XsltExporter {
 
   private static final String FOR_EACH =
       """
-      <xsl:for-each select="po:slots(%s, %s, %s)">""";
+      <xsl:for-each select="%s">""";
+
+  /** The occurrences of a {@code TargetSlots}: its queue, its parent's slot number, its max. */
+  private static final String SLOTS = "po:slots(%s, %s, %s)";
+
+  /**
+   * The occurrences of a {@code TargetSlots} whose min is above 0, the min, and its target field
+   * mapping, which the error names.
+   */
+  private static final String AT_LEAST = "po:at-least(%s, %d, %s)";
+
+  private static final String SLOT_VARIABLE =
+      """
+      <xsl:variable name="%s" as="xs:integer" select="?1"/>""";
 
   private static final String VALUE_VARIABLE =
       """
-      <xsl:variable name="%s" as="xs:string" select="."/>""";
+      <xsl:variable name="%s" as="xs:string" select="?2"/>""";
 
   private static final String END_FOR_EACH =
       """
@@ -83,16 +127,56 @@ public final class XsltExporter {
       """
       <xsl:value-of select="%s"/>""";
 
-  /** A {@code SourceQueue}: its context's path from the root, then its field's path under it. */
+  /**
+   * The variable that binds the queue of a {@code TargetSlots} inside an occurrence once, at the
+   * top of the template, where the focus is the source document: its name and its queue.
+   */
+  private static final String QUEUE_VARIABLE =
+      """
+      <xsl:variable name="%s" as="array(item()*)" select="%s"/>""";
+
+  /** The name of the n-th queue variable, in the po namespace, where no IR variable name is. */
+  private static final String QUEUE_NAME = "po:queue%d";
+
+  /**
+   * A {@code SourceQueue}: its context's path from the root, its field's path under it, and what
+   * each occurrence gives. {@code po:source-queue} makes it one empty context when the context
+   * never occurs (ADR-0004 as amended, F-17).
+   */
   private static final String QUEUE =
       """
-      array:join(/%s ! [%s ! string()])""";
+      po:source-queue(array:join(/%s ! [%s ! %s]))""";
+
+  /** What an occurrence of a leaf field gives in its queue: its text. */
+  private static final String LEAF_VALUE = "string()";
+
+  /** What an occurrence of a structure field gives in its queue (ADR-0008). */
+  private static final String STRUCTURE_VALUE = "''";
+
+  /** The occurrences of a {@code TargetRepeat}: its copies. */
+  private static final String REPEAT = "1 to %d";
+
+  /** The slot number of a {@code TargetRepeat}'s occurrence: its name, parent slot, copies. */
+  private static final String REPEAT_SLOT_VARIABLE =
+      """
+      <xsl:variable name="%s" as="xs:integer" select="(%s - 1) * %d + ."/>""";
+
+  /**
+   * A {@code Lift} (ADR-0025): {@code po:lift} over its queues, and over the inline function that
+   * binds the slot variables and returns the body.
+   */
+  private static final String LIFT =
+      """
+      po:lift((%s), function($in as xs:string*) as xs:string { let %s return %s })""";
 
   /** The {@code max} of a {@code TargetSlots} that is unbounded. */
   private static final String UNBOUNDED = "()";
 
   /** The indent of one level. */
   private static final String INDENT = "  ";
+
+  /** The depth of the template's content: stylesheet, template. */
+  private static final int TEMPLATE_DEPTH = 2;
 
   /** The depth of the root's content: stylesheet, template, root. */
   private static final int CONTENT_DEPTH = 3;
@@ -108,6 +192,12 @@ public final class XsltExporter {
 
   /** The declarations of the IR's output prefixes. */
   private final StringBuilder outputDeclarations = new StringBuilder();
+
+  /** The queue variables, one per {@code TargetSlots} inside an occurrence, in IR walk order. */
+  private final StringBuilder queueVariables = new StringBuilder();
+
+  /** The number of queue variables so far. */
+  private int queueCount;
 
   private XsltExporter() {
     String stylesheet = "xsl:stylesheet";
@@ -127,12 +217,13 @@ public final class XsltExporter {
     String root = exporter.outputName(document.prefix(), document.root(), "the root");
     StringBuilder content = new StringBuilder();
     for (Expr expr : document.content()) {
-      exporter.instruction(expr, CONTENT_DEPTH, content);
+      exporter.instruction(expr, CONTENT_DEPTH, false, content);
     }
     return STYLESHEET.formatted(
         exporter.declarations.toString() + exporter.outputDeclarations,
         HELPER_MODULE,
         document.rootSlot(),
+        exporter.queueVariables,
         root,
         content);
   }
@@ -147,16 +238,39 @@ public final class XsltExporter {
     }
   }
 
-  /** Appends {@code expr} as the instructions that create its content, at {@code depth}. */
-  private void instruction(Expr expr, int depth, StringBuilder out) {
+  /**
+   * Appends {@code expr} as the instructions that create its content, at {@code depth}.
+   *
+   * @param inOccurrence whether {@code expr} stands inside an {@code xsl:for-each}, which runs once
+   *     per occurrence
+   */
+  private void instruction(Expr expr, int depth, boolean inOccurrence, StringBuilder out) {
     switch (expr) {
       case TargetSlots s -> {
+        String queue = expression(s.queue());
+        if (inOccurrence) {
+          // written here, the queue would be evaluated once per parent occurrence (ADR-0006)
+          String name = QUEUE_NAME.formatted(++queueCount);
+          line(queueVariables, TEMPLATE_DEPTH, QUEUE_VARIABLE.formatted(name, attribute(queue)));
+          queue = "$" + name;
+        }
+        String slots = SLOTS.formatted(queue, expression(s.parentSlot()), max(s.max()));
+        String occurrences =
+            s.min() > 0 ? AT_LEAST.formatted(slots, s.min(), literal(s.origin().value())) : slots;
+        line(out, depth, FOR_EACH.formatted(attribute(occurrences)));
+        line(out, depth + 1, SLOT_VARIABLE.formatted(s.slotVar()));
+        line(out, depth + 1, VALUE_VARIABLE.formatted(s.valueVar()));
+        instruction(s.body(), depth + 1, true, out);
+        line(out, depth, END_FOR_EACH);
+      }
+      case TargetRepeat r -> {
+        line(out, depth, FOR_EACH.formatted(REPEAT.formatted(r.copies())));
         line(
             out,
-            depth,
-            FOR_EACH.formatted(expression(s.queue()), expression(s.parentSlot()), max(s.max())));
-        line(out, depth + 1, VALUE_VARIABLE.formatted(s.valueVar()));
-        instruction(s.body(), depth + 1, out);
+            depth + 1,
+            REPEAT_SLOT_VARIABLE.formatted(
+                r.slotVar(), attribute(expression(r.parentSlot())), r.copies()));
+        instruction(r.body(), depth + 1, true, out);
         line(out, depth, END_FOR_EACH);
       }
       case ElementConstructor e -> {
@@ -164,7 +278,7 @@ public final class XsltExporter {
             outputName(e.prefix(), e.name(), "ElementConstructor of " + e.origin().value());
         line(out, depth, "<" + name + ">");
         for (Expr content : e.content()) {
-          instruction(content, depth + 1, out);
+          instruction(content, depth + 1, inOccurrence, out);
         }
         String end = "</" + name + ">";
         if (e.content().size() == 1 && e.content().getFirst() instanceof TextConstructor) {
@@ -174,10 +288,18 @@ public final class XsltExporter {
           line(out, depth, end);
         }
       }
-      case TextConstructor t -> out.append(VALUE_OF.formatted(expression(t.value())));
+      case TextConstructor t -> out.append(VALUE_OF.formatted(attribute(expression(t.value()))));
       case SourceQueue q -> throw misplaced(q, "content");
       case VarRef v -> throw misplaced(v, "content");
+      case Literal l -> throw misplaced(l, "content");
+      case FunCall c -> throw misplaced(c, "content");
+      case Lift l -> throw misplaced(l, "content");
     }
+  }
+
+  /** {@code value} as an XPath string literal in apostrophes, an apostrophe doubled. */
+  private static String literal(String value) {
+    return "'" + value.replace("'", "''") + "'";
   }
 
   /** {@code expr} as an XPath expression. */
@@ -187,13 +309,36 @@ public final class XsltExporter {
         String where = "SourceQueue of " + q.origin().value();
         yield QUEUE.formatted(
             path(q.field().subList(0, q.contextDepth()), where),
-            path(q.field().subList(q.contextDepth(), q.field().size()), where));
+            path(q.field().subList(q.contextDepth(), q.field().size()), where),
+            q.structureField() ? STRUCTURE_VALUE : LEAF_VALUE);
       }
       case VarRef v -> "$" + v.name();
+      case Literal l -> literal(l.value());
+      case FunCall c ->
+          c.args().stream()
+              .map(this::expression)
+              .collect(Collectors.joining(", ", "po:" + c.function().name() + "(", ")"));
+      case Lift l -> lift(l);
       case TargetSlots s -> throw misplaced(s, "an expression");
+      case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
     };
+  }
+
+  /**
+   * {@code l} as {@code po:lift} over the sequence of its queues and an inline function, whose
+   * {@code let} binds slot variable k to the k-th string it gets, and which returns the body.
+   */
+  private String lift(Lift l) {
+    List<String> bindings = new ArrayList<>();
+    for (int k = 0; k < l.slotVars().size(); k++) {
+      bindings.add("$" + l.slotVars().get(k) + " := $in[" + (k + 1) + "]");
+    }
+    return LIFT.formatted(
+        l.queues().stream().map(this::expression).collect(Collectors.joining(", ")),
+        String.join(", ", bindings),
+        expression(l.body()));
   }
 
   private static String max(long max) {
@@ -257,9 +402,18 @@ public final class XsltExporter {
     }
   }
 
-  /** {@code value} escaped for an attribute in quotes. */
+  /**
+   * {@code value} escaped for an attribute in quotes, white space included, which a parser would
+   * otherwise normalise (XML 1.0 §3.3.3).
+   */
   private static String attribute(String value) {
-    return value.replace("&", "&amp;").replace("<", "&lt;").replace("\"", "&quot;");
+    return value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace("\"", "&quot;")
+        .replace("\t", "&#9;")
+        .replace("\n", "&#10;")
+        .replace("\r", "&#13;");
   }
 
   private static void line(StringBuilder out, int depth, String text) {

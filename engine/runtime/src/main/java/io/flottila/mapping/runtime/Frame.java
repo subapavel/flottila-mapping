@@ -21,16 +21,21 @@ final class Frame {
   /** The {@code STRING} variables (slot values) by slot. */
   final String[] strings;
 
+  /** The block of each {@code TargetSlots}' queue once it is evaluated, else null (ADR-0006). */
+  final QueueBlock[] targetQueues;
+
   Frame(
       QueueBlock[] queues,
       Tracer tracer,
       XmlSerializer out,
       int integerSlotCount,
-      int stringSlotCount) {
+      int stringSlotCount,
+      int targetQueueCount) {
     this.queues = queues;
     this.tracer = tracer;
     this.out = out;
     this.integers = new long[integerSlotCount];
     this.strings = new String[stringSlotCount];
+    this.targetQueues = new QueueBlock[targetQueueCount];
   }
 }

@@ -16,6 +16,7 @@ import io.flottila.mapping.structure.WsdlDirection;
 import io.flottila.mapping.structure.WsdlOperation;
 import io.flottila.mapping.structure.WsdlRoot;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,15 @@ class StructureReaderTest {
 
   private static Structure readSkeleton(String file) throws StructureLoadException {
     return new StructureReader(SKELETON).read(new SchemaBundle(List.of(file)), ORDER);
+  }
+
+  /** The observation kit's structures (ADR-0018), which #50 maps (#62, F-14). */
+  private static final Path OBSERVATIONS =
+      Path.of(System.getProperty("flottila.corpus"), "structures", "observations");
+
+  private static Structure readObservation(String file, String root) throws StructureLoadException {
+    return new StructureReader(OBSERVATIONS)
+        .read(new SchemaBundle(List.of(file)), new ElementRoot(root));
   }
 
   @Test
@@ -127,7 +137,7 @@ class StructureReaderTest {
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
     "choice,                     schema-construct-unsupported,  9, 20",
-    // a nested structure field: its xs:element has no type, so it is refused at that element
+    // a nested complex type without xs:sequence (#62): refused at its xs:element
     "nested-complex-type,        schema-construct-unsupported,  9, 33",
     "annotation,                 schema-construct-unsupported,  9, 66",
     "type-not-built-in,          schema-construct-unsupported, 10, 53",
@@ -169,6 +179,107 @@ class StructureReaderTest {
               assertThat(e.column()).isEqualTo(column);
               assertThat(e.getMessage()).isNotBlank();
             });
+  }
+
+  /**
+   * The nested subset (#62, F-14) grows the flat one by anonymous complex types at any depth, and
+   * nothing else: each construct still outside it is refused where it stands.
+   */
+  @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
+  @CsvSource({
+    "named-complex-type,             schema-construct-unsupported,  5, 36",
+    "import,                         schema-construct-unsupported,  5, 80",
+    "include,                        schema-construct-unsupported,  5, 43",
+    "element-form-default-invalid,   schema-construct-unsupported,  4, 87",
+    "nested-choice,                  schema-construct-unsupported, 10, 38",
+    "nested-all,                     schema-construct-unsupported, 10, 35",
+    "nested-attribute,               schema-construct-unsupported, 10, 83",
+    "nested-mixed,                   schema-construct-unsupported, 10, 40",
+    "nested-two-sequences,           schema-construct-unsupported, 10, 55",
+    "nested-two-complex-types,       schema-construct-unsupported, 10, 75",
+    "nested-type-and-complex-type,   schema-construct-unsupported, 10, 27",
+    "nested-element-ref,             schema-construct-unsupported, 10, 65",
+    "nested-nillable,                schema-construct-unsupported,  9, 71",
+    "nested-simple-type,             schema-construct-unsupported, 10, 26",
+    "nested-without-name,            schema-construct-unsupported,  9, 43",
+    "nested-structure-min-above-max, schema-invalid,                9, 61",
+  })
+  void a_construct_outside_the_nested_subset_is_refused_where_it_stands(
+      String fixture, String code, int line, int column) {
+    a_construct_outside_the_flat_subset_is_refused_where_it_stands(fixture, code, line, column);
+  }
+
+  @Test
+  void the_observation_kit_source_loads_with_its_nested_fields() throws Exception {
+    Structure structure = readObservation("src-orders.xsd", "Orders");
+
+    // elementFormDefault="unqualified" and no target namespace: every step is a bare name
+    assertThat(tree(structure))
+        .containsExactly(
+            entry("/Orders", "1..1 structure"),
+            entry("/Orders/Order", "0..unbounded structure"),
+            entry("/Orders/Order/Id", "0..1 xs:string"),
+            entry("/Orders/Order/Tag", "0..unbounded xs:string"),
+            entry("/Orders/Order/Line", "0..unbounded structure"),
+            entry("/Orders/Order/Line/Sku", "0..1 xs:string"),
+            entry("/Orders/Order/Line/Qty", "0..1 xs:string"),
+            entry("/Orders/Order/Memo", "0..1 structure"),
+            entry("/Orders/Order/Memo/Text", "0..1 xs:string"));
+  }
+
+  @Test
+  void the_observation_kit_target_loads_with_its_nested_fields() throws Exception {
+    Structure structure = readObservation("tgt-list.xsd", "Out");
+
+    assertThat(tree(structure))
+        .containsExactly(
+            entry("/Out", "1..1 structure"),
+            entry("/Out/Item", "0..unbounded structure"),
+            entry("/Out/Item/V", "0..unbounded xs:string"),
+            entry("/Out/Item/W", "0..unbounded xs:string"),
+            entry("/Out/All", "0..unbounded xs:string"));
+  }
+
+  @ParameterizedTest(name = "{0} under {1}")
+  @CsvSource({"src-orders.xsd, Orders", "tgt-list.xsd, Out"})
+  void a_nested_structure_has_one_fingerprint_across_two_loads(String file, String root)
+      throws Exception {
+    String first = readObservation(file, root).fingerprint();
+    String second = readObservation(file, root).fingerprint();
+
+    assertThat(first).matches("sha256:[0-9a-f]{64}");
+    assertThat(second).isEqualTo(first);
+  }
+
+  @Test
+  void element_form_default_qualified_puts_local_elements_at_any_depth_in_the_namespace()
+      throws Exception {
+    Structure structure = readSkeleton("test-fixtures/nested-qualified.xsd");
+    String line = ORDER_PATH + "/Q{urn:flottila:corpus:skeleton}Line";
+
+    // an attribute keeps no namespace: attributeFormDefault is outside the subset
+    assertThat(tree(structure))
+        .containsExactly(
+            entry(ORDER_PATH, "1..1 structure"),
+            entry(ORDER_PATH + "/@channel", "0..1 xs:string"),
+            entry(line, "1..unbounded structure"),
+            entry(line + "/Q{urn:flottila:corpus:skeleton}Sku", "1..1 xs:string"));
+  }
+
+  @Test
+  void sibling_structure_fields_with_one_step_load_each_with_a_type_of_its_own() throws Exception {
+    Structure structure = readSkeleton("test-fixtures/nested-same-name-siblings.xsd");
+    List<Field> parts = structure.types().get(structure.root().type().orElseThrow()).fields();
+
+    // ADR-0007: the two have no unique path, refused only when a mapping uses them
+    assertThat(parts).extracting(f -> f.step().localName()).containsExactly("Part", "Part");
+    List<String> children = new ArrayList<>();
+    for (Field part : parts) {
+      Field child = structure.types().get(part.type().orElseThrow()).fields().getFirst();
+      children.add(child.step().localName() + " " + child.valueType().orElseThrow().typeName());
+    }
+    assertThat(children).containsExactly("A xs:string", "B xs:integer");
+    assertThat(structure.types()).hasSize(3);
   }
 
   /**
@@ -330,6 +441,20 @@ class StructureReaderTest {
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);
             });
+  }
+
+  /** Every field of {@code structure}, depth first in child order, by field path. */
+  private static Map<String, String> tree(Structure structure) {
+    Map<String, String> fields = new LinkedHashMap<>();
+    addTree(structure, structure.rootPath(), fields);
+    return fields;
+  }
+
+  private static void addTree(Structure structure, FieldPath path, Map<String, String> fields) {
+    fields.put(path.toString(), describe(structure, path));
+    for (FieldPath child : structure.children(path)) {
+      addTree(structure, child, fields);
+    }
   }
 
   private static String describe(Structure structure, FieldPath path) {

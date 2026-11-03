@@ -16,17 +16,22 @@ import javax.xml.stream.XMLStreamReader;
  * Fills the source queues of a compiled mapping in one StAX pass over the input (ADR-0004): only
  * the element steps the queues name are followed, every other subtree is skipped, and no tree is
  * built. A context opens at each start of its context field, and a value is appended at each
- * occurrence of its field: the text of the element, with references and CDATA resolved. The input
- * is still parsed whole, so it must be well-formed throughout. A DOCTYPE is refused, and no DTD or
- * external entity is ever read.
+ * occurrence of its field: the text of a leaf element, with references and CDATA resolved, or
+ * {@code ""} for a structure field (ADR-0008). A queue whose context field never occurs is one
+ * empty context, as in PO (ADR-0004 as amended, F-17), a structure field's too. The input is still
+ * parsed whole, so it must be well-formed throughout. A DOCTYPE is refused, and no DTD or external
+ * entity is ever read.
  *
  * <p>The plan's entries are distinct (field, context) pairs; equal pairs share one queue
  * (ADR-0006). The step trie is built once at compile and only read by a run.
  */
 final class Projection {
 
-  /** One queue of the plan: a field by its element steps, and its context by depth. */
-  record Queue(List<Name> field, int contextDepth) {}
+  /**
+   * One queue of the plan: a field by its element steps, its context by depth, and whether it is a
+   * structure field, whose queue gets {@code ""} per occurrence (ADR-0008; #63).
+   */
+  record Queue(List<Name> field, int contextDepth, boolean structureField) {}
 
   /** A node of the trie of element steps. */
   private static final class Step {
@@ -37,8 +42,14 @@ final class Projection {
     /** The queues whose context field this step is: each occurrence opens a context. */
     private int[] contexts = new int[0];
 
-    /** The queues whose field this step is: each occurrence appends its text. */
+    /** The queues whose leaf field this step is: each occurrence appends its text. */
     private int[] values = new int[0];
+
+    /**
+     * The queues whose structure field this step is: each occurrence appends {@code ""}, and its
+     * subtree is still walked for the queues below it.
+     */
+    private int[] occurrences = new int[0];
 
     Step(String namespace, String localName) {
       this.namespace = namespace;
@@ -88,7 +99,11 @@ final class Projection {
           step.contexts = append(step.contexts, k);
         }
       }
-      step.values = append(step.values, k);
+      if (queue.structureField()) {
+        step.occurrences = append(step.occurrences, k);
+      } else {
+        step.values = append(step.values, k);
+      }
     }
   }
 
@@ -125,6 +140,11 @@ final class Projection {
     QueueBlock[] blocks = new QueueBlock[queues];
     for (int k = 0; k < queues; k++) {
       blocks[k] = builders[k].build();
+      if (blocks[k].contexts() == 0) {
+        // the context field never occurred: one empty context, {0,0} (ADR-0004 as amended, F-17)
+        builders[k].newContext();
+        blocks[k] = builders[k].build();
+      }
     }
     return blocks;
   }
@@ -146,6 +166,9 @@ final class Projection {
           } else {
             for (int k : step.contexts) {
               builders[k].newContext();
+            }
+            for (int k : step.occurrences) {
+              builders[k].append("");
             }
             if (step.values.length == 0) {
               open.push(step);

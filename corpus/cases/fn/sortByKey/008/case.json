@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/sort-by-key-numeric-suppress.mapping.json",
+  "provenance": "documented",
+  "ref": "#2 §3: numeric keys \"must not be equal to the constant ResultList.SUPPRESS\" [SAP✓ STD]; ADR-0006 SUPPRESS through the context functions since #51; po:SORTBYKEY at the box is ADR-0025 since #52",
+  "expect": "error",
+  "note": "Keys are replaceValue(createIf(Tag), 5): 5 for Tag 1 and SUPPRESS for Tag no. A numeric sortByKey over a SUPPRESS key raises po:SORTBYKEY at K1; compared as strings the SUPPRESS key would come first and the run would write no, 1."
+}

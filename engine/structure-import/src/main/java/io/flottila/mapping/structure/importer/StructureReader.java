@@ -6,15 +6,16 @@ import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.WsdlRoot;
-import io.flottila.mapping.structure.importer.internal.FlatXsdReader;
+import io.flottila.mapping.structure.importer.internal.XsdReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.xml.namespace.QName;
 
 /**
- * Reads a schema bundle into a structure (ADR-0008). Milestone 1 reads the flat XSD subset of spec
- * #21 only; full XSD, WSDL and JSON Schema are spec 4.
+ * Reads a schema bundle into a structure (ADR-0008). Milestone 1 reads the nested XSD subset only:
+ * spec #21's flat subset with structure fields at any depth (#62, F-14); full XSD, WSDL and JSON
+ * Schema are spec 4.
  */
 public final class StructureReader {
 
@@ -31,7 +32,7 @@ public final class StructureReader {
    * Reads the structure under {@code root}.
    *
    * @throws StructureLoadException when the bundle cannot be read, is not well-formed, uses a
-   *     construct outside the flat subset, or has no such root
+   *     construct outside the nested subset, or has no such root
    */
   public Structure read(SchemaBundle bundle, RootSelector root) throws StructureLoadException {
     if (bundle.files().size() != 1) {
@@ -41,7 +42,7 @@ public final class StructureReader {
           file,
           1,
           1,
-          "the flat XSD subset reads a schema bundle of exactly one file");
+          "the nested XSD subset reads a schema bundle of exactly one file");
     }
     String file = bundle.files().getFirst();
     QName element =
@@ -61,7 +62,7 @@ public final class StructureReader {
           1,
           "cannot read the schema file: " + e);
     }
-    return FlatXsdReader.read(file, content, element);
+    return XsdReader.read(file, content, element);
   }
 
   private static StructureLoadException unsupportedRoot(String file, String what) {

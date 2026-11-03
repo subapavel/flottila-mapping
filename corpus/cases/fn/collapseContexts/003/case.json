@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/collapse-contexts.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0004 as amended for F-17 (observed #31 d3): a source queue whose context element never occurs in the message is one empty context; #2 §4 collapseContexts: \"Empty contexts are replaced with an empty string\" [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm]",
+  "expect": "output",
+  "note": "An empty input: <Orders/> has no Order, so Qty in context Order is one empty context (F-17). collapseContexts replaces it with \"\": one context holding \"\", so the root's one slot creates one empty All. Before F-17 the queue had no context at all and the root was written without an All."
+}

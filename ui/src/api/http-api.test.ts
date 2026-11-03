@@ -78,7 +78,7 @@ describe('the HTTP ApiClient', () => {
   });
 
   test('runs a test by POST of the working copy and the input to the mapping test path', async () => {
-    const output = { kind: 'output', output: '<a/>', diagnostics: [] };
+    const output = { kind: 'output', output: '<a/>', diagnostics: [], trace: {} };
     const port = fakeFetch(() => json(output));
 
     expect(await httpApiClient('', port.fetch).runTest('m/one', { model, input: '<a/>' })).toEqual(output);

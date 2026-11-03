@@ -8,7 +8,10 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.ir.TargetSlots;
@@ -27,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,7 +44,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * names (ADR-0006). Inputs are written by hand; expected outputs are byte literals (ADR-0022).
  *
  * <p>{@code Tracer.values()} lists every report in the order made, as an entry of the box's
- * authoring id and the queue block, so a second report of one box is visible.
+ * authoring id and the queue block, so a second report of one box is visible; since #53 {@code
+ * Tracer.occurrences()} lists every report of a traced {@code TargetSlots}, one per parent slot.
  */
 class InterpreterTest {
 
@@ -76,6 +81,7 @@ class InterpreterTest {
         new VarRef(ROOT_SLOT, AtomicType.INTEGER, origin),
         min,
         max,
+        "slot",
         "v",
         new ElementConstructor(
             "",
@@ -93,6 +99,28 @@ class InterpreterTest {
   /** {@code OrderId <- OrderId}, 1..1: the skeleton's field link. */
   private static TargetDocument orderIdLink() {
     return document(leaf("OrderId", rootLeaf("OrderId", "a1"), 1, 1, "t1"));
+  }
+
+  /**
+   * The same field link at 0..1, for the mechanics of an empty or missing context without {@code
+   * po:MINOCCURS} (#52).
+   */
+  private static TargetDocument optionalOrderIdLink() {
+    return document(leaf("OrderId", rootLeaf("OrderId", "a1"), 0, 1, "t1"));
+  }
+
+  /**
+   * Asserts that {@code run} raises {@code po:MINOCCURS} at the target field mapping {@code t1}.
+   */
+  private static void assertMinOccursAtT1(ThrowingCallable run) {
+    assertThatThrownBy(run)
+        .isInstanceOfSatisfying(
+            MappingRunException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("po:MINOCCURS");
+              assertThat(e.authoringId()).isEqualTo(id("t1"));
+              assertThat(e.getMessage()).isNotBlank();
+            });
   }
 
   /** Three field links; {@code a1} and {@code a3} read the same source field. */
@@ -182,11 +210,46 @@ class InterpreterTest {
   void anEmptyContextCreatesNoFieldButWritesTheRoot() throws Exception {
     Tracer tracer = new Tracer();
 
-    byte[] out = run(orderIdLink(), true, sourceOrder("").getBytes(UTF_8), tracer);
+    byte[] out = run(optionalOrderIdLink(), true, sourceOrder("").getBytes(UTF_8), tracer);
 
     // one occurrence of the context field without the field: one empty context, not none
     assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of());
     assertThat(new String(out, UTF_8)).isEqualTo(DECLARATION + EMPTY_ROOT);
+  }
+
+  /**
+   * A source queue has at least one context (ADR-0004 as amended, F-17, observed #31 d3): Name in
+   * Item's context, and no Item occurs, so the queue is one empty context {@code {0,0}}, not none.
+   * Where Item occurs, each occurrence is one context and nothing is added.
+   */
+  @Test
+  void aContextElementThatNeverOccursGivesOneEmptyContext() throws Exception {
+    TargetDocument names =
+        document(
+            leaf(
+                "Name",
+                new SourceQueue(List.of(ORDER, local("Item"), local("Name")), 2, id("a1")),
+                0,
+                UNBOUNDED,
+                "t1"));
+    Tracer absent = new Tracer();
+    Tracer present = new Tracer();
+
+    byte[] out = run(names, true, sourceOrder("<Other/>").getBytes(UTF_8), absent);
+    run(names, true, sourceOrder("<Item/><Item><Name>y</Name></Item>").getBytes(UTF_8), present);
+
+    assertThat(tracedOnce(absent, "a1")).containsExactly(List.of());
+    assertThat(new String(out, UTF_8)).isEqualTo(DECLARATION + EMPTY_ROOT);
+    assertThat(tracedOnce(present, "a1")).containsExactly(List.of(), List.of("y"));
+  }
+
+  /**
+   * The same input under the required field: no occurrence is created, fewer than its min of 1, so
+   * the run raises {@code po:MINOCCURS} at the target field mapping (ADR-0006 since #52).
+   */
+  @Test
+  void anEmptyContextUnderARequiredFieldRaisesMinOccurs() {
+    assertMinOccursAtT1(() -> run(orderIdLink(), sourceOrder("")));
   }
 
   @Test
@@ -212,17 +275,30 @@ class InterpreterTest {
   }
 
   /**
-   * The source root is not there, so its queues have no context at all, not one empty context: the
-   * root slot 1 names none, and the root is written without the field, as for an empty source.
+   * The source root is not there, so each of its queues is one empty context (ADR-0004 as amended,
+   * F-17): the root slot 1 names it, it holds no value, and the root is written without the field,
+   * as for an empty source.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("wrongRoots")
   void anInputWhoseRootIsNotTheSourceRootGivesWhatAnEmptySourceGives(String why, String input)
       throws Exception {
-    String emptySource = run(orderIdLink(), sourceOrder(""));
+    String emptySource = run(optionalOrderIdLink(), sourceOrder(""));
 
     assertThat(emptySource).isEqualTo(DECLARATION + EMPTY_ROOT);
-    assertThat(run(orderIdLink(), input)).isEqualTo(emptySource);
+    assertThat(run(optionalOrderIdLink(), input)).isEqualTo(emptySource);
+  }
+
+  /**
+   * Under the required field the one empty context creates no occurrence, fewer than its min of 1
+   * (ADR-0006 since #52), so the run raises {@code po:MINOCCURS} at the target field mapping, as an
+   * empty source does.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("wrongRoots")
+  void anInputWhoseRootIsNotTheSourceRootRaisesMinOccursUnderARequiredField(
+      String why, String input) {
+    assertMinOccursAtT1(() -> run(orderIdLink(), input));
   }
 
   @Test
@@ -303,8 +379,59 @@ class InterpreterTest {
     run(threeLinks(), true, THREE_LINKS_INPUT.getBytes(UTF_8), witness);
 
     assertThat(untraced.values()).isEmpty();
-    // the same mapping and input do report when traced, so the silence is the untraced compile's
+    // since #53 an untraced compile builds bare TargetSlots, which report no occurrences either
+    assertThat(untraced.occurrences()).isEmpty();
+    // the same mapping and input do report when traced, so the silence is the untraced compile's:
+    // a queue per box and, per target field mapping, its root's one parent slot
     assertThat(witness.values()).hasSize(3);
+    assertThat(witness.occurrences())
+        .extracting(o -> o.field().value() + " " + o.parentSlot())
+        .containsExactly("t1 1", "t2 1", "t3 1");
+  }
+
+  /**
+   * A context function (ADR-0025): {@code removeContexts} over {@code Name} in {@code Item}'s
+   * context, as lowering gives it, bound by its catalogue name. A traced compile reports its queue
+   * once, at its box, beside its input's.
+   */
+  @Test
+  void aTracedFunCallReportsOnceAtItsBox() throws Exception {
+    QueueType queue = new QueueType();
+    AuthoringId t1 = id("t1");
+    FunCall removeContexts =
+        new FunCall(
+            new FunctionRef("removeContexts", List.of(queue), queue),
+            List.of(new SourceQueue(List.of(ORDER, local("Item"), local("Name")), 2, id("a1"))),
+            id("r1"));
+    TargetDocument names =
+        document(
+            new TargetSlots(
+                removeContexts,
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t1),
+                0,
+                UNBOUNDED,
+                "slot",
+                "v",
+                new ElementConstructor(
+                    "",
+                    local("Name"),
+                    List.of(new TextConstructor(new VarRef("v", AtomicType.STRING, t1), t1)),
+                    t1),
+                t1));
+    byte[] input =
+        utf8(sourceOrder("<Item><Name>x1</Name><Name>x2</Name></Item><Item><Name>y</Name></Item>"));
+    Tracer tracer = new Tracer();
+
+    byte[] traced = run(names, true, input, tracer);
+    byte[] untraced = run(names, false, input, new Tracer());
+
+    assertThat(tracedOnce(tracer, "r1")).containsExactly(List.of("x1", "x2", "y"));
+    assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of("x1", "x2"), List.of("y"));
+    // the root's one slot reads context 1, which now holds every Name, not only the first Item's
+    String all =
+        DECLARATION + ROOT_OPEN + "<Name>x1</Name><Name>x2</Name><Name>y</Name>" + ROOT_CLOSE;
+    assertThat(new String(traced, UTF_8)).isEqualTo(all);
+    assertThat(untraced).isEqualTo(traced);
   }
 
   @Test
@@ -460,9 +587,10 @@ class InterpreterTest {
   void anInterruptWhileTheInputIsParsedStopsTheParseAndWritesNothing() throws Exception {
     // about 4.4 MB of a field the mapping skips, far more than a parser reads at once
     String input = sourceOrder("<Quantity>1</Quantity>".repeat(200_000));
-    // witness: without the interrupt the same run reads it all and writes the root
-    assertThat(run(orderIdLink(), input)).isEqualTo(DECLARATION + EMPTY_ROOT);
-    ExecutableMapping mapping = Interpreter.compile(orderIdLink(), false);
+    // witness: without the interrupt the same run reads it all and writes the root; OrderId is
+    // optional here, so the run ends without po:MINOCCURS (#52)
+    assertThat(run(optionalOrderIdLink(), input)).isEqualTo(DECLARATION + EMPTY_ROOT);
+    ExecutableMapping mapping = Interpreter.compile(optionalOrderIdLink(), false);
     InterruptingInput in = new InterruptingInput(input.getBytes(UTF_8));
     ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -501,6 +629,11 @@ class InterpreterTest {
         Thread.currentThread().interrupt();
       }
     }
+
+    /** The number of bytes written. */
+    int size() {
+      return bytes.size();
+    }
   }
 
   /**
@@ -524,5 +657,8 @@ class InterpreterTest {
     } finally {
       Thread.interrupted();
     }
+
+    // stopped inside the loop, not after it: most of the fields never reached the output (#49)
+    assertThat(out.size()).as("bytes written by the cancelled run").isLessThan(all.length() / 2);
   }
 }

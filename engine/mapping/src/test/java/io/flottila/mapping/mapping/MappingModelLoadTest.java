@@ -151,6 +151,45 @@ class MappingModelLoadTest {
         .isInstanceOf(MalformedJsonException.class);
   }
 
+  /** RFC 8259 §2: whitespace before the document and around a name separator is insignificant. */
+  @Test
+  void whitespaceBeforeTheDocumentAndAroundAColonLoadsTheSameModel() throws Exception {
+    MappingModel model = loaded(MappingModelFormat.load(utf8(VALID)));
+
+    assertThat(loaded(MappingModelFormat.load(utf8(" \t\r\n\n" + VALID)))).isEqualTo(model);
+    assertThat(
+            loaded(
+                MappingModelFormat.load(
+                    utf8(VALID.replace("\"formatVersion\": 1", "\"formatVersion\" \t: 1")))))
+        .isEqualTo(model);
+  }
+
+  /** An empty object or array with whitespace inside is well-formed JSON, not a transport error. */
+  @Test
+  void anEmptyObjectOrArrayWithWhitespaceInsideIsWellFormed() throws Exception {
+    // a newer format is refused unvalidated, so the members may have any shape
+    byte[] json = utf8("{\"formatVersion\": 2, \"object\": { \n }, \"array\": [ \t ]}");
+
+    assertThat(refused(MappingModelFormat.load(json)))
+        .containsExactly(errorAtPointer("format-version-unsupported", "/formatVersion"));
+  }
+
+  /** A syntax error names its line and column, counted after the newlines before it. */
+  @Test
+  void aSyntaxErrorIsReportedAtItsLineAndColumn() {
+    String broken = VALID.replace("\"id\": \"t1\"", "\"id\": 't1'");
+    String[] lines = broken.split("\n", -1);
+    int line = 0;
+    while (!lines[line].contains("'t1'")) {
+      line++;
+    }
+    int column = lines[line].indexOf("'t1'") + 1;
+
+    assertThatThrownBy(() -> MappingModelFormat.load(utf8(broken)))
+        .isInstanceOf(MalformedJsonException.class)
+        .hasMessageEndingWith(" at line " + (line + 1) + ", column " + column);
+  }
+
   @ParameterizedTest(name = "formatVersion {0}")
   @ValueSource(ints = {2, 10})
   void loadRefusesNewerFormatVersionWithThatDiagnosticAlone(int version) throws Exception {

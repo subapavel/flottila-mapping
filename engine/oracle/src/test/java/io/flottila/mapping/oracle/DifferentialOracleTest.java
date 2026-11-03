@@ -1,6 +1,7 @@
 package io.flottila.mapping.oracle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 import io.flottila.mapping.api.CompileOptions;
@@ -9,6 +10,7 @@ import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.ExportResult;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
+import io.flottila.mapping.runtime.MappingRunException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -33,9 +35,13 @@ class DifferentialOracleTest {
 
   @TestFactory
   Stream<DynamicTest> cases() {
+    // since #52 a runtime-error case is differential too: Saxon raises the same error QName
     List<CorpusCase> covered =
         CaseFiles.all().stream()
-            .filter(c -> List.of("output", "none").contains(c.expect()))
+            .filter(
+                c ->
+                    List.of("output", "none").contains(c.expect())
+                        || GoldenCorpusTest.expectsRuntimeError(c))
             .toList();
     assertThat(covered)
         .as("cases under %s that expect output or none", CaseFiles.cases())
@@ -56,12 +62,27 @@ class DifferentialOracleTest {
     EngineFacade facade = new EngineFacade();
 
     ExportResult.Exported exported = SaxonRunner.exported(facade.export(model, base), c.id());
-    byte[] saxon = SaxonRunner.run(exported.stylesheet(), exported.helperModule(), input, caseDir);
-
     CompileResult result = facade.compile(model, base, CompileOptions.DEPLOY);
     if (!(result instanceof CompileResult.Compiled(CompiledMapping compiled))) {
       throw new AssertionError(c.id() + ": expected Compiled, got " + result);
     }
+
+    if (GoldenCorpusTest.expectsRuntimeError(c)) {
+      // ADR-0018 since #52: both sides raise the case's error QName on its input
+      String code = (String) c.expectedError().get("code");
+      SaxonRunner.assertSameError(
+          SaxonRunner.raised(
+              exported.stylesheet(), exported.helperModule(), input, caseDir, c.id()),
+          code,
+          c.id());
+      assertThatThrownBy(() -> facade.run(compiled, input))
+          .as("%s: ours", c.id())
+          .isInstanceOfSatisfying(
+              MappingRunException.class, e -> assertThat(e.code()).isEqualTo(code));
+      return;
+    }
+
+    byte[] saxon = SaxonRunner.run(exported.stylesheet(), exported.helperModule(), input, caseDir);
     byte[] ours = facade.run(compiled, input);
 
     SaxonRunner.assertAgree(saxon, ours, c.id());

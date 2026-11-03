@@ -1,19 +1,23 @@
 # Handoff
 
-state: SPEC PR OPEN. Spec #21 "Walking skeleton" goes to main through the spec PR from `spec/21-walking-skeleton`, merge commit only.
-tickets (#21), all closed: #22–#30, #40, #41, review fixes, #42 Windows build, #43 dev port, #44 Windows ids, #45 Swagger $ref.
-spec gate: VERIFIED_PASS @68c81fc, ratchet 4c954c4. #42–#45 merged after it, each with a green ticket gate. jmh is NOT_RUN (no harness until spec 5).
-next action: watch spec-PR CI, including the first `windows` job. When it is green, merge, open "owner: protect main", and cut spec 2 (/to-spec).
-carried out of spec 1, by spec: #21 comment 6582060566. Each spec picks up its lines when it is cut.
-findings open: F-12 (resolver port, timeout → spec 4/2), F-13 (gate budget missed → spec 5).
-owner: observation requests #31–#38 open (GATE checks 4, 6). Owner may veto the po URI. §11 trailers missing on old commits, accepted unless vetoed.
-owner tries spec 1 on Windows: `$env:QUARKUS_HTTP_PORT=8090` (Docker holds 8080), `.\mvnw.cmd -pl service -am quarkus:dev`, `cd ui; npm run dev`.
+state: RUNNING — /run-spec #48 "Spec 2: queues, contexts and node functions"
+integration branch: spec/48-queues-node-functions (from main 3bf9747), tip 0f6dca8
+merged: every ticket (#60 last, 5eb7b45; ratchet unchanged) · owner obs #31 (f6b5d2d) · ratchet efac3b6
+in flight: PR spec/48 → main (review rounds 1–2 done, spec gate 734d3c2 VERIFIED_PASS, ratchet 0f6dca8)
+blocked chain: none
+carried to spec review: po:at-least message lacks the target field (po-runtime.xsl:54) · export laziness rests on Saxon 12.5 (ADR-0006) · fn/mapWithDefault/004 no longer tells removeContexts from a no-op · no test pins {0,0} for a structure-field queue · mapped field under unmapped 0<min<max parent keeps unsupported-field · #65 leaf error needs a 2nd compile; attribute counts as leaf; 0<min<max parent silently left out · #53 EngineFacade "holds no state" javadoc; startup observer tested by direct call; old 10 s wall wait in timeout test · #60 save goes through PUT, not the Save button (editor change → spec 6)
+next action: PR CI green → rm -f .logs/.batch-in-review → gh pr merge --merge → HANDOFF on main SPEC_DONE → git worktree prune.
+spec 1: merged to main 3bf9747 (#46). Carried items: #21 comment 6582060566; the spec-2 lines are in #48.
+grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
+grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
+findings open: F-12 (resolver port → spec 4) · F-13 (gate budget → spec 5) · F-15 (split per family before spec 3) · F-16 (PIT timeouts → spec 5) · spec 5: po:slots sums earlier contexts per call (#52) · F-17 (one empty context, #31 → #64) · F-18 (export first-read rests on Saxon laziness → export spec)
+retro: the ticket gate runs no PIT, so mutation drops surface only at the ratchet regen (#62)
+carried: UI test panel does not render `error` (spec 6) · wire `error` lacks authoringId (#52/#53) · #49 ns0 test pins only all-mapped
+owner: observation requests #31–#38 · protect main #47 (windows required) · po URI veto · §11 trailers on old commits accepted.
+owner on Windows: `$env:QUARKUS_HTTP_PORT=8090`, `.\mvnw.cmd -pl service -am quarkus:dev`, `cd ui; npm run dev`.
 spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 speed · 6 editor · 7 UDFs.
-rule (#19): a function ticket carries runtime + export + corpus + differential cases. There is no export spec. Requests never block a spec.
-spec gate order: 1, 1b, 2, 5, 4, 3. Step 3's `clean` deletes the reports regen needs (ADR-0017, WORKFLOW §6).
-merge trailers: WORKFLOW §11 (`Ticket: #n`, Co-authored-by, `Signed-off-by: subapavel <subapav@gmail.com>`, Claude-Session).
-after M1: JSON output → bytecode tier → formatVersion 2 + PO importer → XSLT front end.
-owner rules: grill from FOUNDING-ARCHITECTURE, gaps only. One question at a time. Czech chat, English artefacts. Real mappings only via the owner.
-env: JDK 25 /opt/temurin-25. Never `pkill -f`. jqwik banned. Playwright pinned, never `playwright install`. Keep worktrees until the ticket merges.
-gh: REST only, multi-line bodies with `-F body=@file`. Every comment ends with the Claude Code footer.
+rule (#19): a function ticket carries runtime + export + corpus + differential. Requests never block a spec.
+spec gate order: 1, 1b, 2, 5, 4, 3 (ADR-0017, WORKFLOW §6). Merge trailers per WORKFLOW §11.
+env: JDK 25 /opt/temurin-25 · never `pkill -f` · jqwik banned · Playwright pinned · keep worktrees until the ticket merges.
+gh: REST only, `-F body=@file`, Claude Code footer on every comment.
 pointers: CLAUDE.md · AGENTS.md · docs/GATE.md · docs/WORKFLOW.md · docs/agents/issue-tracker.md · agent/NOTES.md · docs/findings/
