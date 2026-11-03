@@ -67,6 +67,9 @@ for-each over the source context".
   evaluated.
   Until `Let` is an IR record (ADR-0025: none in spec 2), each back end evaluates a
   `TargetSlots` queue at most once per mapping run, on first read (#52).
+  The XSLT export binds a queue under an occurrence as a `po:queue<n>` variable at the top of
+  the root template; first read there rests on Saxon-HE 12.5 evaluating a variable lazily
+  (observed, not required by XSLT 3.0), pinned by `target/firstRead/001`–`002` (#52).
 - The root is created once with slot number 1.
 - `TargetSlots(queue, parentSlot, min, max, …)` reads context p, where p is the parent's slot
   number. Each slot gets its **slot number**, its position across all contexts of the queue.
