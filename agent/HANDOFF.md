@@ -1,12 +1,12 @@
 # Handoff
 
 state: RUNNING — /run-spec #48 "Spec 2: queues, contexts and node functions"
-integration branch: spec/48-queues-node-functions (from main 3bf9747), tip ee47611
-merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 #57 #52 #61 #64 #63 (a862af9) · owner obs #31 (f6b5d2d) · ratchet ee47611
-in flight: #53 implementer, review fix round (cap half, limit<1, wire order, deterministic timeout test) · #65 implementer B
-blocked chain: #60 editor e2e A ← #53
-carried to spec review: po:at-least message lacks the target field (po-runtime.xsl:54) · export laziness rests on Saxon 12.5 (ADR-0006) · fn/mapWithDefault/004 no longer tells removeContexts from a no-op · no test pins {0,0} for a structure-field queue · mapped field under unmapped 0<min<max parent keeps unsupported-field
-next action: #53 fix hand-back → re-gate (PIT api must run), re-review fix list → merge; #65 → gate → merge; then #60; then spec gate.
+integration branch: spec/48-queues-node-functions (from main 3bf9747), tip cbdab90
+merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 #57 #52 #61 #64 #63 #65 #53 (cb48723) · owner obs #31 (f6b5d2d) · ratchet cbdab90 (after #65); regen after #53 running
+in flight: #60 implementer A (t/60-editor-e2e) · ratchet regen after #53
+blocked chain: none
+carried to spec review: po:at-least message lacks the target field (po-runtime.xsl:54) · export laziness rests on Saxon 12.5 (ADR-0006) · fn/mapWithDefault/004 no longer tells removeContexts from a no-op · no test pins {0,0} for a structure-field queue · mapped field under unmapped 0<min<max parent keeps unsupported-field · #65 leaf error needs a 2nd compile; attribute counts as leaf; 0<min<max parent silently left out · #53 EngineFacade "holds no state" javadoc; startup observer tested by direct call; old 10 s wall wait in timeout test
+next action: #53 ratchet → record; #60 → gate → merge → ratchet; then spec gate, spec review vs main (high) with the carried lines, fix, /pr.
 spec 1: merged to main 3bf9747 (#46). Carried items: #21 comment 6582060566; the spec-2 lines are in #48.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
