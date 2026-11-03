@@ -46,15 +46,18 @@
   <!-- The occurrences $slots of one parent occurrence, which po:slots gives, unless they are fewer
        than $min: then po:MINOCCURS, before any of them is written, where the runtime raises the
        same error (ADR-0006 since #52). po:slots stops at max, and min is at most max, so they fall
-       short of min exactly when the created occurrences do. The export writes it only when min is
+       short of min exactly when the created occurrences do. The error names $mapping, the id of
+       the target field mapping, as the runtime's does. The export writes it only when min is
        above 0. -->
   <xsl:function name="po:at-least" as="array(*)*">
     <xsl:param name="slots" as="array(*)*"/>
     <xsl:param name="min" as="xs:integer"/>
+    <xsl:param name="mapping" as="xs:string"/>
     <xsl:sequence select="
         if (count($slots) lt $min)
         then error(QName('urn:flottila:mapping:po', 'po:MINOCCURS'),
-                   'MINOCCURS: ' || count($slots) || ' occurrences, fewer than minOccurs ' || $min)
+                   'the target field mapping ' || $mapping || ' creates ' || count($slots)
+                   || ' occurrences, fewer than its minOccurs ' || $min)
         else $slots"/>
   </xsl:function>
 
