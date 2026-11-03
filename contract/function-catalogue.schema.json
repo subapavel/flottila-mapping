@@ -110,16 +110,14 @@
           "const": "table"
         },
         "default": {
-          "$ref": "#/$defs/table"
+          "$comment": "Not in $defs: ui gen:types bundles this schema and the model schema into one namespace, where table is the model schema's.",
+          "title": "TableDefault",
+          "description": "A table of strings: its keys are source values, so it is the one open object.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
-      }
-    },
-    "table": {
-      "title": "Table",
-      "description": "A table of strings: its keys are source values, so it is the one open object.",
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
       }
     },
     "fidelity": {
