@@ -327,6 +327,8 @@ public final class ContextFunctions {
    * {@code splitByValue} in mode {@code eachValue}: every value, and every SUPPRESS, in a context
    * of its own. It shares the values array and the SUPPRESS bitset and builds only the context
    * starts (ADR-0004).
+   *
+   * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock splitByEachValue(QueueBlock queue) {
     return split(queue, true);
@@ -338,6 +340,8 @@ public final class ContextFunctions {
    * SUPPRESS and no value, as SAP's SUPPRESS string would compare (an assumed reading since #51).
    * It shares the values array and the SUPPRESS bitset and builds only the context starts
    * (ADR-0004).
+   *
+   * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock splitByValueChange(QueueBlock queue) {
     return split(queue, false);
@@ -351,6 +355,8 @@ public final class ContextFunctions {
     int[] starts = new int[queue.slots() + queue.contexts() + 1];
     int count = 0;
     for (int c = 0; c < queue.contexts(); c++) {
+      // one check per context: its slots are read below, bounded by their count (ADR-0021)
+      checkInterrupt("splitByValue");
       starts[count++] = queue.start(c);
       for (int i = queue.start(c) + 1; i < queue.end(c); i++) {
         // a SUPPRESS slot's value is null, which equals only another SUPPRESS slot's
@@ -360,7 +366,7 @@ public final class ContextFunctions {
       }
     }
     starts[count++] = queue.slots();
-    // the block checks the starts it is given, and for interruption on the way (ADR-0021)
+    // the block checks the starts it is given, and for interruption on the way, too
     return queue.withContextStarts(Arrays.copyOf(starts, count));
   }
 
@@ -370,6 +376,8 @@ public final class ContextFunctions {
    * empty context there. SUPPRESS is no {@code ""}, so it stays a slot (an assumed reading since
    * #51). Dropping values needs a values array of its own, which holds the input's value objects:
    * no characters are copied (ADR-0004).
+   *
+   * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock splitByEmptyValue(QueueBlock queue) {
     String[] values = new String[queue.slots()];
@@ -377,6 +385,8 @@ public final class ContextFunctions {
     int slots = 0;
     int count = 0;
     for (int c = 0; c < queue.contexts(); c++) {
+      // one check per context: its slots are read below, bounded by their count (ADR-0021)
+      checkInterrupt("splitByValue");
       starts[count++] = slots;
       for (int i = queue.start(c); i < queue.end(c); i++) {
         // a SUPPRESS slot's value is null, which is no ""

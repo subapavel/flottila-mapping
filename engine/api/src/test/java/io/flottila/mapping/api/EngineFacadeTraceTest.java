@@ -14,15 +14,19 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.TreeSet;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.random.RandomGenerator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -689,12 +693,16 @@ class EngineFacadeTraceTest {
 
   // --- a timeout: the trace so far (ADR-0014 since #53)
 
-  /** Whether any live daemon platform thread other than this one is inside a mapping run. */
-  private static boolean aPlatformThreadRunsAMapping() {
+  /** The live platform threads other than this one that are inside a mapping run. */
+  private static Set<Thread> platformThreadsInAMapping() {
     return Thread.getAllStackTraces().entrySet().stream()
-        .filter(e -> e.getKey() != Thread.currentThread() && e.getKey().isDaemon())
-        .flatMap(e -> Stream.of(e.getValue()))
-        .anyMatch(frame -> frame.getClassName().equals(ExecutableMapping.class.getName()));
+        .filter(e -> e.getKey() != Thread.currentThread())
+        .filter(
+            e ->
+                Stream.of(e.getValue())
+                    .anyMatch(f -> f.getClassName().equals(ExecutableMapping.class.getName())))
+        .map(Map.Entry::getKey)
+        .collect(Collectors.toSet());
   }
 
   /**
@@ -730,9 +738,12 @@ class EngineFacadeTraceTest {
    * Val's occurrences once per Grp while it writes. A fake clock (CODING_STANDARDS), the facade's
    * deadline, reaches the timeout once Row has reported its first parent slot, so the timeout falls
    * while the trace grows, whatever the machine's speed. The timeout's trace is a prefix of the
-   * full trace, and stays as it was returned once the timed-out run has ended.
+   * full trace, and stays as it was returned once the timed-out run has ended: the deadline notes
+   * the run's thread, live at the timeout, and the test joins it, so no clock waits for its end. A
+   * run that ignored its interrupt would hold the join; JUnit's timeout guards against that hang.
    */
   @Test
+  @Timeout(60)
   void aTimeoutTraceIsAPrefixOfTheFullTrace() throws Exception {
     CompiledMapping mapping = tested(corpusMapping("nested-grp-row-val.mapping.json"), mappings());
     StringBuilder xml = new StringBuilder("<Orders>");
@@ -745,6 +756,8 @@ class EngineFacadeTraceTest {
     assertThat(keys(full)).containsExactly("S1", "T1", "S2", "T2", "S3", "T3");
     assertThat(occurrencesOf(full, "T2").parents()).hasSize(20_000);
     AuthoringId row = new AuthoringId("T2");
+    Set<Thread> before = platformThreadsInAMapping();
+    AtomicReference<Thread> timedOut = new AtomicReference<>();
     EngineFacade timed =
         new EngineFacade(
             (run, timeout, tracer) -> {
@@ -755,6 +768,11 @@ class EngineFacadeTraceTest {
                 }
                 Thread.onSpinWait();
               }
+              // Row has reported, so the run is live inside ExecutableMapping.run
+              platformThreadsInAMapping().stream()
+                  .filter(thread -> !before.contains(thread))
+                  .findFirst()
+                  .ifPresent(timedOut::set);
               throw new TimeoutException("the fake clock reached the timeout");
             });
 
@@ -767,11 +785,9 @@ class EngineFacadeTraceTest {
     assertPrefix(grown, full);
     assertThat(keys(grown)).as("witness: a timeout after Row's first report").contains("T2");
     String returned = grown.toString();
-    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
-    while (aPlatformThreadRunsAMapping() && System.nanoTime() < deadline) {
-      Thread.onSpinWait();
-    }
-    assertThat(aPlatformThreadRunsAMapping()).as("the timed-out run has ended").isFalse();
+    assertThat(timedOut.get()).as("the run's thread at the timeout").isNotNull();
+    // the facade interrupted it, and it ends at its next interrupt check (ADR-0021)
+    timedOut.get().join();
     assertThat(grown.toString()).as("the trace as it was returned").isEqualTo(returned);
   }
 

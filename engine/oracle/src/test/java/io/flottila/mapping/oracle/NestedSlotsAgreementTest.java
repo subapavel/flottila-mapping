@@ -31,6 +31,7 @@ import java.util.SplittableRandom;
 import java.util.TreeSet;
 import java.util.random.RandomGenerator;
 import java.util.stream.LongStream;
+import net.sf.saxon.s9api.SaxonApiException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,11 +41,11 @@ import org.junit.jupiter.params.provider.MethodSource;
  * {@code TargetSlots} ≡ {@code po:slots} + {@code po:at-least} at depth four (ADR-0006 since #52):
  * a seeded {@code Doc/Grp/Row/Val} target over seeded Orders, each level a source field in one of
  * its contexts or createIf over it, with seeded min and max, runs on our runtime and, exported, on
- * Saxon-HE. Both write the same document, or both raise {@code po:MINOCCURS} with the same QName.
- * The generator makes SUPPRESS, truncated slots, missing and empty contexts and min shortfalls; the
- * runtime's TargetSlotsInterpreterTest checks the same shape against a reference. This class is no
- * corpus or differential class, so the ratchet does not read its tests as case ids
- * (scripts/ratchet.java).
+ * Saxon-HE. Both write the same document, or both raise {@code po:MINOCCURS} with the same QName,
+ * and both messages name the target field mapping that fell short. The generator makes SUPPRESS,
+ * truncated slots, missing and empty contexts and min shortfalls; the runtime's
+ * TargetSlotsInterpreterTest checks the same shape against a reference. This class is no corpus or
+ * differential class, so the ratchet does not read its tests as case ids (scripts/ratchet.java).
  */
 class NestedSlotsAgreementTest {
 
@@ -219,10 +220,14 @@ class NestedSlotsAgreementTest {
           .as(what)
           .isInstanceOfSatisfying(
               MappingRunException.class, e -> assertThat(e.code()).isEqualTo(MINOCCURS));
-      SaxonRunner.assertSameError(
-          SaxonRunner.raised(stylesheet, XsltExporter.helperModule(), input, dir, what),
-          MINOCCURS,
-          what);
+      SaxonApiException saxon =
+          SaxonRunner.raised(stylesheet, XsltExporter.helperModule(), input, dir, what);
+      SaxonRunner.assertSameError(saxon, MINOCCURS, what);
+      // both name the target field mapping that fell short (CODING_STANDARDS, mapping location)
+      String mapping =
+          "the target field mapping " + ((MappingRunException) thrown).authoringId().value();
+      assertThat(thrown.getMessage()).as(what).contains(mapping + " creates ");
+      assertThat(saxon.getMessage()).as(what).contains(mapping + " creates ");
     } else {
       byte[] saxon = SaxonRunner.run(stylesheet, XsltExporter.helperModule(), input, dir);
       SaxonRunner.assertAgree(saxon, ours(generated), what);

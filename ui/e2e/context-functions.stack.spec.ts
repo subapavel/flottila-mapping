@@ -8,7 +8,7 @@ const corpus = (path: string) => new URL(`../../corpus/${path}`, import.meta.url
 const input = readFileSync(corpus('cases/fn/removeContexts/001/input.xml'), 'utf8');
 const expected = readFileSync(corpus('cases/fn/removeContexts/001/expected.xml'), 'utf8');
 
-test('@stack a mapping with a node function opens, saves byte-identical and runs to the expected output', async ({ page, request }) => {
+test('@stack a mapping with a context function opens, saves through the API byte-identical and runs to the expected output', async ({ page, request }) => {
   const problems: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') problems.push(message.text());

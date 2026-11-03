@@ -39,8 +39,9 @@ import java.util.stream.Collectors;
  *       {@code xpath-default-namespace}.
  *   <li>{@code TargetSlots} is an {@code xsl:for-each} over {@code po:slots} of its queue, its
  *       parent's slot number and its {@code max}, {@code ()} when unbounded, inside {@code
- *       po:at-least} with its {@code min} when that is above 0 (ADR-0006 since #52). Each item is
- *       {@code [slot number, value]}, bound to its slot-number and value variables.
+ *       po:at-least} with its {@code min} and the id of its target field mapping, its origin, when
+ *       the min is above 0 (ADR-0006 since #52). Each item is {@code [slot number, value]}, bound
+ *       to its slot-number and value variables.
  *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
  *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
  *       slot number (ADR-0006; #63).
@@ -104,8 +105,11 @@ public final class XsltExporter {
   /** The occurrences of a {@code TargetSlots}: its queue, its parent's slot number, its max. */
   private static final String SLOTS = "po:slots(%s, %s, %s)";
 
-  /** The occurrences of a {@code TargetSlots} whose min is above 0, and the min. */
-  private static final String AT_LEAST = "po:at-least(%s, %d)";
+  /**
+   * The occurrences of a {@code TargetSlots} whose min is above 0, the min, and its target field
+   * mapping, which the error names.
+   */
+  private static final String AT_LEAST = "po:at-least(%s, %d, %s)";
 
   private static final String SLOT_VARIABLE =
       """
@@ -251,7 +255,8 @@ public final class XsltExporter {
           queue = "$" + name;
         }
         String slots = SLOTS.formatted(queue, expression(s.parentSlot()), max(s.max()));
-        String occurrences = s.min() > 0 ? AT_LEAST.formatted(slots, s.min()) : slots;
+        String occurrences =
+            s.min() > 0 ? AT_LEAST.formatted(slots, s.min(), literal(s.origin().value())) : slots;
         line(out, depth, FOR_EACH.formatted(attribute(occurrences)));
         line(out, depth + 1, SLOT_VARIABLE.formatted(s.slotVar()));
         line(out, depth + 1, VALUE_VARIABLE.formatted(s.valueVar()));
@@ -292,6 +297,11 @@ public final class XsltExporter {
     }
   }
 
+  /** {@code value} as an XPath string literal in apostrophes, an apostrophe doubled. */
+  private static String literal(String value) {
+    return "'" + value.replace("'", "''") + "'";
+  }
+
   /** {@code expr} as an XPath expression. */
   private String expression(Expr expr) {
     return switch (expr) {
@@ -303,7 +313,7 @@ public final class XsltExporter {
             q.structureField() ? STRUCTURE_VALUE : LEAF_VALUE);
       }
       case VarRef v -> "$" + v.name();
-      case Literal l -> "'" + l.value().replace("'", "''") + "'";
+      case Literal l -> literal(l.value());
       case FunCall c ->
           c.args().stream()
               .map(this::expression)

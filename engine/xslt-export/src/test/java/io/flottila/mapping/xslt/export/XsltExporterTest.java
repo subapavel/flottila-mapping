@@ -110,7 +110,7 @@ class XsltExporterTest {
           <xsl:variable name="root" as="xs:integer" select="1"/>
           <ns0:Order>
             <xsl:for-each \
-      select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1)">
+      select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1, 't1')">
               <xsl:variable name="slot2" as="xs:integer" select="?1"/>
               <xsl:variable name="value2" as="xs:string" select="?2"/>
               <OrderId><xsl:value-of select="$value2"/></OrderId>
@@ -220,13 +220,13 @@ class XsltExporterTest {
     assertThat(unbounded)
         .contains(
             "<xsl:for-each select=\"po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId !"
-                + " string()])), $root, ()), 1)\">")
+                + " string()])), $root, ()), 1, 't1')\">")
         .doesNotContain(Long.toString(UNBOUNDED));
     // witness: a bounded max is written as its number
     assertThat(three)
         .contains(
             "<xsl:for-each select=\"po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId !"
-                + " string()])), $root, 3), 1)\">");
+                + " string()])), $root, 3), 1, 't1')\">");
   }
 
   /** {@code OrderId <- OrderId} at {@code min..max}. */
@@ -240,9 +240,9 @@ class XsltExporterTest {
 
   /**
    * ADR-0006 since #52: the export of TargetSlots is {@code po:at-least(po:slots(queue, p, max),
-   * min)}, and {@code po:at-least} is written only when min is above 0. The helper module holds
-   * both functions, po:slots with its queue, parent slot and max, po:at-least with the slots and
-   * the min.
+   * min, mapping)}, and {@code po:at-least} is written only when min is above 0. The helper module
+   * holds both functions, po:slots with its queue, parent slot and max, po:at-least with the slots,
+   * the min and the id of the target field mapping, which its error names.
    */
   @Test
   void minAboveZeroWrapsPoAtLeast() {
@@ -253,11 +253,11 @@ class XsltExporterTest {
         .contains("<xsl:for-each select=\"" + slots + "\">")
         .doesNotContain("po:at-least");
     assertThat(XsltExporter.export(fieldLink(1, 3)))
-        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 1)\">");
+        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 1, 't1')\">");
     assertThat(XsltExporter.export(fieldLink(2, 3)))
-        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 2)\">");
+        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 2, 't1')\">");
     assertThat(helperParams("po:slots")).isEqualTo(3);
-    assertThat(helperParams("po:at-least")).isEqualTo(2);
+    assertThat(helperParams("po:at-least")).isEqualTo(3);
   }
 
   /** The field link with {@code Note} in {@code namespace} under {@code prefix} added. */
@@ -596,7 +596,7 @@ class XsltExporterTest {
                 <xsl:variable name="root" as="xs:integer" select="1"/>
                 <ns0:Order>
                   <xsl:for-each \
-            select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1)">
+            select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1, 't1')">
                     <xsl:variable name="slot2" as="xs:integer" select="?1"/>
                     <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <OrderId>
@@ -667,7 +667,7 @@ class XsltExporterTest {
             XsltExporter.export(
                 fieldLinkWith(
                     removeContexts(removeContexts(orderIds, "r1"), "r2"), List.of(valueText()))))
-        .contains("<xsl:for-each select=\"po:at-least(" + nested + ", 1)\">");
+        .contains("<xsl:for-each select=\"po:at-least(" + nested + ", 1, 't1')\">");
     // the helper module holds the function, with one parameter per argument
     assertThat(helperParams("po:removeContexts")).isEqualTo(1);
   }
@@ -801,6 +801,7 @@ class XsltExporterTest {
     }
     StringLiteral literal = StringLiteral.at(select, start);
     assertThat(literal.value()).isEqualTo(value);
-    assertThat(select.substring(literal.end())).matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *\\)");
+    assertThat(select.substring(literal.end()))
+        .matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *, *'t1' *\\)");
   }
 }

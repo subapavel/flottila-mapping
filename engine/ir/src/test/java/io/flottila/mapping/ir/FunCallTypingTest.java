@@ -35,12 +35,32 @@ class FunCallTypingTest {
     return new VarRef("v", AtomicType.STRING, T1);
   }
 
+  /**
+   * A single-value call over the slot's value variable is accepted as a text's value. It is typed
+   * {@code STRING}, its function's result type: the same function over a literal, which needs no
+   * scope, is refused as a parent slot and as a queue, each naming the type it needs. Over a
+   * variable not in scope the call is refused, naming the variable.
+   */
   @Test
-  void aSingleValueCallTakesAVariableInScope() {
-    TargetDocument trimmed =
-        orderIds(queue(ORDER_ID, 1, A1), new FunCall(TRIM, List.of(value()), T1));
+  void aSingleValueCallOverAVariableInScopeIsAString() {
+    Expr orderIds = queue(ORDER_ID, 1, A1);
+    FunCall trim = new FunCall(TRIM, List.of(value()), T1);
+    FunCall trimLiteral = new FunCall(TRIM, List.of(new Literal(" a ", T1)), T1);
+    FunCall unbound = new FunCall(TRIM, List.of(new VarRef("w", AtomicType.STRING, T1)), T1);
 
-    assertThatCode(() -> IrVerifier.verify(trimmed)).doesNotThrowAnyException();
+    assertThatCode(() -> IrVerifier.verify(orderIds(orderIds, trim))).doesNotThrowAnyException();
+    assertThatThrownBy(
+            () ->
+                IrVerifier.verify(
+                    document(slots(ORDER_ID, orderIds, trimLiteral, 1, 1, "v", value(), T1))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("its parent slot is no INTEGER");
+    assertThatThrownBy(() -> IrVerifier.verify(orderIds(trimLiteral, value())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("its queue is no " + QUEUE);
+    assertThatThrownBy(() -> IrVerifier.verify(orderIds(orderIds, unbound)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("w is not in scope as STRING");
   }
 
   @Test
