@@ -221,8 +221,8 @@ _Avoid_: function registry
 
 **Fidelity**:
 How a standard function relates to SAP PO/CPI behaviour: _exact_, _deviation_ (a documented
-difference with an id and an example) or _assumed_ (an assumed reading waiting for an observed
-case).
+difference, with a short text) or _assumed_ (an assumed reading waiting for an observed case). A
+function is assumed while one of its corpus cases is (ADR-0026).
 _Avoid_: compatibility level
 
 **Portable function**:

@@ -15,9 +15,9 @@ ADR records that and fills the gaps for the Java side and for validation.
 - The Java records of the mapping front end are hand-written: a sealed `Box` and one record per
   kind. A test compares the schema's properties with the record components.
 - `function-catalogue.json` follows the same canonical-form rules (ADR-0010) and has its own
-  schema. It is keyed by function name. Each entry holds `poName`, `cpiName`, `executionKind`,
-  the inputs with their `poPin`, the parameters with type and default, `portable`,
-  `deterministic`, `fidelity` (level, deviation id, example, ambiguity) and `patternLetters`.
+  schema. It is keyed by function name. Its members are given by ADR-0026 (since #71), which
+  replaces the list first written here (poName, cpiName, poPin, deterministic, patternLetters):
+  ADR-0025 keeps no PO spelling in the catalogue.
 
 ## Validation
 
