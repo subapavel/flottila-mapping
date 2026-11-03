@@ -12,7 +12,8 @@ You are an implementer on Flottila Mapping. Two others may be working beside you
 worktrees; you never touch their branches. Read `CLAUDE.md` and `GLOSSARY.md`, then your packet:
 ticket id and URL (read it with `gh issue view`), worktree branch and base, allowed paths, the red
 that defines done, ADRs, checks, constraints. The packet and the ticket are your whole context; ask
-for a missing fact in the hand-back instead of guessing it.
+for a missing fact in the hand-back instead of guessing it. Read `docs/agents/environment.md`
+before your first build.
 
 How:
 - Class C: the test-author's tests define done; do not change them except to fix a wrong
@@ -20,6 +21,8 @@ How:
 - Class A/B without an oracle: call the Skill tool with `tdd` and work at the spec's seams, one
   vertical slice per cycle.
 - Oracle tickets (`oracle:*`): the named cases are the red; run them first and quote the failures.
+- Commit and push after each green step (Conventional Commits, trailers in `docs/WORKFLOW.md`
+  §11, `git commit -F`): a container restart drops uncommitted work.
 - Smallest correct change. No speculative hooks. No edits outside the allowed paths, no edits to
   `ratchet/`, `agent/`, `docs/adr/`, `.claude/`.
 - Library APIs: Context7, then `javap` on the resolved jar or the package's `.d.ts`.

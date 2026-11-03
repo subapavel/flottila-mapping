@@ -211,7 +211,8 @@ evidence comments are the record. Nothing that matters lives only in the convers
   `fix(ui): …`, `chore(ci): …`, `docs: …`.
 - Body: what and why, then the evidence line. Trailers in order: `Ticket: #<n>`,
   `Co-authored-by: Claude <noreply@anthropic.com>`, `Signed-off-by: <owner>` (DCO; identity from
-  the environment's git variables, never written into the repo).
+  the environment's git variables, never written into the repo). Write the trailer block in the
+  message (`git commit -F <file>`); `-s` would add a second `Signed-off-by`.
 
 ## 12. After a run
 

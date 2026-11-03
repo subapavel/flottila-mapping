@@ -69,6 +69,9 @@ Take hand-backs in the order they arrive; refill a freed slot from the frontier 
    integration branch; a ratchet drop is a failure of this ticket.
 5. **Record** — evidence comment (`docs/agents/issue-tracker.md`), close the ticket, update the
    spec's status comment and `agent/HANDOFF.md` (push), remove the verify worktree.
+6. **Carry or ticket** — a point a review leaves open is carried to the spec review only when it
+   is a judgement call. One that gives invalid output, contradicts an ADR, or names a test that
+   cannot fail is a ticket (or a finding, `docs/WORKFLOW.md` §7) now, before the next merge.
 
 ## 3. Finish the spec
 
@@ -78,7 +81,9 @@ then stop with `IDLE_NO_FRONTIER`, see §5):
 1. **Spec gate** — verifier, full checks on the integration branch.
 2. **Review** — `mkdir -p .logs && touch .logs/.batch-in-review`; call the Skill tool with `code-review`, fixed
    point `main`, the spec issue as the spec, reviewers `reviewer-standards` and `reviewer-spec`
-   at high. Keep the two reports separate.
+   at high. Keep the two reports separate. A diff over about 150 files splits the Standards axis
+   into one reviewer per module group (engine, service, ui + contract), each with its own paths,
+   so each one reports within its turn cap.
 3. **Fix** — one implementer (Opus 5.5, high) on a worktree branch `t/<spec>-review` with every
    finding as one packet; merger; spec gate again. A second round only on what the first fix
    touched.
@@ -87,7 +92,9 @@ then stop with `IDLE_NO_FRONTIER`, see §5):
    the foreground (`gh pr checks --watch`, with a timeout). Red CI is a fix packet, not a retry.
 5. **Merge** — `rm -f .logs/.batch-in-review && gh pr merge --merge` (never squash, never
    rebase, never force). Rewrite `agent/HANDOFF.md` on `main` with state `SPEC_DONE` and the next
-   action. `git worktree prune`.
+   action. Remove every worktree whose branch is merged into `main`
+   (`git worktree remove <path>` for each one `git branch --merged main` names), then
+   `git worktree prune`.
 6. Suggest `/retro` to the owner in one line.
 
 ## 4. Waiting and turns
