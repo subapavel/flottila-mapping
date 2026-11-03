@@ -167,6 +167,41 @@ interface Node {
     }
   }
 
+  /**
+   * {@code TargetRepeat} (ADR-0006 "Target fields"; #63): the body {@code copies} times per parent
+   * occurrence, the j-th with the slot number {@code (p - 1) * copies + j} in its frame slot, where
+   * {@code p} is the parent's slot number.
+   */
+  final class Repeat implements OfContent {
+
+    private final long copies;
+    private final OfInteger parentSlot;
+    private final int slotNumberIndex;
+    private final OfContent body;
+
+    /**
+     * @param slotNumberIndex the index of the {@code INTEGER} frame slot that holds the slot number
+     */
+    Repeat(long copies, OfInteger parentSlot, int slotNumberIndex, OfContent body) {
+      this.copies = copies;
+      this.parentSlot = parentSlot;
+      this.slotNumberIndex = slotNumberIndex;
+      this.body = body;
+    }
+
+    @Override
+    public void write(Frame frame) throws IOException {
+      long first = (parentSlot.eval(frame) - 1) * copies;
+      for (long j = 1; j <= copies; j++) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new CancellationException("the mapping run was interrupted");
+        }
+        frame.integers[slotNumberIndex] = first + j;
+        body.write(frame);
+      }
+    }
+  }
+
   /** {@code ElementConstructor}: the element and its content. */
   final class Element implements OfContent {
 

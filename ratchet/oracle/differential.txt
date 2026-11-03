@@ -90,4 +90,11 @@ target/minOccurs/003
 target/minOccurs/004
 target/nested/001
 target/nested/002
+target/structureField/001
+target/structureField/002
+target/structureField/003
 target/suppress/001
+target/unmappedParent/001
+target/unmappedParent/002
+target/unmappedParent/003
+target/unmappedParent/004

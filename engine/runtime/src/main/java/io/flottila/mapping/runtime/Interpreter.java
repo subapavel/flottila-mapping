@@ -11,6 +11,7 @@ import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -95,6 +96,7 @@ public final class Interpreter {
           };
       case Lift l -> lift(l, scope);
       case TargetSlots s -> slots(s, scope);
+      case TargetRepeat r -> repeat(r, scope);
       case ElementConstructor e ->
           new Node.Element(
               e.prefix(), e.name().namespace(), e.name().localName(), contents(e.content(), scope));
@@ -112,7 +114,9 @@ public final class Interpreter {
 
   private Node.OfQueue queue(SourceQueue q) {
     int index =
-        plan.computeIfAbsent(new Projection.Queue(q.field(), q.contextDepth()), k -> plan.size());
+        plan.computeIfAbsent(
+            new Projection.Queue(q.field(), q.contextDepth(), q.structureField()),
+            k -> plan.size());
     return traced(q.origin(), frame -> frame.queues[index]);
   }
 
@@ -229,6 +233,19 @@ public final class Interpreter {
             (Node.OfContent) compile(s.body(), body),
             s.origin());
     return traced ? slots.traced() : slots;
+  }
+
+  /**
+   * A {@code TargetRepeat} (ADR-0006; #63): its parent slot in {@code scope}, and its body in
+   * {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own.
+   */
+  private Node.OfContent repeat(TargetRepeat r, Map<String, Integer> scope) {
+    Node.OfInteger parentSlot = (Node.OfInteger) compile(r.parentSlot(), scope);
+    int slotNumberIndex = integerSlotCount++;
+    Map<String, Integer> body = new HashMap<>(scope);
+    body.put(r.slotVar(), slotNumberIndex);
+    return new Node.Repeat(
+        r.copies(), parentSlot, slotNumberIndex, (Node.OfContent) compile(r.body(), body));
   }
 
   private static Node.OfContent text(Node.OfString value) {

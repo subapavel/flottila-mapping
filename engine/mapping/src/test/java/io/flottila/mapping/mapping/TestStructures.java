@@ -121,6 +121,66 @@ final class TestStructures {
         structureField("Grp", 0, Occurrence.UNBOUNDED, "/Doc/Grp"));
   }
 
+  /**
+   * A target with two unmapped structure fields under its root {@code Doc} (#63): {@code None}
+   * 0..0, holding the leaf {@code X}, and {@code Pair} 2..2, holding the leaf {@code V}. No
+   * namespace.
+   */
+  static Structure repeated() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/None",
+            new StructureType("/Doc/None", List.of(leaf("", "X", 0, 1, ValueType.STRING))),
+            "/Doc/Pair",
+            new StructureType(
+                "/Doc/Pair", List.of(leaf("", "V", 0, Occurrence.UNBOUNDED, ValueType.STRING)))),
+        structureField("None", 0, 0, "/Doc/None"),
+        structureField("Pair", 2, 2, "/Doc/Pair"));
+  }
+
+  /**
+   * A target whose type requires itself twice (#63): {@code Doc/Self} 1..1 of the type {@code
+   * /Doc/Self}, which holds the leaf {@code V} 0..1, then {@code Self} and {@code Again}, both 1..1
+   * of the same type. No instance is finite, and the unmapped {@code Self} is created whatever the
+   * mapping. No namespace.
+   */
+  static Structure selfRequired() {
+    Field self = structureField("Self", 1, 1, "/Doc/Self");
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Self",
+            new StructureType(
+                "/Doc/Self",
+                List.of(
+                    leaf("", "V", 0, 1, ValueType.STRING),
+                    self,
+                    structureField("Again", 1, 1, "/Doc/Self")))),
+        self);
+  }
+
+  /**
+   * A finite recursion through two types (#63): the root {@code Doc} holds {@code Fix} 1..1 of the
+   * type {@code /T}, and {@code /T} holds the leaf {@code V} 0..1 and {@code Down} 0..1 of the
+   * root's type {@code /Doc}. The unmapped Fix under each mapped Down repeats {@code /T} once more
+   * on its path, and an unmapped Down ends the chain. No namespace.
+   */
+  static Structure fixDown() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/T",
+            new StructureType(
+                "/T",
+                List.of(
+                    leaf("", "V", 0, 1, ValueType.STRING), structureField("Down", 0, 1, "/Doc")))),
+        structureField("Fix", 1, 1, "/T"));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =
