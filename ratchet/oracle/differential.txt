@@ -93,6 +93,7 @@ target/nested/002
 target/structureField/001
 target/structureField/002
 target/structureField/003
+target/structureField/004
 target/suppress/001
 target/unmappedParent/001
 target/unmappedParent/002
