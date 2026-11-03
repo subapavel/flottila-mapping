@@ -10,10 +10,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The function family {@code arithmetic} (ADR-0025 "Families", F-15), the math functions of
- * #73: {@code sqr}, {@code sqrt}, {@code power}, {@code ceil}, {@code floor} and {@code round}. All
- * are single-value functions over {@code xs:decimal} strings (ADR-0005): a number is read in the
- * {@code xs:decimal} lexical form only, whitespace around it ignored, anything else is {@code
+ * The function family {@code arithmetic} (ADR-0025 "Families", F-15), the math functions of #73:
+ * {@code sqr}, {@code sqrt}, {@code power}, {@code ceil}, {@code floor} and {@code round}. All are
+ * single-value functions over {@code xs:decimal} strings (ADR-0005): a number is read in the {@code
+ * xs:decimal} lexical form only, whitespace around it ignored, anything else is {@code
  * err:FORG0001} at the function box; the result is written in the XPath canonical form. The binders
  * are methods, not lambdas of the maps, so that PIT mutates them.
  */
