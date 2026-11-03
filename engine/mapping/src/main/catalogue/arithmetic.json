@@ -1,0 +1,21 @@
+{
+  "formatNum": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "pattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  }
+}
