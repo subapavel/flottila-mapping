@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/nested-grp-row-remove-contexts.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0006 TargetSlots: a context the queue lacks counts as empty (assumed, #31 d1); po:MINOCCURS at the target field mapping since #52; obs-target-creation d1 decides",
+  "ref": "ADR-0006 TargetSlots: a context the queue lacks counts as empty (observed for an optional child, #31 d1, fn/mapWithDefault/007: Item 3 is written without V); po:MINOCCURS at the target field mapping since #52; d1 does not tell counting as empty from skipping under a required child, so this case waits for its own row in obs-target-creation (#61)",
   "expect": "error",
   "note": "Grp per Id in context Orders: o1, o2. Row (1..2) per removeContexts(Sku): one context a, b. Grp 1 gets Rows a and b; Grp 2 reads context 2, which the queue lacks and which counts as empty, so the run raises po:MINOCCURS at T2. Skipping a missing context would write a second Grp without a Row."
 }

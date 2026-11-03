@@ -4,9 +4,10 @@ import java.util.List;
 
 /**
  * The queue of one source field in one context (ADR-0004, ADR-0006 as refined by #26), filled by
- * the projection: {@code array:join(context ! [field ! string()])} for a leaf field, and {@code
- * array:join(context ! [field ! ''])} for a structure field, one {@code ""} per occurrence
- * (ADR-0008; #63).
+ * the projection: {@code po:source-queue(array:join(context ! [field ! string()]))} for a leaf
+ * field, and {@code po:source-queue(array:join(context ! [field ! '']))} for a structure field, one
+ * {@code ""} per occurrence (ADR-0008; #63). {@code po:source-queue} makes a queue whose context
+ * never occurs one empty context (ADR-0004 as amended, F-17).
  *
  * @param field the field's element steps from the root down
  * @param contextDepth the context field as the number of steps from the root down to it; the root

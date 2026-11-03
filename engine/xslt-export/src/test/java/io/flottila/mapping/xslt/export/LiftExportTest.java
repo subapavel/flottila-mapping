@@ -35,8 +35,9 @@ class LiftExportTest {
   private static final Name NOTE = new Name("", "Note");
   private static final AuthoringId T1 = new AuthoringId("t1");
   private static final AuthoringId L1 = new AuthoringId("l1");
-  private static final String ORDER_IDS = "array:join(/s0:Order ! [OrderId ! string()])";
-  private static final String NOTES = "array:join(/s0:Order ! [Note ! string()])";
+  private static final String ORDER_IDS =
+      "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+  private static final String NOTES = "po:source-queue(array:join(/s0:Order ! [Note ! string()]))";
   private static final FunctionRef REPLACE_VALUE =
       new FunctionRef(
           "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);

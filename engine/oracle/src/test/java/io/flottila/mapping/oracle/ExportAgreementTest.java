@@ -90,8 +90,8 @@ class ExportAgreementTest {
   // --- the empty source and wrong roots
 
   /**
-   * An empty source, and InterpreterTest's wrong roots: the source root is not there, so its queues
-   * have no context, which counts as empty (assumed, #31 d1).
+   * An empty source, and InterpreterTest's wrong roots, where the context field, the source root,
+   * is not there either: each queue is one empty context (ADR-0004 as amended, F-17).
    */
   static Stream<Arguments> emptySources() {
     return Stream.of(

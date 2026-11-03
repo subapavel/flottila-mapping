@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/map-with-default-line.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0004 Consequences: \"An absent parent gives zero contexts, not one empty context\" (assumed); #2 §4 mapWithDefault replaces empty contexts [SAP✓ STD], and a queue with no context has none; observation #61",
+  "ref": "ADR-0004 as amended for F-17 (observed #31 d3): a source queue whose context element never occurs in the message is one empty context; #2 §4 mapWithDefault replaces empty contexts [SAP✓ STD]; observation #61",
   "expect": "output",
-  "note": "To observe in PO, with fn/mapWithDefault/004: mapWithDefault over no context. <Orders/> has no Line, so Sku in its default context Line has no context at all, and mapWithDefault keeps it so: the root's one slot reads a context the queue lacks and the root is written empty. Filling a queue without contexts with one D would give All D."
+  "note": "To observe in PO, with fn/mapWithDefault/004: mapWithDefault over an empty input. <Orders/> has no Line, so Sku in its default context Line is one empty context (F-17), and mapWithDefault fills it with D: the root's one slot creates one All D, as removeContexts first gives in fn/mapWithDefault/004. Before F-17 the queue had no context at all and the root was written empty."
 }

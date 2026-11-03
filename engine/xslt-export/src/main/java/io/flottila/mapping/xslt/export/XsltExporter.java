@@ -52,10 +52,11 @@ import java.util.stream.Collectors;
  *       template, and {@code po:slots} reads the variable.
  *   <li>A queue is an {@code array(item()*)} with one member per context, each value an {@code
  *       xs:string} or {@code $po:SUPPRESS}. A {@code SourceQueue} reads the source document as
- *       {@code /}, the template's focus wherever a queue is written; a leaf field's member holds
- *       its {@code string()} per occurrence, a structure field's {@code ''} (ADR-0008; #63). A
- *       {@code FunCall} is {@code po:<catalogue name>} of the helper module over its args in {@code
- *       FunCall} order (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
+ *       {@code /}, the template's focus wherever a queue is written, and has at least one context
+ *       ({@code po:source-queue}, F-17); a leaf field's member holds its {@code string()} per
+ *       occurrence, a structure field's {@code ''} (ADR-0008; #63). A {@code FunCall} is {@code
+ *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
+ *       (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -135,11 +136,12 @@ public final class XsltExporter {
 
   /**
    * A {@code SourceQueue}: its context's path from the root, its field's path under it, and what
-   * each occurrence gives.
+   * each occurrence gives. {@code po:source-queue} makes it one empty context when the context
+   * never occurs (ADR-0004 as amended, F-17).
    */
   private static final String QUEUE =
       """
-      array:join(/%s ! [%s ! %s])""";
+      po:source-queue(array:join(/%s ! [%s ! %s]))""";
 
   /** What an occurrence of a leaf field gives in its queue: its text. */
   private static final String LEAF_VALUE = "string()";
