@@ -30,8 +30,10 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -1232,27 +1234,32 @@ class EngineFacadeTest {
             });
   }
 
-  /** Whether any live platform thread other than this one is inside a mapping run. */
-  private static boolean aPlatformThreadRunsAMapping() {
+  /** The live platform threads other than this one that are inside a mapping run. */
+  private static Set<Thread> platformThreadsInAMapping() {
     // Thread.getAllStackTraces holds platform threads only, never a virtual one
     return Thread.getAllStackTraces().entrySet().stream()
-        .filter(e -> e.getKey() != Thread.currentThread() && e.getKey().isDaemon())
-        .flatMap(e -> Stream.of(e.getValue()))
-        .anyMatch(frame -> frame.getClassName().equals(ExecutableMapping.class.getName()));
+        .filter(e -> e.getKey() != Thread.currentThread())
+        .filter(
+            e ->
+                Stream.of(e.getValue())
+                    .anyMatch(f -> f.getClassName().equals(ExecutableMapping.class.getName())))
+        .map(Map.Entry::getKey)
+        .collect(Collectors.toSet());
   }
 
   /**
    * ADR-0020 (O5 of the #52 design): a test run runs on a platform thread, never a virtual one,
-   * because a spinning virtual thread holds its carrier. While a long test run parses, some live
-   * platform thread is inside {@code ExecutableMapping.run}; a virtual run thread is never among
-   * the platform threads. It is a daemon, so a run that ignores its interrupt never holds the JVM
-   * open.
+   * because a spinning virtual thread holds its carrier. While a long test run parses, a platform
+   * thread that was not inside {@code ExecutableMapping.run} before the test run is; a virtual run
+   * thread is never among the platform threads. It is a daemon, so a run that ignores its interrupt
+   * never holds the JVM open. The facade's deadline, a test's port (CODING_STANDARDS: no sleeps),
+   * looks for the thread while the run is live, and an earlier test's interrupted run, still
+   * ending, is told apart by its identity, so nothing waits for it.
    */
   @Test
   void aTestRunRunsOnAPlatformThread() throws Exception {
-    EngineFacade facade = new EngineFacade();
     CompiledMapping mapping =
-        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+        compiled(new EngineFacade().compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
     byte[] input =
         utf8(
             "<src:Order xmlns:src=\""
@@ -1260,24 +1267,26 @@ class EngineFacadeTest {
                 + "\"><OrderId>4711</OrderId>"
                 + "<Note>n</Note>".repeat(1_000_000)
                 + "</src:Order>");
-    // an earlier test's interrupted run ends at its next interrupt check
-    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
-    while (aPlatformThreadRunsAMapping() && System.nanoTime() < deadline) {
-      Thread.onSpinWait();
-    }
-    assertThat(aPlatformThreadRunsAMapping()).as("before the test run").isFalse();
-    FutureTask<TestRunResult> caller =
-        new FutureTask<>(() -> facade.testRun(mapping, input, Duration.ofSeconds(30), TRACE_LIMIT));
-    // not a daemon, so only the run's own thread passes the daemon filter
-    Thread.ofPlatform().name("test-run caller").daemon(false).start(caller);
+    Set<Thread> before = platformThreadsInAMapping();
+    AtomicReference<Thread> seen = new AtomicReference<>();
+    EngineFacade facade =
+        new EngineFacade(
+            (run, timeout, tracer) -> {
+              while (!run.isDone() && seen.get() == null) {
+                platformThreadsInAMapping().stream()
+                    .filter(thread -> !before.contains(thread))
+                    .findFirst()
+                    .ifPresent(seen::set);
+              }
+              return run.get();
+            });
 
-    boolean seen = false;
-    while (!caller.isDone() && !seen) {
-      seen = aPlatformThreadRunsAMapping();
-    }
+    TestRunResult result = facade.testRun(mapping, input, Duration.ofSeconds(30), TRACE_LIMIT);
 
-    assertThat(caller.get()).isInstanceOf(TestRunResult.Output.class);
-    assertThat(seen).as("a platform thread inside ExecutableMapping.run").isTrue();
+    assertThat(result).isInstanceOf(TestRunResult.Output.class);
+    assertThat(seen.get()).as("a new platform thread inside ExecutableMapping.run").isNotNull();
+    assertThat(seen.get().isVirtual()).as("the run's thread is virtual").isFalse();
+    assertThat(seen.get().isDaemon()).as("the run's thread is a daemon").isTrue();
   }
 
   @Test
