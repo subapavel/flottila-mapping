@@ -5,19 +5,22 @@
 //   java scripts/function-families.java helper <po-runtime.xsl> <input>...               engine/xslt-export
 //   java scripts/function-families.java index <FamilyIndex.java> <input>...              engine/runtime
 //
-// An input is a directory, whose files it lists (without walking into subdirectories), or one file. A
-// mode reads the files of its kind and ignores the others:
+// An input is a directory, whose files it lists (without walking into subdirectories), or one file;
+// it must exist. A mode reads the files of its kind and ignores the others:
 //   catalogue  <family>.json: a family file, keyed by function name, in canonical form (ADR-0010).
 //              Output: one catalogue in canonical form, each entry given its "family", the file's stem.
-//   helper     core.xsl and <family>.xsl: each holds core's root start tag and its line end, byte for
-//              byte, and ends with the root end tag and a LF. Output: core.xsl up to its root end tag,
-//              then what each family module's root holds, the families by id, then the root end tag.
+//              A function name in two family files is refused.
+//   helper     core.xsl and <family>.xsl: each is well-formed XML, holds core's root start tag and its
+//              line end, byte for byte, and ends with the root end tag and a LF. Output: core.xsl up to
+//              its root end tag, then what each family module's root holds, the families by id, then
+//              the root end tag. A top-level declaration (element and name) in two modules is refused.
 //   index      <Family>Family.java: the family <family> of io.flottila.mapping.runtime, holding the
-//              maps QUEUE and VALUE. Output: FamilyIndex, those maps by family id.
-// The order in which the files are listed or given never shows in an output (a family's file is
-// given once: of two files of one stem, the one given last counts). A name in two family files, a
-// family file that is no JSON or not in canonical form, and a module with another root start tag
-// exit 1, the message naming the name or the file, and no output is written.
+//              maps QUEUE and VALUE. Output: FamilyIndex, those maps by family id. A function name in
+//              two of those maps is refused when the runtime merges them (FunctionFamilies.merge), as
+//              this program does not read Java.
+// In every mode a family's file given twice (two files of one stem) is refused, so the order in which
+// the files are listed or given never shows in an output. A refusal exits 1 with a message that names
+// the name or the file, and no output is written.
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
@@ -35,6 +38,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.xml.sax.SAXException;
 
 public final class FamilyGenerator {
 
@@ -45,20 +54,23 @@ public final class FamilyGenerator {
     }
   }
 
+  private static final String USAGE =
+      "usage: java scripts/function-families.java catalogue|helper|index <output> <input>...";
+
   private FamilyGenerator() {}
 
   public static void main(String[] args) throws IOException {
     try {
+      if (args.length < 2) {
+        throw new Refusal(USAGE);
+      }
       List<Path> files = files(Arrays.asList(args).subList(2, args.length));
       String output =
           switch (args[0]) {
             case "catalogue" -> catalogue(families(files, ".json", UnaryOperator.identity()));
             case "helper" -> helper(families(files, ".xsl", UnaryOperator.identity()));
             case "index" -> index(families(files, "Family.java", FamilyGenerator::decapitalize));
-            default ->
-                throw new Refusal(
-                    "usage: java scripts/function-families.java catalogue|helper|index <output>"
-                        + " <input>...");
+            default -> throw new Refusal(USAGE);
           };
       Path out = Path.of(args[1]).toAbsolutePath();
       Files.createDirectories(out.getParent());
@@ -69,7 +81,10 @@ public final class FamilyGenerator {
     }
   }
 
-  /** The files of {@code inputs}: the files a directory lists, or the input itself. */
+  /**
+   * The files of {@code inputs}: the files a directory lists, or the input itself, a file. A missing
+   * input is refused, so that a moved or misspelt directory never gives an empty output.
+   */
   private static List<Path> files(List<String> inputs) throws IOException {
     List<Path> files = new ArrayList<>();
     for (String input : inputs) {
@@ -78,21 +93,30 @@ public final class FamilyGenerator {
         try (Stream<Path> listing = Files.list(path)) {
           listing.forEach(files::add);
         }
-      } else {
+      } else if (Files.isRegularFile(path)) {
         files.add(path);
+      } else {
+        throw new Refusal(input + " is no directory and no file");
       }
     }
     return files;
   }
 
-  /** The files named {@code <stem><suffix>}, by family id, {@code id} of the stem, in id order. */
+  /**
+   * The files named {@code <stem><suffix>}, by family id, {@code id} of the stem, in id order. Two
+   * files of one family are refused.
+   */
   private static SortedMap<String, Path> families(
       List<Path> files, String suffix, UnaryOperator<String> id) {
     SortedMap<String, Path> families = new TreeMap<>();
     for (Path file : files) {
       String name = file.getFileName().toString();
       if (name.endsWith(suffix)) {
-        families.put(id.apply(name.substring(0, name.length() - suffix.length())), file);
+        String family = id.apply(name.substring(0, name.length() - suffix.length()));
+        Path other = families.put(family, file);
+        if (other != null) {
+          throw new Refusal("two files of the family " + family + ": " + other + " and " + file);
+        }
       }
     }
     return families;
@@ -111,6 +135,14 @@ public final class FamilyGenerator {
       Path file = family.getValue();
       byte[] bytes = Files.readAllBytes(file);
       Object tree = new Json(new String(bytes, UTF_8), file).document();
+      List<String> empty = emptyCollections(tree, "", "");
+      if (!empty.isEmpty()) {
+        throw new Refusal(
+            file
+                + " is not in canonical form (ADR-0010): it leaves out empty arrays and objects,"
+                + " but a table default {}, and this file has them at "
+                + empty);
+      }
       // the reader has refused a BOM; a malformed UTF-8 byte, a CR and every other deviation from
       // the canonical form make the bytes differ
       if (!Arrays.equals(bytes, (canonical(tree, "") + "\n").getBytes(UTF_8))) {
@@ -155,25 +187,41 @@ public final class FamilyGenerator {
   }
 
   /**
-   * {@code value} in canonical form (ADR-0010): {@code JSON.stringify(value, null, 2)} with the keys
-   * sorted by UTF-16 code unit (a TreeMap's order), and every member whose value is an empty array
-   * or object left out, but a {@code default}, which may be an empty table.
+   * The JSON pointers of the empty arrays in {@code value}, and of its empty objects but a
+   * {@code default}'s, an empty table: the canonical form leaves them out (ADR-0010).
+   */
+  private static List<String> emptyCollections(Object value, String pointer, String member) {
+    List<String> empty = new ArrayList<>();
+    if (value instanceof Map<?, ?> members) {
+      if (members.isEmpty() && !member.equals("default")) {
+        empty.add(pointer);
+      }
+      members.forEach(
+          (key, child) -> empty.addAll(emptyCollections(child, pointer + "/" + key, (String) key)));
+    } else if (value instanceof List<?> items) {
+      if (items.isEmpty()) {
+        empty.add(pointer);
+      }
+      for (int i = 0; i < items.size(); i++) {
+        empty.addAll(emptyCollections(items.get(i), pointer + "/" + i, ""));
+      }
+    }
+    return empty;
+  }
+
+  /**
+   * {@code value} as {@code JSON.stringify(value, null, 2)} writes it, the keys sorted by UTF-16
+   * code unit (a TreeMap's order): the canonical form (ADR-0010) of a value without empty arrays
+   * and with no empty object but a table default, which {@link #emptyCollections} has refused.
    */
   private static String canonical(Object value, String indent) {
     String inner = indent + "  ";
     return switch (value) {
-      case Map<?, ?> members -> {
-        List<String> kept = new ArrayList<>();
-        members.forEach(
-            (key, member) -> {
-              if (key.equals("default") || !empty(member)) {
-                kept.add(inner + quote((String) key) + ": " + canonical(member, inner));
-              }
-            });
-        yield kept.isEmpty()
-            ? "{}"
-            : kept.stream().collect(Collectors.joining(",\n", "{\n", "\n" + indent + "}"));
-      }
+      case Map<?, ?> members when members.isEmpty() -> "{}";
+      case Map<?, ?> members ->
+          members.entrySet().stream()
+              .map(m -> inner + quote((String) m.getKey()) + ": " + canonical(m.getValue(), inner))
+              .collect(Collectors.joining(",\n", "{\n", "\n" + indent + "}"));
       case List<?> items ->
           items.stream()
               .map(item -> inner + canonical(item, inner))
@@ -181,11 +229,6 @@ public final class FamilyGenerator {
       case String text -> quote(text);
       case null, default -> String.valueOf(value);
     };
-  }
-
-  private static boolean empty(Object value) {
-    return value instanceof Map<?, ?> members && members.isEmpty()
-        || value instanceof List<?> items && items.isEmpty();
   }
 
   /**
@@ -335,16 +378,25 @@ public final class FamilyGenerator {
     if (core == null) {
       throw new Refusal("no core.xsl among the inputs");
     }
-    String coreText = Files.readString(core, UTF_8);
-    int start = coreText.indexOf("<xsl:stylesheet");
     // core's root start tag and the line end after it
-    String rootTag = coreText.substring(start, coreText.indexOf('>', start) + 2);
+    Matcher rootTag = ROOT_START_TAG.matcher(Files.readString(core, UTF_8));
+    if (!rootTag.find()) {
+      throw new Refusal(core + " has no root start tag <xsl:stylesheet …> and its line end");
+    }
     Pattern module =
-        Pattern.compile("(?s)(.*?" + Pattern.quote(rootTag) + ")(.*)</xsl:stylesheet>\n");
+        Pattern.compile("(?s)(.*?" + Pattern.quote(rootTag.group()) + ")(.*)</xsl:stylesheet>\n");
     List<Path> order = new ArrayList<>(List.of(core));
     order.addAll(modules.values());
+    Map<String, Path> declaredIn = new HashMap<>();
     StringBuilder out = new StringBuilder();
     for (Path file : order) {
+      for (String declaration : declarations(file)) {
+        Path other = declaredIn.putIfAbsent(declaration, file);
+        if (other != null) {
+          throw new Refusal(
+              "the declaration " + declaration + " is in two modules: " + other + " and " + file);
+        }
+      }
       Matcher parts = module.matcher(Files.readString(file, UTF_8));
       if (!parts.matches()) {
         throw new Refusal(
@@ -359,6 +411,32 @@ public final class FamilyGenerator {
       out.append(parts.group(2));
     }
     return out.append("</xsl:stylesheet>\n").toString();
+  }
+
+  private static final Pattern ROOT_START_TAG = Pattern.compile("<xsl:stylesheet\\b[^>]*>\n");
+
+  /**
+   * Each top-level declaration of {@code module}, an element of its root, as its element and its
+   * {@code name} (empty when it has none): {@code xsl:function po:slots}.
+   */
+  private static List<String> declarations(Path module) throws IOException {
+    Document document;
+    try {
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      factory.setNamespaceAware(true);
+      document = factory.newDocumentBuilder().parse(module.toFile());
+    } catch (ParserConfigurationException | SAXException e) {
+      throw new Refusal(module + " is no well-formed XML: " + e.getMessage());
+    }
+    List<String> declarations = new ArrayList<>();
+    for (Node child = document.getDocumentElement().getFirstChild();
+        child != null;
+        child = child.getNextSibling()) {
+      if (child instanceof Element declaration) {
+        declarations.add(declaration.getTagName() + " " + declaration.getAttribute("name"));
+      }
+    }
+    return declarations;
   }
 
   // --- index
