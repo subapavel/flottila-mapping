@@ -107,7 +107,8 @@ final class ArithmeticFamily {
     Node.OfString first = args.get(0);
     Node.OfString second = args.get(1);
     return frame ->
-        canonical(operation.apply(decimal(first.eval(frame), box), decimal(second.eval(frame), box)));
+        canonical(
+            operation.apply(decimal(first.eval(frame), box), decimal(second.eval(frame), box)));
   }
 
   /** The node of a call over two numbers; the result is {@code true} or {@code false}. */
@@ -117,7 +118,8 @@ final class ArithmeticFamily {
     Node.OfString second = args.get(1);
     return frame ->
         Boolean.toString(
-            holds.test(decimal(first.eval(frame), box).compareTo(decimal(second.eval(frame), box))));
+            holds.test(
+                decimal(first.eval(frame), box).compareTo(decimal(second.eval(frame), box))));
   }
 
   /** The node of a call over one number. */
@@ -163,15 +165,14 @@ final class ArithmeticFamily {
    * ADR-0005, as Saxon-HE 12.5 divides: the quotient rounded half-down to {@code max(18, scale of
    * dividend - scale of divisor + 18)} fractional digits, the scales without trailing zeros. A
    * quotient with no more digits than that is exact; one with more (1 / 2^30) is rounded too, which
-   * is narrower than ADR-0005's "a quotient that terminates is exact" (observed, differential
-   * case fn/divide/004).
+   * is narrower than ADR-0005's "a quotient that terminates is exact" (observed, differential case
+   * fn/divide/004).
    *
    * @throws MappingRunException {@code err:FOAR0001} at {@code box} when {@code divisor} is zero
    */
   static BigDecimal quotient(BigDecimal dividend, BigDecimal divisor, AuthoringId box) {
     if (divisor.signum() == 0) {
-      throw MappingRunException.dataError(
-          RuntimeErrors.FOAR0001, box, "division by zero", null);
+      throw MappingRunException.dataError(RuntimeErrors.FOAR0001, box, "division by zero", null);
     }
     int scale = Math.max(DIVISION_SCALE, scale(dividend) - scale(divisor) + DIVISION_SCALE);
     return dividend.divide(divisor, scale, RoundingMode.HALF_DOWN);
@@ -181,7 +182,6 @@ final class ArithmeticFamily {
   private static int scale(BigDecimal value) {
     return Math.max(0, value.stripTrailingZeros().scale());
   }
-
 
   /** The XPath canonical form of {@code value}: no exponent, no trailing zeros, no {@code -0}. */
   static String canonical(BigDecimal value) {

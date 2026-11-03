@@ -5,8 +5,7 @@ package io.flottila.mapping.runtime;
  * since #52): error QNames, the same names the export raises. A context function has one, {@code
  * po:<catalogue name upper-cased>}, whichever of its conditions fails; a standard function's data
  * error is the W3C code the export raises too ({@code err:FORG0001}, {@code err:FOAR0001}, ADR-0025
- * "Names and fidelity"). A test run's limit, {@code
- * flottila:TIMEOUT}, is not one of them.
+ * "Names and fidelity"). A test run's limit, {@code flottila:TIMEOUT}, is not one of them.
  */
 public final class RuntimeErrors {
 
