@@ -686,15 +686,18 @@ class XsltExporterTest {
   // its last param, and the exporter appends the FunCall's origin exactly there
 
   /**
-   * The names of the {@code xsl:param} of the helper module's {@code xsl:function} {@code name}.
+   * The names of the {@code xsl:param} of the helper module's {@code xsl:function} {@code name}:
+   * its own, which stand before its body, so not those of an {@code xsl:iterate} in it, as
+   * formatByExample has.
    */
   private static List<String> helperParamNames(String name) {
     String helper = XsltExporter.helperModule();
     int at = helper.indexOf("name=\"" + name + "\"");
     assertThat(at).as("%s in the helper module", name).isNotNegative();
-    String function = helper.substring(at, helper.indexOf("</xsl:function>", at));
+    String function = helper.substring(helper.indexOf('>', at) + 1);
     List<String> names = new ArrayList<>();
-    Matcher param = Pattern.compile("<xsl:param\\s+name=\"([^\"]*)\"").matcher(function);
+    Matcher param =
+        Pattern.compile("\\G\\s*<xsl:param\\s+name=\"([^\"]*)\"[^>]*/>").matcher(function);
     while (param.find()) {
       names.add(param.group(1));
     }
@@ -774,6 +777,35 @@ class XsltExporterTest {
     assertThatThrownBy(() -> XsltExporter.export(fieldLinkWith(unknown, List.of(valueText()))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
+  }
+
+  /**
+   * A FunCall whose args, with the box id where the helper takes it, are not as many as the helper
+   * declares params is a compiler bug too (ADR-0026): removeContexts takes one, useOneAsMany three
+   * and its box.
+   */
+  @Test
+  void aFunCallOfAnotherArityThanTheHelpersIsACompilerBug() {
+    SourceQueue a1 = underRoot(ORDER, ORDER_ID, "a1");
+    // witness: removeContexts over one queue and useOneAsMany over three export
+    assertThat(XsltExporter.export(fieldLinkWith(removeContexts(a1, "r1"), List.of(valueText()))))
+        .contains("po:removeContexts(");
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(
+                    call("useOneAsMany", List.of(a1, a1, a1), 0, "u1"), List.of(valueText()))))
+        .contains("po:useOneAsMany(");
+
+    for (FunCall wrong :
+        List.of(
+            call("removeContexts", List.of(a1, a1), 0, "r1"),
+            call("useOneAsMany", List.of(a1, a1), 0, "u1"),
+            call("useOneAsMany", List.of(a1, a1, a1, a1), 0, "u1"))) {
+      assertThatThrownBy(() -> XsltExporter.export(fieldLinkWith(wrong, List.of(valueText()))))
+          .as("%s over %d args", wrong.function().name(), wrong.args().size())
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("po:" + wrong.function().name());
+    }
   }
 
   /**
