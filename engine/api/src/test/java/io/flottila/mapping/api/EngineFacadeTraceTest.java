@@ -560,6 +560,23 @@ class EngineFacadeTraceTest {
   }
 
   /**
+   * An occurrences entry's slot records count across its parent slots, each parent slot the slots
+   * of its own context (#53 review). Under a trace limit of 2, nested-item-v's V has one slot
+   * record under each of two Items, slot numbers 1 and 2: two records, at the limit, so it is not
+   * capped. The capped side: theLimitCapsAQueueAndKeepsItsTotals, with a third.
+   */
+  @Test
+  void slotRecordsCountAcrossParentSlots() throws Exception {
+    CompiledMapping mapping = tested(corpusMapping("nested-item-v.mapping.json"), mappings());
+    String input = orders(order("o1", line("a", null)), order("o2", line("b", null)));
+
+    TestRunResult.Output result = output(facade.testRun(mapping, utf8(input), TIMEOUT, 2));
+
+    assertThat(occurrencesOf(result.trace(), "T2"))
+        .isEqualTo(occurrences(0, UNBOUNDED, parent(1, 1, created(1)), parent(2, 1, created(2))));
+  }
+
+  /**
    * Item per Sku in the root's context, V per Qty in Line's context, under a trace limit of 2. With
    * three Lines and no Qty, V's queue is three empty contexts: no slot, but three contexts, above
    * the limit, so it keeps two and its totals. Witness: two empty contexts are at the limit.
