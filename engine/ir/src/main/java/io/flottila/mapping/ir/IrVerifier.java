@@ -19,6 +19,8 @@ import java.util.Optional;
  *   <li>a {@link SourceQueue}'s context is a proper ancestor of its field;
  *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, its queue is a queue and its
  *       parent slot an {@code INTEGER};
+ *   <li>a {@link TargetRepeat} has at least one copy and an {@code INTEGER} parent slot, and binds
+ *       its slot number ({@code INTEGER}) only in its body (#63);
  *   <li>a {@link FunCall} has one argument per parameter type of its {@link FunctionRef}, each of
  *       that type; a context function's (one whose result is a queue) atomic argument is a param,
  *       and a param is a {@link Literal} (ADR-0025);
@@ -26,7 +28,8 @@ import java.util.Optional;
  *       distinct and none named {@code in}, which the export binds (ADR-0025), and a {@code STRING}
  *       body (ADR-0006 since #51);
  *   <li>a {@link TextConstructor}'s value is a {@code STRING}, and the document's content, an
- *       {@link ElementConstructor}'s content and a {@link TargetSlots}' body are content (#51).
+ *       {@link ElementConstructor}'s content and the body of a {@link TargetSlots} (#51) and of a
+ *       {@link TargetRepeat} (#63) are content.
  * </ul>
  */
 public final class IrVerifier {
@@ -86,6 +89,16 @@ public final class IrVerifier {
         body.put(s.slotVar(), AtomicType.INTEGER);
         body.put(s.valueVar(), AtomicType.STRING);
         content(s.body(), body);
+        yield Optional.empty();
+      }
+      case TargetRepeat r -> {
+        if (r.copies() < 1) {
+          throw refused(r, "it has " + r.copies() + " copies, not at least 1");
+        }
+        value(r, r.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
+        Map<String, AtomicType> body = new HashMap<>(scope);
+        body.put(r.slotVar(), AtomicType.INTEGER);
+        content(r.body(), body);
         yield Optional.empty();
       }
       case ElementConstructor e -> {
