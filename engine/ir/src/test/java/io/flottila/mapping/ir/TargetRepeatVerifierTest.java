@@ -77,6 +77,12 @@ class TargetRepeatVerifierTest {
   @MethodSource("defects")
   void refusesADefectiveTargetRepeat(String why, TargetDocument document) {
     assertThatCode(() -> IrVerifier.verify(accepted())).doesNotThrowAnyException();
+    // one copy is the least accepted, as an unmapped 1..1 field gives it
+    assertThatCode(
+            () ->
+                IrVerifier.verify(
+                    document(pairs(1, rootSlot(), pair(values(pairSlot(AtomicType.INTEGER)))))))
+        .doesNotThrowAnyException();
 
     assertThatThrownBy(() -> IrVerifier.verify(document))
         .isInstanceOf(IllegalArgumentException.class);

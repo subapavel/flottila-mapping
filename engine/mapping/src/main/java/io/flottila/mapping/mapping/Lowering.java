@@ -189,8 +189,7 @@ public final class Lowering {
                         + " root");
                 return Optional.empty();
               }
-              for (int depth = UNDER_ROOT; depth < steps.size(); depth++) {
-                FieldPath parent = new FieldPath(steps.subList(0, depth));
+              for (FieldPath parent : parents(path)) {
                 Occurrence occurrence = target.field(parent).orElseThrow().occurrence();
                 if (mapped.contains(parent) || repeated(occurrence)) {
                   continue;
@@ -212,6 +211,14 @@ public final class Lowering {
               }
               return Optional.of(path);
             });
+  }
+
+  /** The fields between the root and {@code path}, both left out, from the root down. */
+  private static List<FieldPath> parents(FieldPath path) {
+    List<FieldPath.Step> steps = path.steps();
+    return IntStream.range(UNDER_ROOT, steps.size())
+        .mapToObj(depth -> new FieldPath(steps.subList(0, depth)))
+        .toList();
   }
 
   /** Whether an unmapped field of {@code occurrence} is created n times: {@code n..n}, n > 0. */

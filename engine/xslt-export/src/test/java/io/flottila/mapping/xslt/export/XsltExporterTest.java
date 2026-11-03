@@ -566,7 +566,9 @@ class XsltExporterTest {
                 + "        <xsl:variable name=\"slot2\" as=\"xs:integer\""
                 + " select=\"($root - 1) * 2 + .\"/>\n"
                 + "        <Pair>\n"
-                + "          <xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">");
+                + "          <xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">")
+        // the copies' xsl:for-each ends after Pair, on a line of its own
+        .contains("        </Pair>\n      </xsl:for-each>\n    </ns0:Order>\n");
   }
 
   /**

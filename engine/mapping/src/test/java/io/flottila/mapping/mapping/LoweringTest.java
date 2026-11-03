@@ -624,7 +624,8 @@ class LoweringTest {
    * ADR-0008 lets a recursive path repeat one type at most 16 times, so lowering refuses the 17th
    * Self with unsupported-field. No authoring element names an unmapped field, so the diagnostic
    * stands at the model's target structure, {@code /target}. A regression fails on the timeout, not
-   * by hanging the build.
+   * by hanging the build; the lowering takes milliseconds, and 2 s stays below PIT's own timeout,
+   * so a mutant without the cap is killed here rather than timed out.
    */
   @Test
   void anUnmappedTypeThatRequiresItselfIsRefusedAtTheRecursionCap() {
@@ -635,7 +636,7 @@ class LoweringTest {
 
     LowerResult result =
         assertTimeoutPreemptively(
-            Duration.ofSeconds(5),
+            Duration.ofSeconds(2),
             () ->
                 Lowering.lower(
                     model(
@@ -647,6 +648,34 @@ class LoweringTest {
                     TestStructures.selfRequired()));
 
     assertThat(refused(result))
+        .containsExactly(LoadResults.error("unsupported-field", new AtPointer("/target")));
+  }
+
+  /** {@code fixDown} with the first {@code downs} Downs mapped, the k-th at /Doc(/Fix/Down)^k. */
+  private static LowerResult lowerFixDown(int downs) {
+    Map<String, TargetFieldMapping> mappings = new java.util.LinkedHashMap<>();
+    for (int k = 1; k <= downs; k++) {
+      mappings.put(
+          "/Doc" + "/Fix/Down".repeat(k),
+          targetFieldMapping("t" + k, "a" + k, boxes("a" + k, source("/Orders/Order/Id"))));
+    }
+    return Lowering.lower(
+        model(ref(TestStructures.orders()), ref(TestStructures.fixDown()), mappings, Map.of()),
+        TestStructures.orders(),
+        TestStructures.fixDown());
+  }
+
+  /**
+   * The recursion cap's boundary (ADR-0008, #63): under 15 mapped Downs the deepest unmapped Fix is
+   * the 16th field of type /T on its path, which is allowed, so the mapping lowers. Under 16 the
+   * deepest Fix is the 17th, refused at /target. The Downs, of the root's type, do not count toward
+   * /T, nor does the root.
+   */
+  @Test
+  void theRecursionCapAllowsSixteenRepeatsOfATypeAndRefusesTheSeventeenth() {
+    assertThat(lowerFixDown(15)).isInstanceOf(Lowered.class);
+
+    assertThat(refused(lowerFixDown(16)))
         .containsExactly(LoadResults.error("unsupported-field", new AtPointer("/target")));
   }
 

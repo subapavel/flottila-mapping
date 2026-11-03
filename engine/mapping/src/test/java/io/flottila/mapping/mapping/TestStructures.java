@@ -162,6 +162,25 @@ final class TestStructures {
         self);
   }
 
+  /**
+   * A finite recursion through two types (#63): the root {@code Doc} holds {@code Fix} 1..1 of the
+   * type {@code /T}, and {@code /T} holds the leaf {@code V} 0..1 and {@code Down} 0..1 of the
+   * root's type {@code /Doc}. The unmapped Fix under each mapped Down repeats {@code /T} once more
+   * on its path, and an unmapped Down ends the chain. No namespace.
+   */
+  static Structure fixDown() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/T",
+            new StructureType(
+                "/T",
+                List.of(
+                    leaf("", "V", 0, 1, ValueType.STRING), structureField("Down", 0, 1, "/Doc")))),
+        structureField("Fix", 1, 1, "/T"));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =
