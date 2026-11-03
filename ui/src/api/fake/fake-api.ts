@@ -65,7 +65,8 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
 
     runTest: async (_id, { model, input }): Promise<TestResult> => {
       const known = cases.find((c) => c.input === input && c.links === links(model));
-      if (known) return { kind: 'output', output: known.output, diagnostics: [] };
+      // a test run's output carries its trace (ADR-0015, #53); the fake records none
+      if (known) return { kind: 'output', output: known.output, diagnostics: [], trace: {} };
       const unconnected = Object.values(model.targetFieldMappings ?? {}).filter((m) => m.result === null);
       if (unconnected.length > 0) {
         return {
