@@ -291,6 +291,8 @@ class OpenApiContractTest {
    */
   private static final Map<String, Set<String>> PROBLEMS =
       Map.of(
+          // ADR-0026: no parameter, no body, nothing to refuse
+          "get /api/catalogue", Set.of(),
           "get /api/mappings", Set.of(),
           "post /api/mappings", Set.of("400", "404", "409", "415", "422"),
           "get /api/mappings/{id}", Set.of("400", "404", "422"),
@@ -359,6 +361,8 @@ class OpenApiContractTest {
     String model = "./mapping-model.schema.json";
     Map<String, String> successes =
         Map.of(
+            // ADR-0026: the packed catalogue, of the contract's catalogue schema
+            "get /api/catalogue", "200 ./function-catalogue.schema.json",
             "get /api/mappings", "200 array of " + SCHEMAS + "MappingSummary",
             "post /api/mappings", "201 " + model,
             "get /api/mappings/{id}", "200 " + model,
@@ -390,6 +394,24 @@ class OpenApiContractTest {
           declared.put(operation, String.join(", ", answers));
         });
     assertThat(declared).isEqualTo(new TreeMap<>(successes));
+  }
+
+  /**
+   * ADR-0026: {@code GET /api/catalogue} answers 200 {@code application/json} whose schema is the
+   * contract's {@code function-catalogue.schema.json}, a file of the contract directory, and
+   * declares no ETag.
+   */
+  @Test
+  void theCatalogueAnswerRefersToTheCatalogueSchema() throws IOException {
+    JsonNode get = contract().path("paths").path("/api/catalogue").path("get");
+    assertThat(get.isObject()).as("get /api/catalogue in the contract").isTrue();
+    JsonNode ok = get.path("responses").path("200");
+
+    assertThat(names(ok.path("content"))).containsExactly("application/json");
+    assertThat(ok.path("content").path("application/json").path("schema").path("$ref").textValue())
+        .isEqualTo("./function-catalogue.schema.json");
+    assertThat(contractDirectory().resolve("function-catalogue.schema.json")).isRegularFile();
+    assertThat(names(ok.path("headers"))).as("headers of the catalogue").doesNotContain("ETag");
   }
 
   /** A model answer carries its ETag (ADR-0024, "ETag"); a create carries its Location too. */
