@@ -120,7 +120,8 @@ describe('the fake ApiClient over the corpus', () => {
   test('a test run of the corpus mapping on the corpus input gives the corpus output', async () => {
     const result = await fakeApiClient().runTest('mappings/order-id-copy', { model: corpusMapping, input: caseInput });
 
-    expect(result).toEqual({ kind: 'output', output: caseOutput, diagnostics: [] });
+    // since #53 a test run's output carries its trace; the fake records none (ADR-0015)
+    expect(result).toEqual({ kind: 'output', output: caseOutput, diagnostics: [], trace: {} });
   });
 
   test('a link drawn with other ids is the same link: the test run still gives the corpus output', async () => {
