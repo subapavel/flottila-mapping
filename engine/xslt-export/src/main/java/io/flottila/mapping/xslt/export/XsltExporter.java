@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -57,7 +59,9 @@ import java.util.stream.Collectors;
  *       ({@code po:source-queue}, F-17); a leaf field's member holds its {@code string()} per
  *       occurrence, a structure field's {@code ''} (ADR-0008; #63). A {@code FunCall} is {@code
  *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
- *       (ADR-0025). A {@code Literal} is an XPath string literal in apostrophes.
+ *       (ADR-0025), then the id of its function box, its origin, where the helper's declaration
+ *       ends in the param {@code box}: a function that can raise a data error (ADR-0026). A {@code
+ *       Literal} is an XPath string literal in apostrophes.
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -67,8 +71,9 @@ import java.util.stream.Collectors;
  *
  * <p>An IR it cannot write is a compiler bug, as in {@code IrVerifier}, so it throws {@link
  * IllegalArgumentException}: a namespace under prefix {@code ""} or a prefix without a namespace,
- * one prefix bound to two URIs, or a node where it cannot stand. It never returns part of a
- * stylesheet.
+ * one prefix bound to two URIs, a node where it cannot stand, or a {@code FunCall} of a function
+ * the helper module does not declare, or declares with another number of params. It never returns
+ * part of a stylesheet.
  */
 public final class XsltExporter {
 
@@ -181,6 +186,29 @@ public final class XsltExporter {
   /** The depth of the root's content: stylesheet, template, root. */
   private static final int CONTENT_DEPTH = 3;
 
+  /** The last param of a helper function that can raise a data error: its box's id (ADR-0026). */
+  private static final String BOX = "box";
+
+  /**
+   * A function of the helper module: the number of its own params, and whether the last is {@link
+   * #BOX}.
+   */
+  record Signature(int params, boolean endsInBox) {}
+
+  /**
+   * An {@code xsl:function} start tag of the helper module, its name, and its params: the {@code
+   * xsl:param} empty-element tags that follow it.
+   */
+  private static final Pattern FUNCTION =
+      Pattern.compile(
+          "<xsl:function\\s[^>]*?\\bname=\"([^\"]*)\"[^>]*>((?:\\s*<xsl:param\\s[^>]*/>)*)");
+
+  /** The name of one {@code xsl:param} empty-element tag. */
+  private static final Pattern PARAM = Pattern.compile("<xsl:param\\s[^>]*?\\bname=\"([^\"]*)\"");
+
+  /** The helper module's functions, by name, {@code po:<catalogue name>} for a catalogue's. */
+  private static final Map<String, Signature> SIGNATURES = signatures(helperModule());
+
   /** Every prefix bound so far, to its URI. */
   private final Map<String, String> bound = new HashMap<>();
 
@@ -236,6 +264,28 @@ public final class XsltExporter {
       // the resource lies in this module's own jar or directory: only a broken build fails here
       throw new UncheckedIOException(e);
     }
+  }
+
+  /**
+   * The signature of each {@code xsl:function} of {@code helper}: the {@code xsl:param} elements
+   * right after its start tag, its own, so a param of an {@code xsl:iterate} in its body is none of
+   * them. In XSLT 3.0 a function's param is empty (XTSE0760), so it is written as an empty-element
+   * tag.
+   */
+  static Map<String, Signature> signatures(String helper) {
+    Map<String, Signature> signatures = new HashMap<>();
+    Matcher function = FUNCTION.matcher(helper);
+    while (function.find()) {
+      int params = 0;
+      String last = "";
+      Matcher param = PARAM.matcher(function.group(2));
+      while (param.find()) {
+        params++;
+        last = param.group(1);
+      }
+      signatures.put(function.group(1), new Signature(params, last.equals(BOX)));
+    }
+    return Map.copyOf(signatures);
   }
 
   /**
@@ -314,16 +364,37 @@ public final class XsltExporter {
       }
       case VarRef v -> "$" + v.name();
       case Literal l -> literal(l.value());
-      case FunCall c ->
-          c.args().stream()
-              .map(this::expression)
-              .collect(Collectors.joining(", ", "po:" + c.function().name() + "(", ")"));
+      case FunCall c -> call(c);
       case Lift l -> lift(l);
       case TargetSlots s -> throw misplaced(s, "an expression");
       case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
     };
+  }
+
+  /**
+   * {@code c} as {@code po:<catalogue name>} over its args in {@code FunCall} order (ADR-0025), and
+   * the id of its function box last where the helper's declaration ends in {@link #BOX} (ADR-0026).
+   */
+  private String call(FunCall c) {
+    String name = "po:" + c.function().name();
+    Signature signature = SIGNATURES.get(name);
+    if (signature == null) {
+      throw new IllegalArgumentException(c + ": the helper module has no function " + name);
+    }
+    List<String> args = new ArrayList<>();
+    for (Expr arg : c.args()) {
+      args.add(expression(arg));
+    }
+    if (signature.endsInBox()) {
+      args.add(literal(c.origin().value()));
+    }
+    if (args.size() != signature.params()) {
+      throw new IllegalArgumentException(
+          c + ": " + name + " of the helper module takes " + signature.params() + " args");
+    }
+    return name + "(" + String.join(", ", args) + ")";
   }
 
   /**

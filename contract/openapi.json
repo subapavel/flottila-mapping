@@ -510,6 +510,24 @@
     }
   },
   "paths" : {
+    "/api/catalogue" : {
+      "get" : {
+        "responses" : {
+          "200" : {
+            "description" : "The function catalogue, keyed by function id",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "./function-catalogue.schema.json"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Get",
+        "tags" : [ "Catalogue Resource" ]
+      }
+    },
     "/api/mappings" : {
       "get" : {
         "responses" : {

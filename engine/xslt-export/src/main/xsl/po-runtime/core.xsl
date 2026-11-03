@@ -2,13 +2,15 @@
 <!-- The helper module every portable export imports (ADR-0023): the PO queue semantics as po:
      functions. A queue is an array(item()*) with one member per context; a value is an xs:string
      or $po:SUPPRESS, the marker of ADR-0004 (ADR-0025 since #51). A function of the catalogue is
-     po:<catalogue name>, its args in FunCall order (ADR-0025). Renaming this file, the po
+     po:<catalogue name>, its args in FunCall order (ADR-0025); one that can raise a data error
+     takes the id of its function box last, as $box (ADR-0026). Renaming this file, the po
      namespace or a function breaks exports already handed out. -->
 <xsl:stylesheet version="3.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:array="http://www.w3.org/2005/xpath-functions/array"
     xmlns:po="urn:flottila:mapping:po"
+    xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
   <!-- SUPPRESS in a queue (ADR-0004): a map, so reading it as a string fails at once (FOTY0013).
@@ -81,5 +83,16 @@
                                             return $c[min(($j, count($c)))])
                     return if (some $v in $in satisfies $v instance of map(*)) then $po:SUPPRESS
                            else $body($in)])"/>
+  </xsl:function>
+
+  <!-- The data error $code, a QName such as po:USEONEASMANY or err:FORG0001, that the function
+       box $box raises (ADR-0026, F-19): its message is 'the function box ', $box, ': ' and
+       $message, as the runtime's is. -->
+  <xsl:function name="po:data-error" as="item()*">
+    <xsl:param name="code" as="xs:QName"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:param name="message" as="xs:string"/>
+    <xsl:sequence select="error($code,
+                                'the function box ' || $box || ': ' || $message)"/>
   </xsl:function>
 </xsl:stylesheet>

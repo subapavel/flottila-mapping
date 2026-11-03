@@ -1,6 +1,9 @@
 {
   "collapseContexts": {
     "executionKind": "queue",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "queue"
@@ -10,6 +13,9 @@
   },
   "createIf": {
     "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "condition"
@@ -19,6 +25,9 @@
   },
   "exists": {
     "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "queue"
@@ -28,6 +37,9 @@
   },
   "formatByExample": {
     "executionKind": "queue",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "values"
@@ -40,6 +52,9 @@
   },
   "mapWithDefault": {
     "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "queue"
@@ -56,6 +71,9 @@
   },
   "removeContexts": {
     "executionKind": "queue",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "queue"
@@ -65,6 +83,9 @@
   },
   "replaceValue": {
     "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "value"
@@ -81,6 +102,9 @@
   },
   "sort": {
     "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "queue"
@@ -111,6 +135,9 @@
   },
   "sortByKey": {
     "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "keys"
@@ -144,6 +171,9 @@
   },
   "splitByValue": {
     "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "queue"
@@ -165,6 +195,9 @@
   },
   "useOneAsMany": {
     "executionKind": "queue",
+    "fidelity": {
+      "level": "assumed"
+    },
     "inputs": [
       {
         "name": "value"

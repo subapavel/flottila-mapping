@@ -44,6 +44,20 @@ class FunctionCatalogueTest {
     return Files.readAllBytes(found.getFirst());
   }
 
+  /**
+   * The catalogue is published as it is packed (ADR-0026): {@code FunctionCatalogue.bytes()} is the
+   * packed file, a copy of its own on each call, so a caller that writes into one changes no other.
+   */
+  @Test
+  void thePublishedCatalogueIsThePackedFile() throws Exception {
+    byte[] packed = catalogue();
+    byte[] published = FunctionCatalogue.bytes();
+
+    assertThat(published).isEqualTo(packed);
+    published[0] = (byte) ' ';
+    assertThat(FunctionCatalogue.bytes()).isEqualTo(packed);
+  }
+
   // --- canonical form (ADR-0010, as ADR-0011 applies it to the catalogue)
 
   /**
@@ -242,9 +256,13 @@ class FunctionCatalogueTest {
 
   static final String FAMILY_DIR = "engine/mapping/src/main/catalogue";
 
-  /** The packed catalogue of main at 9c6fd1a, before the split, copied byte for byte. */
+  /**
+   * The packed catalogue of main at 9c6fd1a, before the split, re-pinned once by #71 (ADR-0026
+   * Consequences): each of the eleven entries gains {@code fidelity: {level: assumed}}, every other
+   * byte is main's. The assertions below are #69's, unchanged.
+   */
   static final String MAIN_CATALOGUE =
-      "engine/mapping/src/test/resources/main-9c6fd1a/function-catalogue.json";
+      "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";
 
   /** Every {@code *.json} of {@value #FAMILY_DIR}, by its family: the file's stem. */
   static SortedMap<String, Path> familyFiles() throws IOException {
@@ -330,7 +348,9 @@ class FunctionCatalogueTest {
   }
 
   /**
-   * The split changes no entry (ADR-0025 "Families"): today's eleven functions form the family
+   * ADR-0026 re-pins main's copy once (see {@link #MAIN_CATALOGUE}); the assertions are #69's.
+   *
+   * <p>The split changes no entry (ADR-0025 "Families"): today's eleven functions form the family
    * {@code context}, and the packed entries of that family, their {@code family} taken out, are
    * main's catalogue before the split, byte for byte. Entries of the families spec 3 adds leave it
    * as it is.

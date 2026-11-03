@@ -78,13 +78,14 @@
       <resource>
         <directory>src/main/resources</directory>
       </resource>
-      <!-- Swagger UI resolves the contract's ./mapping-model.schema.json against /q/openapi (#45, ADR-0015):
-           the contract's file, served as /q/mapping-model.schema.json -->
+      <!-- Swagger UI resolves the contract's ./mapping-model.schema.json and ./function-catalogue.schema.json
+           against /q/openapi (#45, ADR-0015, ADR-0026): the contract's files, served as /q/<file> -->
       <resource>
         <directory>${maven.multiModuleProjectDirectory}/contract</directory>
         <targetPath>META-INF/resources/q</targetPath>
         <includes>
           <include>mapping-model.schema.json</include>
+          <include>function-catalogue.schema.json</include>
         </includes>
       </resource>
     </resources>

@@ -10,6 +10,7 @@ import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrType;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -681,6 +683,198 @@ class XsltExporterTest {
     assertThat(helperParams("po:removeContexts")).isEqualTo(1);
   }
 
+  // --- the box in data errors (ADR-0026, F-19): a po: function that can raise one declares box as
+  // its last param, and the exporter appends the FunCall's origin exactly there
+
+  /**
+   * The names of the {@code xsl:param} of the helper module's {@code xsl:function} {@code name}:
+   * its own, which stand before its body, so not those of an {@code xsl:iterate} in it, as
+   * formatByExample has.
+   */
+  private static List<String> helperParamNames(String name) {
+    String helper = XsltExporter.helperModule();
+    int at = helper.indexOf("name=\"" + name + "\"");
+    assertThat(at).as("%s in the helper module", name).isNotNegative();
+    String function = helper.substring(helper.indexOf('>', at) + 1);
+    List<String> names = new ArrayList<>();
+    Matcher param =
+        Pattern.compile("\\G\\s*<xsl:param\\s+name=\"([^\"]*)\"[^>]*/>").matcher(function);
+    while (param.find()) {
+      names.add(param.group(1));
+    }
+    return names;
+  }
+
+  private static FunCall call(String name, List<Expr> args, int params, String box) {
+    List<IrType> types = new ArrayList<>();
+    for (int k = 0; k < args.size(); k++) {
+      types.add(k < args.size() - params ? QUEUE : AtomicType.STRING);
+    }
+    return new FunCall(new FunctionRef(name, types, QUEUE), args, id(box));
+  }
+
+  @Test
+  void aFunctionThatCanRaiseTakesItsBoxIdLast() {
+    String queue = "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+    String fieldLink = "po:slots(" + queue + ", $root, 1)";
+    FunCall useOneAsMany =
+        call(
+            "useOneAsMany",
+            List.of(
+                underRoot(ORDER, ORDER_ID, "a1"),
+                underRoot(ORDER, ORDER_ID, "a2"),
+                underRoot(ORDER, ORDER_ID, "a3")),
+            0,
+            "u1");
+    String uoam = "po:useOneAsMany(" + queue + ", " + queue + ", " + queue + ", 'u1')";
+
+    // the field link's stylesheet with the call around its queue, its box id last
+    assertThat(XsltExporter.export(fieldLinkWith(useOneAsMany, List.of(valueText()))))
+        .isEqualTo(FIELD_LINK_STYLESHEET.replace(fieldLink, "po:slots(" + uoam + ", $root, 1)"));
+    // the box id comes after the params, and each call gets its own: here sort around useOneAsMany
+    FunCall sort =
+        call(
+            "sort",
+            List.of(
+                useOneAsMany,
+                new Literal("numeric", id("s1")),
+                new Literal("descending", id("s1"))),
+            2,
+            "s1");
+    assertThat(XsltExporter.export(fieldLinkWith(sort, List.of(valueText()))))
+        .contains("po:slots(po:sort(" + uoam + ", 'numeric', 'descending', 's1'), $root, 1)");
+    // a function that cannot raise one is unchanged
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(removeContexts(useOneAsMany, "r1"), List.of(valueText()))))
+        .contains("po:slots(po:removeContexts(" + uoam + "), $root, 1)")
+        .doesNotContain("'r1'");
+
+    // the helper module declares box last exactly where a function can raise a data error
+    assertThat(helperParamNames("po:useOneAsMany"))
+        .containsExactly("value", "occurrences", "contexts", "box");
+    assertThat(helperParamNames("po:formatByExample")).containsExactly("values", "example", "box");
+    assertThat(helperParamNames("po:sort")).containsExactly("queue", "comparison", "order", "box");
+    assertThat(helperParamNames("po:sortByKey"))
+        .containsExactly("keys", "values", "comparison", "order", "box");
+    assertThat(helperParamNames("po:removeContexts")).containsExactly("queue");
+    assertThat(helperParamNames("po:replaceValue")).containsExactly("value", "replacement");
+  }
+
+  /**
+   * The exporter reads the helper module's signatures (ADR-0026), so a FunCall whose function the
+   * helper does not declare is a compiler bug, as the runtime's binding treats it.
+   */
+  @Test
+  void aFunCallTheHelperLacksIsACompilerBug() {
+    FunCall unknown = call("noSuchFunction", List.of(underRoot(ORDER, ORDER_ID, "a1")), 0, "f1");
+    // witness: the same call of a function the helper declares exports
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(
+                    removeContexts(underRoot(ORDER, ORDER_ID, "a1"), "f1"), List.of(valueText()))))
+        .contains("po:removeContexts(");
+
+    assertThatThrownBy(() -> XsltExporter.export(fieldLinkWith(unknown, List.of(valueText()))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("noSuchFunction");
+  }
+
+  /** formatByExample can raise po:FORMATBYEXAMPLE, so its box id comes after its two queues. */
+  @Test
+  void formatByExampleTakesItsBoxIdLast() {
+    String queue = "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+    FunCall formatByExample =
+        call(
+            "formatByExample",
+            List.of(underRoot(ORDER, ORDER_ID, "a1"), underRoot(ORDER, ORDER_ID, "a2")),
+            0,
+            "f1");
+
+    assertThat(XsltExporter.export(fieldLinkWith(formatByExample, List.of(valueText()))))
+        .contains("po:slots(po:formatByExample(" + queue + ", " + queue + ", 'f1'), $root, 1)");
+  }
+
+  /**
+   * How the exporter reads the helper's signatures (ADR-0026): a function's own params are the
+   * {@code xsl:param} right after its start tag, in any attribute order, so the params of an {@code
+   * xsl:iterate} in its body, as formatByExample has, are none of them; a function without params
+   * ends in no box.
+   */
+  @Test
+  void aSignatureIsTheFunctionsOwnParams() {
+    String helper =
+        """
+        <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:array="http://www.w3.org/2005/xpath-functions/array" xmlns:po="urn:flottila:mapping:po">
+          <xsl:variable name="po:SUPPRESS" as="map(*)" select="map{}"/>
+          <xsl:function name="po:formatLike" as="array(item()*)">
+            <xsl:param name="values" as="array(item()*)"/>
+            <xsl:param name="example" as="array(item()*)"/>
+            <xsl:param name="box" as="xs:string"/>
+            <xsl:variable name="all" as="item()*" select="$values?*"/>
+            <xsl:iterate select="1 to array:size($example)">
+              <xsl:param name="offset" as="xs:integer" select="0"/>
+              <xsl:on-completion select="$values"/>
+            </xsl:iterate>
+          </xsl:function>
+          <xsl:function name="po:copyLike" as="array(item()*)">
+            <xsl:param name="queue" as="array(item()*)"/>
+            <xsl:iterate select="1 to 2">
+              <xsl:param name="box" as="xs:string" select="''"/>
+              <xsl:on-completion select="$queue"/>
+            </xsl:iterate>
+          </xsl:function>
+          <xsl:function as="xs:string" name="po:nameLast">
+            <xsl:param as="xs:string" name="value"/>
+            <xsl:param as="xs:string" name="box"/>
+            <xsl:sequence select="$value"/>
+          </xsl:function>
+          <xsl:function name="po:none" as="xs:string">
+            <xsl:sequence select="''"/>
+          </xsl:function>
+        </xsl:stylesheet>
+        """;
+
+    assertThat(XsltExporter.signatures(helper))
+        .isEqualTo(
+            Map.of(
+                "po:formatLike", new XsltExporter.Signature(3, true),
+                "po:copyLike", new XsltExporter.Signature(1, false),
+                "po:nameLast", new XsltExporter.Signature(2, true),
+                "po:none", new XsltExporter.Signature(0, false)));
+  }
+
+  /**
+   * A FunCall whose args, with the box id where the helper takes it, are not as many as the helper
+   * declares params is a compiler bug too (ADR-0026): removeContexts takes one, useOneAsMany three
+   * and its box.
+   */
+  @Test
+  void aFunCallOfAnotherArityThanTheHelpersIsACompilerBug() {
+    SourceQueue a1 = underRoot(ORDER, ORDER_ID, "a1");
+    // witness: removeContexts over one queue and useOneAsMany over three export
+    assertThat(XsltExporter.export(fieldLinkWith(removeContexts(a1, "r1"), List.of(valueText()))))
+        .contains("po:removeContexts(");
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(
+                    call("useOneAsMany", List.of(a1, a1, a1), 0, "u1"), List.of(valueText()))))
+        .contains("po:useOneAsMany(");
+
+    for (FunCall wrong :
+        List.of(
+            call("removeContexts", List.of(a1, a1), 0, "r1"),
+            call("useOneAsMany", List.of(a1, a1), 0, "u1"),
+            call("useOneAsMany", List.of(a1, a1, a1, a1), 0, "u1"))) {
+      assertThatThrownBy(() -> XsltExporter.export(fieldLinkWith(wrong, List.of(valueText()))))
+          .as("%s over %d args", wrong.function().name(), wrong.args().size())
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("po:" + wrong.function().name());
+    }
+  }
+
   /**
    * The raw value of the first {@code xsl:for-each}'s {@code select}, as written between quotes.
    */
@@ -822,9 +1016,16 @@ class XsltExporterTest {
 
   private static final String CORE = "core.xsl";
 
-  /** The packed helper module of main at 9c6fd1a, before the split, copied byte for byte. */
+  /**
+   * The packed helper module of main at 9c6fd1a, before the split, re-pinned once by #71 (ADR-0026
+   * Consequences): core gains po:data-error, whose code is an {@code xs:QName} so that a family can
+   * raise {@code err:FORG0001} through it, and the root declares {@code err} (#71 review); the five
+   * declarations that raise a data error (formatByExample, sort, sortByKey, sort-contexts,
+   * useOneAsMany) gain {@code box} as their last param and raise through it, and the header names
+   * the box; every other byte is main's. The assertions below are #69's, unchanged.
+   */
   private static final String MAIN_HELPER_MODULE =
-      "engine/xslt-export/src/test/resources/main-9c6fd1a/po-runtime.xsl";
+      "engine/xslt-export/src/test/resources/pinned-71/po-runtime.xsl";
 
   /** Surefire runs in the module directory: the root is the nearest ancestor holding mvnw. */
   private static Path repoRoot() {
@@ -1017,7 +1218,9 @@ class XsltExporterTest {
   }
 
   /**
-   * The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
+   * ADR-0026 re-pins main's copy once (see {@link #MAIN_HELPER_MODULE}); the assertions are #69's.
+   *
+   * <p>The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
    * helper module, every top-level declaration that main's copy before the split does not declare
    * taken out with the comments and whitespace ahead of it, is main's copy, byte for byte. A
    * declaration is known by its element and its name, so one of main's that changes, moves or goes

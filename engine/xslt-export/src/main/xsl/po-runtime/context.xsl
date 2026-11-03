@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The function family context (ADR-0025 "Families", F-15), spec 2's eleven functions: each is
-     po:<catalogue name>, its args in FunCall order. The build joins core.xsl and the family modules,
-     the families by id, into the helper module po-runtime.xsl, of which this comment is no part. A
-     family module uses what core.xsl declares and nothing of another family, and holds core.xsl's
-     root start tag, byte for byte. -->
+     po:<catalogue name>, its args in FunCall order, and one that can raise a data error takes its
+     box last and raises through po:data-error (ADR-0026). The build joins core.xsl and the family
+     modules, the families by id, into the helper module po-runtime.xsl, of which this comment is no
+     part. A family module uses what core.xsl declares and nothing of another family, and holds
+     core.xsl's root start tag, byte for byte. -->
 <xsl:stylesheet version="3.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:array="http://www.w3.org/2005/xpath-functions/array"
     xmlns:po="urn:flottila:mapping:po"
+    xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
   <!-- collapseContexts: the first value of each context of $queue, '' for an empty context, all in
@@ -52,10 +54,11 @@
   <xsl:function name="po:formatByExample" as="array(item()*)">
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="example" as="array(item()*)"/>
+    <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="all" as="item()*" select="$values?*"/>
     <xsl:choose>
       <xsl:when test="count($all) ne count($example?*)">
-        <xsl:sequence select="error(QName('urn:flottila:mapping:po', 'po:FORMATBYEXAMPLE'),
+        <xsl:sequence select="po:data-error(xs:QName('po:FORMATBYEXAMPLE'), $box,
             'formatByExample: its inputs do not hold as many values')"/>
       </xsl:when>
       <xsl:otherwise>
@@ -117,7 +120,8 @@
     <xsl:param name="queue" as="array(item()*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
-    <xsl:sequence select="po:sort-contexts('sort', $queue, $queue, $comparison, $order)"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:sort-contexts('sort', $queue, $queue, $comparison, $order, $box)"/>
   </xsl:function>
 
   <!-- sortByKey: each context of $values in the order of the keys at the same places of $keys, as
@@ -127,7 +131,8 @@
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
-    <xsl:sequence select="po:sort-contexts('sortByKey', $keys, $values, $comparison, $order)"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:sort-contexts('sortByKey', $keys, $values, $comparison, $order, $box)"/>
   </xsl:function>
 
   <!-- Each context of $values sorted by $keys, for the function $function. Its data error is
@@ -143,6 +148,7 @@
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="contexts" as="xs:integer" select="array:size($values)"/>
     <xsl:variable name="defect" as="xs:string?" select="
         if (array:size($keys) ne $contexts) then 'the keys and the values differ in their contexts'
@@ -158,7 +164,7 @@
                      then 'a numeric key is SUPPRESS' else ())[1]"/>
     <xsl:sequence select="
         if (exists($defect))
-        then error(QName('urn:flottila:mapping:po', 'po:' || upper-case($function)),
+        then po:data-error(QName('urn:flottila:mapping:po', 'po:' || upper-case($function)), $box,
                    $function || ': ' || $defect)
         else array:join(for $c in 1 to $contexts
                         return [po:sortByKey-context($keys($c), $values($c), $comparison, $order)])"/>
@@ -265,17 +271,18 @@
     <xsl:param name="value" as="array(item()*)"/>
     <xsl:param name="occurrences" as="array(item()*)"/>
     <xsl:param name="contexts" as="array(item()*)"/>
+    <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="values" as="item()*" select="$value?*"/>
     <xsl:variable name="repeated" as="item()*"
         select="for $k in 1 to array:size($occurrences) return $occurrences($k) ! $values[$k]"/>
     <xsl:sequence select="
         if (count($values) ne array:size($occurrences))
-        then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
+        then po:data-error(xs:QName('po:USEONEASMANY'), $box,
                    'useOneAsMany needs one value of its first input per context of its second: the'
                    || ' first has ' || count($values) || ' values, the second '
                    || array:size($occurrences) || ' contexts')
         else if (count($repeated) ne count($contexts?*))
-        then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
+        then po:data-error(xs:QName('po:USEONEASMANY'), $box,
                    'useOneAsMany needs as many slots in its third input as in its second: the third'
                    || ' has ' || count($contexts?*) || ' slots, the second ' || count($repeated))
         else array:join(

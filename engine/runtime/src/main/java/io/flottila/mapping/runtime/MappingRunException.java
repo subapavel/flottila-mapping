@@ -23,6 +23,17 @@ public final class MappingRunException extends RuntimeException {
     this.authoringId = authoringId.value();
   }
 
+  /**
+   * The data error {@code code} of a function, single-value or queue, raised at its function box
+   * {@code box} (ADR-0026, F-19): its message is {@code the function box <id>: } and then {@code
+   * message}, the function's own words, as the export's {@code po:data-error} writes it.
+   */
+  static MappingRunException dataError(
+      String code, AuthoringId box, String message, Throwable cause) {
+    return new MappingRunException(
+        code, box, "the function box " + box.value() + ": " + message, cause);
+  }
+
   /** The error's QName, such as {@code po:MINOCCURS}. */
   public String code() {
     return code;

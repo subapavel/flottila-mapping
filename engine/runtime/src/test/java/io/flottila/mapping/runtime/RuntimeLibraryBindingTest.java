@@ -222,6 +222,44 @@ class RuntimeLibraryBindingTest {
     assertThat(runOverItems(useOneAsMany)).isEqualTo(notesOf("A", "A", "B"));
   }
 
+  /**
+   * ADR-0026 (F-19): a data error names the box that raised it, its message starting with {@code
+   * the function box <id>: }, as the export's does. Name in the root's context, x1, x2, y, is three
+   * values for the two contexts of Name in Item's: po:USEONEASMANY at u7. Inside removeContexts at
+   * r1 the error is still u7's, and named once.
+   */
+  @Test
+  void aDataErrorNamesItsBox() {
+    FunCall useOneAsMany =
+        new FunCall(
+            new FunctionRef("useOneAsMany", List.of(QUEUE, QUEUE, QUEUE), QUEUE),
+            List.of(
+                source(1, "a1", "Item", "Name"),
+                source(2, "a2", "Item", "Name"),
+                source(1, "a3", "Item", "Name")),
+            new AuthoringId("u7"));
+    FunCall around =
+        new FunCall(
+            new FunctionRef("removeContexts", List.of(QUEUE), QUEUE),
+            List.of(useOneAsMany),
+            new AuthoringId("r1"));
+    String message =
+        "the function box u7: useOneAsMany needs one value of its first input per context of its"
+            + " second: the first has 3 values, the second 2 contexts";
+
+    for (FunCall call : List.of(useOneAsMany, around)) {
+      assertThatThrownBy(() -> runOverItems(call))
+          .as("%s", call.function().name())
+          .isInstanceOfSatisfying(
+              MappingRunException.class,
+              e -> {
+                assertThat(e.code()).isEqualTo("po:USEONEASMANY");
+                assertThat(e.authoringId()).isEqualTo(new AuthoringId("u7"));
+              })
+          .hasMessage(message);
+    }
+  }
+
   @Test
   void aLiteralIsItsValueInEverySlot() throws Exception {
     TargetDocument document = notes(sourceNotes(), new Literal("fixed", T1));

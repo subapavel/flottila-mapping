@@ -77,4 +77,21 @@ class SingleValueBindingTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
   }
+
+  /**
+   * ADR-0026 widens the single-value binding to take the call's box, as a queue function's does,
+   * before the family tickets use it. What is seen here is that the widened signature still binds
+   * by name: replaceValue gives its replacement. No single-value function of #71 raises a data
+   * error, so nothing here can see the box; the witness that a binding raises at its box comes with
+   * the first single-value function that raises one (#72).
+   */
+  @Test
+  void theWidenedBindingBindsReplaceValue() {
+    Node.OfString value = frame -> "v";
+    Node.OfString replacement = frame -> "X";
+
+    Node.OfString bound = SingleValueLibrary.bind("replaceValue", F1, List.of(value, replacement));
+
+    assertThat(bound.eval(null)).isEqualTo("X");
+  }
 }

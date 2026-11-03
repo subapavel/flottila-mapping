@@ -1216,6 +1216,55 @@ class EngineFacadeTest {
         .isFalse();
   }
 
+  // --- the published catalogue (ADR-0026): the facade serves the packed bytes
+
+  /** The one {@code function-catalogue.json} engine/mapping packs, read without the facade. */
+  private static byte[] packedCatalogue() throws Exception {
+    Path artifact =
+        Path.of(
+            io.flottila.mapping.mapping.Lowering.class
+                .getProtectionDomain()
+                .getCodeSource()
+                .getLocation()
+                .toURI());
+    if (!Files.isDirectory(artifact)) {
+      try (java.nio.file.FileSystem jar = java.nio.file.FileSystems.newFileSystem(artifact)) {
+        return Files.readAllBytes(onlyCatalogue(jar.getPath("/")));
+      }
+    }
+    return Files.readAllBytes(onlyCatalogue(artifact));
+  }
+
+  private static Path onlyCatalogue(Path root) throws Exception {
+    List<Path> found;
+    try (Stream<Path> files = Files.walk(root)) {
+      found =
+          files
+              .filter(
+                  p ->
+                      p.getFileName() != null
+                          && p.getFileName().toString().equals("function-catalogue.json"))
+              .toList();
+    }
+    assertThat(found).as("function-catalogue.json under %s", root).hasSize(1);
+    return found.getFirst();
+  }
+
+  @Test
+  void theCatalogueIsThePackedResource() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    byte[] packed = packedCatalogue();
+    // witness: the packed catalogue holds spec 2's functions
+    assertThat(new String(packed, UTF_8)).contains("\"useOneAsMany\": {");
+
+    byte[] first = facade.catalogue();
+
+    assertThat(first).isEqualTo(packed);
+    // a fresh copy on each call: a caller that writes into one changes no other
+    first[0] = (byte) ' ';
+    assertThat(facade.catalogue()).isEqualTo(packed).isNotSameAs(first);
+  }
+
   /** ADR-0015 since #52: {@code flottila:TIMEOUT} has no authoring id. */
   @Test
   void aTimeoutHasNoAuthoringId() throws Exception {
