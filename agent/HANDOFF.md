@@ -2,11 +2,12 @@
 
 state: RUNNING — /run-spec #70 "Spec 3: standard functions"
 integration branch: spec/70-standard-functions (from main 9fd6fb4), status comment 6613673138
-merged: none yet (F-15 #69 is on main)
-in flight: #71 (class C) design
+merged: #71 e4322f4 (F-15 #69 is on main)
+in flight: #72 t/72-arithmetic-basic · #73 t/73-arithmetic-rounding · #74 t/74-formatting (implementers, /tdd)
 blocked chain: none
 carried: spec-2 items by target spec in #48 comment 6595876651
-next action: #71 designer → test-author → implementer → gate → class-C review → merge; then the frontier #72–#79 (3 slots), #80 after #74.
+next action: gate + merge #72–#74 as they hand back; refill from #75–#79 in order, #80 after #74.
+carried to spec review: json-sKema undeclared at test scope in service/pom.xml · MappingRunException javadoc says codes are RuntimeErrors (true after #72) · #72 adds RuntimeErrors FORG0001/FOAR0001 with corpus cases (ruling on #72/#74/#80)
 spec 1: merged to main 3bf9747 (#46); carried #21 comment 6582060566. spec 2: merged 86bf5ed (#66); carried #48 comment 6595876651.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
