@@ -1,12 +1,12 @@
 # Handoff
 
-state: PREP — spec 3 published as #70 (grilling done, decisions in ADR-0025 amendment 9c6fd1a, F-19); F-15 prefactor #69 in flight
-integration branch: none (spec/48-queues-node-functions merged)
-merged: spec 2, tickets #49–#65, review rounds 1–2, ratchet 0f6dca8
-in flight: #69 (class C) test-author on t/69-function-families (from 9c6fd1a, branch claude/nifty-bohr-dm6yv7)
+state: RUNNING — /run-spec #70 "Spec 3: standard functions"
+integration branch: spec/70-standard-functions (from main 9fd6fb4), status comment 6613673138
+merged: none yet (F-15 #69 is on main)
+in flight: #71 (class C) design
 blocked chain: none
 carried: spec-2 items by target spec in #48 comment 6595876651
-next action: #69 tests → approve → implementer → gate → class-C review → merge into claude/nifty-bohr-dm6yv7 → PR to main; owner runs /to-tickets #70; then /run-spec #70.
+next action: #71 designer → test-author → implementer → gate → class-C review → merge; then the frontier #72–#79 (3 slots), #80 after #74.
 spec 1: merged to main 3bf9747 (#46); carried #21 comment 6582060566. spec 2: merged 86bf5ed (#66); carried #48 comment 6595876651.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
