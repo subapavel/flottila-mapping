@@ -37,7 +37,7 @@ there is one.
    - a pattern that does not translate;
    - an unresolved box;
    - an unconnected input, or an unconnected target field (`result` is `null`, F-2);
-   - an unreachable box (one `result` does not reach) gives a warning (from spec 6), never an error, and its
+   - an unreachable box (one `result` does not reach) gives a warning (from spec 5), never an error, and its
      inputs are not checked (ADR-0013).
    - a UDF that does not match its declaration;
    - a fingerprint mismatch.
@@ -75,7 +75,7 @@ there is one.
   - `unconnected-target-field`: `result` is `null`;
   - `unsupported-field` and `orphaned-reference` guard what spec 1's lowering cannot yet express.
   A box that `result` does not reach is not lowered and gives no error, so the model still runs.
-  The `unreachable-box` warning arrives with the editor's diagnostics (spec 6).
+  The `unreachable-box` warning arrives with the editor's diagnostics (spec 5).
 - Stage 3 codes in spec 2 (ADR-0025), at the function box's `{authoringId}`:
   - `wrong-arity`: more inputs than the catalogue entry has;
   - `unconnected-input`: an input slot that is `null` or absent;

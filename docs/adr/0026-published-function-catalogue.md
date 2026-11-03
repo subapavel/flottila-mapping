@@ -17,7 +17,7 @@ Status: accepted (2026-11-03, #71 design, spec #70). Refines ADR-0011 (catalogue
   - `EngineFacade.catalogue()` serves the bytes.
   - The OpenAPI response refers to the schema.
   - `ui/src/generated` gains the catalogue type.
-  - The UI gets no client method until spec 6.
+  - The UI gets no client method until spec 5 (editor).
 - **The box in data errors (F-19).**
   - A `po:` function that can raise a data error declares `box` as its last `xsl:param` and raises through `po:data-error($code, $box, $message)` in `core.xsl`.
   - The exporter reads the helper module's signatures once and appends the FunCall's origin exactly where the declaration ends in `box`. There is no list of names and no IR change.
