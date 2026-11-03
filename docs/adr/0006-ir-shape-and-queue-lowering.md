@@ -88,9 +88,10 @@ for-each over the source context".
     lacks counts as empty (assumed for the `min` check; #31 d1 observed only that an optional field
     gets no occurrence there). `po:MINOCCURS` is raised at the target field
     mapping (`TargetSlots.origin`). Nothing is padded up to `min`.
-  - The export is `po:at-least(po:slots(queue, p, max), min)`; `po:slots` gives
+  - The export is `po:at-least(po:slots(queue, p, max), min, authoringId)`; `po:slots` gives
     `[slot number, value]` per created occurrence, and `po:at-least` is written only when
-    `min > 0`.
+    `min > 0`. Its third argument, the target field mapping's id, names the field in the
+    `po:MINOCCURS` message, as the runtime does (spec-2 review).
 - A **generating function** (a function graph with no source field) on a target becomes
   `TargetRepeat(max(1, minOccurs))` per parent slot. Its children are numbered
   `(p − 1) · copies + j`.
