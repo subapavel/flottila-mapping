@@ -289,9 +289,9 @@ class InterpreterTest {
   }
 
   /**
-   * Under the required field the missing context counts as empty (ADR-0006 since #52, assumed #31
-   * d1), so the run raises {@code po:MINOCCURS} at the target field mapping, as an empty source
-   * does.
+   * Under the required field the one empty context creates no occurrence, fewer than its min of 1
+   * (ADR-0006 since #52), so the run raises {@code po:MINOCCURS} at the target field mapping, as an
+   * empty source does.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("wrongRoots")

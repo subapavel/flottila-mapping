@@ -26,8 +26,8 @@
   <!-- The occurrences TargetSlots creates of context $parentSlot of $queue (ADR-0006 since #52),
        as the runtime's Node.Slots does: [slot number, value] per created slot. A slot number is
        the slot's position across all contexts of the queue, so a SUPPRESS slot and a truncated
-       slot keep theirs. A context the queue lacks, as when the input's root is not the source
-       root, gives (). A SUPPRESS slot creates nothing and does not count toward $max: at most $max
+       slot keep theirs. A context the queue lacks, as when the parent has more occurrences than
+       the queue has contexts (#31 d1), gives (). A SUPPRESS slot creates nothing and does not count toward $max: at most $max
        of the other slots, () for unbounded. -->
   <xsl:function name="po:slots" as="array(*)*">
     <xsl:param name="queue" as="array(item()*)"/>

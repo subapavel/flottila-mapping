@@ -46,7 +46,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * {@code parentSlot}. A SUPPRESS slot and a truncated slot create nothing but keep their numbers;
  * fewer than {@code min} created occurrences raise {@code po:MINOCCURS} at the target field
  * mapping, checked before the first occurrence of context p is written; a missing context counts as
- * empty (assumed, #31 d1); a queue is evaluated at most once per run, on first read.
+ * empty (observed for an optional child, #31 d1); a queue is evaluated at most once per run, on
+ * first read.
  *
  * <p>The IR is built by hand as lowering gives it: the slot and value variables of a field at depth
  * d are {@code slot<d>} and {@code value<d>}, the root's is {@code root}. The source is {@code
@@ -361,9 +362,9 @@ class TargetSlotsInterpreterTest {
   }
 
   /**
-   * #31 d1 (assumed): a context the queue lacks counts as empty. Row per Text in Memo's context:
-   * the second Order has no Memo, so the queue has one context, and the second Grp's slot number 2
-   * names none.
+   * #31 d1 (observed for an optional child): a context the queue lacks counts as empty. Row per
+   * Text in Memo's context: the second Order has no Memo, so the queue has one context, and the
+   * second Grp's slot number 2 names none.
    */
   @Test
   void aMissingContextCountsAsEmpty() throws Exception {
