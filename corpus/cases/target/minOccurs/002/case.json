@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/create-if-row.mapping.json",
-  "provenance": "assumed",
-  "ref": "ADR-0006 TargetSlots, assumed readings: a SUPPRESS slot creates nothing but keeps its number, so it consumes its child context; SUPPRESS does not count toward minOccurs / maxOccurs; truncated slots keep their numbers; createIf is true for 1 or true in any case (since #51); obs-target-creation decides (#31); the input of obs-target-creation a2.xml",
+  "provenance": "observed",
+  "ref": "obs-target-creation (#31), input a2.xml: corpus/observations/obs-target-creation/po75/a2-create-a.txt and cpi/a2-create-a.txt; PO 7.50 SP33 and CPI 6.84.77 agree (meta.json): Row's queue SUPPRESS, SUPPRESS fails on minOccurs 1 (com.sap.aii.mappingtool.tf7.IllegalInstanceException); the observed mapping create-a gives that queue by equalsS(Sku, keep) into createIf, this one by createIf over Sku, false for skip (#2 §5: Boolean inputs 1 and true are true, all else false [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm]); po:MINOCCURS at the target field mapping is ADR-0006 since #52",
   "expect": "error",
   "note": "Both Skus are skip, so createIf gives SUPPRESS, SUPPRESS. SUPPRESS does not count toward minOccurs, so Row (1..2) has no created occurrence: po:MINOCCURS at T1. If SUPPRESS counted, the run would write the root without a Row."
 }
