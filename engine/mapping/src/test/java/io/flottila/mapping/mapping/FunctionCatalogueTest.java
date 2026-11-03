@@ -330,12 +330,13 @@ class FunctionCatalogueTest {
   }
 
   /**
-   * The split changes no entry (ADR-0025 "Families"): the packed catalogue is main's before the
-   * split once the {@code family} each entry gets is taken out, and today's eleven functions form
-   * the family {@code context}.
+   * The split changes no entry (ADR-0025 "Families"): today's eleven functions form the family
+   * {@code context}, and the packed entries of that family, their {@code family} taken out, are
+   * main's catalogue before the split, byte for byte. Entries of the families spec 3 adds leave it
+   * as it is.
    */
   @Test
-  void thePackedCatalogueIsMainsOnceItsFamilyMembersAreRemoved() throws Exception {
+  void thePackedCatalogueOfTheContextFamilyIsMainsByteForByte() throws Exception {
     byte[] main = Files.readAllBytes(Fixtures.repoRoot().resolve(MAIN_CATALOGUE));
     Map<String, JsonTree> mains =
         functions(JsonTree.parse(Fixtures.strictUtf8(main)), "main's catalogue");
@@ -344,25 +345,21 @@ class FunctionCatalogueTest {
 
     Map<String, JsonTree> packed =
         functions(JsonTree.parse(Fixtures.strictUtf8(catalogue())), "the packed catalogue");
-    Map<String, JsonTree> withoutFamilies = new LinkedHashMap<>();
-    Map<String, String> familyOf = new TreeMap<>();
+    Map<String, JsonTree> context = new LinkedHashMap<>();
     List<String> withoutFamily = new ArrayList<>();
     for (Map.Entry<String, JsonTree> function : packed.entrySet()) {
       Map<String, JsonTree> entry =
           new LinkedHashMap<>(members(function.getValue(), function.getKey()));
-      if (entry.remove("family") instanceof Str(String family)) {
-        familyOf.put(function.getKey(), family);
-      } else {
+      JsonTree family = entry.remove("family");
+      if (!(family instanceof Str)) {
         withoutFamily.add(function.getKey());
+      } else if (family.equals(new Str("context"))) {
+        context.put(function.getKey(), new Obj(entry));
       }
-      withoutFamilies.put(function.getKey(), new Obj(entry));
     }
     assertThat(withoutFamily).as("entries without a string family").isEmpty();
-    Map<String, String> context = new TreeMap<>();
-    mains.keySet().forEach(name -> context.put(name, "context"));
-    assertThat(familyOf).as("the family of each of main's functions").containsAllEntriesOf(context);
 
     Fixtures.assertBytes(
-        Fixtures.strictUtf8(main), Fixtures.utf8(stringify(new Obj(withoutFamilies), "") + "\n"));
+        Fixtures.strictUtf8(main), Fixtures.utf8(stringify(new Obj(context), "") + "\n"));
   }
 }

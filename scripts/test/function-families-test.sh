@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
 # Script test for scripts/function-families.java (#69, ADR-0025 "Families", F-15): the build-time
-# generator that merges the function families. It runs the generator as the build does, on temp
-# trees built from the fixtures in scripts/test/function-families/:
+# generator that merges the function families. It runs the generator on temp trees built from the
+# fixtures in scripts/test/function-families/:
 #
-#   java scripts/function-families.java catalogue <dir of <family>.json> <function-catalogue.json>
-#   java scripts/function-families.java helper <dir of core.xsl and <family>.xsl> <po-runtime.xsl>
-#   java scripts/function-families.java index <dir of runtime sources> <the index's Java source>
+#   java scripts/function-families.java catalogue <function-catalogue.json> <input>...
+#   java scripts/function-families.java helper <po-runtime.xsl> <input>...
+#   java scripts/function-families.java index <the index's Java source> <input>...
 #
-# Exit 0 means the output is written; any other exit fails the build. The fixture families are
-# alpha, beta and gamma: their names interleave (apple banana cherry kiwiB kiwia melon melonBall
-# zucchini, in UTF-16 order), and alpha and beta sort before core.
+# An input is a directory, whose files the generator lists as the build passes it (the family
+# files <family>.json; core.xsl and the modules <family>.xsl; the runtime sources, of which the
+# <Family>Family.java count), or one such file. Exit 0 means the output is written; any other exit
+# fails the build. The order of the files, listed or given, never shows in an output; the test
+# gives them in seeded orders, so it does not depend on how a filesystem lists a directory.
+# The fixture families are alpha, beta and gamma: their names interleave (apple banana cherry kiwiB
+# kiwia melon melonBall zucchini, in UTF-16 order), and alpha and beta sort before core.
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 tool=$here/../function-families.java
 fixtures=$here/function-families
 java=${JAVA_HOME:+$JAVA_HOME/bin/}java
-# tmpfs lists a directory in creation order, so a shuffled creation is a shuffled listing
-if [ -d /dev/shm ] && [ -w /dev/shm ]; then tmp=$(mktemp -d -p /dev/shm); else tmp=$(mktemp -d); fi
+tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fails=0
 check() { if [ "$2" != "$3" ]; then echo "FAIL $1: expected '$3' got '$2'"; fails=1; else echo "ok   $1"; fi; }
@@ -40,18 +43,28 @@ tree() {
   for f in "$@"; do add "$t" "$f"; done
   echo "$t"
 }
-# run <tree> <mode>: the generator over the mode's directory into its output in <tree>/out
+# generate <output dir> <mode> <input>...: the generator into the mode's output in <output dir>
 # (function-catalogue.json, po-runtime.xsl, FamilyIndex.java), its stdout and stderr into
-# <tree>/out/<mode>.log; prints the exit code
-run() {
-  local dir out
-  case $2 in
-    catalogue) dir=catalogue out=function-catalogue.json ;;
-    helper) dir=po-runtime out=po-runtime.xsl ;;
-    index) dir=runtime out=FamilyIndex.java ;;
+# <output dir>/<mode>.log; prints the exit code
+generate() {
+  local dir=$1 mode=$2 out
+  shift 2
+  case $mode in
+    catalogue) out=function-catalogue.json ;;
+    helper) out=po-runtime.xsl ;;
+    index) out=FamilyIndex.java ;;
   esac
-  "$java" "$tool" "$2" "$1/$dir" "$1/out/$out" > "$1/out/$2.log" 2>&1
+  mkdir -p "$dir"
+  "$java" "$tool" "$mode" "$dir/$out" "$@" > "$dir/$mode.log" 2>&1
   echo $?
+}
+# run <tree> <mode>: the generator over the mode's directory, as the build runs it, into <tree>/out
+run() {
+  case $2 in
+    catalogue) generate "$1/out" "$2" "$1/catalogue" ;;
+    helper) generate "$1/out" "$2" "$1/po-runtime" ;;
+    index) generate "$1/out" "$2" "$1/runtime" ;;
+  esac
 }
 failed() { if [ "$1" = 0 ]; then echo 0; else echo non-zero; fi; }
 same() { if cmp -s "$1" "$2"; then echo same; else echo differ; fi; }
@@ -102,43 +115,58 @@ aNewFamilyNeedsOnlyItsOwnFiles() {
   check "$c: the sources are the fixtures, unchanged" "$(sources "$t")" "$(sources "$(tree alpha beta gamma)")"
 }
 
-theMergeIgnoresListingOrder() {
-  local c=theMergeIgnoresListingOrder i j k swap t f m first="" exits="" catalogues="" helpers="" indexes=""
-  local -a files=(catalogue/alpha.json catalogue/beta.json catalogue/gamma.json
-    po-runtime/core.xsl po-runtime/alpha.xsl po-runtime/beta.xsl po-runtime/gamma.xsl
-    runtime/AlphaFamily.java runtime/BetaFamily.java runtime/GammaFamily.java runtime/Projection.java)
-  local -A listings=()
-  RANDOM=69
-  for ((i = 1; i <= 5; i++)); do
-    # Fisher-Yates over the seeded RANDOM: the files are created, and so listed, in this order
-    for ((j = ${#files[@]} - 1; j > 0; j--)); do
-      k=$((RANDOM % (j + 1)))
-      swap=${files[j]}
-      files[j]=${files[k]}
-      files[k]=$swap
-    done
-    t=$(mktemp -d -p "$tmp")
-    mkdir -p "$t/catalogue" "$t/po-runtime" "$t/runtime" "$t/out"
-    for f in "${files[@]}"; do cp "$fixtures/$f" "$t/$f"; done
-    listings["$(for f in catalogue po-runtime runtime; do find "$t/$f" -mindepth 1 -maxdepth 1 -printf '%f '; done)"]=1
-    for m in catalogue helper index; do exits+="$(run "$t" $m) "; done
-    catalogues+="$(same "$fixtures/expected/alpha-beta-gamma.json" "$t/out/function-catalogue.json") "
-    if [ -z "$first" ]; then
-      first=$t
-    else
-      helpers+="$(same "$first/out/po-runtime.xsl" "$t/out/po-runtime.xsl") "
-      indexes+="$(same "$first/out/FamilyIndex.java" "$t/out/FamilyIndex.java") "
-    fi
+# shuffle <array name>: the array in a Fisher-Yates order of the seeded RANDOM, in place (no
+# subshell, so that every call goes on with the same sequence)
+shuffle() {
+  local -n items=$1
+  local j k swap
+  for ((j = ${#items[@]} - 1; j > 0; j--)); do
+    k=$((RANDOM % (j + 1)))
+    swap=${items[j]}
+    items[j]=${items[k]}
+    items[k]=$swap
   done
-  # witness: the listing order changed, so a merge in listing order would show
-  check "$c: the listing order changed" "$([ ${#listings[@]} -ge 2 ] && echo yes || echo no)" yes
-  check "$c: every exit" "$exits" "$(printf '0 %.0s' {1..15})"
-  check "$c: every catalogue is the canonical merge" "$catalogues" "$(printf 'same %.0s' {1..5})"
-  check "$c: every helper module is the first's" "$helpers" "$(printf 'same %.0s' {1..4})"
-  check "$c: every index is the first's" "$indexes" "$(printf 'same %.0s' {1..4})"
-  helper_is "$c: helper" "$first/out/po-runtime.xsl" alpha beta gamma
-  check "$c: index" "$(names "$first/out/FamilyIndex.java" AlphaFamily BetaFamily GammaFamily Projection)" \
+}
+# byName <item>...: "yes" when the items are in name order
+byName() { if [ "$(printf '%s\n' "$@")" = "$(printf '%s\n' "$@" | LC_ALL=C sort)" ]; then echo yes; else echo no; fi; }
+
+theMergeIgnoresListingOrder() {
+  local c=theMergeIgnoresListingOrder t i out exits="" catalogues="" helpers="" indexes="" outOfOrder=""
+  t=$(tree alpha beta gamma)
+  # the directories, as the build passes them: what every order of the files must give
+  exits+="$(run "$t" catalogue) $(run "$t" helper) $(run "$t" index) "
+  local -a catalogue=("$t/catalogue/alpha.json" "$t/catalogue/beta.json" "$t/catalogue/gamma.json")
+  local -a helper=("$t/po-runtime/alpha.xsl" "$t/po-runtime/beta.xsl" "$t/po-runtime/core.xsl" "$t/po-runtime/gamma.xsl")
+  local -a index=("$t/runtime/AlphaFamily.java" "$t/runtime/BetaFamily.java" "$t/runtime/GammaFamily.java")
+  RANDOM=69
+  for ((i = 1; i <= 8; i++)); do
+    shuffle catalogue
+    shuffle helper
+    shuffle index
+    if [ "$(byName "${catalogue[@]}")" = no ]; then outOfOrder+="catalogue "; fi
+    if [ "$(byName "${helper[@]}")" = no ]; then outOfOrder+="helper "; fi
+    if [ "$(byName "${index[@]}")" = no ]; then outOfOrder+="index "; fi
+    out=$t/given$i
+    exits+="$(generate "$out" catalogue "${catalogue[@]}") "
+    exits+="$(generate "$out" helper "${helper[@]}") "
+    exits+="$(generate "$out" index "${index[@]}") "
+    catalogues+="$(same "$fixtures/expected/alpha-beta-gamma.json" "$out/function-catalogue.json") "
+    helpers+="$(same "$t/out/po-runtime.xsl" "$out/po-runtime.xsl") "
+    indexes+="$(same "$t/out/FamilyIndex.java" "$out/FamilyIndex.java") "
+  done
+  # witness: every mode got its files out of name order in some run, so an order would show
+  check "$c: witness: the modes given their files out of name order" \
+    "$(for m in catalogue helper index; do case " $outOfOrder" in *" $m "*) printf '%s ' $m ;; esac; done)" \
+    "catalogue helper index "
+  check "$c: every exit" "$exits" "$(printf '0 %.0s' {1..27})"
+  check "$c: the directory's catalogue is the canonical merge" \
+    "$(same "$fixtures/expected/alpha-beta-gamma.json" "$t/out/function-catalogue.json")" same
+  helper_is "$c: the directory's helper" "$t/out/po-runtime.xsl" alpha beta gamma
+  check "$c: the directory's index" "$(names "$t/out/FamilyIndex.java" AlphaFamily BetaFamily GammaFamily Projection)" \
     "AlphaFamily BetaFamily GammaFamily "
+  check "$c: every order's catalogue is the canonical merge" "$catalogues" "$(printf 'same %.0s' {1..8})"
+  check "$c: every order's helper module is the directory's, byte for byte" "$helpers" "$(printf 'same %.0s' {1..8})"
+  check "$c: every order's index is the directory's, byte for byte" "$indexes" "$(printf 'same %.0s' {1..8})"
 }
 
 aNameInTwoFamiliesFailsTheBuild() {

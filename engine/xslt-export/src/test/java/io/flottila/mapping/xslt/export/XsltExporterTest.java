@@ -24,7 +24,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -905,20 +907,144 @@ class XsltExporterTest {
     assertThat(packed).startsWith(core.substring(0, core.indexOf(coreTag) + coreTag.length()));
   }
 
-  /** The split changes no byte of the helper module (ADR-0025 "Families", ADR-0023). */
+  /** The index just past the {@code >} of the tag that starts at {@code start}, quotes skipped. */
+  private static int tagEnd(String module, int start) {
+    char quote = 0;
+    for (int i = start + 1; i < module.length(); i++) {
+      char c = module.charAt(i);
+      if (quote != 0) {
+        if (c == quote) {
+          quote = 0;
+        }
+      } else if (c == '"' || c == '\'') {
+        quote = c;
+      } else if (c == '>') {
+        return i + 1;
+      }
+    }
+    throw new AssertionError("a tag at " + start + " never ends");
+  }
+
+  /**
+   * The spans {@code [start, end)} of a module's tags: first the root's start tag, then each
+   * top-level declaration inside the root, a whole element. Comments, processing instructions and
+   * CDATA sections are skipped.
+   */
+  private static List<int[]> declarations(String module) {
+    List<int[]> spans = new ArrayList<>();
+    int depth = 0;
+    int start = -1;
+    for (int i = module.indexOf('<'); i >= 0; i = module.indexOf('<', i)) {
+      if (module.startsWith("<!--", i)) {
+        i = module.indexOf("-->", i) + "-->".length();
+      } else if (module.startsWith("<?", i)) {
+        i = module.indexOf("?>", i) + "?>".length();
+      } else if (module.startsWith("<![CDATA[", i)) {
+        i = module.indexOf("]]>", i) + "]]>".length();
+      } else {
+        int end = tagEnd(module, i);
+        if (module.charAt(i + 1) == '/') {
+          depth--;
+          if (depth == 1) {
+            spans.add(new int[] {start, end});
+          }
+        } else if (module.charAt(end - 2) == '/') {
+          if (depth == 1) {
+            spans.add(new int[] {i, end});
+          }
+        } else {
+          if (depth == 0) {
+            spans.add(new int[] {i, end});
+          } else if (depth == 1) {
+            start = i;
+          }
+          depth++;
+        }
+        i = end;
+      }
+    }
+    return spans;
+  }
+
+  /** The text of each top-level declaration of {@code module}. */
+  private static List<String> declarationTexts(String module) {
+    List<int[]> spans = declarations(module);
+    return spans.subList(1, spans.size()).stream()
+        .map(span -> module.substring(span[0], span[1]))
+        .toList();
+  }
+
+  /**
+   * {@code module} without each top-level declaration whose text is one of {@code removed}, each
+   * taken out together with what stands between it and the declaration (or the root start tag)
+   * before it: its comments and the whitespace ahead of it.
+   */
+  private static String withoutDeclarations(String module, Set<String> removed) {
+    List<int[]> spans = declarations(module);
+    int previous = spans.getFirst()[1];
+    StringBuilder kept = new StringBuilder(module.substring(0, previous));
+    for (int[] span : spans.subList(1, spans.size())) {
+      if (!removed.contains(module.substring(span[0], span[1]))) {
+        kept.append(module, previous, span[1]);
+      }
+      previous = span[1];
+    }
+    return kept.append(module.substring(previous)).toString();
+  }
+
+  /**
+   * The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
+   * helper module restricted to core and the family {@code context}, every top-level declaration of
+   * the other family modules taken out with the comments and whitespace ahead of it, is main's
+   * before the split, byte for byte. The families spec 3 adds leave it as it is. Before the split
+   * there are no family modules, so nothing is taken out.
+   */
   @Test
-  void thePackedHelperModuleIsMainsByteForByte() throws Exception {
+  void thePackedHelperModuleOfCoreAndTheContextFamilyIsMainsByteForByte() throws Exception {
+    // witness: a declaration goes with its comment and the whitespace ahead of it, and only it
+    String sample =
+        "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <!-- one -->\n"
+            + "  <f n=\"1\"><p>x</p><q/></f>\n\n  <v n=\"2\"/>\n\n  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n";
+    assertThat(declarationTexts(sample))
+        .containsExactly("<f n=\"1\"><p>x</p><q/></f>", "<v n=\"2\"/>", "<f n=\"3\">t</f>");
+    assertThat(withoutDeclarations(sample, Set.of())).isEqualTo(sample);
+    assertThat(withoutDeclarations(sample, Set.of("<v n=\"2\"/>")))
+        .isEqualTo(
+            "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <!-- one -->\n"
+                + "  <f n=\"1\"><p>x</p><q/></f>\n\n  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n");
+    assertThat(withoutDeclarations(sample, Set.of("<f n=\"1\"><p>x</p><q/></f>")))
+        .isEqualTo(
+            "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <v n=\"2\"/>\n\n"
+                + "  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n");
+
     byte[] main = Files.readAllBytes(repoRoot().resolve(MAIN_HELPER_MODULE));
     // witness: main's copy is the helper module of spec 2, with po:useOneAsMany
     assertThat(functionNames(new String(main, UTF_8))).contains("po:slots", "po:useOneAsMany");
+    Set<String> otherFamilies = new HashSet<>();
+    Path dir = repoRoot().resolve(HELPER_SOURCES);
+    if (Files.isDirectory(dir)) {
+      List<Path> modules;
+      try (Stream<Path> listing = Files.list(dir)) {
+        modules =
+            listing
+                .filter(p -> p.getFileName().toString().endsWith(".xsl"))
+                .filter(p -> !Set.of(CORE, "context.xsl").contains(p.getFileName().toString()))
+                .toList();
+      }
+      for (Path module : modules) {
+        otherFamilies.addAll(declarationTexts(Files.readString(module, UTF_8)));
+      }
+    }
     byte[] packed;
     try (InputStream in = XsltExporter.class.getResourceAsStream(XsltExporter.HELPER_MODULE)) {
       assertThat(in).as("resource io/flottila/mapping/xslt/export/po-runtime.xsl").isNotNull();
       packed = in.readAllBytes();
     }
+    assertThat(XsltExporter.helperModule().getBytes(UTF_8)).isEqualTo(packed);
 
-    assertThat(new String(packed, UTF_8)).isEqualTo(new String(main, UTF_8));
-    assertThat(packed).isEqualTo(main);
-    assertThat(XsltExporter.helperModule().getBytes(UTF_8)).isEqualTo(main);
+    String restricted = withoutDeclarations(new String(packed, UTF_8), otherFamilies);
+
+    assertThat(restricted).isEqualTo(new String(main, UTF_8));
+    assertThat(restricted.getBytes(UTF_8)).isEqualTo(main);
   }
 }
