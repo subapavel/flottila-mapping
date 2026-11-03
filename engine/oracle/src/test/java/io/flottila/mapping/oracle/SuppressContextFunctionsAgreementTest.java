@@ -139,8 +139,9 @@ class SuppressContextFunctionsAgreementTest {
   }
 
   /**
-   * One leaf per reading. Seed s takes comparison s mod 3, order (s / 3) mod 2 and mode s mod 3, so
-   * the seeds 1 to 200 run every comparison with every order, and every mode.
+   * One leaf per reading. Seed s takes comparison s mod 3, order (s / 3) mod 2 and mode (s / 6) mod
+   * 3, so the seeds 1 to 200 run every comparison with every order and with every mode. The mode is
+   * not the comparison's, so emptyValue also meets the words, whose "" it splits at.
    */
   private static TargetDocument document(String comparison, String order, String mode) {
     boolean numeric = comparison.equals("numeric");
@@ -190,8 +191,8 @@ class SuppressContextFunctionsAgreementTest {
     leaves.add(leaf("N", call("removeContexts", "r9", List.of(filled))));
     Expr filledConditions = call("mapWithDefault", "w2", List.of(perOrder, param("", "w2")));
     leaves.add(leaf("O", call("removeContexts", "r10", List.of(filledConditions))));
-    // Sku in Line's context has no context when no Order has a Line: removeContexts then gives
-    // one empty context, which mapWithDefault fills, and the queue itself stays without one
+    // Sku in Line's context is one empty context when no Order has a Line (F-17): mapWithDefault
+    // fills it, after removeContexts and on the queue itself
     Expr perLine = source(3, "a6", "Line", "Sku");
     Expr flatLines = call("removeContexts", "r11", List.of(perLine));
     leaves.add(leaf("P", call("mapWithDefault", "w3", List.of(flatLines, param("D", "w3")))));
@@ -214,13 +215,23 @@ class SuppressContextFunctionsAgreementTest {
     return LongStream.rangeClosed(1, 200);
   }
 
+  /** The comparison of seed {@code seed}. */
+  private static String comparison(long seed) {
+    return COMPARISONS.get((int) (seed % 3));
+  }
+
+  /** The splitByValue mode of seed {@code seed}, not tied to its comparison. */
+  private static String mode(long seed) {
+    return MODES.get((int) ((seed / 6) % 3));
+  }
+
   @ParameterizedTest(name = "seed {0}")
   @MethodSource("seeds")
   void contextFunctionsOverSuppressAgreeWithTheirExport(long seed) throws Exception {
     RandomGenerator random = new SplittableRandom(seed);
-    String comparison = COMPARISONS.get((int) (seed % 3));
+    String comparison = comparison(seed);
     String order = (seed / 3) % 2 == 0 ? "ascending" : "descending";
-    String mode = MODES.get((int) (seed % 3));
+    String mode = mode(seed);
     byte[] input = xml(random, comparison.equals("numeric") ? NUMBERS : WORDS).getBytes(UTF_8);
     TargetDocument document = document(comparison, order, mode);
     IrVerifier.verify(document);
@@ -231,6 +242,22 @@ class SuppressContextFunctionsAgreementTest {
     String what = "seed " + seed + " " + comparison + " " + order + " " + mode;
 
     SaxonRunner.assertAgree(saxon(document, input, "seed-" + seed), ours, what);
+  }
+
+  /**
+   * Witness for the seeds: some seed splits by emptyValue over the words with an empty Sku among
+   * them, so the agreement compares a split at "" in the mixed queue (carried review finding 6).
+   */
+  @Test
+  void someSeedSplitsAMixedQueueAtAnEmptyValue() {
+    long seeds =
+        seeds()
+            .filter(seed -> mode(seed).equals("emptyValue"))
+            .filter(seed -> !comparison(seed).equals("numeric"))
+            .filter(seed -> xml(new SplittableRandom(seed), WORDS).contains("<Sku/>"))
+            .count();
+
+    assertThat(seeds).isPositive();
   }
 
   /**
