@@ -235,6 +235,96 @@ class EngineFacadeTest {
     }
   }
 
+  /**
+   * A model from the observation kit's {@code src-orders.xsd} to {@code tgt-parents.xsd} (#63) with
+   * the given target field mappings.
+   */
+  private static byte[] ordersToParents(String targetFieldMappings) {
+    return """
+        {"formatVersion": 1,
+         "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Orders"}},
+         "target": {"bundle": ["tgt-parents.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Parents"}},
+         "targetFieldMappings": %2$s}
+        """
+        .formatted(FINGERPRINT, targetFieldMappings)
+        .getBytes(UTF_8);
+  }
+
+  private static final byte[] TWO_ORDERS =
+      ("<Orders><Order><Id>o1</Id><Line><Sku>a</Sku></Line></Order>"
+              + "<Order><Line><Sku>b</Sku></Line><Line><Sku>c</Sku></Line></Order></Orders>")
+          .getBytes(UTF_8);
+
+  /**
+   * #63: a leaf mapped under the unmapped 1..1 {@code Head} compiles and runs; until #63 it was
+   * {@code unsupported-field}. Head is created once with the root's slot number, so {@code Id}
+   * reads the queue's first context. The unmapped 2..2 {@code Pair} is created twice with nothing
+   * mapped under it, and the unmapped optional {@code Opt} and {@code Item} are left out (ADR-0006
+   * "Target fields").
+   */
+  @Test
+  void aLeafUnderAnUnmappedParentCompilesAndRuns() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    byte[] model =
+        ordersToParents(
+            """
+            {"/Parents/Head/Id": {"id": "t1", "result": "a1",
+               "boxes": {"a1": {"kind": "source", "field": "/Orders/Order/Id",
+                                "context": "/Orders"}}}}
+            """);
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      CompileResult result =
+          facade.compile(model, CorpusStructures.directory("observations"), options);
+      byte[] output = facade.run(compiled(result), TWO_ORDERS);
+
+      assertThat(new String(output, UTF_8))
+          .as("%s", options)
+          .isEqualTo(DECLARATION + "<Parents><Head><Id>o1</Id></Head><Pair/><Pair/></Parents>");
+    }
+  }
+
+  /**
+   * #63: a source structure field mapped to a target structure field creates one target occurrence
+   * per source occurrence, an Order without an {@code Id} included (ADR-0008: one {@code ""} per
+   * occurrence), and the children read their contexts by its slot numbers, here under the unmapped
+   * 1..1 {@code Info}, whose slot number is its Item's.
+   */
+  @Test
+  void aSourceStructureFieldMapsOntoATargetStructureField() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    byte[] model =
+        ordersToParents(
+            """
+            {"/Parents/Item": {"id": "t1", "result": "a1",
+               "boxes": {"a1": {"kind": "source", "field": "/Orders/Order",
+                                "context": "/Orders"}}},
+             "/Parents/Item/Info/Sku": {"id": "t2", "result": "a2",
+               "boxes": {"a2": {"kind": "source", "field": "/Orders/Order/Line/Sku",
+                                "context": "/Orders/Order"}}}}
+            """);
+    String twins = "<Twin/><Twin/>";
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      CompileResult result =
+          facade.compile(model, CorpusStructures.directory("observations"), options);
+      byte[] output = facade.run(compiled(result), TWO_ORDERS);
+
+      assertThat(new String(output, UTF_8))
+          .as("%s", options)
+          .isEqualTo(
+              DECLARATION
+                  + "<Parents><Head/><Pair/><Pair/>"
+                  + "<Item><Info><Sku>a</Sku></Info>"
+                  + twins
+                  + "</Item><Item><Info><Sku>b</Sku><Sku>c</Sku></Info>"
+                  + twins
+                  + "</Item></Parents>");
+    }
+  }
+
   @Test
   void aStage3RefusalCarriesDiagnosticsAndNoMapping() throws Exception {
     byte[] model =

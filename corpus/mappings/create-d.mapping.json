@@ -23,7 +23,7 @@
       "boxes": {
         "S1": {
           "context": "/Orders",
-          "field": "/Orders/Order/Id",
+          "field": "/Orders/Order",
           "kind": "source"
         }
       },

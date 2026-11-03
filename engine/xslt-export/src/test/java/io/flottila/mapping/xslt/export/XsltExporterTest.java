@@ -16,6 +16,7 @@ import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -350,6 +351,19 @@ class XsltExporterTest {
                 List.of(
                     new TextConstructor(
                         slots(underRoot(ORDER, ORDER_ID, "a2"), 0, 1, "", ORDER_ID, "x9"),
+                        id("t1"))))),
+        Arguments.of(
+            "a TargetRepeat as a text's value",
+            fieldLinkWith(
+                queue,
+                List.of(
+                    new TextConstructor(
+                        new TargetRepeat(
+                            1,
+                            new VarRef(ROOT, AtomicType.INTEGER, x9),
+                            "slot3",
+                            new ElementConstructor("", ORDER_ID, List.of(), x9),
+                            x9),
                         id("t1"))))));
   }
 
@@ -511,6 +525,50 @@ class XsltExporterTest {
         .contains(
             "<xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">",
             "<xsl:for-each select=\"po:slots($po:queue2, $slot3, ())\">");
+  }
+
+  /**
+   * A {@code TargetRepeat} under the root, as lowering gives an unmapped {@code Pair} of 2..2 since
+   * #63: an {@code xsl:for-each} over {@code 1 to 2} that binds its slot-number variable to {@code
+   * ($root - 1) * 2 + .}, the j-th copy under parent slot p (ADR-0006). Inside it stands an
+   * occurrence, so the queue of the {@code TargetSlots} below is bound at the top of the template.
+   * That queue is of the structure field {@code Item}: one {@code ''} per occurrence (ADR-0008).
+   */
+  @Test
+  void aTargetRepeatIsAForEachOverItsCopiesNumberedAcrossItsParentsSlots() {
+    Name pair = new Name("", "Pair");
+    Name item = new Name("", "Item");
+    AuthoringId origin = id("/Order/Pair");
+    TargetSlots items =
+        nested(new SourceQueue(List.of(ORDER, item), 1, true, id("a1")), SLOT, 3, item, List.of());
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    2,
+                    new VarRef(ROOT, AtomicType.INTEGER, origin),
+                    SLOT,
+                    new ElementConstructor("", pair, List.of(items), origin),
+                    origin)));
+    IrVerifier.verify(document);
+
+    String stylesheet = XsltExporter.export(document);
+
+    assertThat(stylesheet)
+        .contains(
+            "<xsl:variable name=\"po:queue1\" as=\"array(item()*)\""
+                + " select=\"po:source-queue(array:join(/s0:Order ! [Item ! '']))\"/>\n"
+                + "    <ns0:Order>\n"
+                + "      <xsl:for-each select=\"1 to 2\">\n"
+                + "        <xsl:variable name=\"slot2\" as=\"xs:integer\""
+                + " select=\"($root - 1) * 2 + .\"/>\n"
+                + "        <Pair>\n"
+                + "          <xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">")
+        // the copies' xsl:for-each ends after Pair, on a line of its own
+        .contains("        </Pair>\n      </xsl:for-each>\n    </ns0:Order>\n");
   }
 
   /**
