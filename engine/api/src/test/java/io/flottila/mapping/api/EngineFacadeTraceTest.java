@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SplittableRandom;
 import java.util.TreeSet;
+import java.util.concurrent.TimeoutException;
 import java.util.random.RandomGenerator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -709,9 +710,10 @@ class EngineFacadeTraceTest {
   /**
    * ADR-0014 since #53: at timeout the facade snapshots the tracer, and the run's later reports are
    * dropped. nested-grp-row-val over 20,000 Orders, each with an Id and a Line, reports Row's and
-   * Val's occurrences once per Grp while it writes, so a timeout after the parse falls while the
-   * trace grows. The timeouts are bisected between none and twice the full run until one falls
-   * there; every timeout's trace is a prefix of the full trace, and stays as it was returned.
+   * Val's occurrences once per Grp while it writes. A fake clock (CODING_STANDARDS), the facade's
+   * deadline, reaches the timeout once Row has reported its first parent slot, so the timeout falls
+   * while the trace grows, whatever the machine's speed. The timeout's trace is a prefix of the
+   * full trace, and stays as it was returned once the timed-out run has ended.
    */
   @Test
   void aTimeoutTraceIsAPrefixOfTheFullTrace() throws Exception {
@@ -721,34 +723,32 @@ class EngineFacadeTraceTest {
       xml.append(order("o" + o, line("s" + o, "q" + o)));
     }
     byte[] input = utf8(xml.append("</Orders>").toString());
-    long started = System.nanoTime();
     Trace full =
         output(facade.testRun(mapping, input, Duration.ofSeconds(60), Integer.MAX_VALUE)).trace();
-    long took = System.nanoTime() - started;
     assertThat(keys(full)).containsExactly("S1", "T1", "S2", "T2", "S3", "T3");
     assertThat(occurrencesOf(full, "T2").parents()).hasSize(20_000);
+    AuthoringId row = new AuthoringId("T2");
+    EngineFacade timed =
+        new EngineFacade(
+            (run, timeout, tracer) -> {
+              while (tracer.occurrences().stream().noneMatch(o -> o.field().equals(row))) {
+                if (run.isDone()) {
+                  // the run ended before Row reported: its result, which the test refuses
+                  return run.get();
+                }
+                Thread.onSpinWait();
+              }
+              throw new TimeoutException("the fake clock reached the timeout");
+            });
 
-    long below = 0;
-    long above = 2 * took;
-    Trace grown = null;
-    for (int attempt = 0; attempt < 40 && grown == null; attempt++) {
-      long timeout = (below + above) / 2;
-      TestRunResult result =
-          facade.testRun(mapping, input, Duration.ofNanos(timeout), Integer.MAX_VALUE);
-      if (result instanceof TestRunResult.RuntimeError error) {
-        assertThat(error.code()).isEqualTo("flottila:TIMEOUT");
-        assertPrefix(error.trace(), full);
-        if (error.trace().entries().isEmpty()) {
-          below = timeout;
-        } else {
-          grown = error.trace();
-        }
-      } else {
-        above = timeout;
-      }
-    }
+    TestRunResult result = timed.testRun(mapping, input, Duration.ofSeconds(60), Integer.MAX_VALUE);
 
-    assertThat(grown).as("witness: a timeout after the first report").isNotNull();
+    assertThat(result).isInstanceOf(TestRunResult.RuntimeError.class);
+    TestRunResult.RuntimeError error = (TestRunResult.RuntimeError) result;
+    assertThat(error.code()).isEqualTo("flottila:TIMEOUT");
+    Trace grown = error.trace();
+    assertPrefix(grown, full);
+    assertThat(keys(grown)).as("witness: a timeout after Row's first report").contains("T2");
     String returned = grown.toString();
     long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
     while (aPlatformThreadRunsAMapping() && System.nanoTime() < deadline) {

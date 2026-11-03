@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,8 +45,36 @@ public final class EngineFacade {
   /** The runtime error of a test run that exceeds its timeout (ADR-0014, ADR-0015). */
   private static final String TIMEOUT = "flottila:TIMEOUT";
 
-  /** A facade; it holds no state. */
-  public EngineFacade() {}
+  /** How {@link #testRun} waits for its run: the wall clock, unless a test gives its own. */
+  private final Deadline deadline;
+
+  /** A facade; it holds no state, and its test runs wait by the wall clock. */
+  public EngineFacade() {
+    this((run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
+  }
+
+  /** A facade whose test runs wait by {@code deadline}: a test's fake clock (CODING_STANDARDS). */
+  EngineFacade(Deadline deadline) {
+    this.deadline = deadline;
+  }
+
+  /**
+   * How a test run waits for its run until its timeout (ADR-0014): the wall clock, or a test's
+   * clock that reaches the timeout at a point of the run it picks by the run's tracer.
+   */
+  @FunctionalInterface
+  interface Deadline {
+
+    /**
+     * The run's output once it is done.
+     *
+     * @throws TimeoutException once the timeout is reached first
+     * @throws ExecutionException when the run failed, its cause
+     * @throws InterruptedException when the waiting thread is interrupted
+     */
+    byte[] await(Future<byte[]> run, Duration timeout, Tracer tracer)
+        throws InterruptedException, ExecutionException, TimeoutException;
+  }
 
   /**
    * Loads a mapping model through validation stages 1 and 2 (ADR-0011).
@@ -224,7 +253,7 @@ public final class EngineFacade {
     // the JVM open (ADR-0020)
     Thread.ofPlatform().name("flottila test run").daemon(true).start(task);
     try {
-      byte[] output = task.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+      byte[] output = deadline.await(task, timeout, tracer);
       return new TestRunResult.Output(output, TraceBuilder.build(tracer.reports(), traceLimit));
     } catch (TimeoutException late) {
       // the run reports on until its next interrupt check: first the snapshot, a copy of the
