@@ -248,8 +248,9 @@ in slots.
 _Avoid_: entry, element, item (reserved for XDM)
 
 **Empty context**:
-A context with no slots, as under a parent occurrence without children. A queue with no contexts
-at all (the parent is absent) is a different thing.
+A context with no slots, as under a parent occurrence without children. A source queue whose
+context element never occurs in the message is one empty context (F-17). A queue with no contexts
+at all (`{0}`) is a different thing; only a function result can be one.
 
 **SUPPRESS**:
 The marker for a value that is present as a slot but produces no target field. In a queue block,
