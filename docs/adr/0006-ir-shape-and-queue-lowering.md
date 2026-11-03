@@ -85,7 +85,8 @@ for-each over the source context".
     and under an unmapped optional parent (left out with it); under an unmapped parent with
     `0 < minOccurs < maxOccurs` it stays `unsupported-field`, because PO needs a mapping there.
   - `min` is checked before the first occurrence of context p is written. A context the queue
-    lacks counts as empty (observed, #31 d1). `po:MINOCCURS` is raised at the target field
+    lacks counts as empty (assumed for the `min` check; #31 d1 observed only that an optional field
+    gets no occurrence there). `po:MINOCCURS` is raised at the target field
     mapping (`TargetSlots.origin`). Nothing is padded up to `min`.
   - The export is `po:at-least(po:slots(queue, p, max), min)`; `po:slots` gives
     `[slot number, value]` per created occurrence, and `po:at-least` is written only when
