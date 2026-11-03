@@ -28,4 +28,40 @@
       <version>${project.version}</version>
     </dependency>
   </dependencies>
+  <build>
+    <resources>
+      <!-- the module's own resources, which a resources list would otherwise drop -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- the helper module po-runtime.xsl (ADR-0023), which the build joins from core.xsl and the
+           family modules in src/main/xsl/po-runtime (ADR-0025 "Families", F-15) -->
+      <resource>
+        <directory>${project.build.directory}/generated-resources/function-families</directory>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>function-families</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <arguments>
+                <argument>${maven.multiModuleProjectDirectory}/scripts/function-families.java</argument>
+                <argument>helper</argument>
+                <argument>${project.build.directory}/generated-resources/function-families/io/flottila/mapping/xslt/export/po-runtime.xsl</argument>
+                <argument>${project.basedir}/src/main/xsl/po-runtime</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
