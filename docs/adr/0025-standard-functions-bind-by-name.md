@@ -47,6 +47,13 @@ Status: accepted (2026-11-02, #50 design, spec #48)
     same entries, the IR and ADR-0023's one-file export are unchanged.
   - Today's eleven functions form the family `context`. `RuntimeErrors` stays one shared,
     append-only file (Q15).
+  - A family is the PO palette group: `ifWithoutElse` belongs to `boolean`, `formatNum` to
+    `arithmetic`, whatever their execution kind. Two tickets of one family add whole entries to
+    the same files; the merger resolves that as a mechanical adjacent edit.
+  - A `<Family>Family` binds each name through a package-private method, not a lambda in a
+    static initializer: PIT makes no mutants for the latter (#69).
+  - Helpers that several families share go into `core.xsl`; it only grows, and the #69 byte test
+    pins main's declarations, not the absence of new ones.
 - **Names and fidelity (spec-3 grilling, owner 2026-11-03).**
   - A function id is camelCase (`constant`, `copyValue`, `fixValues`, `formatNum`, `dateTrans`,
     `equalsS`). The catalogue holds no PO spelling, which is the migration tool's business (Q8,
