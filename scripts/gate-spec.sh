@@ -12,7 +12,8 @@
 # and 2, and step 3 must run after it: -Pui needs clean (ADR-0017), and that clean deletes the JaCoCo and PIT
 # reports of service and its upstream modules. Every step runs even if an earlier one failed; each prints an
 # evidence word and its log. Exit 1 if any step failed. The script leaves ratchet/ modified; the verifier
-# commits it.
+# commits it. The last lines are the PIT summary, one per module (`module killed/generated score% floor N% ok|DROP`),
+# then the corpus and differential case counts.
 set -uo pipefail
 
 if [ $# -lt 1 ]; then
@@ -50,6 +51,28 @@ step "1 contract diff" ".logs/${spec}-contract.log" \
 step "1b pit $pit_modules" ".logs/${spec}-pit.log" \
   ./mvnw -B -pl "$pit_modules" -am test-compile org.pitest:pitest-maven:mutationCoverage
 
+# 1b summary: per module against the floors in ratchet/ as committed (step 4 rewrites them). Printed last, with the
+# oracle case counts of step 1 (step 3's clean deletes the reports).
+IFS=, read -ra pit_list <<< "$pit_modules"
+pit_summary=$(scripts/pit-summary.sh ratchet/mutation.tsv "${pit_list[@]}") || {
+  echo "EXECUTED_FAIL  1b pit floor  (ratchet/mutation.tsv)"
+  status=1
+}
+# oracle_count <class-name-part>: "<tests> cases, <failed> failed or skipped" over the engine/oracle surefire reports
+oracle_count() {
+  local tests=0 bad=0 file attr v
+  for file in engine/oracle/target/surefire-reports/TEST-*"$1"*.xml; do
+    [ -f "$file" ] || continue
+    for attr in tests failures errors skipped; do
+      v=$(grep -m1 -o "<testsuite [^>]*" "$file" | grep -o " $attr=\"[0-9]*\"" | grep -o '[0-9]*')
+      if [ "$attr" = tests ]; then tests=$((tests + ${v:-0})); else bad=$((bad + ${v:-0})); fi
+    done
+  done
+  echo "$tests cases, $bad failed or skipped"
+}
+oracle_summary="corpus: $(oracle_count Corpus)
+differential: $(oracle_count Differential)"
+
 # 2: ui/
 if [ -f ui/package.json ]; then
   step "2 ui npm ci" "ui/.logs/${spec}-npm-ci.log" bash -c 'cd ui && npm ci'
@@ -82,4 +105,6 @@ if [ -f ui/package.json ]; then
   step "3 stack e2e" "ui/.logs/${spec}-e2e-stack.log" bash -c 'cd ui && npm run e2e:stack'
 fi
 
+echo "$pit_summary"
+echo "$oracle_summary"
 exit "$status"
