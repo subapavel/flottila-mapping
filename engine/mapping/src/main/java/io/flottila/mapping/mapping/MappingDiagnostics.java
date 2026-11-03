@@ -77,6 +77,13 @@ public final class MappingDiagnostics {
   /** A target field mapping whose {@code result} is {@code null} (F-2). */
   public static final String UNCONNECTED_TARGET_FIELD = "unconnected-target-field";
 
+  /**
+   * A target leaf whose effective occurrence has {@code minOccurs > 0}, that has no target field
+   * mapping and stands under a parent that is created (ADR-0006, #65), at its absent member {@code
+   * /targetFieldMappings/<field path>}.
+   */
+  public static final String UNMAPPED_MANDATORY_LEAF = "unmapped-mandatory-leaf";
+
   // stage 3, a reached standard function box against its catalogue entry (ADR-0025)
 
   /** A function box with more inputs than its catalogue entry has, at the box. */

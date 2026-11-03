@@ -1,6 +1,7 @@
 package io.flottila.mapping.mapping;
 
 import static io.flottila.mapping.mapping.LoadResults.errorAtId;
+import static io.flottila.mapping.mapping.LoadResults.errorAtPointer;
 import static io.flottila.mapping.mapping.LoadResults.lowered;
 import static io.flottila.mapping.mapping.LoadResults.refused;
 import static io.flottila.mapping.mapping.Models.boxes;
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
+import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
@@ -137,21 +139,32 @@ class LoweringTest {
         lowered(
             lower(
                 orderToOrder(
-                    targetFieldMappings(
+                    withOrderId(
                         NOTE, targetFieldMapping("t1", "a1", boxes("a1", source(street)))))));
     // any proper ancestor may be the context: the root Order is depth 1
     TargetDocument byRoot =
         lowered(
             lower(
                 orderToOrder(
-                    targetFieldMappings(
+                    withOrderId(
                         NOTE,
                         targetFieldMapping("t1", "a1", boxes("a1", source(street, ORDER)))))));
 
-    assertThat(((TargetSlots) byParent.content().getFirst()).queue())
+    // Note's slots follow OrderId's
+    assertThat(((TargetSlots) byParent.content().getLast()).queue())
         .isEqualTo(new SourceQueue(streetNames, 2, id("a1")));
-    assertThat(((TargetSlots) byRoot.content().getFirst()).queue())
+    assertThat(((TargetSlots) byRoot.content().getLast()).queue())
         .isEqualTo(new SourceQueue(streetNames, 1, id("a1")));
+  }
+
+  /**
+   * {@code path <- mapping} beside the mandatory {@code OrderId <- a0}, which the target needs
+   * (#65).
+   */
+  private static Map<String, TargetFieldMapping> withOrderId(
+      String path, TargetFieldMapping mapping) {
+    return targetFieldMappings(
+        ORDER_ID, targetFieldMapping("t0", "a0", boxes("a0", source(ORDER_ID))), path, mapping);
   }
 
   /**
@@ -161,15 +174,15 @@ class LoweringTest {
    */
   @Test
   void aTargetLeafBelowAnUnmappedOptionalParentIsLeftOutWithIt() {
-    MappingModel model =
-        orderToOrder(
-            targetFieldMappings(
-                ADDRESS + "/Street",
-                targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID)))));
+    TargetFieldMapping street = targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID)));
 
-    // OrderId (1..1) is an unmapped leaf, never created either (ADR-0006: a design-time error
-    // that is not built yet)
-    assertThat(lowered(lower(model)).content()).isEmpty();
+    assertThat(lowered(lower(orderToOrder(withOrderId(ADDRESS + "/Street", street)))).content())
+        .singleElement()
+        .extracting(Expr::origin)
+        .isEqualTo(id("t0"));
+    // without it, the unmapped OrderId (1..1) is the only diagnostic: Street is accepted (#65)
+    assertThat(refused(lower(orderToOrder(targetFieldMappings(ADDRESS + "/Street", street)))))
+        .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped(ORDER_ID)));
   }
 
   @Test
@@ -677,6 +690,78 @@ class LoweringTest {
 
     assertThat(refused(lowerFixDown(16)))
         .containsExactly(LoadResults.error("unsupported-field", new AtPointer("/target")));
+  }
+
+  /** The pointer of {@code unmapped-mandatory-leaf} at the target field {@code path} (#65). */
+  private static String unmapped(String path) {
+    return "/targetFieldMappings/" + path.replace("~", "~0").replace("/", "~1");
+  }
+
+  private static final String TILDE_LEAF = "/Doc/Q{" + TestStructures.TILDE + "}Tilde";
+
+  /**
+   * {@code mappings} from {@link TestStructures#orders()} to {@link TestStructures#mandatory()}.
+   */
+  private static LowerResult lowerMandatory(Object... pathThenMapping) {
+    return Lowering.lower(
+        model(
+            ref(TestStructures.orders()),
+            ref(TestStructures.mandatory()),
+            targetFieldMappings(pathThenMapping),
+            Map.of()),
+        TestStructures.orders(),
+        TestStructures.mandatory());
+  }
+
+  private static TargetFieldMapping orderId(String id) {
+    return targetFieldMapping(id, "s" + id, boxes("s" + id, source("/Orders/Order/Id", "/Orders")));
+  }
+
+  /**
+   * #65 (ADR-0006 Consequences): an unmapped leaf with {@code minOccurs > 0} is a design-time error
+   * at its absent member of {@code targetFieldMappings}, under the root and under the unmapped 1..1
+   * Head, which TargetRepeat creates; the walk goes on, so both are reported. The optional A and
+   * Free stay silent, and so do Must under the unmapped optional Opt and Need under the unmapped
+   * 0..unbounded Item, which are left out with their parents.
+   */
+  @Test
+  void anUnmappedMandatoryLeafUnderACreatedParentIsUnmappedMandatoryLeaf() {
+    assertThat(refused(lowerMandatory("/Doc/Free", orderId("t1"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Head/Req")),
+            errorAtPointer("unmapped-mandatory-leaf", unmapped(TILDE_LEAF)));
+    // RFC 6901: ~ is ~0 and / is ~1 in a segment
+    assertThat(unmapped(TILDE_LEAF)).isEqualTo("/targetFieldMappings/~1Doc~1Q{urn:a~0b}Tilde");
+  }
+
+  /**
+   * #65: under a mapped parent, Item, the unmapped Need is reported too, at its own field; once
+   * Need, Req and Tilde are mapped the mapping lowers, and Opt is still left out.
+   */
+  @Test
+  void anUnmappedMandatoryLeafUnderAMappedParentIsUnmappedMandatoryLeaf() {
+    TargetFieldMapping item =
+        targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order", "/Orders")));
+
+    assertThat(
+            refused(
+                lowerMandatory(
+                    "/Doc/Head/Req", orderId("t2"), "/Doc/Item", item, TILDE_LEAF, orderId("t3"))))
+        .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Item/Need")));
+    assertThat(
+            lowered(
+                    lowerMandatory(
+                        "/Doc/Head/Req",
+                        orderId("t2"),
+                        "/Doc/Item",
+                        item,
+                        "/Doc/Item/Need",
+                        orderId("t4"),
+                        TILDE_LEAF,
+                        orderId("t3")))
+                .content())
+        .extracting(Expr::origin)
+        .containsExactly(new AuthoringId("/Doc/Head"), id("t1"), id("t3"));
   }
 
   @Test

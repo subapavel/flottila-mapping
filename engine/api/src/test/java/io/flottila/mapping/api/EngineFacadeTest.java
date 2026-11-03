@@ -349,6 +349,188 @@ class EngineFacadeTest {
                     error("unconnected-target-field", new AtAuthoringId(new AuthoringId("t2"))))));
   }
 
+  // --- an unmapped mandatory target leaf (#65, ADR-0006 Consequences, #31 c1): a design-time error
+  // at the target field mapping the leaf lacks, under every parent that is created
+
+  /**
+   * The location of {@code unmapped-mandatory-leaf}: the pointer to the leaf's absent member of
+   * {@code targetFieldMappings}, its field path escaped as RFC 6901 says.
+   */
+  private static AtPointer unmappedAt(String fieldPath) {
+    return new AtPointer("/targetFieldMappings/" + fieldPath.replace("~", "~0").replace("/", "~1"));
+  }
+
+  /**
+   * A model from the observation kit's {@code src-orders.xsd} to {@code targetFile}'s {@code root}.
+   */
+  private static byte[] ordersTo(String targetFile, String root, String targetFieldMappings) {
+    return """
+        {"formatVersion": 1,
+         "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Orders"}},
+         "target": {"bundle": ["%2$s"], "fingerprint": "%1$s", "root": {"element": "%3$s"}},
+         "targetFieldMappings": %4$s}
+        """
+        .formatted(FINGERPRINT, targetFile, root, targetFieldMappings)
+        .getBytes(UTF_8);
+  }
+
+  /** {@code Orders/Order/Id} in the context {@code Orders} onto {@code field}, as {@code id}. */
+  private static String orderIdOnto(String field, String id) {
+    return """
+        "%s": {"id": "%s", "result": "s%2$s",
+               "boxes": {"s%2$s": {"kind": "source", "field": "/Orders/Order/Id",
+                                   "context": "/Orders"}}}"""
+        .formatted(field, id);
+  }
+
+  static Stream<Arguments> unmappedMandatoryLeaves() {
+    return Stream.of(
+        // under the root: order.xsd with only Quantity mapped, the gap #63 found
+        Arguments.of(
+            "under the root",
+            orderToOrder(
+                """
+                {"%1$s/Quantity": {"id": "t1", "result": "a1",
+                                   "boxes": {"a1": {"kind": "source", "field": "%1$s/Quantity"}}}}
+                """
+                    .formatted(ORDER)),
+            skeleton(),
+            ORDER + "/OrderId"),
+        // #31 c1: the unmapped 1..1 Head is created by TargetRepeat and is not reported itself
+        Arguments.of(
+            "under an unmapped n..n parent",
+            ordersTo(
+                "tgt-unmapped.xsd", "Unmapped", "{" + orderIdOnto("/Unmapped/Head/A", "t1") + "}"),
+            CorpusStructures.directory("observations"),
+            "/Unmapped/Head/Req"),
+        Arguments.of(
+            "under a mapped parent",
+            ordersTo(
+                "tgt-unmapped.xsd",
+                "Unmapped",
+                """
+                {"/Unmapped/Head": {"id": "t1", "result": "a1",
+                   "boxes": {"a1": {"kind": "source", "field": "/Orders/Order",
+                                    "context": "/Orders"}}}}
+                """),
+            CorpusStructures.directory("observations"),
+            "/Unmapped/Head/Req"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("unmappedMandatoryLeaves")
+  void anUnmappedMandatoryLeafIsADiagnosticAtItsTargetField(
+      String why, byte[] model, Path base, String leaf) throws Exception {
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, base, options));
+
+      assertThat(described(diagnostics))
+          .as("%s", options)
+          .containsExactlyElementsOf(
+              described(List.of(error("unmapped-mandatory-leaf", unmappedAt(leaf)))));
+    }
+  }
+
+  /**
+   * A target with two mandatory leaves under the root, {@code First} and {@code Last}, and a third,
+   * {@code Must}, under the optional {@code Opt}. {@code Free} is optional.
+   */
+  private static final String MANDATORY_XSD =
+      """
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="Root">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Last" type="xs:string"/>
+              <xs:element name="Opt" minOccurs="0">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="Must" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="First" type="xs:string"/>
+              <xs:element name="Free" type="xs:string" minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:schema>
+      """;
+
+  /** The model from {@code mandatory.xsd} to itself with the given target field mappings. */
+  private static byte[] mandatory(Path base, String targetFieldMappings) throws Exception {
+    Files.writeString(base.resolve("mandatory.xsd"), MANDATORY_XSD);
+    String side =
+        """
+        {"bundle": ["mandatory.xsd"], "fingerprint": "%s", "root": {"element": "Root"}}"""
+            .formatted(FINGERPRINT);
+    return """
+        {"formatVersion": 1, "source": %1$s, "target": %1$s, "targetFieldMappings": %2$s}
+        """
+        .formatted(side, targetFieldMappings)
+        .getBytes(UTF_8);
+  }
+
+  private static String copy(String field, String id) {
+    return """
+        "%1$s": {"id": "%2$s", "result": "s%2$s",
+                 "boxes": {"s%2$s": {"kind": "source", "field": "%1$s"}}}"""
+        .formatted(field, id);
+  }
+
+  /**
+   * Every unmapped mandatory leaf is reported, not only the first the target walk meets, sorted by
+   * location; the mandatory {@code Must} under the unmapped optional {@code Opt} is left out with
+   * it and stays silent, as does the optional {@code Free}.
+   */
+  @Test
+  void everyUnmappedMandatoryLeafIsReportedAndOneUnderALeftOutParentIsNot(@TempDir Path base)
+      throws Exception {
+    byte[] model = mandatory(base, "{" + copy("/Root/Free", "t1") + "}");
+
+    List<Diagnostic> diagnostics =
+        refusal(new EngineFacade().compile(model, base, CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("unmapped-mandatory-leaf", unmappedAt("/Root/First")),
+                    error("unmapped-mandatory-leaf", unmappedAt("/Root/Last")))));
+  }
+
+  /**
+   * What stays silent compiles and runs: the optional {@code Free} and the unmapped optional {@code
+   * Opt} with its mandatory {@code Must}, which are left out; c1 with {@code Req} mapped and the
+   * optional {@code A} unmapped.
+   */
+  @Test
+  void anOptionalLeafAndALeafUnderALeftOutParentStaySilent(@TempDir Path base) throws Exception {
+    EngineFacade facade = new EngineFacade();
+    Path observations = CorpusStructures.directory("observations");
+    byte[] leftOut =
+        mandatory(base, "{" + copy("/Root/Last", "t1") + ", " + copy("/Root/First", "t2") + "}");
+    byte[] c1 =
+        ordersTo(
+            "tgt-unmapped.xsd", "Unmapped", "{" + orderIdOnto("/Unmapped/Head/Req", "t1") + "}");
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      byte[] root =
+          facade.run(
+              compiled(facade.compile(leftOut, base, options)),
+              utf8("<Root><Last>l</Last><First>f</First><Free>x</Free></Root>"));
+      byte[] head = facade.run(compiled(facade.compile(c1, observations, options)), TWO_ORDERS);
+
+      assertThat(new String(root, UTF_8))
+          .as("%s", options)
+          .isEqualTo(DECLARATION + "<Root><Last>l</Last><First>f</First></Root>");
+      assertThat(new String(head, UTF_8))
+          .as("%s", options)
+          .isEqualTo(DECLARATION + "<Unmapped><Head><Req>o1</Req></Head></Unmapped>");
+    }
+  }
+
   @Test
   void aLoadRefusalIsACompileRefusal() throws Exception {
     byte[] newer =

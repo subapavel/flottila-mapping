@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.Literal;
@@ -48,6 +49,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class FunctionBoxLoweringTest {
 
+  private static final String ORDER_ID = ORDER + "/OrderId";
   private static final String NOTE = ORDER + "/Note";
   private static final QueueType QUEUE = new QueueType();
   private static final FunctionRef REMOVE_CONTEXTS =
@@ -55,7 +57,10 @@ class FunctionBoxLoweringTest {
   private static final SourceQueue NOTES =
       new SourceQueue(List.of(new Name(SKELETON, "Order"), new Name("", "Note")), 1, id("a1"));
 
-  /** {@code Note <- f1}, where {@code f1} is {@code function} and {@code a1} reads {@code Note}. */
+  /**
+   * {@code Note <- f1}, where {@code f1} is {@code function} and {@code a1} reads {@code Note}, and
+   * the mandatory {@code OrderId <- a0}, which the target needs (#65).
+   */
   private static LowerResult lowerNote(StandardFunctionBox function, Object... moreBoxes) {
     Object[] all = new Object[4 + moreBoxes.length];
     all[0] = "f1";
@@ -67,7 +72,11 @@ class FunctionBoxLoweringTest {
         model(
             ref(order()),
             ref(order()),
-            targetFieldMappings(NOTE, targetFieldMapping("t1", "f1", boxes(all))),
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t0", "a0", boxes("a0", source(ORDER_ID))),
+                NOTE,
+                targetFieldMapping("t1", "f1", boxes(all))),
             Map.of());
     return Lowering.lower(model, order(), order());
   }
@@ -76,10 +85,14 @@ class FunctionBoxLoweringTest {
     return function("removeContexts", inputs, noParams());
   }
 
-  /** The queue of the one target field the document creates. */
+  /** The queue of Note, the second of the two target fields the document creates, after OrderId. */
   private static Object loweredQueue(LowerResult result) {
-    assertThat(lowered(result).content()).singleElement().isInstanceOf(TargetSlots.class);
-    return ((TargetSlots) lowered(result).content().getFirst()).queue();
+    assertThat(lowered(result).content())
+        .hasSize(2)
+        .allSatisfy(e -> assertThat(e).isInstanceOf(TargetSlots.class))
+        .extracting(Expr::origin)
+        .containsExactly(id("t0"), id("t1"));
+    return ((TargetSlots) lowered(result).content().getLast()).queue();
   }
 
   @Test

@@ -181,6 +181,37 @@ final class TestStructures {
         structureField("Fix", 1, 1, "/T"));
   }
 
+  /** The namespace of {@link #mandatory()}'s {@code Tilde}, whose {@code ~} a pointer escapes. */
+  static final String TILDE = "urn:a~b";
+
+  /**
+   * A target with mandatory leaves under each kind of parent (#65): {@code Doc/Head} 1..1 holds
+   * {@code A} 0..1 and {@code Req} 1..1; {@code Opt} 0..1 holds {@code Must} 1..1; {@code Item}
+   * 0..unbounded holds {@code Need} 1..1; then the leaves {@code Tilde} 1..1 in {@link #TILDE} and
+   * {@code Free} 0..1. Otherwise no namespace.
+   */
+  static Structure mandatory() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Head",
+            new StructureType(
+                "/Doc/Head",
+                List.of(
+                    leaf("", "A", 0, 1, ValueType.STRING),
+                    leaf("", "Req", 1, 1, ValueType.STRING))),
+            "/Doc/Opt",
+            new StructureType("/Doc/Opt", List.of(leaf("", "Must", 1, 1, ValueType.STRING))),
+            "/Doc/Item",
+            new StructureType("/Doc/Item", List.of(leaf("", "Need", 1, 1, ValueType.STRING)))),
+        structureField("Head", 1, 1, "/Doc/Head"),
+        structureField("Opt", 0, 1, "/Doc/Opt"),
+        structureField("Item", 0, Occurrence.UNBOUNDED, "/Doc/Item"),
+        leaf(TILDE, "Tilde", 1, 1, ValueType.STRING),
+        leaf("", "Free", 0, 1, ValueType.STRING));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =

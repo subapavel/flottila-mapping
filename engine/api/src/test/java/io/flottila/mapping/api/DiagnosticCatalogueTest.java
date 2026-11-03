@@ -153,7 +153,9 @@ class DiagnosticCatalogueTest {
             "unresolved-function",
             "unsupported-field",
             "orphaned-reference",
-            "unconnected-target-field");
+            "unconnected-target-field",
+            // stage 3, an unmapped mandatory target leaf (#65)
+            "unmapped-mandatory-leaf");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",

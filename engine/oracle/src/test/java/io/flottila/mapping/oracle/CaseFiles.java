@@ -69,7 +69,10 @@ final class CaseFiles {
       return dir.resolve("expected.xml");
     }
 
-    /** {@code expected-error.json}: the error QName or diagnostic code and the authoring id. */
+    /**
+     * {@code expected-error.json}: the error QName or diagnostic code, and the authoring id or, for
+     * a design-time error at a place in the model, the pointer (#65).
+     */
     Map<String, Object> expectedError() {
       return object(read(dir.resolve("expected-error.json")));
     }
