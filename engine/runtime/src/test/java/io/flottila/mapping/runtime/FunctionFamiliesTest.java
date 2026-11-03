@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
  * <Family>Family.java} in engine/runtime, holding its name-to-binder maps; the build lists them in
  * {@code FunctionFamilies}, and no hand-written file does. {@code FunctionFamilies.ids()} gives the
  * families the index lists, {@code FunctionFamilies.merge} joins their maps, and {@code
- * QueueLibrary.bind} and {@code SingleValueLibrary.bind} keep their signatures and look a name up
- * in the merged maps.
+ * QueueLibrary.bind} and {@code SingleValueLibrary.bind} look a name up in the merged maps; since
+ * #71 both take the call's box (ADR-0026).
  */
 class FunctionFamiliesTest {
 
@@ -117,18 +117,18 @@ class FunctionFamiliesTest {
         };
     // witness: a name of each merged map binds
     assertThat(QueueLibrary.bind("removeContexts", box, List.of(queue), List.of())).isNotNull();
-    assertThat(SingleValueLibrary.bind("replaceValue", List.of(value, value))).isNotNull();
+    assertThat(SingleValueLibrary.bind("replaceValue", box, List.of(value, value))).isNotNull();
 
     assertThatThrownBy(() -> QueueLibrary.bind("noSuchFunction", box, List.of(queue), List.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
-    assertThatThrownBy(() -> SingleValueLibrary.bind("noSuchFunction", List.of(value)))
+    assertThatThrownBy(() -> SingleValueLibrary.bind("noSuchFunction", box, List.of(value)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
     assertThatThrownBy(() -> QueueLibrary.bind("replaceValue", box, List.of(queue), List.of("")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("replaceValue");
-    assertThatThrownBy(() -> SingleValueLibrary.bind("removeContexts", List.of(value)))
+    assertThatThrownBy(() -> SingleValueLibrary.bind("removeContexts", box, List.of(value)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("removeContexts");
   }

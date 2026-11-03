@@ -77,4 +77,24 @@ class SingleValueBindingTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
   }
+
+  /**
+   * ADR-0026: a single-value binding receives the call's box, as a queue function's does, so that a
+   * family's single-value function can raise its data error there (widened in #71, before the
+   * family tickets use it). No single-value function of #71 raises one, so what is seen here is the
+   * binding by name and box: replaceValue gives its replacement, and an unknown name with a box is
+   * still a compiler bug.
+   */
+  @Test
+  void aSingleValueCallIsBoundWithItsBox() {
+    Node.OfString value = frame -> "v";
+    Node.OfString replacement = frame -> "X";
+
+    Node.OfString bound = SingleValueLibrary.bind("replaceValue", F1, List.of(value, replacement));
+
+    assertThat(bound.eval(null)).isEqualTo("X");
+    assertThatThrownBy(() -> SingleValueLibrary.bind("noSuchFunction", F1, List.of(value)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("noSuchFunction");
+  }
 }
