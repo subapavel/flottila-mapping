@@ -147,7 +147,7 @@ public final class Interpreter {
     for (Expr arg : c.args()) {
       args.add((Node.OfString) compile(arg, scope));
     }
-    return SingleValueLibrary.bind(c.function().name(), args);
+    return SingleValueLibrary.bind(c.function().name(), c.origin(), args);
   }
 
   /**

@@ -124,7 +124,7 @@ final class ContextFamily {
   }
 
   /** {@code replaceValue(value, replacement)}: the replacement, whatever the value. */
-  static Node.OfString replaceValue(List<Node.OfString> args) {
+  static Node.OfString replaceValue(AuthoringId box, List<Node.OfString> args) {
     return args.get(1);
   }
 
