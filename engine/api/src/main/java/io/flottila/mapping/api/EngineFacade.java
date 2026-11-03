@@ -204,8 +204,9 @@ public final class EngineFacade {
    * @param input the input message's bytes
    * @param timeout how long the run may take
    * @param traceLimit the trace limit: the most slots, contexts or occurrence records one trace
-   *     entry keeps
+   *     entry keeps, at least 1
    * @return the target message, or the runtime error that stopped the run
+   * @throws IllegalArgumentException when {@code traceLimit} is less than 1; nothing runs
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws CancellationException when the calling thread is interrupted while it waits; its
    *     interrupt status is kept, and the run is interrupted too
@@ -214,6 +215,9 @@ public final class EngineFacade {
   public TestRunResult testRun(
       CompiledMapping mapping, byte[] input, Duration timeout, int traceLimit)
       throws MalformedInputException {
+    if (traceLimit < 1) {
+      throw new IllegalArgumentException("a trace limit is at least 1, not " + traceLimit);
+    }
     Tracer tracer = new Tracer();
     FutureTask<byte[]> task = new FutureTask<>(() -> run(mapping, input, tracer));
     // a daemon, as a virtual thread is, so that a run which ignores its interrupt never holds
@@ -223,13 +227,16 @@ public final class EngineFacade {
       byte[] output = task.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
       return new TestRunResult.Output(output, TraceBuilder.build(tracer.reports(), traceLimit));
     } catch (TimeoutException late) {
+      // the run reports on until its next interrupt check: first the snapshot, a copy of the
+      // reports so far taken under the tracer's lock, then the interrupt, and last the trace,
+      // built from the copy (ADR-0014 since #53)
+      List<Tracer.Report> soFar = tracer.reports();
+      task.cancel(true);
       return new TestRunResult.RuntimeError(
           TIMEOUT,
           "the test run took longer than its timeout of " + timeout.toMillis() + " ms",
           Optional.empty(),
-          // the run reports on until its next interrupt check; the snapshot is a copy of the
-          // reports so far, taken under the tracer's lock
-          TraceBuilder.build(tracer.reports(), traceLimit));
+          TraceBuilder.build(soFar, traceLimit));
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new CancellationException("the test run was interrupted while it was awaited");
@@ -247,7 +254,7 @@ public final class EngineFacade {
         default -> throw new IllegalStateException("the test run failed", failed.getCause());
       }
     } finally {
-      // a no-op once the run is done; otherwise it interrupts the run's thread
+      // a no-op once the run is done or cancelled; otherwise it interrupts the run's thread
       task.cancel(true);
     }
   }

@@ -2,6 +2,7 @@ package io.flottila.mapping.api;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.runtime.ExecutableMapping;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The trace of a test run at {@code EngineFacade.testRun} (ADR-0015 "Trace" as refined by #53;
@@ -618,6 +620,53 @@ class EngineFacadeTraceTest {
     assertThat(rows.parents()).hasSizeLessThanOrEqualTo(2);
     assertThat(rows.parents().getFirst()).isEqualTo(parent(1, 1, created(1)));
     assertThat(rows.parents().getLast()).isEqualTo(parent(5, 0));
+  }
+
+  /**
+   * ADR-0015 and GLOSSARY "Trace limit": an occurrences entry keeps at most the limit's parent
+   * records, not only its slot records (#53 review). Under a trace limit of 2, nested-grp-row-val
+   * runs two Grps, the first with the Rows a and b, the second with the Row c, and no Line has a
+   * Qty: Val reads three empty contexts, so it has three parent records and no slot record. It is
+   * capped by its parent records alone and keeps its first and its last. Witness: one Grp with two
+   * Rows gives two parent records, at the limit, not capped.
+   */
+  @Test
+  void theLimitCapsParentRecordsWithoutSlotRecords() throws Exception {
+    CompiledMapping mapping = tested(corpusMapping("nested-grp-row-val.mapping.json"), mappings());
+    String two = order("o1", line("a", null), line("b", null));
+    TestRunResult.Output atTheLimit =
+        output(facade.testRun(mapping, utf8(orders(two)), TIMEOUT, 2));
+    assertThat(occurrencesOf(atTheLimit.trace(), "T3"))
+        .isEqualTo(occurrences(0, 1, parent(1, 0), parent(2, 0)));
+
+    TestRunResult.Output result =
+        output(
+            facade.testRun(mapping, utf8(orders(two, order("o2", line("c", null)))), TIMEOUT, 2));
+
+    assertThat(new String(result.output(), UTF_8))
+        .isEqualTo(DECLARATION + "<Doc><Grp><Row/><Row/></Grp><Grp><Row/></Grp></Doc>");
+    assertThat(queueOf(result.trace(), "S3"))
+        .isEqualTo(queue(List.of(context(), context()), true, 0, 3));
+    assertThat(occurrencesOf(result.trace(), "T3"))
+        .isEqualTo(new Trace.Occurrences(0, 1, List.of(parent(1, 0), parent(3, 0)), true));
+  }
+
+  /**
+   * #53 ruling: a trace limit below 1 is refused before anything runs, Integer.MIN_VALUE too, whose
+   * limit - 1 would overflow. Witness: the least limit, 1, runs, and S1's two Ids are capped to
+   * one.
+   */
+  @ParameterizedTest(name = "trace limit {0}")
+  @ValueSource(ints = {0, -1, Integer.MIN_VALUE})
+  void aTraceLimitBelowOneIsRefused(int limit) throws Exception {
+    CompiledMapping mapping = tested(corpusMapping("nested-item-v.mapping.json"), mappings());
+    byte[] input = utf8(orders(order("o1", line("a", null)), order("o2", line("b", null))));
+    assertThat(queueOf(output(facade.testRun(mapping, input, TIMEOUT, 1)).trace(), "S1"))
+        .isEqualTo(queue(List.of(context("o1")), true, 2, 1));
+
+    assertThatThrownBy(() -> facade.testRun(mapping, input, TIMEOUT, limit))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(Integer.toString(limit));
   }
 
   // --- a timeout: the trace so far (ADR-0014 since #53)
