@@ -62,6 +62,10 @@ import java.util.stream.IntStream;
  *       requires it to be mapped (#63): {@code unsupported-field}; at {@code /target}, an unmapped
  *       field that would be created beyond the recursion cap (ADR-0008): {@code unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
+ *   <li>once every target field mapping lowers, at {@code /targetFieldMappings/<field path>}, a
+ *       target leaf with {@code minOccurs > 0} that has no target field mapping and stands under a
+ *       parent that is created, the root, a mapped field or an unmapped {@code n..n} one (ADR-0006,
+ *       #65): {@code unmapped-mandatory-leaf};
  *   <li>a UDF box, or a function box whose function the catalogue does not hold yet: {@code
  *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
  *   <li>a function box against its catalogue entry: more inputs than the entry has, {@code
@@ -102,6 +106,9 @@ public final class Lowering {
   private final Structure target;
   private final List<Diagnostic> found = new ArrayList<>();
 
+  /** Whether the target walk met an unmapped field beyond the recursion cap, which stops it. */
+  private boolean endless;
+
   /** The prefix of each target namespace, in the order first met (ADR-0022). */
   private final Map<String, String> prefixes = new HashMap<>();
 
@@ -136,7 +143,7 @@ public final class Lowering {
     String rootPrefix = prefix(root.namespace());
     List<Expr> content = children(target.rootPath(), links);
     if (!found.isEmpty()) {
-      // the walk met an unmapped field beyond the recursion cap
+      // the walk met an unmapped mandatory leaf or an unmapped field beyond the recursion cap
       return new Refused(found);
     }
     TargetDocument document =
@@ -466,24 +473,41 @@ public final class Lowering {
   /**
    * The content of {@code parent}, in target field order: the {@code TargetSlots} of each mapped
    * child field, and the {@code TargetRepeat} of each unmapped child structure field that is {@code
-   * n..n} with {@code n > 0}. Every other unmapped child is left out with its subtree. Such a field
-   * whose type its path already repeats {@link #RECURSION_CAP} times would be created without end,
-   * so it is refused at the model's {@code /target} with {@code unsupported-field} (ADR-0008), and
-   * that refusal stops the walk.
+   * n..n} with {@code n > 0}. Every other unmapped child is left out with its subtree. An unmapped
+   * child leaf with {@code minOccurs > 0} would be missing from every occurrence of {@code parent},
+   * so it is refused at its absent target field mapping with {@code unmapped-mandatory-leaf}
+   * (ADR-0006), and the walk goes on. An unmapped {@code n..n} structure field whose type its path
+   * already repeats {@link #RECURSION_CAP} times would be created without end, so it is refused at
+   * the model's {@code /target} with {@code unsupported-field} (ADR-0008), and that refusal stops
+   * the walk.
    */
   private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();
     for (FieldPath child : target.children(parent)) {
-      if (!found.isEmpty()) {
+      if (endless) {
         break;
       }
       Link link = links.get(child);
       Field field = target.field(child).orElseThrow();
       if (link != null) {
         content.add(slots(child, link, links));
-      } else if (field.valueType().isEmpty() && repeated(field.occurrence())) {
+      } else if (field.valueType().isPresent()) {
+        if (field.occurrence().min() > 0) {
+          found.add(
+              new Diagnostic(
+                  Severity.ERROR,
+                  MappingDiagnostics.UNMAPPED_MANDATORY_LEAF,
+                  new AtPointer("/targetFieldMappings/" + pointerSegment(child)),
+                  "the target leaf "
+                      + child
+                      + " ("
+                      + field.occurrence()
+                      + ") has no target field mapping, so the output would lack it"));
+        }
+      } else if (repeated(field.occurrence())) {
         // an attribute is a leaf (ADR-0008), so only an element gets here
         if (repeats(child, field) > RECURSION_CAP) {
+          endless = true;
           found.add(
               new Diagnostic(
                   Severity.ERROR,
@@ -502,6 +526,11 @@ public final class Lowering {
       }
     }
     return content;
+  }
+
+  /** {@code path}'s text as one RFC 6901 pointer segment: {@code ~} and {@code /} escaped. */
+  private static String pointerSegment(FieldPath path) {
+    return path.toString().replace("~", "~0").replace("/", "~1");
   }
 
   /** How many fields of {@code path}, the root and {@code field} included, have its type. */

@@ -19,6 +19,7 @@ import static io.flottila.mapping.mapping.TestStructures.ref;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.Lift;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.Test;
  */
 class LiftLoweringTest {
 
+  private static final String ORDER_ID = ORDER + "/OrderId";
   private static final String NOTE = ORDER + "/Note";
   private static final QueueType QUEUE = new QueueType();
   private static final FunctionRef CREATE_IF = new FunctionRef("createIf", List.of(QUEUE), QUEUE);
@@ -51,17 +53,28 @@ class LiftLoweringTest {
   private static final SourceQueue NOTES =
       new SourceQueue(List.of(new Name(SKELETON, "Order"), new Name("", "Note")), 1, id("a1"));
 
-  /** {@code Note <- f1}, where the boxes are given as alternating id and box. */
+  /**
+   * {@code Note <- f1}, where the boxes are given as alternating id and box, beside the mandatory
+   * {@code OrderId <- a0}, which the target needs (#65): the queue of Note, the second field.
+   */
   private static Object loweredQueue(Object... idThenBox) {
     MappingModel model =
         model(
             ref(order()),
             ref(order()),
-            targetFieldMappings(NOTE, targetFieldMapping("t1", "f1", boxes(idThenBox))),
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t0", "a0", boxes("a0", source(ORDER_ID))),
+                NOTE,
+                targetFieldMapping("t1", "f1", boxes(idThenBox))),
             Map.of());
     LowerResult result = Lowering.lower(model, order(), order());
-    assertThat(lowered(result).content()).singleElement().isInstanceOf(TargetSlots.class);
-    return ((TargetSlots) lowered(result).content().getFirst()).queue();
+    assertThat(lowered(result).content())
+        .hasSize(2)
+        .allSatisfy(e -> assertThat(e).isInstanceOf(TargetSlots.class))
+        .extracting(Expr::origin)
+        .containsExactly(id("t0"), id("t1"));
+    return ((TargetSlots) lowered(result).content().getLast()).queue();
   }
 
   /** The body lowering writes for replaceValue's box {@code box}: in1, then the param. */
