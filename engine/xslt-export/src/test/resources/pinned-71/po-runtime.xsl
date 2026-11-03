@@ -2,7 +2,8 @@
 <!-- The helper module every portable export imports (ADR-0023): the PO queue semantics as po:
      functions. A queue is an array(item()*) with one member per context; a value is an xs:string
      or $po:SUPPRESS, the marker of ADR-0004 (ADR-0025 since #51). A function of the catalogue is
-     po:<catalogue name>, its args in FunCall order (ADR-0025). Renaming this file, the po
+     po:<catalogue name>, its args in FunCall order (ADR-0025); one that can raise a data error
+     takes the id of its function box last, as $box (ADR-0026). Renaming this file, the po
      namespace or a function breaks exports already handed out. -->
 <xsl:stylesheet version="3.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
@@ -83,6 +84,17 @@
                            else $body($in)])"/>
   </xsl:function>
 
+  <!-- The data error $code, a QName of the po namespace such as po:USEONEASMANY, that the
+       function box $box raises (ADR-0026, F-19): its message is 'the function box ', $box, ': '
+       and $message, as the runtime's is. -->
+  <xsl:function name="po:data-error" as="item()*">
+    <xsl:param name="code" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:param name="message" as="xs:string"/>
+    <xsl:sequence select="error(QName('urn:flottila:mapping:po', $code),
+                                'the function box ' || $box || ': ' || $message)"/>
+  </xsl:function>
+
   <!-- collapseContexts: the first value of each context of $queue, '' for an empty context, all in
        one context. A first value that is SUPPRESS gives '' too, as the runtime's
        ContextFunctions.collapseContexts does (an assumed reading). A queue with no context at all
@@ -124,10 +136,11 @@
   <xsl:function name="po:formatByExample" as="array(item()*)">
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="example" as="array(item()*)"/>
+    <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="all" as="item()*" select="$values?*"/>
     <xsl:choose>
       <xsl:when test="count($all) ne count($example?*)">
-        <xsl:sequence select="error(QName('urn:flottila:mapping:po', 'po:FORMATBYEXAMPLE'),
+        <xsl:sequence select="po:data-error('po:FORMATBYEXAMPLE', $box,
             'formatByExample: its inputs do not hold as many values')"/>
       </xsl:when>
       <xsl:otherwise>
@@ -189,7 +202,8 @@
     <xsl:param name="queue" as="array(item()*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
-    <xsl:sequence select="po:sort-contexts('sort', $queue, $queue, $comparison, $order)"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:sort-contexts('sort', $queue, $queue, $comparison, $order, $box)"/>
   </xsl:function>
 
   <!-- sortByKey: each context of $values in the order of the keys at the same places of $keys, as
@@ -199,7 +213,8 @@
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
-    <xsl:sequence select="po:sort-contexts('sortByKey', $keys, $values, $comparison, $order)"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:sort-contexts('sortByKey', $keys, $values, $comparison, $order, $box)"/>
   </xsl:function>
 
   <!-- Each context of $values sorted by $keys, for the function $function. Its data error is
@@ -215,6 +230,7 @@
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="comparison" as="xs:string"/>
     <xsl:param name="order" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="contexts" as="xs:integer" select="array:size($values)"/>
     <xsl:variable name="defect" as="xs:string?" select="
         if (array:size($keys) ne $contexts) then 'the keys and the values differ in their contexts'
@@ -230,7 +246,7 @@
                      then 'a numeric key is SUPPRESS' else ())[1]"/>
     <xsl:sequence select="
         if (exists($defect))
-        then error(QName('urn:flottila:mapping:po', 'po:' || upper-case($function)),
+        then po:data-error('po:' || upper-case($function), $box,
                    $function || ': ' || $defect)
         else array:join(for $c in 1 to $contexts
                         return [po:sortByKey-context($keys($c), $values($c), $comparison, $order)])"/>
@@ -337,17 +353,18 @@
     <xsl:param name="value" as="array(item()*)"/>
     <xsl:param name="occurrences" as="array(item()*)"/>
     <xsl:param name="contexts" as="array(item()*)"/>
+    <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="values" as="item()*" select="$value?*"/>
     <xsl:variable name="repeated" as="item()*"
         select="for $k in 1 to array:size($occurrences) return $occurrences($k) ! $values[$k]"/>
     <xsl:sequence select="
         if (count($values) ne array:size($occurrences))
-        then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
+        then po:data-error('po:USEONEASMANY', $box,
                    'useOneAsMany needs one value of its first input per context of its second: the'
                    || ' first has ' || count($values) || ' values, the second '
                    || array:size($occurrences) || ' contexts')
         else if (count($repeated) ne count($contexts?*))
-        then error(QName('urn:flottila:mapping:po', 'po:USEONEASMANY'),
+        then po:data-error('po:USEONEASMANY', $box,
                    'useOneAsMany needs as many slots in its third input as in its second: the third'
                    || ' has ' || count($contexts?*) || ' slots, the second ' || count($repeated))
         else array:join(

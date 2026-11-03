@@ -10,6 +10,7 @@ import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrType;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
@@ -681,6 +682,100 @@ class XsltExporterTest {
     assertThat(helperParams("po:removeContexts")).isEqualTo(1);
   }
 
+  // --- the box in data errors (ADR-0026, F-19): a po: function that can raise one declares box as
+  // its last param, and the exporter appends the FunCall's origin exactly there
+
+  /**
+   * The names of the {@code xsl:param} of the helper module's {@code xsl:function} {@code name}.
+   */
+  private static List<String> helperParamNames(String name) {
+    String helper = XsltExporter.helperModule();
+    int at = helper.indexOf("name=\"" + name + "\"");
+    assertThat(at).as("%s in the helper module", name).isNotNegative();
+    String function = helper.substring(at, helper.indexOf("</xsl:function>", at));
+    List<String> names = new ArrayList<>();
+    Matcher param = Pattern.compile("<xsl:param\\s+name=\"([^\"]*)\"").matcher(function);
+    while (param.find()) {
+      names.add(param.group(1));
+    }
+    return names;
+  }
+
+  private static FunCall call(String name, List<Expr> args, int params, String box) {
+    List<IrType> types = new ArrayList<>();
+    for (int k = 0; k < args.size(); k++) {
+      types.add(k < args.size() - params ? QUEUE : AtomicType.STRING);
+    }
+    return new FunCall(new FunctionRef(name, types, QUEUE), args, id(box));
+  }
+
+  @Test
+  void aFunctionThatCanRaiseTakesItsBoxIdLast() {
+    String queue = "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
+    String fieldLink = "po:slots(" + queue + ", $root, 1)";
+    FunCall useOneAsMany =
+        call(
+            "useOneAsMany",
+            List.of(
+                underRoot(ORDER, ORDER_ID, "a1"),
+                underRoot(ORDER, ORDER_ID, "a2"),
+                underRoot(ORDER, ORDER_ID, "a3")),
+            0,
+            "u1");
+    String uoam = "po:useOneAsMany(" + queue + ", " + queue + ", " + queue + ", 'u1')";
+
+    // the field link's stylesheet with the call around its queue, its box id last
+    assertThat(XsltExporter.export(fieldLinkWith(useOneAsMany, List.of(valueText()))))
+        .isEqualTo(FIELD_LINK_STYLESHEET.replace(fieldLink, "po:slots(" + uoam + ", $root, 1)"));
+    // the box id comes after the params, and each call gets its own: here sort around useOneAsMany
+    FunCall sort =
+        call(
+            "sort",
+            List.of(
+                useOneAsMany,
+                new Literal("numeric", id("s1")),
+                new Literal("descending", id("s1"))),
+            2,
+            "s1");
+    assertThat(XsltExporter.export(fieldLinkWith(sort, List.of(valueText()))))
+        .contains("po:slots(po:sort(" + uoam + ", 'numeric', 'descending', 's1'), $root, 1)");
+    // a function that cannot raise one is unchanged
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(removeContexts(useOneAsMany, "r1"), List.of(valueText()))))
+        .contains("po:slots(po:removeContexts(" + uoam + "), $root, 1)")
+        .doesNotContain("'r1'");
+
+    // the helper module declares box last exactly where a function can raise a data error
+    assertThat(helperParamNames("po:useOneAsMany"))
+        .containsExactly("value", "occurrences", "contexts", "box");
+    assertThat(helperParamNames("po:formatByExample")).containsExactly("values", "example", "box");
+    assertThat(helperParamNames("po:sort")).containsExactly("queue", "comparison", "order", "box");
+    assertThat(helperParamNames("po:sortByKey"))
+        .containsExactly("keys", "values", "comparison", "order", "box");
+    assertThat(helperParamNames("po:removeContexts")).containsExactly("queue");
+    assertThat(helperParamNames("po:replaceValue")).containsExactly("value", "replacement");
+  }
+
+  /**
+   * The exporter reads the helper module's signatures (ADR-0026), so a FunCall whose function the
+   * helper does not declare is a compiler bug, as the runtime's binding treats it.
+   */
+  @Test
+  void aFunCallTheHelperLacksIsACompilerBug() {
+    FunCall unknown = call("noSuchFunction", List.of(underRoot(ORDER, ORDER_ID, "a1")), 0, "f1");
+    // witness: the same call of a function the helper declares exports
+    assertThat(
+            XsltExporter.export(
+                fieldLinkWith(
+                    removeContexts(underRoot(ORDER, ORDER_ID, "a1"), "f1"), List.of(valueText()))))
+        .contains("po:removeContexts(");
+
+    assertThatThrownBy(() -> XsltExporter.export(fieldLinkWith(unknown, List.of(valueText()))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("noSuchFunction");
+  }
+
   /**
    * The raw value of the first {@code xsl:for-each}'s {@code select}, as written between quotes.
    */
@@ -822,9 +917,15 @@ class XsltExporterTest {
 
   private static final String CORE = "core.xsl";
 
-  /** The packed helper module of main at 9c6fd1a, before the split, copied byte for byte. */
+  /**
+   * The packed helper module of main at 9c6fd1a, before the split, re-pinned once by #71 (ADR-0026
+   * Consequences): core gains po:data-error, the five declarations that raise a data error
+   * (formatByExample, sort, sortByKey, sort-contexts, useOneAsMany) gain {@code box} as their last
+   * param and raise through it, and the header names the box; every other byte is main's. The
+   * assertions below are #69's, unchanged.
+   */
   private static final String MAIN_HELPER_MODULE =
-      "engine/xslt-export/src/test/resources/main-9c6fd1a/po-runtime.xsl";
+      "engine/xslt-export/src/test/resources/pinned-71/po-runtime.xsl";
 
   /** Surefire runs in the module directory: the root is the nearest ancestor holding mvnw. */
   private static Path repoRoot() {
@@ -1017,7 +1118,9 @@ class XsltExporterTest {
   }
 
   /**
-   * The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
+   * ADR-0026 re-pins main's copy once (see {@link #MAIN_HELPER_MODULE}); the assertions are #69's.
+   *
+   * <p>The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
    * helper module, every top-level declaration that main's copy before the split does not declare
    * taken out with the comments and whitespace ahead of it, is main's copy, byte for byte. A
    * declaration is known by its element and its name, so one of main's that changes, moves or goes
