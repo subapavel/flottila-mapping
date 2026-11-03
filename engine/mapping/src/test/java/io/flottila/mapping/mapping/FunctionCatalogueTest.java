@@ -44,6 +44,20 @@ class FunctionCatalogueTest {
     return Files.readAllBytes(found.getFirst());
   }
 
+  /**
+   * The catalogue is published as it is packed (ADR-0026): {@code FunctionCatalogue.bytes()} is the
+   * packed file, a copy of its own on each call, so a caller that writes into one changes no other.
+   */
+  @Test
+  void thePublishedCatalogueIsThePackedFile() throws Exception {
+    byte[] packed = catalogue();
+    byte[] published = FunctionCatalogue.bytes();
+
+    assertThat(published).isEqualTo(packed);
+    published[0] = (byte) ' ';
+    assertThat(FunctionCatalogue.bytes()).isEqualTo(packed);
+  }
+
   // --- canonical form (ADR-0010, as ADR-0011 applies it to the catalogue)
 
   /**

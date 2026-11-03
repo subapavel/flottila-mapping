@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.flottila.mapping.mapping.FunctionCatalogue.Entry;
 import io.flottila.mapping.mapping.FunctionCatalogue.Param;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -72,5 +73,34 @@ class FunctionCatalogueReadTest {
         .isEqualTo(
             new Entry(ExecutionKind.QUEUE, List.of("value", "occurrences", "contexts"), List.of()));
     assertThat(entries).hasSize(2);
+  }
+
+  /**
+   * A string param with {@code values} takes only those, loaded in order; one without them takes
+   * any string, as {@code mapWithDefault}'s default does.
+   */
+  @Test
+  void aParamWithValuesLoadsThem() throws Exception {
+    String catalogue =
+        """
+        {"sortLike": {"executionKind": "context", "family": "context",
+          "fidelity": {"level": "exact"}, "inputs": [{"name": "queue"}],
+          "params": [{"default": "ascending", "name": "order", "type": "string",
+                      "values": ["ascending", "descending"]},
+                     {"default": "", "name": "default", "type": "string"}],
+          "portable": true}}
+        """;
+
+    assertThat(FunctionCatalogue.read(catalogue.getBytes(UTF_8)))
+        .containsExactly(
+            Map.entry(
+                "sortLike",
+                new Entry(
+                    ExecutionKind.CONTEXT,
+                    List.of("queue"),
+                    List.of(
+                        new Param(
+                            "order", "ascending", Optional.of(List.of("ascending", "descending"))),
+                        new Param("default", "", Optional.empty())))));
   }
 }
