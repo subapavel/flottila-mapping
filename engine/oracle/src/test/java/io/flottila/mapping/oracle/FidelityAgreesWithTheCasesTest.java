@@ -17,14 +17,17 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * ADR-0026: a function is {@code assumed} while one of its corpus cases, a case under {@code
- * fn/<function>/}, has {@code provenance: assumed}. The catalogue is the one the engine facade
- * publishes, read with the corpus's strict reader. Not a corpus or differential class, so the
- * ratchet does not read its tests as case ids (scripts/ratchet.java); that is why its name holds
- * neither word.
+ * fn/<function>/}, has {@code provenance: assumed}, and only then. The catalogue is the one the
+ * engine facade publishes, read with the corpus's strict reader. Not a corpus or differential
+ * class, so the ratchet does not read its tests as case ids (scripts/ratchet.java); that is why its
+ * name holds neither word.
  */
 class FidelityAgreesWithTheCasesTest {
 
-  /** Each function of {@code catalogue} that has an assumed case but is not assumed, and why. */
+  /**
+   * Each function of {@code catalogue} that has an assumed case but is not assumed, or is assumed
+   * but has no assumed case, and why.
+   */
   static List<String> disagreements(String catalogue, List<CorpusCase> cases) {
     if (!(new CaseFiles.Json(catalogue).document() instanceof Map<?, ?> functions)) {
       throw new AssertionError("the catalogue is no JSON object");
@@ -44,6 +47,8 @@ class FidelityAgreesWithTheCasesTest {
                   : null;
           if (!assumed.isEmpty() && !"assumed".equals(level)) {
             wrong.add(name + " is " + level + ", but " + assumed.getFirst() + " is assumed");
+          } else if (assumed.isEmpty() && "assumed".equals(level)) {
+            wrong.add(name + " is assumed, but none of its cases is");
           }
         });
     return wrong;
@@ -64,7 +69,7 @@ class FidelityAgreesWithTheCasesTest {
   }
 
   @Test
-  void aFunctionWithAnAssumedCaseIsAssumed(@TempDir Path cases) throws Exception {
+  void aFunctionIsAssumedExactlyWhileOneOfItsCasesIs(@TempDir Path cases) throws Exception {
     // witness over a synthetic cases dir: f has an assumed case, g none, and gh's assumed case is
     // no case of g; k has no case at all
     List<CorpusCase> synthetic =
@@ -86,6 +91,14 @@ class FidelityAgreesWithTheCasesTest {
     assertThat(disagreements("{\"f\": {}, \"gh\": {\"fidelity\": " + exact + "}}", synthetic))
         .containsExactly(
             "f is null, but fn/f/002 is assumed", "gh is exact, but fn/gh/001 is assumed");
+    // the converse: g, whose one case is decided (gh's assumed case is none of g's), and k, which
+    // has no case at all, are not assumed
+    assertThat(
+            disagreements(
+                "{\"g\": {\"fidelity\": " + assumed + "}, \"k\": {\"fidelity\": " + assumed + "}}",
+                synthetic))
+        .containsExactly(
+            "g is assumed, but none of its cases is", "k is assumed, but none of its cases is");
 
     String published = new String(new EngineFacade().catalogue(), UTF_8);
     List<CorpusCase> corpus = CaseFiles.all();
