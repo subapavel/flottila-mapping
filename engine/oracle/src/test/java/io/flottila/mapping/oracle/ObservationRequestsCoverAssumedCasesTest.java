@@ -2,7 +2,6 @@ package io.flottila.mapping.oracle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -17,8 +17,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Every corpus case whose provenance is {@code assumed} is waiting for an owner's observation in
  * SAP PO (ADR-0018 "Observed cases"). A case missing from every observation request would never be
- * observed. Each case id must be named in a {@code request.md} under {@code corpus/observations},
- * and that request's directory must hold the case's input file, so the owner can rebuild it.
+ * observed. A case counts only when a {@code request.md} under {@code corpus/observations} has its
+ * own case-table row, the id in the first cell and the input file in the second, and that file
+ * exists in the request's directory and holds the case's input. A mention of the id in another
+ * case's text does not count.
  */
 class ObservationRequestsCoverAssumedCasesTest {
 
@@ -30,10 +32,18 @@ class ObservationRequestsCoverAssumedCasesTest {
     }
   }
 
-  private static boolean names(String request, String caseId) {
-    return Pattern.compile("(?<![\\w/.-])" + Pattern.quote(caseId) + "(?![\\w/])")
-        .matcher(request)
-        .find();
+  /** The input file names in the rows of {@code request} whose first cell is {@code caseId}. */
+  static List<String> rowInputs(String request, String caseId) {
+    Pattern row =
+        Pattern.compile(
+            "^\\|\\s*`" + Pattern.quote(caseId) + "`\\s*\\|\\s*`([^`]+)`\\s*\\|",
+            Pattern.MULTILINE);
+    List<String> files = new ArrayList<>();
+    Matcher m = row.matcher(request);
+    while (m.find()) {
+      files.add(m.group(1));
+    }
+    return files;
   }
 
   private static String normalised(Path xml) throws IOException {
@@ -41,15 +51,24 @@ class ObservationRequestsCoverAssumedCasesTest {
   }
 
   @Test
-  void namesMatchWholeIdsOnly() {
-    assertTrue(names("see `fn/sort/001`.", "fn/sort/001"));
-    assertFalse(names("see `fn/sort/0011`.", "fn/sort/001"));
-    assertFalse(names("see `xfn/sort/001`.", "fn/sort/001"));
-    assertFalse(names("see `fn/sort/001/x`.", "fn/sort/001"));
+  void rowsMatchWholeIdsOnly() {
+    assertEquals(List.of("a.xml"), rowInputs("| `fn/sort/001` | `a.xml` | q |", "fn/sort/001"));
+    assertEquals(List.of(), rowInputs("| `fn/sort/0011` | `a.xml` | q |", "fn/sort/001"));
+    assertEquals(List.of(), rowInputs("| `xfn/sort/001` | `a.xml` | q |", "fn/sort/001"));
+    assertEquals(List.of(), rowInputs("| `fn/sort/001/x` | `a.xml` | q |", "fn/sort/001"));
   }
 
   @Test
-  void everyAssumedCaseIsInAnObservationRequestWithItsInput() throws IOException {
+  void anIdOnlyInProseIsMissing() {
+    String prose =
+        "| `fn/sort/003` | `b.xml` | like `fn/sort/001` but folded |\n"
+            + "The input of fn/sort/001 is b.xml.\n";
+    assertEquals(List.of(), rowInputs(prose, "fn/sort/001"));
+    assertEquals(List.of("b.xml"), rowInputs(prose, "fn/sort/003"));
+  }
+
+  @Test
+  void everyAssumedCaseHasARowWithItsInput() throws IOException {
     List<CaseFiles.CorpusCase> assumed =
         CaseFiles.all().stream().filter(c -> c.provenance().equals("assumed")).toList();
     assertFalse(assumed.isEmpty(), "no assumed cases: the check would pass for nothing");
@@ -58,38 +77,23 @@ class ObservationRequestsCoverAssumedCasesTest {
     List<String> missing = new ArrayList<>();
     List<String> noInput = new ArrayList<>();
     for (CaseFiles.CorpusCase c : assumed) {
-      List<Path> holders = new ArrayList<>();
-      for (Path r : requests) {
-        if (names(Files.readString(r, StandardCharsets.UTF_8), c.id())) {
-          holders.add(r);
-        }
-      }
-      if (holders.isEmpty()) {
-        missing.add(c.id());
-        continue;
-      }
       String input = normalised(c.input());
+      boolean listed = false;
       boolean ready = false;
-      for (Path r : holders) {
-        try (Stream<Path> files = Files.list(r.getParent())) {
-          ready |=
-              files
-                  .filter(f -> f.getFileName().toString().matches(".*\\.(xml|json)"))
-                  .anyMatch(
-                      f -> {
-                        try {
-                          return normalised(f).equals(input);
-                        } catch (IOException e) {
-                          throw new java.io.UncheckedIOException(e);
-                        }
-                      });
+      for (Path r : requests) {
+        for (String name : rowInputs(Files.readString(r, StandardCharsets.UTF_8), c.id())) {
+          listed = true;
+          Path file = r.getParent().resolve(name);
+          ready |= Files.isRegularFile(file) && normalised(file).equals(input);
         }
       }
-      if (!ready) {
+      if (!listed) {
+        missing.add(c.id());
+      } else if (!ready) {
         noInput.add(c.id());
       }
     }
-    assertEquals(List.of(), missing, "assumed cases in no observation request");
-    assertEquals(List.of(), noInput, "assumed cases whose input is not in their request's kit");
+    assertEquals(List.of(), missing, "assumed cases without a row in any observation request");
+    assertEquals(List.of(), noInput, "assumed cases whose row names no input file of the kit");
   }
 }
