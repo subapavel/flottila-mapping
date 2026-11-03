@@ -63,7 +63,8 @@ contract, and the editor ships with the service.
   for example `[["1a","2b"],[null,"3c"],[]]`. Values are always strings, and `""` is a value
   (xsi:nil, JSON null, a structure field), so `null` is unambiguous.
 - An atomic value (a single-value call with no queue input) is `{atomic: {type, value}}`.
-- The trace is an object keyed by `AuthoringId`. It holds every box that was evaluated.
+- The trace is an object keyed by `AuthoringId`, in first-report order (since #53, on the wire
+  too). It holds every box that was evaluated.
   Constants are not traced; the editor shows them from the model (ADR-0006). A box that was
   never evaluated, because its field was never created, is absent.
 - A target field mapping's entry adds `occurrences`: per parent slot, the list of slots
@@ -73,7 +74,8 @@ contract, and the editor ships with the service.
 - `po:show` text (`1a,2b|S,3c`) is derived from this shape for oracle diffs and logs only. It
   cannot tell a value `S` or a comma from the markers.
 - Limits, both configurable: a test input up to 10 MB (413 above), and the trace limit
-  (`flottila.mapping.trace-limit`, 10,000) per entry. Since #53 the cap marker is `capped: true`,
+  (`flottila.mapping.trace-limit`, 10,000) per entry; a limit below 1 is refused at startup and
+  by the facade (#53). Since #53 the cap marker is `capped: true`,
   not `truncated`, which names a slot cut by `maxOccurs`.
 - Since #53 each entry carries `kind`:
   - `queue` {contexts, capped, slotCount, contextCount}: at most the limit's slots and contexts,
@@ -85,6 +87,10 @@ contract, and the editor ships with the service.
     `minOccurs` record.
   - A box feeding several inputs has one entry, its first report. `{atomic}` waits for the first
     atomic box, in spec 3.
+- Since #53 the slot budget of an occurrences entry is spent in parent order, so the kept last
+  parent can show `created` without its slot records; a cut queue shows its first contexts, and
+  the last one shown may look empty. The editor reads `capped` and the totals (spec 6). The
+  nullable slot of a context is the schema-only type `TraceValue` (`string | null`), code-first.
 - A runtime error returns the trace up to the error. A test run compiled without tracing returns
   an empty trace.
 
