@@ -647,6 +647,45 @@ class ContextFunctionsTest {
     }
   }
 
+  /**
+   * splitByValue in each mode, over a queue with a context of two slots and an empty one: its loop
+   * over contexts checks, and names the function, as building the result block checks too, but
+   * with a message of its own (ADR-0021).
+   */
+  static Stream<Arguments> interruptibleSplits() {
+    QueueBlock queue = new Queue("", List.of(List.of("a", ""), List.of())).block();
+    return Stream.of(
+        Arguments.of(
+            "eachValue",
+            (Supplier<QueueBlock>) () -> ContextFunctions.splitByEachValue(queue),
+            List.of(List.of("a"), List.of(""), List.of())),
+        Arguments.of(
+            "valueChange",
+            (Supplier<QueueBlock>) () -> ContextFunctions.splitByValueChange(queue),
+            List.of(List.of("a"), List.of(""), List.of())),
+        Arguments.of(
+            "emptyValue",
+            (Supplier<QueueBlock>) () -> ContextFunctions.splitByEmptyValue(queue),
+            List.of(List.of("a"), List.of(), List.of())));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("interruptibleSplits")
+  void onAnInterruptedThreadSplitByValueThrowsCancellationExceptionNamingItself(
+      String mode, Supplier<QueueBlock> call, List<List<String>> split) {
+    // witness: the same call splits the queue on a thread that is not interrupted
+    assertThat(read(call.get())).isEqualTo(split);
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(call::get)
+          .isInstanceOf(CancellationException.class)
+          .hasMessageContaining("splitByValue was running");
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
   // --- formatByExample (#58): the values of the first queue in the contexts of the second (#2 §4)
 
   /**
