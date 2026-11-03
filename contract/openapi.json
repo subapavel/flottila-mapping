@@ -136,6 +136,26 @@
           }
         }
       },
+      "ParentSlotDto" : {
+        "type" : "object",
+        "required" : [ "parentSlot", "created", "slots" ],
+        "properties" : {
+          "parentSlot" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "created" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "slots" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SlotStatusDto"
+            }
+          }
+        }
+      },
       "PointerLocation" : {
         "type" : "object",
         "required" : [ "kind", "pointer" ],
@@ -207,6 +227,20 @@
           },
           "authoringId" : {
             "type" : "string"
+          }
+        }
+      },
+      "SlotStatusDto" : {
+        "type" : "object",
+        "required" : [ "slot", "status" ],
+        "properties" : {
+          "slot" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "created", "suppressed", "truncated" ]
           }
         }
       },
@@ -301,7 +335,7 @@
       },
       "TestError" : {
         "type" : "object",
-        "required" : [ "kind", "error", "diagnostics" ],
+        "required" : [ "kind", "error", "diagnostics", "trace" ],
         "properties" : {
           "kind" : {
             "type" : "string",
@@ -315,12 +349,18 @@
             "items" : {
               "$ref" : "#/components/schemas/DiagnosticDto"
             }
+          },
+          "trace" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/TraceEntryDto"
+            }
           }
         }
       },
       "TestOutput" : {
         "type" : "object",
-        "required" : [ "kind", "output", "diagnostics" ],
+        "required" : [ "kind", "output", "diagnostics", "trace" ],
         "properties" : {
           "kind" : {
             "type" : "string",
@@ -333,6 +373,12 @@
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/DiagnosticDto"
+            }
+          },
+          "trace" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/TraceEntryDto"
             }
           }
         }
@@ -382,6 +428,84 @@
           }
         },
         "type" : "object"
+      },
+      "TraceContext" : {
+        "type" : "array",
+        "items" : {
+          "$ref" : "#/components/schemas/TraceValue"
+        }
+      },
+      "TraceEntryDto" : {
+        "type" : "object",
+        "oneOf" : [ {
+          "$ref" : "#/components/schemas/TraceQueueDto"
+        }, {
+          "$ref" : "#/components/schemas/TraceOccurrencesDto"
+        } ],
+        "discriminator" : {
+          "propertyName" : "kind",
+          "mapping" : {
+            "queue" : "#/components/schemas/TraceQueueDto",
+            "occurrences" : "#/components/schemas/TraceOccurrencesDto"
+          }
+        }
+      },
+      "TraceOccurrencesDto" : {
+        "type" : "object",
+        "required" : [ "kind", "min", "parents", "capped" ],
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "const" : "occurrences"
+          },
+          "min" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "max" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "parents" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ParentSlotDto"
+            }
+          },
+          "capped" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "TraceQueueDto" : {
+        "type" : "object",
+        "required" : [ "kind", "contexts", "capped", "slotCount", "contextCount" ],
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "const" : "queue"
+          },
+          "contexts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TraceContext"
+            }
+          },
+          "capped" : {
+            "type" : "boolean"
+          },
+          "slotCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "contextCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "TraceValue" : {
+        "type" : [ "string", "null" ]
       }
     }
   },
