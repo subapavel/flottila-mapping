@@ -291,7 +291,9 @@ class ContextFunctionsSortTest {
 
   /**
    * A key/value count mismatch stops sortByKey (#2 §4, documented): the two queues need the same
-   * contexts with the same number of slots each. The message names where they part.
+   * contexts with the same number of slots each. The message names where they part. It is a data
+   * error, a {@code QueueDataException}, which the runtime raises as {@code po:SORTBYKEY} at the
+   * box (ADR-0025 since #52).
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("mismatches")
@@ -307,7 +309,7 @@ class ContextFunctionsSortTest {
             () ->
                 ContextFunctions.sortByKey(
                     keyBlock, new Queue("", values).block(), Comparison.LEXICOGRAPHIC, false))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(QueueDataException.class)
         .hasMessageContaining("sortByKey")
         .hasMessageContaining(where);
   }

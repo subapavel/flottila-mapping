@@ -152,7 +152,7 @@ class LoweringTest {
 
   @Test
   void aTargetLeafBelowAStructureFieldIsStillUnsupportedField() {
-    // target slots under a structure field are #52's
+    // Street's parent Address is unmapped: unsupported-field until #63 (#52 design, O1)
     MappingModel model =
         orderToOrder(
             targetFieldMappings(
@@ -373,6 +373,22 @@ class LoweringTest {
             errorAtId("orphaned-reference", "a1"), errorAtId("orphaned-reference", "a2"));
   }
 
+  /**
+   * A target field the target structure lacks is orphaned-reference at its target field mapping.
+   */
+  @Test
+  void aMissingTargetFieldIsAnOrphanedReference() {
+    MappingModel model =
+        orderToOrder(
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID))),
+                ORDER + "/Missing",
+                targetFieldMapping("t2", "a2", boxes("a2", source(QUANTITY)))));
+
+    assertThat(refused(lower(model))).containsExactly(errorAtId("orphaned-reference", "t2"));
+  }
+
   @Test
   void anAttributeFieldIsUnsupportedField() {
     MappingModel model =
@@ -403,14 +419,122 @@ class LoweringTest {
                 ADDRESS,
                 targetFieldMapping("t4", "a4", boxes("a4", source(ORDER_ID)))));
 
-    // the root is no leaf element under the root; Address is an element under the root, but a
-    // structure field, with no value of its own: source at its box, target at its mapping
+    // the root is no field to map, as a source or a target; a source structure field has no value
+    // of its own (a source structure field to a target structure field is #63). Since #52 the
+    // target structure field Address under the root lowers from a source leaf (t4), as
+    // aLeafAtDepthFourLowersUnderItsMappedParents shows at depth 4
     assertThat(refused(lower(model)))
         .containsExactly(
             errorAtId("unsupported-field", "a1"),
             errorAtId("unsupported-field", "a3"),
-            errorAtId("unsupported-field", "t2"),
-            errorAtId("unsupported-field", "t4"));
+            errorAtId("unsupported-field", "t2"));
+  }
+
+  // --- target fields at any depth (ADR-0006 since #52): a mapped field under mapped ancestors;
+  // the slot and value variables of a field at depth d are slot<d> and value<d>, the root's slot
+  // number stays root
+
+  private static final String GRP = "/Doc/Grp";
+  private static final String ROW = GRP + "/Row";
+  private static final String VAL = ROW + "/Val";
+  private static final Name ORDERS_NAME = new Name("", "Orders");
+  private static final Name ORDER_ELEMENT = new Name("", "Order");
+  private static final Name LINE = new Name("", "Line");
+
+  private static LowerResult lowerNested(Map<String, TargetFieldMapping> mappings) {
+    return Lowering.lower(
+        model(ref(TestStructures.orders()), ref(TestStructures.nested()), mappings, Map.of()),
+        TestStructures.orders(),
+        TestStructures.nested());
+  }
+
+  /** Grp per Order Id in the root's context, Row per Sku in Order's, Val per Qty in Line's. */
+  private static Map<String, TargetFieldMapping> nestedMappings(boolean grp, boolean row) {
+    Map<String, TargetFieldMapping> mappings = new java.util.LinkedHashMap<>();
+    if (grp) {
+      mappings.put(
+          GRP, targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order/Id", "/Orders"))));
+    }
+    if (row) {
+      mappings.put(
+          ROW,
+          targetFieldMapping(
+              "t2", "a2", boxes("a2", source("/Orders/Order/Line/Sku", "/Orders/Order"))));
+    }
+    mappings.put(
+        VAL, targetFieldMapping("t3", "a3", boxes("a3", source("/Orders/Order/Line/Qty"))));
+    return mappings;
+  }
+
+  private static VarRef integer(String name, String mapping) {
+    return new VarRef(name, AtomicType.INTEGER, id(mapping));
+  }
+
+  /**
+   * {@code Doc/Grp/Row/Val} with every level mapped: each TargetSlots stands in its parent's
+   * element, reads its parent's slot number as its parentSlot and takes its field's effective
+   * occurrence; a structure field's element holds its mapped children, a leaf's its value.
+   */
+  @Test
+  void aLeafAtDepthFourLowersUnderItsMappedParents() {
+    TargetDocument document = lowered(lowerNested(nestedMappings(true, true)));
+
+    TargetSlots val =
+        new TargetSlots(
+            new SourceQueue(
+                List.of(ORDERS_NAME, ORDER_ELEMENT, LINE, new Name("", "Qty")), 3, id("a3")),
+            integer("slot3", "t3"),
+            0,
+            1,
+            "slot4",
+            "value4",
+            new ElementConstructor(
+                "",
+                new Name("", "Val"),
+                List.of(
+                    new TextConstructor(
+                        new VarRef("value4", AtomicType.STRING, id("t3")), id("t3"))),
+                id("t3")),
+            id("t3"));
+    TargetSlots row =
+        new TargetSlots(
+            new SourceQueue(
+                List.of(ORDERS_NAME, ORDER_ELEMENT, LINE, new Name("", "Sku")), 2, id("a2")),
+            integer("slot2", "t2"),
+            1,
+            2,
+            "slot3",
+            "value3",
+            new ElementConstructor("", new Name("", "Row"), List.of(val), id("t2")),
+            id("t2"));
+    TargetSlots grp =
+        new TargetSlots(
+            new SourceQueue(List.of(ORDERS_NAME, ORDER_ELEMENT, new Name("", "Id")), 1, id("a1")),
+            integer("root", "t1"),
+            0,
+            Long.MAX_VALUE,
+            "slot2",
+            "value2",
+            new ElementConstructor("", new Name("", "Grp"), List.of(row), id("t1")),
+            id("t1"));
+    assertThat(document)
+        .isEqualTo(new TargetDocument("", new Name("", "Doc"), "root", List.of(grp)));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * O1 of the #52 design: a mapped field under an unmapped parent is refused with unsupported-field
+   * at its target field mapping until #63. Val's parent Row is unmapped, with Grp mapped or not.
+   */
+  @Test
+  void aMappedFieldUnderAnUnmappedParentIsUnsupportedField() {
+    // witness: with Row mapped the same Val lowers (aLeafAtDepthFourLowersUnderItsMappedParents)
+    assertThat(lowerNested(nestedMappings(true, true))).isInstanceOf(Lowered.class);
+
+    assertThat(refused(lowerNested(nestedMappings(true, false))))
+        .containsExactly(errorAtId("unsupported-field", "t3"));
+    assertThat(refused(lowerNested(nestedMappings(false, false))))
+        .containsExactly(errorAtId("unsupported-field", "t3"));
   }
 
   @Test

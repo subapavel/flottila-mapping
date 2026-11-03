@@ -89,6 +89,7 @@ class LiftVerifierTest {
             rootSlot(),
             0,
             UNBOUNDED,
+            "slot",
             "item",
             new ElementConstructor("", item, List.of(names), T1),
             T1));
@@ -271,6 +272,7 @@ class LiftVerifierTest {
             rootSlot(),
             1,
             1,
+            "slot",
             "v",
             new ElementConstructor("", ORDER_ID, List.of(new TextConstructor(value, T1)), T1),
             T1));
@@ -313,6 +315,7 @@ class LiftVerifierTest {
                     rootSlot(),
                     1,
                     1,
+                    "slot",
                     "v",
                     new ElementConstructor("", ORDER_ID, List.of(value, new Literal("a", T1)), T1),
                     T1))),

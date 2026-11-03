@@ -56,6 +56,7 @@ class SingleValueBindingTest {
                 new VarRef("root", AtomicType.INTEGER, T1),
                 0,
                 Long.MAX_VALUE,
+                "slot",
                 "v",
                 new ElementConstructor(
                     "",

@@ -23,7 +23,8 @@ class TargetSlotsBodyTest {
 
   /** The field link {@code OrderId <- OrderId} with {@code body} per slot. */
   private static TargetDocument withBody(Expr body) {
-    return document(new TargetSlots(queue(ORDER_ID, 1, A1), rootSlot(), 1, 1, "v", body, T1));
+    return document(
+        new TargetSlots(queue(ORDER_ID, 1, A1), rootSlot(), 1, 1, "slot", "v", body, T1));
   }
 
   static Stream<Arguments> values() {

@@ -463,6 +463,7 @@ export interface components {
         RuntimeErrorDto: {
             code: string;
             message: string;
+            authoringId?: string;
         };
         StructureChoice: {
             bundle: string[];

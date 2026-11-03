@@ -79,6 +79,48 @@ final class TestStructures {
         leaf("urn:v", "Other", 0, 1, ValueType.STRING));
   }
 
+  /**
+   * The shape of {@code corpus/structures/observations/src-orders.xsd} without {@code Memo}: {@code
+   * Orders/Order} 0..unbounded with {@code Id}, {@code Tag} and {@code Line} 0..unbounded with
+   * {@code Sku} and {@code Qty}. No namespace.
+   */
+  static Structure orders() {
+    return structure(
+        "",
+        "Orders",
+        Map.of(
+            "/Orders/Order",
+            new StructureType(
+                "/Orders/Order",
+                List.of(
+                    leaf("", "Id", 0, 1, ValueType.STRING),
+                    leaf("", "Tag", 0, Occurrence.UNBOUNDED, ValueType.STRING),
+                    structureField("Line", 0, Occurrence.UNBOUNDED, "/Orders/Order/Line"))),
+            "/Orders/Order/Line",
+            new StructureType(
+                "/Orders/Order/Line",
+                List.of(
+                    leaf("", "Sku", 0, 1, ValueType.STRING),
+                    leaf("", "Qty", 0, 1, ValueType.STRING)))),
+        structureField("Order", 0, Occurrence.UNBOUNDED, "/Orders/Order"));
+  }
+
+  /**
+   * The shape of {@code corpus/structures/tgt-nested.xsd} (#52): {@code Doc/Grp} 0..unbounded,
+   * {@code Row} 1..2 in each Grp, {@code Val} 0..1 in each Row, a leaf at depth 4. No namespace.
+   */
+  static Structure nested() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Grp",
+            new StructureType("/Doc/Grp", List.of(structureField("Row", 1, 2, "/Doc/Grp/Row"))),
+            "/Doc/Grp/Row",
+            new StructureType("/Doc/Grp/Row", List.of(leaf("", "Val", 0, 1, ValueType.STRING)))),
+        structureField("Grp", 0, Occurrence.UNBOUNDED, "/Doc/Grp"));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =

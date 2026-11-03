@@ -204,6 +204,9 @@
           },
           "message" : {
             "type" : "string"
+          },
+          "authoringId" : {
+            "type" : "string"
           }
         }
       },

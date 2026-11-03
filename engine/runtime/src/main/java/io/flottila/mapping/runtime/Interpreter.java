@@ -44,6 +44,9 @@ public final class Interpreter {
   /** The number of {@code STRING} frame slots allocated so far. */
   private int stringSlotCount;
 
+  /** The number of {@code TargetSlots} so far, each with a frame slot for its queue's block. */
+  private int targetQueueCount;
+
   private Interpreter(boolean traced) {
     this.traced = traced;
   }
@@ -69,7 +72,8 @@ public final class Interpreter {
         rootSlot,
         element,
         compiler.integerSlotCount,
-        compiler.stringSlotCount);
+        compiler.stringSlotCount,
+        compiler.targetQueueCount);
   }
 
   /**
@@ -126,7 +130,7 @@ public final class Interpreter {
         inputs.add((Node.OfQueue) compile(arg, scope));
       }
     }
-    return traced(c.origin(), QueueLibrary.bind(c.function().name(), inputs, params));
+    return traced(c.origin(), QueueLibrary.bind(c.function().name(), c.origin(), inputs, params));
   }
 
   /**
@@ -197,14 +201,30 @@ public final class Interpreter {
     };
   }
 
+  /**
+   * A {@code TargetSlots} (ADR-0006 since #52): its queue and parent slot in {@code scope}, and its
+   * body in {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own,
+   * and its value variable, a {@code STRING} one.
+   */
   private Node.OfContent slots(TargetSlots s, Map<String, Integer> scope) {
     Node.OfQueue queue = (Node.OfQueue) compile(s.queue(), scope);
     Node.OfInteger parentSlot = (Node.OfInteger) compile(s.parentSlot(), scope);
-    int valueSlot = stringSlotCount++;
+    int queueIndex = targetQueueCount++;
+    int slotNumberIndex = integerSlotCount++;
+    int valueIndex = stringSlotCount++;
     Map<String, Integer> body = new HashMap<>(scope);
-    body.put(s.valueVar(), valueSlot);
+    body.put(s.slotVar(), slotNumberIndex);
+    body.put(s.valueVar(), valueIndex);
     return new Node.Slots(
-        queue, parentSlot, s.max(), valueSlot, (Node.OfContent) compile(s.body(), body));
+        queue,
+        queueIndex,
+        parentSlot,
+        s.min(),
+        s.max(),
+        slotNumberIndex,
+        valueIndex,
+        (Node.OfContent) compile(s.body(), body),
+        s.origin());
   }
 
   private static Node.OfContent text(Node.OfString value) {

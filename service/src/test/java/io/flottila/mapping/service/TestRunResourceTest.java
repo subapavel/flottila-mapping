@@ -61,6 +61,37 @@ class TestRunResourceTest {
     assertBytes(TempWorkspace.read("testing/order.mapping.json"), unwired());
   }
 
+  /**
+   * ADR-0015 since #52 (O2): a runtime error is 200 with {@code error {code, message, authoringId}}
+   * and no output. An empty source under the 1..1 OrderId raises {@code po:MINOCCURS} at its target
+   * field mapping t1.
+   */
+  @Test
+  void aMinOccursShortfallAnswersErrorWithItsAuthoringId() {
+    TempWorkspace.write("testing-minoccurs/order.mapping.json", corpusMapping());
+    // witness: with its OrderId the same working copy gives output
+    assertThat(
+            test("testing-minoccurs/order", testRequest(workingCopy("\"a1\""), INPUT))
+                .json()
+                .path("kind")
+                .textValue())
+        .isEqualTo("output");
+
+    Http.Reply reply =
+        test(
+            "testing-minoccurs/order",
+            testRequest(workingCopy("\"a1\""), "<src:Order xmlns:src=\"" + NS + "\"/>"));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).isEqualTo("error");
+    assertThat(result.path("error").path("code").textValue()).isEqualTo("po:MINOCCURS");
+    assertThat(result.path("error").path("authoringId").textValue()).isEqualTo("t1");
+    assertThat(result.path("error").path("message").textValue()).isNotBlank();
+    assertThat(described(result.path("diagnostics"))).isEmpty();
+    assertThat(result.has("output")).as("the buffered output is dropped").isFalse();
+  }
+
   @Test
   void compileErrorsAre200WithDiagnosticsAndNoOutput() {
     // the disk copy is wired: a run of it would give output

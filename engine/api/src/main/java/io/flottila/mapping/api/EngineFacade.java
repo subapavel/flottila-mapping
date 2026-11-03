@@ -14,6 +14,7 @@ import io.flottila.mapping.mapping.Refused;
 import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.runtime.Interpreter;
 import io.flottila.mapping.runtime.MalformedInputException;
+import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.xslt.export.XsltExporter;
@@ -164,6 +165,8 @@ public final class EngineFacade {
    * test-run compile's trace is recorded and dropped: spec 1 returns no trace.
    *
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws MappingRunException when the run meets a runtime error in its data, with its code and
+   *     authoring id (ADR-0015 since #52)
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
    */
   public byte[] run(CompiledMapping mapping, byte[] input) throws MalformedInputException {
@@ -178,15 +181,17 @@ public final class EngineFacade {
   }
 
   /**
-   * A test run (ADR-0014, "Running"): {@link #run} on a thread of its own, for at most {@code
-   * timeout}. Past it the run is interrupted, never stopped, and the result is the runtime error
-   * {@code flottila:TIMEOUT}; the run itself ends at its next interrupt check, in the parse or a
-   * slot loop. No trace is returned yet.
+   * A test run (ADR-0014, "Running"): {@link #run} on a platform thread of its own, never a virtual
+   * one (ADR-0020), for at most {@code timeout}. A runtime error in the run's data is the result's
+   * runtime error, with its code, message and authoring id (ADR-0015 since #52). Past the timeout
+   * the run is interrupted, never stopped, and the result is the runtime error {@code
+   * flottila:TIMEOUT}, with no authoring id; the run itself ends at its next interrupt check, in
+   * the parse or a slot loop. No trace is returned yet.
    *
    * @param mapping a compiled mapping
    * @param input the input message's bytes
    * @param timeout how long the run may take
-   * @return the target message, or {@code flottila:TIMEOUT}
+   * @return the target message, or the runtime error that stopped the run
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws CancellationException when the calling thread is interrupted while it waits; its
    *     interrupt status is kept, and the run is interrupted too
@@ -195,21 +200,29 @@ public final class EngineFacade {
   public TestRunResult testRun(CompiledMapping mapping, byte[] input, Duration timeout)
       throws MalformedInputException {
     FutureTask<byte[]> task = new FutureTask<>(() -> run(mapping, input));
-    Thread.ofVirtual().name("flottila test run").start(task);
+    // a daemon, as a virtual thread is, so that a run which ignores its interrupt never holds
+    // the JVM open (ADR-0020)
+    Thread.ofPlatform().name("flottila test run").daemon(true).start(task);
     try {
       return new TestRunResult.Output(task.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
     } catch (TimeoutException late) {
       return new TestRunResult.RuntimeError(
-          TIMEOUT, "the test run took longer than its timeout of " + timeout.toMillis() + " ms");
+          TIMEOUT,
+          "the test run took longer than its timeout of " + timeout.toMillis() + " ms",
+          Optional.empty());
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new CancellationException("the test run was interrupted while it was awaited");
     } catch (ExecutionException failed) {
       // run declares only MalformedInputException; anything else it throws is unchecked
-      if (failed.getCause() instanceof MalformedInputException malformed) {
-        throw malformed;
+      switch (failed.getCause()) {
+        case MalformedInputException malformed -> throw malformed;
+        case MappingRunException error -> {
+          return new TestRunResult.RuntimeError(
+              error.code(), error.getMessage(), Optional.of(error.authoringId()));
+        }
+        default -> throw new IllegalStateException("the test run failed", failed.getCause());
       }
-      throw new IllegalStateException("the test run failed", failed.getCause());
     } finally {
       // a no-op once the run is done; otherwise it interrupts the run's thread
       task.cancel(true);

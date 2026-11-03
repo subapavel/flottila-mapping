@@ -40,10 +40,15 @@ class XsltExporterTest {
   private static final Name ORDER_ID = new Name("", "OrderId");
   private static final long UNBOUNDED = Long.MAX_VALUE;
 
-  /** The variables lowering binds: the root's slot number and a slot's value. */
+  /**
+   * The variables lowering binds: the root's slot number, and a field's slot number and value at
+   * depth 2, directly under the root (ADR-0006 since #52).
+   */
   private static final String ROOT = "root";
 
-  private static final String VALUE = "value";
+  private static final String SLOT = "slot2";
+
+  private static final String VALUE = "value2";
 
   // --- IR, built by hand as lowering gives it (Lowering, ADR-0022)
 
@@ -60,6 +65,7 @@ class XsltExporterTest {
         new VarRef(ROOT, AtomicType.INTEGER, origin),
         min,
         max,
+        SLOT,
         VALUE,
         new ElementConstructor(
             prefix,
@@ -83,7 +89,11 @@ class XsltExporterTest {
         List.of(slots(underRoot(ORDER, ORDER_ID, "a1"), 1, max, "", ORDER_ID, "t1")));
   }
 
-  /** The #27 design's stylesheet of the field link: one element per line, two-space indent. */
+  /**
+   * The #27 design's stylesheet of the field link: one element per line, two-space indent. Since
+   * #52 (ADR-0006) {@code po:slots} gives {@code [slot number, value]} per created occurrence,
+   * bound to the slot and value variables, and {@code po:at-least} checks OrderId's min of 1.
+   */
   private static final String FIELD_LINK_STYLESHEET =
       """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -99,9 +109,10 @@ class XsltExporterTest {
           <xsl:variable name="root" as="xs:integer" select="1"/>
           <ns0:Order>
             <xsl:for-each \
-      select="po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1)">
-              <xsl:variable name="value" as="xs:string" select="."/>
-              <OrderId><xsl:value-of select="$value"/></OrderId>
+      select="po:at-least(po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1), 1)">
+              <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+              <xsl:variable name="value2" as="xs:string" select="?2"/>
+              <OrderId><xsl:value-of select="$value2"/></OrderId>
             </xsl:for-each>
           </ns0:Order>
         </xsl:template>
@@ -207,14 +218,44 @@ class XsltExporterTest {
 
     assertThat(unbounded)
         .contains(
-            "<xsl:for-each select=\"po:slots(array:join(/s0:Order ! [OrderId ! string()]),"
-                + " $root, ())\">")
+            "<xsl:for-each select=\"po:at-least(po:slots(array:join(/s0:Order ! [OrderId !"
+                + " string()]), $root, ()), 1)\">")
         .doesNotContain(Long.toString(UNBOUNDED));
     // witness: a bounded max is written as its number
     assertThat(three)
         .contains(
-            "<xsl:for-each select=\"po:slots(array:join(/s0:Order ! [OrderId ! string()]),"
-                + " $root, 3)\">");
+            "<xsl:for-each select=\"po:at-least(po:slots(array:join(/s0:Order ! [OrderId !"
+                + " string()]), $root, 3), 1)\">");
+  }
+
+  /** {@code OrderId <- OrderId} at {@code min..max}. */
+  private static TargetDocument fieldLink(long min, long max) {
+    return new TargetDocument(
+        "ns0",
+        ORDER,
+        ROOT,
+        List.of(slots(underRoot(ORDER, ORDER_ID, "a1"), min, max, "", ORDER_ID, "t1")));
+  }
+
+  /**
+   * ADR-0006 since #52: the export of TargetSlots is {@code po:at-least(po:slots(queue, p, max),
+   * min)}, and {@code po:at-least} is written only when min is above 0. The helper module holds
+   * both functions, po:slots with its queue, parent slot and max, po:at-least with the slots and
+   * the min.
+   */
+  @Test
+  void minAboveZeroWrapsPoAtLeast() {
+    String slots = "po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 3)";
+
+    assertThat(XsltExporter.export(fieldLink(0, 3)))
+        .contains("<xsl:for-each select=\"" + slots + "\">")
+        .doesNotContain("po:at-least");
+    assertThat(XsltExporter.export(fieldLink(1, 3)))
+        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 1)\">");
+    assertThat(XsltExporter.export(fieldLink(2, 3)))
+        .contains("<xsl:for-each select=\"po:at-least(" + slots + ", 2)\">");
+    assertThat(helperParams("po:slots")).isEqualTo(3);
+    assertThat(helperParams("po:at-least")).isEqualTo(2);
   }
 
   /** The field link with {@code Note} in {@code namespace} under {@code prefix} added. */
@@ -269,6 +310,7 @@ class XsltExporterTest {
                 new VarRef(ROOT, AtomicType.INTEGER, t1),
                 1,
                 1,
+                SLOT,
                 VALUE,
                 new ElementConstructor("", ORDER_ID, content, t1),
                 t1)));
@@ -321,9 +363,12 @@ class XsltExporterTest {
   }
 
   /**
-   * IrVerifier accepts a {@code TargetSlots} inside an element, which spec 1's lowering does not
-   * give yet: each level is two spaces deeper, one element per line (#27 design), and the inner
-   * queue's context is {@code Item}.
+   * A {@code TargetSlots} inside a mapped field's element, as lowering gives it since #52: each
+   * level is two spaces deeper, one element per line (#27 design), the inner queue's context is
+   * {@code Item}, and the inner field reads Item's slot number {@code $slot2} as its parent's. The
+   * inner queue is bound once at the top of the template, where the focus is the source document,
+   * and the inner {@code xsl:for-each} reads it by name: each back end evaluates a queue at most
+   * once per mapping run (ADR-0006 since #52).
    */
   @Test
   void aTargetFieldInsideAnElementIsWrittenOneLevelDeeper() {
@@ -334,14 +379,15 @@ class XsltExporterTest {
     TargetSlots names =
         new TargetSlots(
             new SourceQueue(List.of(ORDER, item, name), 2, id("a2")),
-            new VarRef(ROOT, AtomicType.INTEGER, t2),
+            new VarRef(SLOT, AtomicType.INTEGER, t2),
             0,
             1,
-            "name",
+            "slot3",
+            "value3",
             new ElementConstructor(
                 "",
                 name,
-                List.of(new TextConstructor(new VarRef("name", AtomicType.STRING, t2), t2)),
+                List.of(new TextConstructor(new VarRef("value3", AtomicType.STRING, t2), t2)),
                 t2),
             t2);
     TargetDocument document =
@@ -355,6 +401,7 @@ class XsltExporterTest {
                     new VarRef(ROOT, AtomicType.INTEGER, t1),
                     0,
                     UNBOUNDED,
+                    SLOT,
                     VALUE,
                     new ElementConstructor("", item, List.of(names), t1),
                     t1)));
@@ -374,15 +421,18 @@ class XsltExporterTest {
             omit-xml-declaration="no"/>
               <xsl:template match="/">
                 <xsl:variable name="root" as="xs:integer" select="1"/>
+                <xsl:variable name="po:queue1" as="array(item()*)" \
+            select="array:join(/s0:Order/Item ! [Name ! string()])"/>
                 <ns0:Order>
                   <xsl:for-each \
             select="po:slots(array:join(/s0:Order ! [Item ! string()]), $root, ())">
-                    <xsl:variable name="value" as="xs:string" select="."/>
+                    <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+                    <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <Item>
-                      <xsl:for-each \
-            select="po:slots(array:join(/s0:Order/Item ! [Name ! string()]), $root, 1)">
-                        <xsl:variable name="name" as="xs:string" select="."/>
-                        <Name><xsl:value-of select="$name"/></Name>
+                      <xsl:for-each select="po:slots($po:queue1, $slot2, 1)">
+                        <xsl:variable name="slot3" as="xs:integer" select="?1"/>
+                        <xsl:variable name="value3" as="xs:string" select="?2"/>
+                        <Name><xsl:value-of select="$value3"/></Name>
                       </xsl:for-each>
                     </Item>
                   </xsl:for-each>
@@ -390,6 +440,76 @@ class XsltExporterTest {
               </xsl:template>
             </xsl:stylesheet>
             """);
+  }
+
+  /**
+   * {@code TargetSlots} of {@code queue} under the parent slot {@code parentSlot}, unbounded,
+   * binding {@code slot<depth>} and {@code value<depth>}, with {@code content} in its element.
+   */
+  private static TargetSlots nested(
+      SourceQueue queue, String parentSlot, int depth, Name element, List<Expr> content) {
+    AuthoringId origin = id("t" + depth);
+    return new TargetSlots(
+        queue,
+        new VarRef(parentSlot, AtomicType.INTEGER, origin),
+        0,
+        UNBOUNDED,
+        "slot" + depth,
+        "value" + depth,
+        new ElementConstructor("", element, content, origin),
+        origin);
+  }
+
+  /**
+   * Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
+   * since #52), and an {@code xsl:for-each} evaluates its select once per occurrence of its parent:
+   * no queue is written inside an occurrence, at any depth. Each queue inside one is bound once at
+   * the top of the template, in IR walk order, and read there by name.
+   */
+  @Test
+  void noQueueIsWrittenInsideAnOccurrence() {
+    Name item = new Name("", "Item");
+    Name line = new Name("", "Line");
+    Name sku = new Name("", "Sku");
+    TargetSlots skus =
+        nested(
+            new SourceQueue(List.of(ORDER, item, line, sku), 3, id("a3")),
+            "slot3",
+            4,
+            sku,
+            List.of(
+                new TextConstructor(new VarRef("value4", AtomicType.STRING, id("t4")), id("t4"))));
+    TargetSlots lines =
+        nested(
+            new SourceQueue(List.of(ORDER, item, line), 2, id("a2")), SLOT, 3, line, List.of(skus));
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(nested(underRoot(ORDER, item, "a1"), ROOT, 2, item, List.of(lines))));
+    IrVerifier.verify(document);
+
+    String stylesheet = XsltExporter.export(document);
+
+    String root = "<ns0:Order>";
+    assertThat(stylesheet.substring(0, stylesheet.indexOf(root) + root.length()))
+        .as("the top of the template")
+        .contains(
+            "<xsl:variable name=\"po:queue1\" as=\"array(item()*)\""
+                + " select=\"array:join(/s0:Order/Item ! [Line ! string()])\"/>\n"
+                + "    <xsl:variable name=\"po:queue2\" as=\"array(item()*)\""
+                + " select=\"array:join(/s0:Order/Item/Line ! [Sku ! string()])\"/>\n"
+                + "    "
+                + root);
+    // everything after Item's slot-number variable stands inside Item's occurrences
+    String inside = stylesheet.substring(stylesheet.indexOf("select=\"?1\""));
+    assertThat(inside)
+        .as("inside an occurrence")
+        .doesNotContain("array:join")
+        .contains(
+            "<xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">",
+            "<xsl:for-each select=\"po:slots($po:queue2, $slot3, ())\">");
   }
 
   /**
@@ -417,8 +537,9 @@ class XsltExporterTest {
                 <xsl:variable name="root" as="xs:integer" select="1"/>
                 <ns0:Order>
                   <xsl:for-each \
-            select="po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1)">
-                    <xsl:variable name="value" as="xs:string" select="."/>
+            select="po:at-least(po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1), 1)">
+                    <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+                    <xsl:variable name="value2" as="xs:string" select="?2"/>
                     <OrderId>
                     </OrderId>
                   </xsl:for-each>
@@ -487,7 +608,7 @@ class XsltExporterTest {
             XsltExporter.export(
                 fieldLinkWith(
                     removeContexts(removeContexts(orderIds, "r1"), "r2"), List.of(valueText()))))
-        .contains("<xsl:for-each select=\"" + nested + "\">");
+        .contains("<xsl:for-each select=\"po:at-least(" + nested + ", 1)\">");
     // the helper module holds the function, with one parameter per argument
     assertThat(helperParams("po:removeContexts")).isEqualTo(1);
   }
@@ -605,7 +726,8 @@ class XsltExporterTest {
             new FunctionRef("splitByValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
             List.of(underRoot(ORDER, ORDER_ID, "a1"), new Literal(value, id("s1"))),
             id("s1"));
-    String call = "po:slots(po:splitByValue(array:join(/s0:Order ! [OrderId ! string()])";
+    String call =
+        "po:at-least(po:slots(po:splitByValue(array:join(/s0:Order ! [OrderId ! string()])";
 
     String select =
         attributeValue(
@@ -620,6 +742,6 @@ class XsltExporterTest {
     }
     StringLiteral literal = StringLiteral.at(select, start);
     assertThat(literal.value()).isEqualTo(value);
-    assertThat(select.substring(literal.end())).matches(" *\\) *, *\\$root *, *1 *\\)");
+    assertThat(select.substring(literal.end())).matches(" *\\) *, *\\$root *, *1 *\\) *, *1 *\\)");
   }
 }

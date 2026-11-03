@@ -1,4 +1,5 @@
 target/
+!corpus/cases/target/
 .logs/
 contract/openapi.yaml
 ui/node_modules/

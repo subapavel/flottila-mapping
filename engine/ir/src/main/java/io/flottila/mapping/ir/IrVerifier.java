@@ -13,11 +13,12 @@ import java.util.Optional;
  *
  * <ul>
  *   <li>every {@link VarRef} reads a variable in scope with the type it is bound with: the root's
- *       slot number ({@code INTEGER}) in the document's content, a {@link TargetSlots}' value
- *       ({@code STRING}) only in its body, and a {@link Lift}'s slot variables ({@code STRING})
- *       only in its body, which sees nothing else;
+ *       slot number ({@code INTEGER}) in the document's content, a {@link TargetSlots}' slot number
+ *       ({@code INTEGER}) and value ({@code STRING}) only in its body (#52), and a {@link Lift}'s
+ *       slot variables ({@code STRING}) only in its body, which sees nothing else;
  *   <li>a {@link SourceQueue}'s context is a proper ancestor of its field;
- *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, and its queue is a queue;
+ *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, its queue is a queue and its
+ *       parent slot an {@code INTEGER};
  *   <li>a {@link FunCall} has one argument per parameter type of its {@link FunctionRef}, each of
  *       that type; a context function's (one whose result is a queue) atomic argument is a param,
  *       and a param is a {@link Literal} (ADR-0025);
@@ -80,8 +81,9 @@ public final class IrVerifier {
           throw refused(s, "min " + s.min() + " is above max " + s.max());
         }
         value(s, s.queue(), QUEUE, scope, "its queue");
-        check(s.parentSlot(), scope);
+        value(s, s.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
         Map<String, AtomicType> body = new HashMap<>(scope);
+        body.put(s.slotVar(), AtomicType.INTEGER);
         body.put(s.valueVar(), AtomicType.STRING);
         content(s.body(), body);
         yield Optional.empty();

@@ -18,7 +18,9 @@ import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.Refused;
 import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.mapping.StructureRef;
+import io.flottila.mapping.runtime.ExecutableMapping;
 import io.flottila.mapping.runtime.MalformedInputException;
+import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.xslt.export.XsltExporter;
@@ -29,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.FutureTask;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -325,21 +328,100 @@ class EngineFacadeTest {
         .isInstanceOf(MalformedInputException.class);
   }
 
+  // --- runtime errors (#52, ADR-0015): a run that meets an error condition in its data stops with
+  // the error's QName at its authoring id, and a test run returns it with no output
+
   /**
-   * The owner's decision for spec 1 (grilling of #21): no error although {@code OrderId} is 1..1.
-   * {@code po:MINOCCURS} is spec 2, which replaces this test; it is no corpus case, because case
-   * ids are permanent.
+   * {@code TestRunResult.RuntimeError} with {@code code} at {@code authoringId}, and a message
+   * (ADR-0015: {@code error {code, message, authoringId}}).
+   */
+  private static void assertRuntimeError(TestRunResult result, String code, String authoringId) {
+    assertThat(result)
+        .isInstanceOfSatisfying(
+            TestRunResult.RuntimeError.class,
+            error -> {
+              assertThat(error.code()).as("code").isEqualTo(code);
+              assertThat(error.authoringId())
+                  .as("authoring id")
+                  .contains(new AuthoringId(authoringId));
+              assertThat(error.message()).as("message").isNotBlank();
+            });
+  }
+
+  /** {@code run} throws {@code MappingRunException} with {@code code} at {@code authoringId}. */
+  private static void assertRunThrows(
+      EngineFacade facade, CompiledMapping mapping, byte[] input, String code, String authoringId) {
+    assertThatThrownBy(() -> facade.run(mapping, input))
+        .isInstanceOfSatisfying(
+            MappingRunException.class,
+            e -> {
+              assertThat(e.code()).as("code").isEqualTo(code);
+              assertThat(e.authoringId())
+                  .as("authoring id")
+                  .isEqualTo(new AuthoringId(authoringId));
+            });
+  }
+
+  /**
+   * An empty source under the 1..1 OrderId: no occurrence is created, fewer than its min, so the
+   * run raises {@code po:MINOCCURS} at the target field mapping t1, not at the source box a1
+   * (ADR-0006 since #52, #2 §2 documented). It replaces spec 1's interim test, which wrote the root
+   * without the field.
    */
   @Test
-  void anEmptySourceWritesTheRootWithoutTheFieldUntilMinOccursIsEnforced() throws Exception {
+  void aMinOccursShortfallIsARuntimeErrorAtItsTargetFieldMapping() throws Exception {
     EngineFacade facade = new EngineFacade();
     byte[] input = utf8("<src:Order xmlns:src=\"" + NS + "\"/>");
-    String expected = DECLARATION + "<ns0:Order xmlns:ns0=\"" + NS + "\"/>";
+    CompiledMapping tested =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+    // witness: with its OrderId the same source runs
+    assertThat(
+            facade.testRun(
+                tested,
+                utf8("<src:Order xmlns:src=\"" + NS + "\"><OrderId>1</OrderId></src:Order>"),
+                Duration.ofSeconds(10)))
+        .isInstanceOf(TestRunResult.Output.class);
 
+    assertRuntimeError(facade.testRun(tested, input, Duration.ofSeconds(10)), "po:MINOCCURS", "t1");
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      byte[] output = facade.run(compiled(facade.compile(FIELD_LINK, skeleton(), options)), input);
+      assertRunThrows(
+          facade,
+          compiled(facade.compile(FIELD_LINK, skeleton(), options)),
+          input,
+          "po:MINOCCURS",
+          "t1");
+    }
+  }
 
-      assertThat(new String(output, UTF_8)).as("%s", options).isEqualTo(expected);
+  /**
+   * {@code run} throws what {@code testRun} returns: the same code and authoring id, for an error
+   * at a target field mapping and for one at a function box.
+   */
+  @Test
+  void runThrowsWhatTestRunReturns() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping fieldLink =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+    CompiledMapping useOneAsMany =
+        compiled(
+            facade.compile(
+                USE_ONE_AS_MANY,
+                CorpusStructures.directory("observations"),
+                CompileOptions.TEST_RUN));
+    byte[] emptySource = utf8("<src:Order xmlns:src=\"" + NS + "\"/>");
+
+    for (var run :
+        List.of(Map.entry(fieldLink, emptySource), Map.entry(useOneAsMany, order(2, 3)))) {
+      TestRunResult result = facade.testRun(run.getKey(), run.getValue(), Duration.ofSeconds(10));
+      assertThat(result).isInstanceOf(TestRunResult.RuntimeError.class);
+      TestRunResult.RuntimeError error = (TestRunResult.RuntimeError) result;
+
+      assertRunThrows(
+          facade,
+          run.getKey(),
+          run.getValue(),
+          error.code(),
+          error.authoringId().orElseThrow().value());
     }
   }
 
@@ -367,9 +449,10 @@ class EngineFacadeTest {
           <xsl:variable name="root" as="xs:integer" select="1"/>
           <ns0:Order>
             <xsl:for-each \
-      select="po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1)">
-              <xsl:variable name="value" as="xs:string" select="."/>
-              <OrderId><xsl:value-of select="$value"/></OrderId>
+      select="po:at-least(po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1), 1)">
+              <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+              <xsl:variable name="value2" as="xs:string" select="?2"/>
+              <OrderId><xsl:value-of select="$value2"/></OrderId>
             </xsl:for-each>
           </ns0:Order>
         </xsl:template>
@@ -852,6 +935,72 @@ class EngineFacadeTest {
         .isFalse();
   }
 
+  /** ADR-0015 since #52: {@code flottila:TIMEOUT} has no authoring id. */
+  @Test
+  void aTimeoutHasNoAuthoringId() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+
+    TestRunResult result = facade.testRun(mapping, largeInput(), Duration.ZERO);
+
+    assertThat(result)
+        .isInstanceOfSatisfying(
+            TestRunResult.RuntimeError.class,
+            error -> {
+              assertThat(error.code()).isEqualTo("flottila:TIMEOUT");
+              assertThat(error.authoringId()).isEmpty();
+            });
+  }
+
+  /** Whether any live platform thread other than this one is inside a mapping run. */
+  private static boolean aPlatformThreadRunsAMapping() {
+    // Thread.getAllStackTraces holds platform threads only, never a virtual one
+    return Thread.getAllStackTraces().entrySet().stream()
+        .filter(e -> e.getKey() != Thread.currentThread() && e.getKey().isDaemon())
+        .flatMap(e -> Stream.of(e.getValue()))
+        .anyMatch(frame -> frame.getClassName().equals(ExecutableMapping.class.getName()));
+  }
+
+  /**
+   * ADR-0020 (O5 of the #52 design): a test run runs on a platform thread, never a virtual one,
+   * because a spinning virtual thread holds its carrier. While a long test run parses, some live
+   * platform thread is inside {@code ExecutableMapping.run}; a virtual run thread is never among
+   * the platform threads. It is a daemon, so a run that ignores its interrupt never holds the JVM
+   * open.
+   */
+  @Test
+  void aTestRunRunsOnAPlatformThread() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    CompiledMapping mapping =
+        compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
+    byte[] input =
+        utf8(
+            "<src:Order xmlns:src=\""
+                + NS
+                + "\"><OrderId>4711</OrderId>"
+                + "<Note>n</Note>".repeat(1_000_000)
+                + "</src:Order>");
+    // an earlier test's interrupted run ends at its next interrupt check
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (aPlatformThreadRunsAMapping() && System.nanoTime() < deadline) {
+      Thread.onSpinWait();
+    }
+    assertThat(aPlatformThreadRunsAMapping()).as("before the test run").isFalse();
+    FutureTask<TestRunResult> caller =
+        new FutureTask<>(() -> facade.testRun(mapping, input, Duration.ofSeconds(30)));
+    // not a daemon, so only the run's own thread passes the daemon filter
+    Thread.ofPlatform().name("test-run caller").daemon(false).start(caller);
+
+    boolean seen = false;
+    while (!caller.isDone() && !seen) {
+      seen = aPlatformThreadRunsAMapping();
+    }
+
+    assertThat(caller.get()).isInstanceOf(TestRunResult.Output.class);
+    assertThat(seen).as("a platform thread inside ExecutableMapping.run").isTrue();
+  }
+
   @Test
   void malformedInputInATestRunIsAMalformedInputException() throws Exception {
     EngineFacade facade = new EngineFacade();
@@ -923,12 +1072,12 @@ class EngineFacadeTest {
 
   /**
    * The input of obs-useoneasmany u2.xml: three Skus but two Tags, so the third input has fewer
-   * slots than the second. The run stops and writes nothing. No runtime error has a code before
-   * #52, so a test run reports it as an unchecked failure; #52's code replaces this test, and the
-   * u2 to u4 corpus cases follow it.
+   * slots than the second. The run stops with {@code po:USEONEASMANY} at the function box u1
+   * (ADR-0025 since #52), and a test run returns it with no output; fn/useOneAsMany 006 to 008 are
+   * its corpus cases. It replaces #56's interim test, which saw an unchecked failure.
    */
   @Test
-  void aUseOneAsManyCountMismatchStopsTheRun() throws Exception {
+  void aUseOneAsManyCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
     Path observations = CorpusStructures.directory("observations");
     CompiledMapping deployed = compiled(facade.compile(USE_ONE_AS_MANY, observations, DEPLOY));
@@ -936,14 +1085,11 @@ class EngineFacadeTest {
     assertThat(new String(facade.run(deployed, order(3, 3)), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>A</All><All>A</All><All>A</All></Out>");
 
-    assertThatThrownBy(() -> facade.run(deployed, order(2, 3)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("useOneAsMany");
+    assertRunThrows(facade, deployed, order(2, 3), "po:USEONEASMANY", "u1");
     CompiledMapping tested =
         compiled(facade.compile(USE_ONE_AS_MANY, observations, CompileOptions.TEST_RUN));
-    assertThatThrownBy(() -> facade.testRun(tested, order(2, 3), Duration.ofSeconds(10)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasCauseInstanceOf(IllegalArgumentException.class);
+    assertRuntimeError(
+        facade.testRun(tested, order(2, 3), Duration.ofSeconds(10)), "po:USEONEASMANY", "u1");
   }
 
   // --- formatByExample's count mismatch (#58): documented as an exception (#2 §4)
@@ -951,12 +1097,12 @@ class EngineFacadeTest {
   /**
    * The corpus mapping of fn/formatByExample, Tag formatted by Sku in context Order, run on three
    * Tags but two Skus: the SAP documentation requires equal value counts and raises an exception
-   * otherwise; to observe on PO 7.5 and CPI (#61). The run stops and writes nothing. No runtime
-   * error has a code before #52, so a test run reports it as an unchecked failure; #52's code
-   * replaces this test, and a corpus case follows it.
+   * otherwise; to observe on PO 7.5 and CPI (#61). The run stops with {@code po:FORMATBYEXAMPLE} at
+   * the function box F1 (ADR-0025 since #52), and a test run returns it with no output;
+   * fn/formatByExample/006 is its corpus case. It replaces #58's interim test.
    */
   @Test
-  void aFormatByExampleCountMismatchStopsTheRun() throws Exception {
+  void aFormatByExampleCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
     Path mapping =
         CorpusStructures.directory("observations")
@@ -968,19 +1114,16 @@ class EngineFacadeTest {
     assertThat(new String(facade.run(deployed, order(2, 2)), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>t</All><All>t</All></Out>");
 
-    assertThatThrownBy(() -> facade.run(deployed, order(3, 2)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("formatByExample");
+    assertRunThrows(facade, deployed, order(3, 2), "po:FORMATBYEXAMPLE", "F1");
     CompiledMapping tested =
         compiled(facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN));
-    assertThatThrownBy(() -> facade.testRun(tested, order(3, 2), Duration.ofSeconds(10)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasCauseInstanceOf(IllegalArgumentException.class);
+    assertRuntimeError(
+        facade.testRun(tested, order(3, 2), Duration.ofSeconds(10)), "po:FORMATBYEXAMPLE", "F1");
   }
 
-  // --- the runtime errors of sort and sortByKey (#59). No runtime error has a code before #52, so
-  // a run reports them as unchecked failures; #52's code replaces these tests, and corpus cases
-  // follow them. The export raises po:SORT and po:SORTBYKEY for the same inputs (ADR-0025, #52).
+  // --- the runtime errors of sort and sortByKey (#59): since #52 one code per function at its box,
+  // po:SORT and po:SORTBYKEY, which the export raises for the same inputs (ADR-0025); these
+  // replace #59's interim tests, and corpus cases follow them.
 
   /**
    * sort of Tag with {@code params}, on {@code Out/All}: context 1 of the queue, the first Order.
@@ -1003,10 +1146,10 @@ class EngineFacadeTest {
 
   /**
    * A numeric sort over a value that is no xs:decimal stops the run (#48 Q4, assumed), here {@code
-   * x} beside 10 and 9, and the run writes nothing.
+   * x} beside 10 and 9, with {@code po:SORT} at the box s1 (O3 revised, #52).
    */
   @Test
-  void aNumericSortOverANonNumberStopsTheRun() throws Exception {
+  void aNumericSortOverANonNumberIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
     Path observations = CorpusStructures.directory("observations");
     byte[] input = utf8("<Orders><Order><Tag>10</Tag><Tag>x</Tag><Tag>9</Tag></Order></Orders>");
@@ -1018,8 +1161,8 @@ class EngineFacadeTest {
     CompiledMapping numeric =
         compiled(facade.compile(sortOfTags("{\"comparison\": \"numeric\"}"), observations, DEPLOY));
 
+    assertRunThrows(facade, numeric, input, "po:SORT", "s1");
     assertThatThrownBy(() -> facade.run(numeric, input))
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("sort")
         .hasMessageContaining("\"x\"");
   }
@@ -1044,10 +1187,10 @@ class EngineFacadeTest {
 
   /**
    * A key/value count mismatch stops the run (#2 §4, documented): the second Line has a Sku but no
-   * Qty, so the Order has two keys and one value.
+   * Qty, so the Order has two keys and one value: {@code po:SORTBYKEY} at the box k1 (#52).
    */
   @Test
-  void aSortByKeyCountMismatchStopsTheRun() throws Exception {
+  void aSortByKeyCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
     CompiledMapping mapping =
         compiled(facade.compile(SORT_BY_KEY, CorpusStructures.directory("observations"), DEPLOY));
@@ -1062,14 +1205,13 @@ class EngineFacadeTest {
                 UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>2</All><All>1</All></Out>");
 
-    assertThatThrownBy(
-            () ->
-                facade.run(
-                    mapping,
-                    utf8(
-                        "<Orders><Order><Line><Sku>b</Sku><Qty>1</Qty></Line>"
-                            + "<Line><Sku>a</Sku></Line></Order></Orders>")))
-        .isInstanceOf(IllegalArgumentException.class)
+    byte[] input =
+        utf8(
+            "<Orders><Order><Line><Sku>b</Sku><Qty>1</Qty></Line>"
+                + "<Line><Sku>a</Sku></Line></Order></Orders>");
+
+    assertRunThrows(facade, mapping, input, "po:SORTBYKEY", "k1");
+    assertThatThrownBy(() -> facade.run(mapping, input))
         .hasMessageContaining("sortByKey")
         .hasMessageContaining("keys: 2, values: 1");
   }
@@ -1099,11 +1241,12 @@ class EngineFacadeTest {
 
   /**
    * #2 §3 (documented): "numeric keys must not be equal to the constant ResultList.SUPPRESS". A
-   * numeric sortByKey over a SUPPRESS key stops the run; compared as strings the same key is the
-   * smallest (ADR-0006 since #51). The export raises po:SORTBYKEY for the same inputs.
+   * numeric sortByKey over a SUPPRESS key stops the run with {@code po:SORTBYKEY} at the box k1
+   * (#52); compared as strings the same key is the smallest (ADR-0006 since #51). The export raises
+   * po:SORTBYKEY for the same inputs.
    */
   @Test
-  void aNumericSortByKeyOverASuppressKeyStopsTheRun() throws Exception {
+  void aNumericSortByKeyOverASuppressKeyIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
     Path observations = CorpusStructures.directory("observations");
     byte[] input = utf8("<Orders><Order><Tag>1</Tag><Tag>no</Tag></Order></Orders>");
@@ -1121,8 +1264,8 @@ class EngineFacadeTest {
     assertThat(new String(facade.run(lexicographic, input), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>no</All><All>1</All></Out>");
 
+    assertRunThrows(facade, numeric, input, "po:SORTBYKEY", "k1");
     assertThatThrownBy(() -> facade.run(numeric, input))
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("sortByKey")
         .hasMessageContaining("SUPPRESS");
   }

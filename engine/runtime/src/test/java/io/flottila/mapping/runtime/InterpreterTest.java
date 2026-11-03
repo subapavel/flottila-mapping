@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -79,6 +80,7 @@ class InterpreterTest {
         new VarRef(ROOT_SLOT, AtomicType.INTEGER, origin),
         min,
         max,
+        "slot",
         "v",
         new ElementConstructor(
             "",
@@ -96,6 +98,28 @@ class InterpreterTest {
   /** {@code OrderId <- OrderId}, 1..1: the skeleton's field link. */
   private static TargetDocument orderIdLink() {
     return document(leaf("OrderId", rootLeaf("OrderId", "a1"), 1, 1, "t1"));
+  }
+
+  /**
+   * The same field link at 0..1, for the mechanics of an empty or missing context without {@code
+   * po:MINOCCURS} (#52).
+   */
+  private static TargetDocument optionalOrderIdLink() {
+    return document(leaf("OrderId", rootLeaf("OrderId", "a1"), 0, 1, "t1"));
+  }
+
+  /**
+   * Asserts that {@code run} raises {@code po:MINOCCURS} at the target field mapping {@code t1}.
+   */
+  private static void assertMinOccursAtT1(ThrowingCallable run) {
+    assertThatThrownBy(run)
+        .isInstanceOfSatisfying(
+            MappingRunException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("po:MINOCCURS");
+              assertThat(e.authoringId()).isEqualTo(id("t1"));
+              assertThat(e.getMessage()).isNotBlank();
+            });
   }
 
   /** Three field links; {@code a1} and {@code a3} read the same source field. */
@@ -185,11 +209,20 @@ class InterpreterTest {
   void anEmptyContextCreatesNoFieldButWritesTheRoot() throws Exception {
     Tracer tracer = new Tracer();
 
-    byte[] out = run(orderIdLink(), true, sourceOrder("").getBytes(UTF_8), tracer);
+    byte[] out = run(optionalOrderIdLink(), true, sourceOrder("").getBytes(UTF_8), tracer);
 
     // one occurrence of the context field without the field: one empty context, not none
     assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of());
     assertThat(new String(out, UTF_8)).isEqualTo(DECLARATION + EMPTY_ROOT);
+  }
+
+  /**
+   * The same input under the required field: no occurrence is created, fewer than its min of 1, so
+   * the run raises {@code po:MINOCCURS} at the target field mapping (ADR-0006 since #52).
+   */
+  @Test
+  void anEmptyContextUnderARequiredFieldRaisesMinOccurs() {
+    assertMinOccursAtT1(() -> run(orderIdLink(), sourceOrder("")));
   }
 
   @Test
@@ -222,10 +255,22 @@ class InterpreterTest {
   @MethodSource("wrongRoots")
   void anInputWhoseRootIsNotTheSourceRootGivesWhatAnEmptySourceGives(String why, String input)
       throws Exception {
-    String emptySource = run(orderIdLink(), sourceOrder(""));
+    String emptySource = run(optionalOrderIdLink(), sourceOrder(""));
 
     assertThat(emptySource).isEqualTo(DECLARATION + EMPTY_ROOT);
-    assertThat(run(orderIdLink(), input)).isEqualTo(emptySource);
+    assertThat(run(optionalOrderIdLink(), input)).isEqualTo(emptySource);
+  }
+
+  /**
+   * Under the required field the missing context counts as empty (ADR-0006 since #52, assumed #31
+   * d1), so the run raises {@code po:MINOCCURS} at the target field mapping, as an empty source
+   * does.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("wrongRoots")
+  void anInputWhoseRootIsNotTheSourceRootRaisesMinOccursUnderARequiredField(
+      String why, String input) {
+    assertMinOccursAtT1(() -> run(orderIdLink(), input));
   }
 
   @Test
@@ -331,6 +376,7 @@ class InterpreterTest {
                 new VarRef(ROOT_SLOT, AtomicType.INTEGER, t1),
                 0,
                 UNBOUNDED,
+                "slot",
                 "v",
                 new ElementConstructor(
                     "",
@@ -507,9 +553,10 @@ class InterpreterTest {
   void anInterruptWhileTheInputIsParsedStopsTheParseAndWritesNothing() throws Exception {
     // about 4.4 MB of a field the mapping skips, far more than a parser reads at once
     String input = sourceOrder("<Quantity>1</Quantity>".repeat(200_000));
-    // witness: without the interrupt the same run reads it all and writes the root
-    assertThat(run(orderIdLink(), input)).isEqualTo(DECLARATION + EMPTY_ROOT);
-    ExecutableMapping mapping = Interpreter.compile(orderIdLink(), false);
+    // witness: without the interrupt the same run reads it all and writes the root; OrderId is
+    // optional here, so the run ends without po:MINOCCURS (#52)
+    assertThat(run(optionalOrderIdLink(), input)).isEqualTo(DECLARATION + EMPTY_ROOT);
+    ExecutableMapping mapping = Interpreter.compile(optionalOrderIdLink(), false);
     InterruptingInput in = new InterruptingInput(input.getBytes(UTF_8));
     ByteArrayOutputStream out = new ByteArrayOutputStream();
 

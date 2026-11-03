@@ -15,18 +15,39 @@
        Every other value of a queue is an xs:string, so a function tells SUPPRESS by its type. -->
   <xsl:variable name="po:SUPPRESS" as="map(*)" select="map{'po:marker': 'SUPPRESS'}"/>
 
-  <!-- The values of context $parentSlot of $queue, of which TargetSlots creates its occurrences
-       (ADR-0006): member $parentSlot of the queue, or () when the queue has no such context, as
-       when the input's root is not the source root. A SUPPRESS slot creates nothing and does not
-       count toward $max: at most $max of the other values, () for unbounded. -->
-  <xsl:function name="po:slots" as="xs:string*">
+  <!-- The occurrences TargetSlots creates of context $parentSlot of $queue (ADR-0006 since #52),
+       as the runtime's Node.Slots does: [slot number, value] per created slot. A slot number is
+       the slot's position across all contexts of the queue, so a SUPPRESS slot and a truncated
+       slot keep theirs. A context the queue lacks, as when the input's root is not the source
+       root, gives (). A SUPPRESS slot creates nothing and does not count toward $max: at most $max
+       of the other slots, () for unbounded. -->
+  <xsl:function name="po:slots" as="array(*)*">
     <xsl:param name="queue" as="array(item()*)"/>
     <xsl:param name="parentSlot" as="xs:integer"/>
     <xsl:param name="max" as="xs:integer?"/>
-    <xsl:variable name="created" as="xs:string*"
-        select="(if ($parentSlot le array:size($queue)) then $queue($parentSlot) else ())
-                [. instance of xs:string]"/>
+    <xsl:variable name="created" as="array(*)*" select="
+        if ($parentSlot gt array:size($queue)) then ()
+        else
+          let $before := sum((1 to $parentSlot - 1) ! count($queue(.))),
+              $context := $queue($parentSlot)
+          return (for $j in 1 to count($context) return [$before + $j, $context[$j]])
+                 [?2 instance of xs:string]"/>
     <xsl:sequence select="if (exists($max)) then subsequence($created, 1, $max) else $created"/>
+  </xsl:function>
+
+  <!-- The occurrences $slots of one parent occurrence, which po:slots gives, unless they are fewer
+       than $min: then po:MINOCCURS, before any of them is written, where the runtime raises the
+       same error (ADR-0006 since #52). po:slots stops at max, and min is at most max, so they fall
+       short of min exactly when the created occurrences do. The export writes it only when min is
+       above 0. -->
+  <xsl:function name="po:at-least" as="array(*)*">
+    <xsl:param name="slots" as="array(*)*"/>
+    <xsl:param name="min" as="xs:integer"/>
+    <xsl:sequence select="
+        if (count($slots) lt $min)
+        then error(QName('urn:flottila:mapping:po', 'po:MINOCCURS'),
+                   'MINOCCURS: ' || count($slots) || ' occurrences, fewer than minOccurs ' || $min)
+        else $slots"/>
   </xsl:function>
 
   <!-- Lift (ADR-0006): $body once per slot, getting each queue's value there in queue order, as
