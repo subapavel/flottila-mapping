@@ -10,7 +10,9 @@ import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.AtAuthoringId;
+import io.flottila.mapping.mapping.AtPointer;
 import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.mapping.Location;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
 import io.flottila.mapping.runtime.MappingRunException;
 import java.nio.file.Files;
@@ -97,10 +99,15 @@ class GoldenCorpusTest {
     }
 
     if (c.expect().equals("error")) {
-      // a design-time error: every variant refuses with the expected code at the authoring id
+      // a design-time error: every variant refuses with the expected code at the location, a
+      // pointer when the case gives one (#65: a target field without a target field mapping),
+      // otherwise the authoring id
       Map<String, Object> expected = c.expectedError();
       String code = (String) expected.get("code");
-      AtAuthoringId at = new AtAuthoringId(new AuthoringId((String) expected.get("authoringId")));
+      Location at =
+          expected.containsKey("pointer")
+              ? new AtPointer((String) expected.get("pointer"))
+              : new AtAuthoringId(new AuthoringId((String) expected.get("authoringId")));
       for (CompileOptions options : VARIANTS) {
         CompileResult result = facade.compile(model, base, options);
         if (!(result instanceof CompileResult.Refused(List<Diagnostic> diagnostics))) {

@@ -28,7 +28,9 @@ corpus/
   `decimal/division/002`. Permanent: never renamed, deleted or reused. Tickets
   (`oracle:corpus`) and `ratchet/oracle/*.txt` cite it.
 - **`expect`**: `output` (`expected.xml`), `error` (`expected-error.json`: error QName or
-  diagnostic code, `authoringId`), or `none` (differential only).
+  diagnostic code, `authoringId`; a design-time error at a place in the model gives `pointer`
+  instead, such as `unmapped-mandatory-leaf` at `/targetFieldMappings/~1Unmapped~1Head~1Req`,
+  #65), or `none` (differential only).
 - **`provenance`** with **`ref`**:
   - `observed`: PO 7.5 + CPI run, `ref` = obs-id;
   - `documented`: SAP documentation, `ref` = a `SAP✓` claim of #2;
