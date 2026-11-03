@@ -992,12 +992,37 @@ class XsltExporterTest {
     return kept.append(module.substring(previous)).toString();
   }
 
+  /** A top-level declaration's element and its {@code name}, empty when it has none. */
+  private static String declarationName(String declaration) {
+    String startTag = declaration.substring(0, tagEnd(declaration, 0));
+    Matcher element = Pattern.compile("\\A<([^\\s/>]+)").matcher(startTag);
+    Matcher name = Pattern.compile("\\sname=\"([^\"]*)\"").matcher(startTag);
+    return (element.find() ? element.group(1) : "") + " " + (name.find() ? name.group(1) : "");
+  }
+
+  /**
+   * {@code module} without each top-level declaration whose element and name {@code main} does not
+   * declare, each taken out with the comments and whitespace ahead of it.
+   */
+  private static String restrictedTo(String module, String main) {
+    Set<String> mains =
+        new HashSet<>(
+            declarationTexts(main).stream().map(XsltExporterTest::declarationName).toList());
+    Set<String> removed =
+        new HashSet<>(
+            declarationTexts(module).stream()
+                .filter(declaration -> !mains.contains(declarationName(declaration)))
+                .toList());
+    return withoutDeclarations(module, removed);
+  }
+
   /**
    * The split changes no byte of what spec 2 shipped (ADR-0025 "Families", ADR-0023): the packed
-   * helper module restricted to core and the family {@code context}, every top-level declaration of
-   * the other family modules taken out with the comments and whitespace ahead of it, is main's
-   * before the split, byte for byte. The families spec 3 adds leave it as it is. Before the split
-   * there are no family modules, so nothing is taken out.
+   * helper module, every top-level declaration that main's copy before the split does not declare
+   * taken out with the comments and whitespace ahead of it, is main's copy, byte for byte. A
+   * declaration is known by its element and its name, so one of main's that changes, moves or goes
+   * fails this, and one that core or a family module adds leaves it as it is: spec 3 adds shared
+   * helpers to core.xsl (#74) and may not edit this test.
    */
   @Test
   void thePackedHelperModuleOfCoreAndTheContextFamilyIsMainsByteForByte() throws Exception {
@@ -1016,25 +1041,30 @@ class XsltExporterTest {
         .isEqualTo(
             "<?xml version=\"1.0\"?>\n<!-- c -->\n<r a=\"x>y\">\n\n  <v n=\"2\"/>\n\n"
                 + "  <!-- three -->\n  <f n=\"3\">t</f>\n</r>\n");
+    // witness: a declaration is its element and its name, whatever attribute comes first
+    assertThat(declarationName("<xsl:function as=\"xs:string\" name=\"po:a\"><p name=\"b\"/>"))
+        .isEqualTo("xsl:function po:a");
 
     byte[] main = Files.readAllBytes(repoRoot().resolve(MAIN_HELPER_MODULE));
+    String mains = new String(main, UTF_8);
     // witness: main's copy is the helper module of spec 2, with po:useOneAsMany
-    assertThat(functionNames(new String(main, UTF_8))).contains("po:slots", "po:useOneAsMany");
-    Set<String> otherFamilies = new HashSet<>();
-    Path dir = repoRoot().resolve(HELPER_SOURCES);
-    if (Files.isDirectory(dir)) {
-      List<Path> modules;
-      try (Stream<Path> listing = Files.list(dir)) {
-        modules =
-            listing
-                .filter(p -> p.getFileName().toString().endsWith(".xsl"))
-                .filter(p -> !Set.of(CORE, "context.xsl").contains(p.getFileName().toString()))
-                .toList();
-      }
-      for (Path module : modules) {
-        otherFamilies.addAll(declarationTexts(Files.readString(module, UTF_8)));
-      }
-    }
+    assertThat(functionNames(mains)).contains("po:slots", "po:useOneAsMany");
+    // witness: a declaration that core adds is taken out (#74); one of main's that changes or goes
+    // is not, so the restriction is no longer main's copy
+    String added =
+        mains.replace(
+            "\n  <!-- A SourceQueue",
+            "\n  <!-- A shared helper of core. -->\n"
+                + "  <xsl:function name=\"po:shared-helper\" as=\"xs:string\"/>\n\n"
+                + "  <!-- A SourceQueue");
+    assertThat(added).isNotEqualTo(mains);
+    assertThat(restrictedTo(added, mains)).isEqualTo(mains);
+    String changed = mains.replace("then [()] else $queue", "then [] else $queue");
+    assertThat(changed).isNotEqualTo(mains);
+    assertThat(restrictedTo(changed, mains)).isNotEqualTo(mains);
+    String gone = withoutDeclarations(mains, Set.of(declarationTexts(mains).get(1)));
+    assertThat(restrictedTo(gone, mains)).isNotEqualTo(mains);
+
     byte[] packed;
     try (InputStream in = XsltExporter.class.getResourceAsStream(XsltExporter.HELPER_MODULE)) {
       assertThat(in).as("resource io/flottila/mapping/xslt/export/po-runtime.xsl").isNotNull();
@@ -1042,9 +1072,9 @@ class XsltExporterTest {
     }
     assertThat(XsltExporter.helperModule().getBytes(UTF_8)).isEqualTo(packed);
 
-    String restricted = withoutDeclarations(new String(packed, UTF_8), otherFamilies);
+    String restricted = restrictedTo(new String(packed, UTF_8), mains);
 
-    assertThat(restricted).isEqualTo(new String(main, UTF_8));
+    assertThat(restricted).isEqualTo(mains);
     assertThat(restricted.getBytes(UTF_8)).isEqualTo(main);
   }
 }
