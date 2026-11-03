@@ -62,3 +62,80 @@ Target wires: N1 -> `Out/Item/V`; R1 -> `Out/Item/W`.
 | Input | Question it decides | Tests |
 | --- | --- | --- |
 | `l4.xml` | Three orders. A constant is one context with one value (assumed): `V` is `1` in `Item` 1 and `Item` 2, 3 get none; `W` is `k` in `Item` 1 only. If PO repeated the constant per parent context, every `Item` has `V` = 1 and `W` = k. Display queues of N1, R1. | ADR-0004 bullet 1 |
+
+<!-- spec2 -->
+
+# Spec 2 cases (#61)
+
+Spec 2 (#51, #61): `createIf` truth values and nesting, and `replaceValue` over SUPPRESS and `<Tag/>`.
+One mapping per section below; rebuild it and run each listed input. Every case id is a directory under `corpus/cases/`. Return the output (or the exact error text) per input, as above; one run of an input answers every case that names it.
+
+## Mapping spec2-create-if
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/All`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Tag` with context `Orders` |
+| C1 | `createIf` | in1 = S1 |
+
+Target wires: C1 -> `Out/All`. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/createIf/002` | `createIf-002.xml` | One context of six conditions: TRUE, 1, yes, 0, " true" and "". Only TRUE and 1 are true, so two empty All. A case-sensitive rule gives one, a rule that trims or takes yes gives three. |
+
+## Mapping spec2-create-if-twice
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/All`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Tag` with context `Orders` |
+| C1 | `createIf` | in1 = S1 |
+| C2 | `createIf` | in1 = C1 |
+
+Target wires: C2 -> `Out/All`. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/createIf/003` | `createIf-003.xml` | createIf(createIf(Tag)) with Tag true, false, 1 in context Orders. The inner createIf gives "", SUPPRESS, ""; the outer one takes neither "" nor SUPPRESS as true, so every slot is SUPPRESS and the root is written empty. Taking "" as true would give two All. |
+
+## Mapping spec2-replace-value-create-if
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/All`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Tag` with context `Orders` |
+| C1 | `createIf` | in1 = S1 |
+| V1 | `replaceValue{replacement=yes}` | in1 = C1 |
+
+Target wires: V1 -> `Out/All`. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/replaceValue/002` | `replaceValue-002.xml` | replaceValue(createIf(Tag), yes) with Tag true, false, true in context Orders. createIf gives "", SUPPRESS, ""; replaceValue replaces each value with yes and passes the SUPPRESS on, so All is yes, yes. Replacing the SUPPRESS too would give a third yes. |
+
+## Mapping spec2-replace-value
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/All`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Line/Sku` with context `Orders` |
+| V1 | `replaceValue{replacement=O'Brien & <Co>}` | in1 = S1 |
+
+Target wires: V1 -> `Out/All`. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/replaceValue/004` | `replaceValue-004.xml` | Sku in context Orders: a, then <Sku/>, the value "", then a Line without Sku, which gives no slot. replaceValue replaces both values, the empty one included, so two All. Taking <Sku/> for no value would give one. |

@@ -69,3 +69,10 @@ the position in that list (first bullet = 1). `#2 §7.n` is item n of the open a
 Not covered here, by design: #2 §7.14 `XSI_NIL`; #2 §7.15 and a shared box with UDF state
 (ADR-0020, a later spec); `po-owner-local` (spec 5). #2 §7.4 is covered for the functions named
 above only; `sort`, `sortByKey`, `sum`, `count` and the rest of the catalogue stay open.
+
+## Spec 2 cases (#61)
+
+Every corpus case with `provenance: assumed` is named in a `request.md` (section "Spec 2 cases"),
+with its mapping drawn as a box table and its input beside it; `ObservationRequestsCoverAssumedCasesTest`
+fails if one is missing or its input is not in the request's directory. Inputs named
+`<function>-<nnn>.xml` are copies of a case's `input.xml`.
