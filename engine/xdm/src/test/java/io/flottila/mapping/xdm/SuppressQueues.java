@@ -167,7 +167,7 @@ final class SuppressQueues {
    */
   static Stream<Queue> edges() {
     return Stream.of(
-        // an absent parent: no context at all, {0} (ADR-0004)
+        // no context at all, {0}: a function result can be one, a source queue never (ADR-0004)
         queue("no context"),
         queue("one empty context", context()),
         queue("no SUPPRESS", context("a", "b"), context(), context("")),

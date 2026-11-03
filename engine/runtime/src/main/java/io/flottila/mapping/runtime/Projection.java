@@ -16,9 +16,10 @@ import javax.xml.stream.XMLStreamReader;
  * Fills the source queues of a compiled mapping in one StAX pass over the input (ADR-0004): only
  * the element steps the queues name are followed, every other subtree is skipped, and no tree is
  * built. A context opens at each start of its context field, and a value is appended at each
- * occurrence of its field: the text of the element, with references and CDATA resolved. The input
- * is still parsed whole, so it must be well-formed throughout. A DOCTYPE is refused, and no DTD or
- * external entity is ever read.
+ * occurrence of its field: the text of the element, with references and CDATA resolved. A queue
+ * whose context field never occurs is one empty context, as in PO (ADR-0004 as amended, F-17). The
+ * input is still parsed whole, so it must be well-formed throughout. A DOCTYPE is refused, and no
+ * DTD or external entity is ever read.
  *
  * <p>The plan's entries are distinct (field, context) pairs; equal pairs share one queue
  * (ADR-0006). The step trie is built once at compile and only read by a run.
@@ -125,6 +126,11 @@ final class Projection {
     QueueBlock[] blocks = new QueueBlock[queues];
     for (int k = 0; k < queues; k++) {
       blocks[k] = builders[k].build();
+      if (blocks[k].contexts() == 0) {
+        // the context field never occurred: one empty context, {0,0} (ADR-0004 as amended, F-17)
+        builders[k].newContext();
+        blocks[k] = builders[k].build();
+      }
     }
     return blocks;
   }

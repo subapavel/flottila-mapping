@@ -21,6 +21,9 @@ fn/mapWithDefault/003
 fn/mapWithDefault/004
 fn/mapWithDefault/005
 fn/mapWithDefault/006
+fn/mapWithDefault/007
+fn/mapWithDefault/008
+fn/mapWithDefault/009
 fn/removeContexts/001
 fn/removeContexts/002
 fn/removeContexts/003

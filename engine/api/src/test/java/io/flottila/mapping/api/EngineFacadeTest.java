@@ -456,7 +456,7 @@ class EngineFacadeTest {
           <xsl:variable name="root" as="xs:integer" select="1"/>
           <ns0:Order>
             <xsl:for-each \
-      select="po:at-least(po:slots(array:join(/s0:Order ! [OrderId ! string()]), $root, 1), 1)">
+      select="po:at-least(po:slots(po:source-queue(array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1)">
               <xsl:variable name="slot2" as="xs:integer" select="?1"/>
               <xsl:variable name="value2" as="xs:string" select="?2"/>
               <OrderId><xsl:value-of select="$value2"/></OrderId>

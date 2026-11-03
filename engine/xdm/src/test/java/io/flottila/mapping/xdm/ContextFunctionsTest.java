@@ -73,7 +73,7 @@ class ContextFunctionsTest {
   /** The edges every property crosses on every run, whatever the seeds give. */
   private static Stream<Queue> edges() {
     return Stream.of(
-        // an absent parent: no context at all, {0} (ADR-0004)
+        // no context at all, {0}: a function result can be one, a source queue never (ADR-0004)
         new Queue("no context", List.of()),
         new Queue("one empty context", List.of(List.of())),
         new Queue("only empty contexts", List.of(List.of(), List.of(), List.of())),
