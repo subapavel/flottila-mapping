@@ -3,10 +3,10 @@
 state: RUNNING — /run-spec #48 "Spec 2: queues, contexts and node functions"
 integration branch: spec/48-queues-node-functions (from main 3bf9747), tip 30507ea
 merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 #57 #52 #61 (1a9cec4) · owner obs #31 (f6b5d2d) · ratchet 3472834 (unchanged after #61)
-in flight: #53 test-author (t/53-trace, restarted after container restart) · #63 implementer B · #64 implementer B (F-17)
-blocked chain: #60 editor e2e A ← #53
+in flight: #53 implementer C (reds ef02dfa approved) · #63 green, merges after #64 · #64 ticket gate
+blocked chain: #60 editor e2e A ← #53 · #65 mandatory leaf B ← #63
 carried to spec review: po:at-least message lacks the target field (po-runtime.xsl:54) · export laziness rests on Saxon 12.5 (ADR-0006)
-next action: hand-backs of #53 reds, #63, #64 in arrival order. #31 reopened only for the 5 spec-2 cases.
+next action: #64 gate → merge → ratchet; then #63 resolves with #64 → gate → merge; then #65. #53 hand-back → gate, class-C review.
 spec 1: merged to main 3bf9747 (#46). Carried items: #21 comment 6582060566; the spec-2 lines are in #48.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
