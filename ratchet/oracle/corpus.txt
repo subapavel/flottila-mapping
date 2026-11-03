@@ -99,6 +99,7 @@ target/structureField/001
 target/structureField/002
 target/structureField/003
 target/suppress/001
+target/unmappedLeaf/001
 target/unmappedParent/001
 target/unmappedParent/002
 target/unmappedParent/003
