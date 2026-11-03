@@ -14,9 +14,10 @@
 //              then what each family module's root holds, the families by id, then the root end tag.
 //   index      <Family>Family.java: the family <family> of io.flottila.mapping.runtime, holding the
 //              maps QUEUE and VALUE. Output: FamilyIndex, those maps by family id.
-// The order in which the files are listed or given never shows in an output. A name in two family
-// files, a family file not in canonical form and a module with another root start tag exit 1, the
-// message naming the name or the file, and no output is written.
+// The order in which the files are listed or given never shows in an output (a family's file is
+// given once: of two files of one stem, the one given last counts). A name in two family files, a
+// family file that is no JSON or not in canonical form, and a module with another root start tag
+// exit 1, the message naming the name or the file, and no output is written.
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
@@ -110,7 +111,8 @@ public final class FamilyGenerator {
       Path file = family.getValue();
       byte[] bytes = Files.readAllBytes(file);
       Object tree = new Json(new String(bytes, UTF_8), file).document();
-      // a malformed UTF-8 byte, a BOM, CR and every other deviation make the bytes differ
+      // the reader has refused a BOM; a malformed UTF-8 byte, a CR and every other deviation from
+      // the canonical form make the bytes differ
       if (!Arrays.equals(bytes, (canonical(tree, "") + "\n").getBytes(UTF_8))) {
         throw new Refusal(
             file

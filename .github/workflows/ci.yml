@@ -74,8 +74,10 @@ jobs:
           </settings>
           EOF
       # The generator the build runs to merge the function families (ADR-0025 "Families", F-15)
-      - name: Script test of scripts/function-families.java
-        run: scripts/test/function-families-test.sh
+      - name: Script tests of scripts/function-families.java
+        run: |
+          scripts/test/function-families-test.sh
+          scripts/test/function-families-refusals-test.sh
       - name: Build, test, floors, licences, bans
         run: ./mvnw -B -Pbench verify
       - name: contract/ is up to date
