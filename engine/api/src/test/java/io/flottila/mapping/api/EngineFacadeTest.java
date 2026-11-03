@@ -957,7 +957,7 @@ class EngineFacadeTest {
   private static boolean aPlatformThreadRunsAMapping() {
     // Thread.getAllStackTraces holds platform threads only, never a virtual one
     return Thread.getAllStackTraces().entrySet().stream()
-        .filter(e -> e.getKey() != Thread.currentThread())
+        .filter(e -> e.getKey() != Thread.currentThread() && e.getKey().isDaemon())
         .flatMap(e -> Stream.of(e.getValue()))
         .anyMatch(frame -> frame.getClassName().equals(ExecutableMapping.class.getName()));
   }
@@ -966,7 +966,8 @@ class EngineFacadeTest {
    * ADR-0020 (O5 of the #52 design): a test run runs on a platform thread, never a virtual one,
    * because a spinning virtual thread holds its carrier. While a long test run parses, some live
    * platform thread is inside {@code ExecutableMapping.run}; a virtual run thread is never among
-   * the platform threads.
+   * the platform threads. It is a daemon, so a run that ignores its interrupt never holds the JVM
+   * open.
    */
   @Test
   void aTestRunRunsOnAPlatformThread() throws Exception {

@@ -562,6 +562,21 @@ class TargetSlotsInterpreterTest {
             "k1",
             "sortByKey"),
         Arguments.of(
+            "sortByKey, keys per Line but values per Order (#2 §4)",
+            all(
+                call(
+                    SORT_BY_KEY,
+                    "k1",
+                    source("a5", 3, ORDERS, ORDER, LINE, SKU),
+                    qtyInOrder,
+                    param("lexicographic", "k1"),
+                    param("ascending", "k1"))),
+            orders(order("A", line("b", "1"))),
+            orders(order("A", line("b", "1"), line("a", "2"))),
+            "po:SORTBYKEY",
+            "k1",
+            "sortByKey"),
+        Arguments.of(
             "a numeric sortByKey over a SUPPRESS key (#2 §3)",
             all(
                 call(

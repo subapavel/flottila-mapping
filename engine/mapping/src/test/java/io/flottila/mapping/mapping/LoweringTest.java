@@ -373,6 +373,22 @@ class LoweringTest {
             errorAtId("orphaned-reference", "a1"), errorAtId("orphaned-reference", "a2"));
   }
 
+  /**
+   * A target field the target structure lacks is orphaned-reference at its target field mapping.
+   */
+  @Test
+  void aMissingTargetFieldIsAnOrphanedReference() {
+    MappingModel model =
+        orderToOrder(
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t1", "a1", boxes("a1", source(ORDER_ID))),
+                ORDER + "/Missing",
+                targetFieldMapping("t2", "a2", boxes("a2", source(QUANTITY)))));
+
+    assertThat(refused(lower(model))).containsExactly(errorAtId("orphaned-reference", "t2"));
+  }
+
   @Test
   void anAttributeFieldIsUnsupportedField() {
     MappingModel model =

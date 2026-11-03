@@ -25,10 +25,10 @@ class RuntimeErrorCheckTest {
 
   /**
    * A synthetic case over the corpus's field link {@code OrderId <- OrderId}, 1..1, at mapping t1:
-   * it expects {@code code} at t1 on {@code input}.
+   * it expects {@code code} at {@code authoringId} on {@code input}.
    */
-  private static CorpusCase runtimeErrorCase(Path cases, String code, String input)
-      throws Exception {
+  private static CorpusCase runtimeErrorCase(
+      Path cases, String code, String authoringId, String input) throws Exception {
     Path dir = Files.createDirectories(cases.resolve("synthetic/runtime-error/001"));
     Files.writeString(
         dir.resolve("case.json"),
@@ -39,7 +39,7 @@ class RuntimeErrorCheckTest {
         UTF_8);
     Files.writeString(
         dir.resolve("expected-error.json"),
-        "{\"code\": \"" + code + "\", \"authoringId\": \"t1\"}",
+        "{\"code\": \"" + code + "\", \"authoringId\": \"" + authoringId + "\"}",
         UTF_8);
     Files.writeString(dir.resolve("input.xml"), input, UTF_8);
     return CaseFiles.read(cases, dir);
@@ -50,16 +50,21 @@ class RuntimeErrorCheckTest {
     String empty = "<s:Order xmlns:s=\"" + NS + "\"/>";
     String withOrderId = "<s:Order xmlns:s=\"" + NS + "\"><OrderId>1</OrderId></s:Order>";
     // witness: an empty source raises po:MINOCCURS at t1, so the check passes
-    CorpusCase raises = runtimeErrorCase(cases.resolve("a"), "po:MINOCCURS", empty);
+    CorpusCase raises = runtimeErrorCase(cases.resolve("a"), "po:MINOCCURS", "t1", empty);
     assertThat(GoldenCorpusTest.expectsRuntimeError(raises)).isTrue();
     assertThatCode(() -> GoldenCorpusTest.check(raises)).doesNotThrowAnyException();
 
     // the run writes OrderId: the case fails
-    CorpusCase writes = runtimeErrorCase(cases.resolve("b"), "po:MINOCCURS", withOrderId);
+    CorpusCase writes = runtimeErrorCase(cases.resolve("b"), "po:MINOCCURS", "t1", withOrderId);
     assertThatThrownBy(() -> GoldenCorpusTest.check(writes)).isInstanceOf(AssertionError.class);
     // the run raises another code than the expected one: the case fails
-    CorpusCase otherCode = runtimeErrorCase(cases.resolve("c"), "po:SORT", empty);
+    CorpusCase otherCode = runtimeErrorCase(cases.resolve("c"), "po:SORT", "t1", empty);
     assertThatThrownBy(() -> GoldenCorpusTest.check(otherCode)).isInstanceOf(AssertionError.class);
+    // the run raises the expected code at another authoring id: the case fails
+    CorpusCase otherId = runtimeErrorCase(cases.resolve("d"), "po:MINOCCURS", "a1", empty);
+    assertThatThrownBy(() -> GoldenCorpusTest.check(otherId))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("authoring id");
   }
 
   /** A stylesheet that raises {@code Q{namespace}local} under the prefix po. */
