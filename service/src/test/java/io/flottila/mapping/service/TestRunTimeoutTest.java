@@ -65,15 +65,13 @@ class TestRunTimeoutTest {
     assertThat(result.path("error").has("authoringId")).isFalse();
     assertThat(described(result.path("diagnostics"))).isEmpty();
     assertThat(result.has("output")).as("the buffered output is dropped").isFalse();
-    // ADR-0014 since #53: the trace so far, an object of entries each with its kind
+    // ADR-0014 since #53: the trace so far, the snapshot taken at the timeout. A zero timeout
+    // falls while the input is parsed, before any box is evaluated (ExecutableMapping.run), so the
+    // snapshot is an empty object; a trace taken once the run had finished would hold a1 and t1.
+    // EngineFacadeTraceTest's aTimeoutTraceIsAPrefixOfTheFullTrace has timeouts after the first
+    // report.
     JsonNode trace = result.path("trace");
     assertThat(trace.isObject()).as("the trace at timeout: %s", result).isTrue();
-    trace
-        .properties()
-        .forEach(
-            e ->
-                assertThat(e.getValue().path("kind").textValue())
-                    .as("kind of %s", e.getKey())
-                    .isIn("queue", "occurrences"));
+    assertThat(trace.size()).as("the trace at timeout: %s", result).isZero();
   }
 }

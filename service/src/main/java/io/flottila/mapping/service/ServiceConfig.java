@@ -19,15 +19,39 @@ import org.jboss.logging.Logger;
 
 /**
  * The service's configuration that {@code application.properties} cannot express (ADR-0014,
- * ADR-0024): the startup warning for a host beyond loopback, and a strict JSON reader.
+ * ADR-0015, ADR-0024): the startup warning for a host beyond loopback, the startup check of the
+ * trace limit, and a strict JSON reader.
  */
 @Singleton
 public class ServiceConfig implements ObjectMapperCustomizer {
+
+  /** The most one trace entry of a test run keeps (ADR-0015, "Trace"). */
+  static final String TRACE_LIMIT = "flottila.mapping.trace-limit";
 
   private static final Logger LOG = Logger.getLogger(ServiceConfig.class);
 
   void warnAtStartup(@Observes StartupEvent event, Config config) {
     warnUnlessLoopback(config.getValue("quarkus.http.host", String.class));
+  }
+
+  /** A trace limit below 1 is a configuration error, so the service does not start (#53). */
+  void checkAtStartup(@Observes StartupEvent event, Config config) {
+    traceLimit(config);
+  }
+
+  /**
+   * {@value #TRACE_LIMIT}: the most slots, contexts or occurrence records one trace entry of a test
+   * run keeps (ADR-0015, "Trace").
+   *
+   * @throws IllegalArgumentException when it is less than 1
+   */
+  static int traceLimit(Config config) {
+    int limit = config.getValue(TRACE_LIMIT, Integer.class);
+    if (limit < 1) {
+      throw new IllegalArgumentException(
+          TRACE_LIMIT + " is " + limit + ", but a trace limit is at least 1");
+    }
+    return limit;
   }
 
   /**

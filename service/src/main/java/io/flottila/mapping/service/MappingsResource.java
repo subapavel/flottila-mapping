@@ -87,7 +87,7 @@ public class MappingsResource {
     this.workspace = workspace;
     this.json = json;
     this.timeout = config.getValue("flottila.mapping.test-timeout", Duration.class);
-    this.traceLimit = config.getValue("flottila.mapping.trace-limit", Integer.class);
+    this.traceLimit = ServiceConfig.traceLimit(config);
   }
 
   /** The workspace's mappings, sorted by id. */

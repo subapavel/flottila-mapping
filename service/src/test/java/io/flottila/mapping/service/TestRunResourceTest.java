@@ -131,6 +131,8 @@ class TestRunResourceTest {
     assertThat(trace.path("c1").path("contexts").path(0).path(1).isNull())
         .as("SUPPRESS is JSON null: %s", trace.path("c1"))
         .isTrue();
+    // the wire keeps the engine's first-report order, which JSON equality below ignores (#53)
+    assertThat(names(trace)).as("first-report order").containsExactly("a1", "t1", "a2", "c1", "t2");
     assertThat(trace)
         .isEqualTo(
             Wire.read(
