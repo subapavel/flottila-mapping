@@ -30,6 +30,10 @@
   </dependencies>
   <build>
     <resources>
+      <!-- the module's own resources, which a resources list would otherwise drop -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
       <!-- the helper module po-runtime.xsl (ADR-0023), which the build joins from core.xsl and the
            family modules in src/main/xsl/po-runtime (ADR-0025 "Families", F-15) -->
       <resource>

@@ -7,11 +7,10 @@ import io.flottila.mapping.ir.AuthoringId;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
@@ -38,11 +37,11 @@ class FunctionFamiliesTest {
   }
 
   /**
-   * The family of each {@code <Family>Family.java} in engine/runtime's main sources: {@code
-   * <Family>} with its first letter in lower case, as {@code ContextFamily.java} is the family
-   * {@code context}.
+   * The family of each {@code <Family>Family.java} in engine/runtime's main sources, one per file,
+   * in order: {@code <Family>} with its first letter in lower case, as {@code ContextFamily.java}
+   * is the family {@code context}.
    */
-  private static Set<String> familyFiles() throws IOException {
+  private static List<String> familyFiles() throws IOException {
     Path sources = repoRoot().resolve("engine/runtime/src/main/java");
     List<String> names;
     try (Stream<Path> walk = Files.walk(sources)) {
@@ -50,9 +49,10 @@ class FunctionFamiliesTest {
           walk.filter(Files::isRegularFile)
               .map(p -> p.getFileName().toString())
               .filter(n -> n.endsWith(SUFFIX) && n.length() > SUFFIX.length())
+              .sorted()
               .toList();
     }
-    Set<String> families = new TreeSet<>();
+    List<String> families = new ArrayList<>();
     for (String name : names) {
       String type = name.substring(0, name.length() - SUFFIX.length());
       families.add(Character.toLowerCase(type.charAt(0)) + type.substring(1));
@@ -62,13 +62,14 @@ class FunctionFamiliesTest {
 
   @Test
   void theIndexListsEveryFamilyFile() throws Exception {
-    Set<String> files = familyFiles();
+    List<String> files = familyFiles();
     // today's eleven functions form the family context (ADR-0025)
     assertThat(files).as("the family files of engine/runtime").contains("context");
+    // one file per family: two of one family, in two packages, would be one id of the index
+    assertThat(files).as("the families of the family files").doesNotHaveDuplicates();
 
     assertThat(FunctionFamilies.ids())
         .as("the families the index lists")
-        .doesNotHaveDuplicates()
         .containsExactlyInAnyOrderElementsOf(files);
   }
 

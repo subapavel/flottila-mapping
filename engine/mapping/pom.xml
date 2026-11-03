@@ -44,6 +44,10 @@
           <include>mapping-model.schema.json</include>
         </includes>
       </resource>
+      <!-- the module's own resources, which a resources list would otherwise drop -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
       <!-- the engine-internal function catalogue (ADR-0025), which the build merges from the family
            files in src/main/catalogue (ADR-0025 "Families", F-15) -->
       <resource>
