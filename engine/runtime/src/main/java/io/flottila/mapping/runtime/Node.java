@@ -52,15 +52,15 @@ interface Node {
     private final OfInteger parentSlot;
     private final long min;
     private final long max;
-    private final int slotSlot;
-    private final int valueSlot;
+    private final int slotNumberIndex;
+    private final int valueIndex;
     private final OfContent body;
     private final AuthoringId origin;
 
     /**
      * @param queueIndex where the frame keeps the queue's block once it is evaluated
-     * @param slotSlot the {@code INTEGER} frame slot of the slot number
-     * @param valueSlot the {@code STRING} frame slot of the slot's value
+     * @param slotNumberIndex the index of the {@code INTEGER} frame slot that holds the slot number
+     * @param valueIndex the index of the {@code STRING} frame slot that holds the slot's value
      * @param origin the target field mapping, where {@code po:MINOCCURS} is raised
      */
     Slots(
@@ -69,8 +69,8 @@ interface Node {
         OfInteger parentSlot,
         long min,
         long max,
-        int slotSlot,
-        int valueSlot,
+        int slotNumberIndex,
+        int valueIndex,
         OfContent body,
         AuthoringId origin) {
       this.queue = queue;
@@ -78,8 +78,8 @@ interface Node {
       this.parentSlot = parentSlot;
       this.min = min;
       this.max = max;
-      this.slotSlot = slotSlot;
-      this.valueSlot = valueSlot;
+      this.slotNumberIndex = slotNumberIndex;
+      this.valueIndex = valueIndex;
       this.body = body;
       this.origin = origin;
     }
@@ -133,8 +133,8 @@ interface Node {
         }
         if (!block.suppressed(slot)) {
           if (write) {
-            frame.integers[slotSlot] = slot + 1L;
-            frame.strings[valueSlot] = block.value(slot);
+            frame.integers[slotNumberIndex] = slot + 1L;
+            frame.strings[valueIndex] = block.value(slot);
             body.write(frame);
           }
           created++;

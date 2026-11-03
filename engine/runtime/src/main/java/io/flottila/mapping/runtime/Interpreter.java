@@ -210,19 +210,19 @@ public final class Interpreter {
     Node.OfQueue queue = (Node.OfQueue) compile(s.queue(), scope);
     Node.OfInteger parentSlot = (Node.OfInteger) compile(s.parentSlot(), scope);
     int queueIndex = targetQueueCount++;
-    int slotSlot = integerSlotCount++;
-    int valueSlot = stringSlotCount++;
+    int slotNumberIndex = integerSlotCount++;
+    int valueIndex = stringSlotCount++;
     Map<String, Integer> body = new HashMap<>(scope);
-    body.put(s.slotVar(), slotSlot);
-    body.put(s.valueVar(), valueSlot);
+    body.put(s.slotVar(), slotNumberIndex);
+    body.put(s.valueVar(), valueIndex);
     return new Node.Slots(
         queue,
         queueIndex,
         parentSlot,
         s.min(),
         s.max(),
-        slotSlot,
-        valueSlot,
+        slotNumberIndex,
+        valueIndex,
         (Node.OfContent) compile(s.body(), body),
         s.origin());
   }

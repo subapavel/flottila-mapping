@@ -56,7 +56,7 @@ final class SaxonRunner {
 
   /** The namespace URI of each prefix a runtime error's QName takes (ADR-0015, ADR-0025). */
   private static final Map<String, String> ERROR_NAMESPACES =
-      Map.of("po", "urn:flottila:mapping:po", "err", "http://www.w3.org/2005/xqt-errors");
+      Map.of("po", "urn:flottila:mapping:po");
 
   /**
    * The error Saxon raises when it runs {@code stylesheet} on {@code input}, as {@link #run} does;
