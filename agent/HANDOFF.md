@@ -1,12 +1,12 @@
 # Handoff
 
 state: RUNNING — /run-spec #48 "Spec 2: queues, contexts and node functions"
-integration branch: spec/48-queues-node-functions (from main 3bf9747), tip fa95655
-merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 #57 #52 #61 #64 (db87dc0) · owner obs #31 (f6b5d2d) · ratchet fa95655
-in flight: #53 implementer C · #63 ticket gate (1b3db0c)
-blocked chain: #60 editor e2e A ← #53 · #65 mandatory leaf B ← #63
-carried to spec review: po:at-least message lacks the target field (po-runtime.xsl:54) · export laziness rests on Saxon 12.5 (ADR-0006) · fn/mapWithDefault/004 no longer tells removeContexts from a no-op · no test pins {0,0} for a structure-field queue
-next action: #63 gate → merge → ratchet → #65; #53 hand-back → gate, class-C review.
+integration branch: spec/48-queues-node-functions (from main 3bf9747), tip ee47611
+merged: #49 #54 #62 #50 #55 #56 #58 #59 #51 #57 #52 #61 #64 #63 (a862af9) · owner obs #31 (f6b5d2d) · ratchet ee47611
+in flight: #53 implementer, review fix round (cap half, limit<1, wire order, deterministic timeout test) · #65 implementer B
+blocked chain: #60 editor e2e A ← #53
+carried to spec review: po:at-least message lacks the target field (po-runtime.xsl:54) · export laziness rests on Saxon 12.5 (ADR-0006) · fn/mapWithDefault/004 no longer tells removeContexts from a no-op · no test pins {0,0} for a structure-field queue · mapped field under unmapped 0<min<max parent keeps unsupported-field
+next action: #53 fix hand-back → re-gate (PIT api must run), re-review fix list → merge; #65 → gate → merge; then #60; then spec gate.
 spec 1: merged to main 3bf9747 (#46). Carried items: #21 comment 6582060566; the spec-2 lines are in #48.
 grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
 grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
