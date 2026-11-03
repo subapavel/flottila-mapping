@@ -502,7 +502,7 @@ class XsltExporterTest {
                 + " select=\"array:join(/s0:Order/Item/Line ! [Sku ! string()])\"/>\n"
                 + "    "
                 + root);
-    // everything after Item's slot variable stands inside Item's occurrences
+    // everything after Item's slot-number variable stands inside Item's occurrences
     String inside = stylesheet.substring(stylesheet.indexOf("select=\"?1\""));
     assertThat(inside)
         .as("inside an occurrence")

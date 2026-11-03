@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  *   <li>{@code TargetSlots} is an {@code xsl:for-each} over {@code po:slots} of its queue, its
  *       parent's slot number and its {@code max}, {@code ()} when unbounded, inside {@code
  *       po:at-least} with its {@code min} when that is above 0 (ADR-0006 since #52). Each item is
- *       {@code [slot number, value]}, bound to its slot and value variables.
+ *       {@code [slot number, value]}, bound to its slot-number and value variables.
  *   <li>Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
  *       since #52). A {@code TargetSlots} directly under the root is written outside any {@code
  *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
@@ -69,7 +69,7 @@ public final class XsltExporter {
   public static final String HELPER_MODULE = "po-runtime.xsl";
 
   /**
-   * The stylesheet: its declarations, the helper module, the root's slot variable, the queue
+   * The stylesheet: its declarations, the helper module, the root's slot-number variable, the queue
    * variables, the root's name and its content. Each line of the queue variables and of the content
    * starts with its own line break.
    */

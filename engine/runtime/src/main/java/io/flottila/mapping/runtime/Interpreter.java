@@ -203,8 +203,8 @@ public final class Interpreter {
 
   /**
    * A {@code TargetSlots} (ADR-0006 since #52): its queue and parent slot in {@code scope}, and its
-   * body in {@code scope} with its slot variable, an {@code INTEGER} frame slot of its own, and its
-   * value variable, a {@code STRING} one.
+   * body in {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own,
+   * and its value variable, a {@code STRING} one.
    */
   private Node.OfContent slots(TargetSlots s, Map<String, Integer> scope) {
     Node.OfQueue queue = (Node.OfQueue) compile(s.queue(), scope);

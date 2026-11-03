@@ -37,9 +37,9 @@ import java.util.stream.IntStream;
  * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
  * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, in its
  * parent's element: the root's, created once, or a mapped structure field's (ADR-0006 since #52).
- * Its slot and value variables at depth d are {@code slot<d>} and {@code value<d>}, and it reads
- * its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A leaf's
- * element holds its value, a structure field's its mapped children in target field order. A
+ * Its slot-number and value variables at depth d are {@code slot<d>} and {@code value<d>}, and it
+ * reads its parent's slot number, the root's {@code root} or the parent's {@code slot<d - 1>}. A
+ * leaf's element holds its value, a structure field's its mapped children in target field order. A
  * source-field box gives its {@code SourceQueue}. A standard function box whose function the
  * catalogue holds gives, by its execution kind, a {@code FunCall} over its inputs' queues and then
  * its params as {@code Literal}s for a context or queue function, or a {@code Lift} over its
