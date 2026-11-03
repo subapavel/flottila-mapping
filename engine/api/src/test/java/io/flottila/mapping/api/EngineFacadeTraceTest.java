@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.runtime.ExecutableMapping;
-import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -17,15 +16,14 @@ import java.util.Map;
 import java.util.SplittableRandom;
 import java.util.TreeSet;
 import java.util.random.RandomGenerator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 
 /**
  * The trace of a test run at {@code EngineFacade.testRun} (ADR-0015 "Trace" as refined by #53;
@@ -843,22 +841,49 @@ class EngineFacadeTraceTest {
     return LongStream.rangeClosed(1, 200);
   }
 
-  /** The child elements of {@code parent} named {@code name}, in document order. */
-  private static List<Element> children(List<Element> parents, String name) {
-    List<List<Element>> each = new ArrayList<>();
-    for (Element parent : parents) {
-      List<Element> named = new ArrayList<>();
-      for (Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
-        if (child instanceof Element e && e.getLocalName().equals(name)) {
-          named.add(e);
-        }
+  /** An element of the generated output: its name and child elements, its text left out. */
+  private record Tag(String name, List<Tag> children) {}
+
+  /** {@code <Name>}, {@code </Name>}, {@code <Name/>} or text without markup. */
+  private static final Pattern TOKEN = Pattern.compile("<(/?)([A-Za-z]+)(/?)>|[^<]+");
+
+  /**
+   * The document element of the generated output. The serializer writes it with no attribute,
+   * namespace, comment or escaped character, as the generator's values are letters and digits, so a
+   * tag reader suffices; the engine/api module does not read {@code java.xml}.
+   */
+  private static Tag document(byte[] output) {
+    String text = new String(output, UTF_8);
+    assertThat(text).startsWith(DECLARATION);
+    Matcher token = TOKEN.matcher(text.substring(DECLARATION.length()));
+    List<Tag> open = new ArrayList<>(List.of(new Tag("", new ArrayList<>())));
+    while (token.find()) {
+      if (token.group(2) == null) {
+        continue;
       }
-      each.add(named);
+      if (token.group(1).equals("/")) {
+        assertThat(open.removeLast().name()).isEqualTo(token.group(2));
+        continue;
+      }
+      Tag tag = new Tag(token.group(2), new ArrayList<>());
+      open.getLast().children().add(tag);
+      if (token.group(3).isEmpty()) {
+        open.add(tag);
+      }
     }
-    return each.stream().flatMap(List::stream).toList();
+    assertThat(open).as("every tag closed in %s", text).hasSize(1);
+    return open.getFirst().children().getFirst();
   }
 
-  private static long childCount(Element parent, String name) {
+  /** The child elements of {@code parents} named {@code name}, in document order. */
+  private static List<Tag> children(List<Tag> parents, String name) {
+    return parents.stream()
+        .flatMap(parent -> parent.children().stream())
+        .filter(child -> child.name().equals(name))
+        .toList();
+  }
+
+  private static long childCount(Tag parent, String name) {
     return children(List.of(parent), name).size();
   }
 
@@ -985,12 +1010,9 @@ class EngineFacadeTraceTest {
       }
       return;
     }
-    Element doc =
-        DocumentBuilderFactory.newNSInstance()
-            .newDocumentBuilder()
-            .parse(new ByteArrayInputStream(((TestRunResult.Output) result).output()))
-            .getDocumentElement();
-    List<Element> elements = List.of(doc);
+    Tag doc = document(((TestRunResult.Output) result).output());
+    assertThat(doc.name()).isEqualTo("Doc");
+    List<Tag> elements = List.of(doc);
     for (int k = 0; k < levels.size(); k++) {
       String name = levels.get(k).path().substring(levels.get(k).path().lastIndexOf('/') + 1);
       List<Trace.ParentSlot> parents = parentRecords(trace, levels.get(k).mapping());
