@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/copy-value-suppress.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §5 Constants: CopyValue \"For a frequently occurring element, copies the value at a defined position in the source structure to the assigned target field\" [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm] [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; assumed reading of #79: a SUPPRESS slot counts as a position and is copied as SUPPRESS; obs-constant decides it",
+  "expect": "output",
+  "note": "createIf(Tag) is \"\", SUPPRESS, \"\" | SUPPRESS, \"\" | (empty). copyValue{position=1} gives SUPPRESS | \"\" | (empty), so only o2's Item has a V, empty. Skipping SUPPRESS would give \"\" | (empty) | (empty), a V in o1's Item only."
+}
