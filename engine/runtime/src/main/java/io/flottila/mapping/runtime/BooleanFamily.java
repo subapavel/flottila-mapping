@@ -33,11 +33,14 @@ final class BooleanFamily {
 
   private BooleanFamily() {}
 
-  /** {@code and(a, b)}: true when both are true. */
+  /**
+   * {@code and(a, b)}: true when both are true. Both are evaluated first, as every input of a
+   * single-value call is (F-22, ADR-0006): {@code &}, not {@code &&}.
+   */
   static Node.OfString and(AuthoringId box, List<Node.OfString> args) {
     Node.OfString a = args.get(0);
     Node.OfString b = args.get(1);
-    return frame -> Boolean.toString(isTrue(a.eval(frame)) && isTrue(b.eval(frame)));
+    return frame -> Boolean.toString(isTrue(a.eval(frame)) & isTrue(b.eval(frame)));
   }
 
   /** {@code equals(a, b)}: whether the two values are the same text, case-sensitively. */
@@ -104,11 +107,14 @@ final class BooleanFamily {
     return frame -> Boolean.toString(!a.eval(frame).equals(b.eval(frame)));
   }
 
-  /** {@code or(a, b)}: true when one of them is true. */
+  /**
+   * {@code or(a, b)}: true when one of them is true. Both are evaluated first, as every input of a
+   * single-value call is (F-22, ADR-0006): {@code |}, not {@code ||}.
+   */
   static Node.OfString or(AuthoringId box, List<Node.OfString> args) {
     Node.OfString a = args.get(0);
     Node.OfString b = args.get(1);
-    return frame -> Boolean.toString(isTrue(a.eval(frame)) || isTrue(b.eval(frame)));
+    return frame -> Boolean.toString(isTrue(a.eval(frame)) | isTrue(b.eval(frame)));
   }
 
   /** Whether {@code text} is the exact text {@code true}. */
