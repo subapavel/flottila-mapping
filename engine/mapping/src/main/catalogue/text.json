@@ -1,0 +1,208 @@
+{
+  "compare": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Orders in code points, as XPath does; SAP PO orders UTF-16 units, so a character outside the BMP can sort differently."
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "concat": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "endsWith": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "suffix"
+      }
+    ],
+    "portable": true
+  },
+  "equalsS": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "indexOf": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "search"
+      }
+    ],
+    "portable": true
+  },
+  "lastIndexOf": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "search"
+      }
+    ],
+    "portable": true
+  },
+  "length": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "replaceString": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "search",
+        "type": "string"
+      },
+      {
+        "default": "",
+        "name": "replacement",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "startsWith": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "prefix"
+      }
+    ],
+    "portable": true
+  },
+  "substring": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "start",
+        "type": "string"
+      },
+      {
+        "default": "0",
+        "name": "length",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "toLowerCase": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "toUpperCase": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "trim": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  }
+}

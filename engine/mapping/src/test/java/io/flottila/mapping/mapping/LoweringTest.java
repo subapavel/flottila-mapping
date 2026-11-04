@@ -295,7 +295,10 @@ class LoweringTest {
                     "t1",
                     "f1",
                     boxes(
-                        "f1", function("trim", inputs("a1"), noParams()), "a1", source(ORDER_ID))),
+                        "f1",
+                        function("rfcLookup", inputs("a1"), noParams()),
+                        "a1",
+                        source(ORDER_ID))),
                 QUANTITY,
                 targetFieldMapping(
                     "t2",
@@ -794,7 +797,10 @@ class LoweringTest {
                     "t3",
                     "f2",
                     boxes(
-                        "f2", function("trim", inputs("a5"), noParams()), "a5", source(ORDER_ID))),
+                        "f2",
+                        function("rfcLookup", inputs("a5"), noParams()),
+                        "a5",
+                        source(ORDER_ID))),
                 QUANTITY,
                 targetFieldMapping("t1", null, boxes("a6", source(QUANTITY))),
                 NOTE,
