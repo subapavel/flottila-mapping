@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/constant-item.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 generating function (#83), assumed reading: a generating function on a field under a repeated parent repeats per parent occurrence; obs-constant row fn/constant/003",
+  "expect": "output",
+  "note": "Constant{x} on Item/V, Item per Order: each of the three Items gets one V x, o2 without lines too."
+}
