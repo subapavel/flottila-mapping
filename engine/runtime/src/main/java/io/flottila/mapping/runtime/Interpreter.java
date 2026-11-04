@@ -31,9 +31,10 @@ import java.util.Map;
  * projection plan, a context or single-value function is bound by its name once per call site
  * (ADR-0025), and nothing is looked up by name while a mapping runs. A traced compile reports every
  * source queue, context function call and {@code Lift} it evaluates to the run's tracer, at its
- * box, every single-value call but a {@code Lift}'s body as the box's single value (#83), and each
- * {@code TargetSlots}' occurrences per parent slot, at its target field mapping; an untraced
- * compile has no hook at all.
+ * box, every single-value call but a {@code Lift}'s body as the box's single value (#83), each
+ * {@code TargetSlots}' occurrences per parent slot, at its target field mapping, and each {@code
+ * TargetRepeat}'s copies per parent slot, at its origin (#83); an untraced compile has no hook at
+ * all.
  */
 public final class Interpreter {
 
@@ -264,15 +265,22 @@ public final class Interpreter {
 
   /**
    * A {@code TargetRepeat} (ADR-0006; #63): its parent slot in {@code scope}, and its body in
-   * {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own.
+   * {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own. A traced
+   * compile reports its copies per parent slot (#83).
    */
   private Node.OfContent repeat(TargetRepeat r, Map<String, Integer> scope) {
     Node.OfInteger parentSlot = (Node.OfInteger) compile(r.parentSlot(), scope);
     int slotNumberIndex = integerSlotCount++;
     Map<String, Integer> body = new HashMap<>(scope);
     body.put(r.slotVar(), slotNumberIndex);
-    return new Node.Repeat(
-        r.copies(), parentSlot, slotNumberIndex, (Node.OfContent) compile(r.body(), body));
+    Node.Repeat repeat =
+        new Node.Repeat(
+            r.copies(),
+            parentSlot,
+            slotNumberIndex,
+            (Node.OfContent) compile(r.body(), body),
+            r.origin());
+    return traced ? repeat.traced() : repeat;
   }
 
   private static Node.OfContent text(Node.OfString value) {

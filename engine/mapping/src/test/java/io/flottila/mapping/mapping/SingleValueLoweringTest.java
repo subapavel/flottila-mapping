@@ -33,6 +33,7 @@ import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.VarRef;
+import io.flottila.mapping.structure.Occurrence;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -154,5 +155,33 @@ class SingleValueLoweringTest {
             refused(
                 lowerNote(function("fixValues", inputs("a1"), params("missing", table("a", "b"))))))
         .containsExactly(errorAtId("wrong-parameter-type", "f1"));
+  }
+
+  /**
+   * The trace's min and max of a generating function's field are its occurrence (ADR-0006 as
+   * amended by #83): OrderId 1..1 and Note 0..unbounded by their mappings' ids, and nothing for a
+   * mapping whose path names no target field.
+   */
+  @Test
+  void theOccurrencesAreTheTargetFieldsByTheirMappings() {
+    MappingModel model =
+        model(
+            ref(order()),
+            ref(order()),
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t0", "a0", boxes("a0", source(ORDER_ID))),
+                NOTE,
+                targetFieldMapping(
+                    "t1", "c1", boxes("c1", function("constant", inputs(), noParams()))),
+                ORDER + "/Missing",
+                targetFieldMapping("t2", "a2", boxes("a2", source(ORDER_ID)))),
+            Map.of());
+
+    assertThat(Lowering.occurrences(model, order()))
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of(
+                id("t0"), new Occurrence(1, 1),
+                id("t1"), new Occurrence(0, Occurrence.UNBOUNDED)));
   }
 }

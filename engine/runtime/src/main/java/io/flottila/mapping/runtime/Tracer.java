@@ -9,9 +9,9 @@ import java.util.Map;
 
 /**
  * Records what a traced compile did in one mapping run (ADR-0006, ADR-0021): one report per
- * evaluation of a box and, since #53, one per parent slot of a target field mapping, in one list in
- * the order made, so a box evaluated twice shows twice. An untraced compile never reports. One
- * tracer serves one run.
+ * evaluation of a box and, since #53, one per parent slot of a target field, in one list in the
+ * order made, so a box evaluated twice shows twice. An untraced compile never reports. One tracer
+ * serves one run.
  *
  * <p>The run's thread reports while another thread may read (ADR-0014 since #53: the facade
  * snapshots the tracer at timeout). Every report and every read holds the tracer's lock, so a read
@@ -20,7 +20,20 @@ import java.util.Map;
 public final class Tracer {
 
   /** One report of a traced compile. */
-  public sealed interface Report permits Value, Occurrences, Atomic {}
+  public sealed interface Report permits Value, Atomic, FieldReport {}
+
+  /**
+   * A report of a target field under one parent slot: a {@code TargetSlots}' occurrences or a
+   * {@code TargetRepeat}'s copies.
+   */
+  public sealed interface FieldReport extends Report permits Occurrences, Repeat {
+
+    /** The target field's origin: its target field mapping, or an unmapped field's path. */
+    AuthoringId field();
+
+    /** The parent slot it ran under. */
+    long parentSlot();
+  }
 
   /**
    * A box's evaluation: the queue it gave.
@@ -50,7 +63,19 @@ public final class Tracer {
    * @param max the effective maximum occurrence; {@link Long#MAX_VALUE} is unbounded
    */
   public record Occurrences(
-      AuthoringId field, long parentSlot, QueueBlock queue, long min, long max) implements Report {}
+      AuthoringId field, long parentSlot, QueueBlock queue, long min, long max)
+      implements FieldReport {}
+
+  /**
+   * A traced {@code TargetRepeat} under one parent slot (#83), reported before it writes: its
+   * {@code copies} occurrences, numbered {@code (parentSlot - 1) * copies + j}, are all created. An
+   * unmapped field's repeat reports its field path as its origin (ADR-0006).
+   *
+   * @param field the target field mapping of a generating function, or the unmapped field's path
+   * @param parentSlot the parent slot it repeats under
+   * @param copies the occurrences per parent slot
+   */
+  public record Repeat(AuthoringId field, long parentSlot, long copies) implements FieldReport {}
 
   private final Object lock = new Object();
 
@@ -72,13 +97,17 @@ public final class Tracer {
     report(new Occurrences(field, parentSlot, queue, min, max));
   }
 
+  void repeat(AuthoringId field, long parentSlot, long copies) {
+    report(new Repeat(field, parentSlot, copies));
+  }
+
   private void report(Report report) {
     synchronized (lock) {
       reports.add(report);
     }
   }
 
-  /** A copy of every report so far, of both kinds, in the order made. */
+  /** A copy of every report so far, of every kind, in the order made. */
   public List<Report> reports() {
     synchronized (lock) {
       return List.copyOf(reports);

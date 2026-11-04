@@ -192,20 +192,46 @@ interface Node {
     private final OfInteger parentSlot;
     private final int slotNumberIndex;
     private final OfContent body;
+    private final AuthoringId origin;
 
     /**
      * @param slotNumberIndex the index of the {@code INTEGER} frame slot that holds the slot number
+     * @param origin the target field mapping of a generating function, or an unmapped field's path
      */
-    Repeat(long copies, OfInteger parentSlot, int slotNumberIndex, OfContent body) {
+    Repeat(
+        long copies,
+        OfInteger parentSlot,
+        int slotNumberIndex,
+        OfContent body,
+        AuthoringId origin) {
       this.copies = copies;
       this.parentSlot = parentSlot;
       this.slotNumberIndex = slotNumberIndex;
       this.body = body;
+      this.origin = origin;
     }
 
     @Override
     public void write(Frame frame) throws IOException {
-      long first = (parentSlot.eval(frame) - 1) * copies;
+      write(frame, parentSlot.eval(frame));
+    }
+
+    /**
+     * This node in a traced compile (#83): under each parent slot it reports its origin, the parent
+     * slot and its copies to the run's tracer before it writes them. The untraced node itself holds
+     * no hook.
+     */
+    OfContent traced() {
+      return frame -> {
+        long parent = parentSlot.eval(frame);
+        frame.tracer.repeat(origin, parent, copies);
+        write(frame, parent);
+      };
+    }
+
+    /** The copies under the parent slot {@code parent}. */
+    private void write(Frame frame, long parent) throws IOException {
+      long first = (parent - 1) * copies;
       for (long j = 1; j <= copies; j++) {
         if (Thread.currentThread().isInterrupted()) {
           throw new CancellationException("the mapping run was interrupted");

@@ -42,7 +42,9 @@
   <!-- fixValues: the value of $key in $table, matched exactly. $table is the table's compact
        canonical JSON (ADR-0026 "Table params"), which parse-json reads into a map. A key the table
        lacks gives, by $missing, the key itself (key), $defaultValue (default), or po:FIXVALUES at
-       $box (error), as the runtime's ConstantFamily.fixValues does. -->
+       $box (error), as the runtime's ConstantFamily.fixValues does. The error branch is treated as
+       an xs:string, so Saxon checks the result without atomizing it, which would add its own
+       words to the message (observed, Saxon 12.5). -->
   <xsl:function name="po:fixValues" as="xs:string">
     <xsl:param name="key" as="xs:string"/>
     <xsl:param name="table" as="xs:string"/>
@@ -55,6 +57,7 @@
                else if ($missing eq 'key') then $key
                else if ($missing eq 'default') then $defaultValue
                else po:data-error(xs:QName('po:FIXVALUES'), $box,
-                                  'fixValues: the key &quot;' || $key || '&quot; is not in the table')"/>
+                                  'fixValues: the key &quot;' || $key || '&quot; is not in the table')
+                    treat as xs:string"/>
   </xsl:function>
 </xsl:stylesheet>

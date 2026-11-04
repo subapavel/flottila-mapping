@@ -141,6 +141,26 @@ public final class Lowering {
     return new Lowering(model, source, target).lower();
   }
 
+  /**
+   * The occurrence of the target field of each target field mapping of {@code model} whose path
+   * names a field of {@code target}, by the mapping's authoring id: the min and max a test run's
+   * trace shows for a generating function's field, which its {@code TargetRepeat} does not hold
+   * (ADR-0006 as amended by #83, GLOSSARY "Trace").
+   */
+  public static Map<AuthoringId, Occurrence> occurrences(MappingModel model, Structure target) {
+    Map<AuthoringId, Occurrence> occurrences = new HashMap<>();
+    model
+        .targetFieldMappings()
+        .forEach(
+            (path, mapping) ->
+                resolve(target, path)
+                    .ifPresent(
+                        field ->
+                            occurrences.put(
+                                mapping.id(), target.field(field).orElseThrow().occurrence())));
+    return Map.copyOf(occurrences);
+  }
+
   private LowerResult lower() {
     // the fields that are mapped, whether or not their mappings lower, for the parent check
     Set<FieldPath> mapped = new HashSet<>();

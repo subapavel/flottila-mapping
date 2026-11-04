@@ -125,6 +125,47 @@ class TargetRepeatInterpreterTest {
   }
 
   /**
+   * #83: a traced TargetRepeat reports its copies under each parent slot at its origin, before its
+   * children report, and writes what the untraced one writes; the untraced one reports nothing. The
+   * Twins of Item 1 and Item 2, two each, so the Qtys under them run under slots 1, 2 and 3, 4.
+   */
+  @Test
+  void aTracedTargetRepeatReportsItsCopiesPerParentSlot() throws Exception {
+    TargetDocument document =
+        document(
+            items(
+                new SourceQueue(List.of(ORDERS, ORDER, ID), 1, new AuthoringId("a1")),
+                new TargetRepeat(
+                    2,
+                    integer("slot2", TWIN_ORIGIN),
+                    "slot3",
+                    new ElementConstructor("", TWIN, List.of(quantities()), TWIN_ORIGIN),
+                    TWIN_ORIGIN)));
+    Tracer untraced = new Tracer();
+    Tracer tracer = new Tracer();
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    Interpreter.compile(document, false)
+        .run(
+            new ByteArrayInputStream(INPUT.getBytes(UTF_8)), new ByteArrayOutputStream(), untraced);
+    Interpreter.compile(document, true)
+        .run(new ByteArrayInputStream(INPUT.getBytes(UTF_8)), out, tracer);
+
+    assertThat(untraced.reports()).isEmpty();
+    assertThat(out.toString(UTF_8)).isEqualTo(run(document, INPUT));
+    assertThat(tracer.reports())
+        .filteredOn(Tracer.Repeat.class::isInstance)
+        .containsExactly(
+            new Tracer.Repeat(TWIN_ORIGIN, 1, 2), new Tracer.Repeat(TWIN_ORIGIN, 2, 2));
+    assertThat(tracer.reports())
+        .filteredOn(Tracer.FieldReport.class::isInstance)
+        .map(Tracer.FieldReport.class::cast)
+        .extracting(r -> r.field().value() + "@" + r.parentSlot())
+        .containsExactly(
+            "t1@1", "/Doc/Item/Twin@1", "t2@1", "t2@2", "/Doc/Item/Twin@2", "t2@3", "t2@4");
+  }
+
+  /**
    * The queue of the structure field Order holds one {@code ""} per occurrence (ADR-0008), so the
    * empty Order makes an Item too, and the descendants of Order are still read for the other queue.
    */
