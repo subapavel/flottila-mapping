@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/sum-suppress.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §5 Statistics: sum, average and count work per context (\"Sum of values X1 to Xi of a context\") [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm] [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; assumed reading of #75: SUPPRESS is no value (as for exists and mapWithDefault, #57); obs-statistic decides it",
+  "expect": "output",
+  "note": "replaceValue(createIf(Tag), 5) gives 5 where a Tag is true and SUPPRESS where it is not: 5, SUPPRESS, 5 | SUPPRESS | (empty) | 5. sum skips SUPPRESS: V is 10, 0, 0, 5. A SUPPRESS-only context sums to 0 as an empty one does."
+}
