@@ -91,7 +91,7 @@ the command and the evidence it needs. A change to a check after this point is a
 
 ## Specs in build order
 
-Decided in grilling #19. Milestone 1 is built as a **walking skeleton** first, then widened axis by
+Decided in grilling #19; the editor moved ahead of speed by the owner on 2026-11-03. Milestone 1 is built as a **walking skeleton** first, then widened axis by
 axis; each spec goes through `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/run-spec` in
 this order, and no spec issue exists before its `/to-spec`. Check 8 holds after every spec.
 Every ticket that adds a function also adds its XSLT export (or `portable: false` in the
@@ -104,8 +104,8 @@ separate export spec.
 | 2 | Queues, contexts and node functions | The nested XSD subset (anonymous complex types, any depth, `minOccurs`/`maxOccurs`, `elementFormDefault`; F-14). Queue block, `Lift`, full `TargetSlots` occurrence rules with SUPPRESS and `po:MINOCCURS`, the trace and display queue in the test response, every PO 7.5 node function with export and corpus. | 3 (API), 4 (node functions), 5 |
 | 3 | Standard functions | Statistics, arithmetic (ADR-0005), text, boolean, `Constant`, `CopyValue`, `FixValues`, `FormatNum` and date over one F&O core (ADR-0003), the function catalogue with `portable` and `fidelity`. | 4, 5 |
 | 4 | Structures in full | Full XSD (choice and effective occurrence, imports, refusals with `{file, line, column}`), WSDL 1.1/2.0, JSON Schema 2020-12 as source (JSON target a compile error), schema bundle and fingerprint, refresh and orphaned references. | 1 |
-| 5 | Speed | `corpus/bench/{orders,wide,contexts}` with seeded generators, the seven JMH benchmarks through `engine/api`, the bench rules in `scripts/ratchet.java`, spec-gate step 5; it opens the optional `po-owner-local` observation request (ADR-0021). | 7 (engine) |
-| 6 | Editor in full | Function editor (canvas, quick insert, inspector with fidelity, display queue with occurrences per parent slot), target-tree status filter, undo, 409 on save, diagnostics in the UI, the `ui/tree-20128/scroll` p95 scenario. | 2, 3 (UI), 7 (tree) |
+| 5 | Editor in full | Function editor (canvas, quick insert, inspector with fidelity, display queue with occurrences per parent slot), target-tree status filter, undo, 409 on save, diagnostics in the UI, the `ui/tree-20128/scroll` p95 scenario. | 2, 3 (UI), 7 (tree) |
+| 6 | Speed | `corpus/bench/{orders,wide,contexts}` with seeded generators, the seven JMH benchmarks through `engine/api`, the bench rules in `scripts/ratchet.java`, spec-gate step 5; it opens the optional `po-owner-local` observation request (ADR-0021). | 7 (engine) |
 | 7 | UDFs | `engine/udf-api`, `engine/udf`, the scan endpoint, `MappingRun`, isolation with `flottila:TIMEOUT` and `flottila:UDF-ERROR`, `corpus/udfs/`, the UDF box in the editor; it opens the two ADR-0020 observation requests. Its last ticket writes `HANDOVER.md`. | 6, 9 |
 
 Observation requests never block a spec. Specs 2, 3 and 7 implement the assumed readings with

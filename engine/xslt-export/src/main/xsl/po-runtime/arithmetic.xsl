@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The function family arithmetic (ADR-0025 "Families", F-15), its basic functions: each is
-     po:<catalogue name>, its args in FunCall order, the number inputs as the strings a Lift slot
-     holds, the result a string in the XPath canonical form (ADR-0005). Each takes its box last
-     and raises through po:data-error (ADR-0026): err:FORG0001 for an input that is no
-     xs:decimal, err:FOAR0001 for a division by zero, as the runtime's ArithmeticFamily does. The
-     build joins core.xsl and the family modules, the families by id, into the helper module
+<!-- The function family arithmetic (ADR-0025 "Families", F-15), the math functions of #73: each is
+     po:<catalogue name>, its args in FunCall order, and it takes its box last because it can raise
+     a data error through po:data-error (ADR-0026). A number is read in the xs:decimal lexical form
+     only, whitespace around it ignored, anything else is err:FORG0001 at the box; a result is
+     written in the XPath canonical form, as the runtime's ArithmeticFamily writes it. The build
+     joins core.xsl and the family modules, the families by id, into the helper module
      po-runtime.xsl, of which this comment is no part. A family module uses what core.xsl declares
      and nothing of another family, and holds core.xsl's root start tag, byte for byte. -->
 <xsl:stylesheet version="3.0"
@@ -15,16 +15,86 @@
     xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
-  <!-- $text as a decimal, as the runtime's ArithmeticFamily.decimal reads it: the xs:decimal
-       lexical form in ASCII digits only (so no exponent, NaN or sign alone), after the XML white
-       space around it is cut by the cast. Anything else is err:FORG0001 at $box. -->
-  <xsl:function name="po:arithmetic-decimal" as="xs:decimal">
+  <!-- The xs:decimal that $text writes for the function $function, or err:FORG0001 at $box. -->
+  <xsl:function name="po:math-number" as="xs:decimal">
+    <xsl:param name="function" as="xs:string"/>
     <xsl:param name="text" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
     <xsl:sequence select="
-        if (matches($text, '^[ \t\r\n]*[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)[ \t\r\n]*$'))
-        then xs:decimal($text)
-        else po:data-error(xs:QName('err:FORG0001'), $box, '&quot;' || $text || '&quot; is no xs:decimal')"/>
+        if ($text castable as xs:decimal) then xs:decimal($text)
+        else po:data-error(xs:QName('err:FORG0001'), $box,
+                           $function || ': ''' || $text || ''' is no xs:decimal')"/>
+  </xsl:function>
+
+  <!-- The canonical form of the xs:decimal that the double $result equals exactly, for the
+       function $function; err:FORG0001 at $box for NaN and the infinities, which no xs:decimal
+       equals (a plain cast would raise FOCA0002). -->
+  <xsl:function name="po:math-from-double" as="xs:string">
+    <xsl:param name="function" as="xs:string"/>
+    <xsl:param name="result" as="xs:double"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="
+        if ($result castable as xs:decimal) then string(xs:decimal($result))
+        else po:data-error(xs:QName('err:FORG0001'), $box,
+                           $function || ': the result is ' || string($result)
+                           || ', no xs:decimal')"/>
+  </xsl:function>
+
+  <!-- ceil: the least whole number not below $value. -->
+  <xsl:function name="po:ceil" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(ceiling(po:math-number('ceil', $value, $box)))"/>
+  </xsl:function>
+
+  <!-- floor: the greatest whole number not above $value. -->
+  <xsl:function name="po:floor" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(floor(po:math-number('floor', $value, $box)))"/>
+  </xsl:function>
+
+  <!-- power: $base to the power $exponent. Exact for a whole exponent from 0 to 1000, by repeated
+       multiplication, which xs:decimal does exactly; any other exponent is math:pow of the two
+       doubles, as the runtime's Math.pow (ADR-0005). -->
+  <xsl:function name="po:power" as="xs:string">
+    <xsl:param name="base" as="xs:string"/>
+    <xsl:param name="exponent" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:variable name="b" as="xs:decimal" select="po:math-number('power', $base, $box)"/>
+    <xsl:variable name="e" as="xs:decimal" select="po:math-number('power', $exponent, $box)"/>
+    <xsl:sequence select="
+        if ($e ge 0 and $e le 1000 and $e eq floor($e))
+        then string(fold-left(1 to xs:integer($e), xs:decimal(1),
+                              function($product as xs:decimal, $i as xs:integer) as xs:decimal {
+                                $product * $b }))
+        else po:math-from-double('power',
+                                 math:pow(xs:double($b), xs:double($e)), $box)"
+        xmlns:math="http://www.w3.org/2005/xpath-functions/math"/>
+  </xsl:function>
+
+  <!-- round: the nearest whole number, a half toward positive infinity, as fn:round. -->
+  <xsl:function name="po:round" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(round(po:math-number('round', $value, $box)))"/>
+  </xsl:function>
+
+  <!-- sqr: $value times itself, exactly. -->
+  <xsl:function name="po:sqr" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:variable name="x" as="xs:decimal" select="po:math-number('sqr', $value, $box)"/>
+    <xsl:sequence select="string($x * $x)"/>
+  </xsl:function>
+
+  <!-- sqrt: math:sqrt of the double, cast back to xs:decimal (ADR-0005). -->
+  <xsl:function name="po:sqrt" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:math-from-double('sqrt',
+                              math:sqrt(xs:double(po:math-number('sqrt', $value, $box))), $box)"
+        xmlns:math="http://www.w3.org/2005/xpath-functions/math"/>
   </xsl:function>
 
   <!-- $a div $b, as the runtime's ArithmeticFamily.quotient does by ADR-0005 (Saxon-HE's rule):
@@ -44,90 +114,90 @@
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(po:arithmetic-decimal($a, $box) + po:arithmetic-decimal($b, $box))"/>
+    <xsl:sequence select="string(po:math-number('add', $a, $box) + po:math-number('add', $b, $box))"/>
   </xsl:function>
 
   <xsl:function name="po:subtract" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(po:arithmetic-decimal($a, $box) - po:arithmetic-decimal($b, $box))"/>
+    <xsl:sequence select="string(po:math-number('subtract', $a, $box) - po:math-number('subtract', $b, $box))"/>
   </xsl:function>
 
   <xsl:function name="po:multiply" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(po:arithmetic-decimal($a, $box) * po:arithmetic-decimal($b, $box))"/>
+    <xsl:sequence select="string(po:math-number('multiply', $a, $box) * po:math-number('multiply', $b, $box))"/>
   </xsl:function>
 
   <xsl:function name="po:divide" as="xs:string">
     <xsl:param name="dividend" as="xs:string"/>
     <xsl:param name="divisor" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="po:arithmetic-quotient(po:arithmetic-decimal($dividend, $box),
-                                                 po:arithmetic-decimal($divisor, $box), $box)"/>
+    <xsl:sequence select="po:arithmetic-quotient(po:math-number('divide', $dividend, $box),
+                                                 po:math-number('divide', $divisor, $box), $box)"/>
   </xsl:function>
 
   <xsl:function name="po:equalsA" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(po:arithmetic-decimal($a, $box) eq po:arithmetic-decimal($b, $box))"/>
+    <xsl:sequence select="string(po:math-number('equalsA', $a, $box) eq po:math-number('equalsA', $b, $box))"/>
   </xsl:function>
 
   <xsl:function name="po:greater" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(po:arithmetic-decimal($a, $box) gt po:arithmetic-decimal($b, $box))"/>
+    <xsl:sequence select="string(po:math-number('greater', $a, $box) gt po:math-number('greater', $b, $box))"/>
   </xsl:function>
 
   <xsl:function name="po:less" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(po:arithmetic-decimal($a, $box) lt po:arithmetic-decimal($b, $box))"/>
+    <xsl:sequence select="string(po:math-number('less', $a, $box) lt po:math-number('less', $b, $box))"/>
   </xsl:function>
 
   <xsl:function name="po:max" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(max((po:arithmetic-decimal($a, $box), po:arithmetic-decimal($b, $box))))"/>
+    <xsl:sequence select="string(max((po:math-number('max', $a, $box), po:math-number('max', $b, $box))))"/>
   </xsl:function>
 
   <xsl:function name="po:min" as="xs:string">
     <xsl:param name="a" as="xs:string"/>
     <xsl:param name="b" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(min((po:arithmetic-decimal($a, $box), po:arithmetic-decimal($b, $box))))"/>
+    <xsl:sequence select="string(min((po:math-number('min', $a, $box), po:math-number('min', $b, $box))))"/>
   </xsl:function>
 
   <xsl:function name="po:abs" as="xs:string">
     <xsl:param name="value" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(abs(po:arithmetic-decimal($value, $box)))"/>
+    <xsl:sequence select="string(abs(po:math-number('abs', $value, $box)))"/>
   </xsl:function>
 
   <xsl:function name="po:neg" as="xs:string">
     <xsl:param name="value" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="string(-po:arithmetic-decimal($value, $box))"/>
+    <xsl:sequence select="string(-po:math-number('neg', $value, $box))"/>
   </xsl:function>
 
   <!-- inv: 1 div the value, by the quotient rule (an assumed reading). -->
   <xsl:function name="po:inv" as="xs:string">
     <xsl:param name="value" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="po:arithmetic-quotient(1.0, po:arithmetic-decimal($value, $box), $box)"/>
+    <xsl:sequence select="po:arithmetic-quotient(1.0, po:math-number('inv', $value, $box), $box)"/>
   </xsl:function>
 
   <xsl:function name="po:sign" as="xs:string">
     <xsl:param name="value" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
     <xsl:sequence select="
-        let $v := po:arithmetic-decimal($value, $box)
+        let $v := po:math-number('sign', $value, $box)
         return if ($v gt 0) then '1' else if ($v lt 0) then '-1' else '0'"/>
   </xsl:function>
 </xsl:stylesheet>

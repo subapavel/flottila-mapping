@@ -5,183 +5,109 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.ir.AuthoringId;
 import java.util.List;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The arithmetic family's single-value functions, bound through {@link SingleValueLibrary} as the
- * interpreter binds them (ADR-0025): xs:decimal in, the canonical form out (ADR-0005), and a data
- * error at the box the binding was given (ADR-0026, F-19), whichever box the args come from.
+ * The arithmetic family's math functions (#73), called through {@link SingleValueLibrary} as a
+ * {@code Lift}'s body calls them: numbers in the {@code xs:decimal} lexical form, results in the
+ * XPath canonical form, and {@code err:FORG0001} at the function box otherwise. The corpus cases
+ * {@code fn/sqr} to {@code fn/round} pin the same through the facade and against Saxon-HE.
  */
 class ArithmeticFamilyTest {
 
-  private static final AuthoringId BOX = new AuthoringId("box-1");
-
-  private static String call(String name, AuthoringId box, String... args) {
-    List<Node.OfString> nodes = Stream.of(args).<Node.OfString>map(a -> frame -> a).toList();
-    return SingleValueLibrary.bind(name, box, nodes).eval(null);
-  }
+  private static final AuthoringId BOX = new AuthoringId("V1");
 
   private static String call(String name, String... args) {
-    return call(name, BOX, args);
+    List<Node.OfString> nodes =
+        java.util.Arrays.stream(args).<Node.OfString>map(a -> f -> a).toList();
+    return SingleValueLibrary.bind(name, BOX, nodes).eval(null);
   }
 
-  static Stream<Arguments> results() {
-    return Stream.of(
-        Arguments.of("add", List.of("0.1", "0.2"), "0.3"),
-        Arguments.of("add", List.of("4.2", "-0.2"), "4"),
-        Arguments.of("add", List.of(" +5 ", "\t.5\n"), "5.5"),
-        Arguments.of("add", List.of("1.", "1"), "2"),
-        Arguments.of("subtract", List.of("0.3", "0.1"), "0.2"),
-        Arguments.of("subtract", List.of("1", "1.5"), "-0.5"),
-        Arguments.of("multiply", List.of("0.1", "0.1"), "0.01"),
-        Arguments.of("multiply", List.of("12345678901234567890", "10"), "123456789012345678900"),
-        Arguments.of("multiply", List.of("0", "-5"), "0"),
-        Arguments.of("divide", List.of("1", "3"), "0.333333333333333333"),
-        Arguments.of("divide", List.of("2.0", "3"), "0.666666666666666667"),
-        Arguments.of("divide", List.of("2.00", "3"), "0.666666666666666667"),
-        Arguments.of("divide", List.of("0.1", "3"), "0.0333333333333333333"),
-        Arguments.of("divide", List.of("0.10", "3"), "0.0333333333333333333"),
-        Arguments.of("divide", List.of("1", "0.30"), "3.333333333333333333"),
-        Arguments.of("divide", List.of("100", "3"), "33.333333333333333333"),
-        Arguments.of("divide", List.of("4", "2"), "2"),
-        Arguments.of("divide", List.of("1", "30000000000000000000001"), "0"),
-        Arguments.of("divide", List.of("3", "524288"), "0.000005722045898437"),
-        Arguments.of("divide", List.of("-7", "2"), "-3.5"),
-        Arguments.of("equalsA", List.of("1", "1.0"), "true"),
-        Arguments.of("equalsA", List.of("1", "2"), "false"),
-        Arguments.of("greater", List.of("10", "9"), "true"),
-        Arguments.of("greater", List.of("1", "1"), "false"),
-        Arguments.of("greater", List.of("1", "2"), "false"),
-        Arguments.of("less", List.of("9", "10"), "true"),
-        Arguments.of("less", List.of("1", "1"), "false"),
-        Arguments.of("less", List.of("2", "1"), "false"),
-        Arguments.of("abs", List.of("-0.50"), "0.5"),
-        Arguments.of("abs", List.of("3"), "3"),
-        Arguments.of("neg", List.of("-0.5"), "0.5"),
-        Arguments.of("neg", List.of("0"), "0"),
-        Arguments.of("inv", List.of("4"), "0.25"),
-        Arguments.of("inv", List.of("3"), "0.333333333333333333"),
-        Arguments.of("sign", List.of("-5"), "-1"),
-        Arguments.of("sign", List.of("0.0"), "0"),
-        Arguments.of("sign", List.of("0.001"), "1"),
-        Arguments.of("max", List.of("10", "9"), "10"),
-        Arguments.of("max", List.of("-1", "-2"), "-1"),
-        Arguments.of("min", List.of("10", "9"), "9"),
-        Arguments.of("min", List.of("1.50", "1.5"), "1.5"));
-  }
-
-  @ParameterizedTest(name = "{0}{1} = {2}")
-  @MethodSource("results")
-  void aFunctionGivesTheCanonicalDecimal(String name, List<String> args, String expected) {
-    assertThat(call(name, args.toArray(String[]::new))).isEqualTo(expected);
-  }
-
-  static Stream<Arguments> notNumbers() {
-    return Stream.of(
-        Arguments.of(""),
-        Arguments.of(" "),
-        Arguments.of("abc"),
-        Arguments.of("1e3"),
-        Arguments.of("NaN"),
-        Arguments.of("+"),
-        Arguments.of("."),
-        Arguments.of("1 2"),
-        Arguments.of("1,5"),
-        Arguments.of("٣"),
-        Arguments.of("1 "),
-        Arguments.of("\u000b1"));
-  }
-
-  @ParameterizedTest
-  @MethodSource("notNumbers")
-  void aTextThatIsNoDecimalIsForg0001AtTheBoxOfTheCall(String text) {
-    AuthoringId box = new AuthoringId("f-box");
-
-    // either position of a two-input function, and the single-input ones
-    for (String name : List.of("add", "subtract", "multiply", "divide", "equalsA", "greater")) {
-      assertThatThrownBy(() -> call(name, box, text, "1")).isInstanceOf(MappingRunException.class);
-      assertThatThrownBy(() -> call(name, box, "1", text))
-          .isInstanceOfSatisfying(
-              MappingRunException.class,
-              e -> {
-                assertThat(e.code()).isEqualTo(RuntimeErrors.FORG0001).isEqualTo("err:FORG0001");
-                assertThat(e.authoringId()).isEqualTo(box);
-                assertThat(e.getMessage()).startsWith("the function box f-box: ");
-              });
-    }
-    for (String name : List.of("less", "max", "min")) {
-      assertThatThrownBy(() -> call(name, box, text, "1")).isInstanceOf(MappingRunException.class);
-    }
-    for (String name : List.of("abs", "neg", "inv", "sign")) {
-      assertThatThrownBy(() -> call(name, box, text))
-          .isInstanceOfSatisfying(
-              MappingRunException.class,
-              e -> {
-                assertThat(e.code()).isEqualTo("err:FORG0001");
-                assertThat(e.authoringId()).isEqualTo(box);
-              });
-    }
-  }
-
-  @Test
-  void aDivisionByZeroIsFoar0001AtTheBoxOfTheCall() {
-    AuthoringId box = new AuthoringId("div-box");
-
-    assertThatThrownBy(() -> call("divide", box, "7", "0.00"))
+  private static void assertDataError(String name, String... args) {
+    assertThatThrownBy(() -> call(name, args))
         .isInstanceOfSatisfying(
             MappingRunException.class,
             e -> {
-              assertThat(e.code()).isEqualTo(RuntimeErrors.FOAR0001).isEqualTo("err:FOAR0001");
-              assertThat(e.authoringId()).isEqualTo(box);
-              assertThat(e.getMessage()).isEqualTo("the function box div-box: division by zero");
+              assertThat(e.code()).isEqualTo(RuntimeErrors.FORG0001).isEqualTo("err:FORG0001");
+              assertThat(e.authoringId()).isEqualTo(BOX);
+              assertThat(e.getMessage()).startsWith("the function box V1: " + name + ": ");
             });
-    assertThatThrownBy(() -> call("inv", new AuthoringId("inv-box"), "0"))
-        .isInstanceOfSatisfying(
-            MappingRunException.class,
-            e -> {
-              assertThat(e.code()).isEqualTo("err:FOAR0001");
-              assertThat(e.authoringId()).isEqualTo(new AuthoringId("inv-box"));
-            });
-    // a zero dividend is no error
-    assertThat(call("divide", "0", "5")).isEqualTo("0");
   }
 
   @Test
-  void twoCallSitesRaiseAtTheirOwnBoxes() {
-    Node.OfString first =
-        SingleValueLibrary.bind("add", new AuthoringId("one"), List.of(f -> "x", f -> "1"));
-    Node.OfString second =
-        SingleValueLibrary.bind("add", new AuthoringId("two"), List.of(f -> "x", f -> "1"));
-
-    assertThatThrownBy(() -> first.eval(null))
-        .isInstanceOfSatisfying(
-            MappingRunException.class, e -> assertThat(e.authoringId().value()).isEqualTo("one"));
-    assertThatThrownBy(() -> second.eval(null))
-        .isInstanceOfSatisfying(
-            MappingRunException.class, e -> assertThat(e.authoringId().value()).isEqualTo("two"));
+  void roundTakesAHalfTowardPositiveInfinity() {
+    assertThat(call("round", "2.5")).isEqualTo("3");
+    assertThat(call("round", "-2.5")).isEqualTo("-2");
+    assertThat(call("round", "-0.5")).isEqualTo("0");
+    assertThat(call("round", "-0.4")).isEqualTo("0");
+    assertThat(call("round", "-0.6")).isEqualTo("-1");
+    assertThat(call("round", "100")).isEqualTo("100");
   }
 
   @Test
-  void theFamilyHoldsExactlyTheBasicFunctions() {
-    assertThat(ArithmeticFamily.VALUE.keySet())
-        .containsExactlyInAnyOrder(
-            "add",
-            "subtract",
-            "multiply",
-            "divide",
-            "equalsA",
-            "greater",
-            "less",
-            "abs",
-            "neg",
-            "inv",
-            "max",
-            "min",
-            "sign");
-    assertThat(ArithmeticFamily.QUEUE).isEmpty();
+  void ceilAndFloorGoToTheWholeNumberOnEachSide() {
+    assertThat(call("ceil", "1.2")).isEqualTo("2");
+    assertThat(call("ceil", "-1.2")).isEqualTo("-1");
+    assertThat(call("ceil", "-0.5")).isEqualTo("0");
+    assertThat(call("floor", "1.2")).isEqualTo("1");
+    assertThat(call("floor", "-1.2")).isEqualTo("-2");
+    assertThat(call("floor", "-0.0")).isEqualTo("0");
+  }
+
+  @Test
+  void sqrIsExactAndCanonical() {
+    assertThat(call("sqr", "1.5")).isEqualTo("2.25");
+    assertThat(call("sqr", "10")).isEqualTo("100");
+    assertThat(call("sqr", "-0.1")).isEqualTo("0.01");
+    assertThat(call("sqr", " +.5\n")).isEqualTo("0.25");
+    assertThat(call("sqr", "5.")).isEqualTo("25");
+  }
+
+  @Test
+  void sqrtIsADoubleWrittenAsTheDecimalItEquals() {
+    assertThat(call("sqrt", "4")).isEqualTo("2");
+    assertThat(call("sqrt", "0")).isEqualTo("0");
+    assertThat(call("sqrt", "2"))
+        .isEqualTo("1.4142135623730951454746218587388284504413604736328125");
+  }
+
+  @Test
+  void powerIsExactForAWholeExponentUpToOneThousand() {
+    assertThat(call("power", "10", "25")).isEqualTo("10000000000000000000000000");
+    assertThat(call("power", "0.1", "2.0")).isEqualTo("0.01");
+    assertThat(call("power", "0", "0")).isEqualTo("1");
+    assertThat(call("power", "1", "1000")).isEqualTo("1");
+    assertThat(call("power", "3", "1000")).hasSize(478).startsWith("13220708194808066368");
+  }
+
+  @Test
+  void powerIsADoubleOtherwise() {
+    assertThat(call("power", "10", "-2"))
+        .isEqualTo("0.01000000000000000020816681711721685132943093776702880859375");
+    assertThat(call("power", "9", "0.5")).isEqualTo("3");
+    // the exponent above 1000: 10^1001 would be exact, as a double it is 1E1001, Infinity
+    assertDataError("power", "10", "1001");
+    assertThat(call("power", "10", "-1"))
+        .isEqualTo("0.1000000000000000055511151231257827021181583404541015625");
+  }
+
+  @Test
+  void aResultThatIsNaNOrInfiniteIsADataError() {
+    assertDataError("sqrt", "-1");
+    assertDataError("power", "-8", "0.5");
+    assertDataError("power", "0", "-1");
+  }
+
+  @Test
+  void aValueThatIsNoDecimalIsADataErrorOfEveryFunction() {
+    for (String value : List.of("", "abc", "1e3", "1,5", "--1", ".", "INF", "NaN", "1 2", "٣")) {
+      assertDataError("sqr", value);
+      assertDataError("sqrt", value);
+      assertDataError("ceil", value);
+      assertDataError("floor", value);
+      assertDataError("round", value);
+      assertDataError("power", value, "2");
+      assertDataError("power", "2", value);
+    }
   }
 }

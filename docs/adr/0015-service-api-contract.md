@@ -91,7 +91,7 @@ contract, and the editor ships with the service.
     atomic box, in spec 3.
 - Since #53 the slot budget of an occurrences entry is spent in parent order, so the kept last
   parent can show `created` without its slot records; a cut queue shows its first contexts, and
-  the last one shown may look empty. The editor reads `capped` and the totals (spec 6). The
+  the last one shown may look empty. The editor reads `capped` and the totals (spec 5). The
   nullable slot of a context is the schema-only type `TraceValue` (`string | null`), code-first.
 - A runtime error returns the trace up to the error. A test run compiled without tracing returns
   an empty trace.

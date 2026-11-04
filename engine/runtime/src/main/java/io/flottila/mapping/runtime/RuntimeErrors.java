@@ -24,7 +24,7 @@ public final class RuntimeErrors {
   /** {@code useOneAsMany}'s inputs do not have the counts it needs, at its box. */
   public static final String USEONEASMANY = "po:USEONEASMANY";
 
-  /** A number input of a standard function that is no {@code xs:decimal}, at its box. */
+  /** A function meets a value that is no number (or date), or has no number as its result. */
   public static final String FORG0001 = "err:FORG0001";
 
   /** {@code divide} or {@code inv} by zero, at its box. */
