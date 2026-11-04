@@ -185,6 +185,30 @@ class TestRunResourceTest {
                     """)));
   }
 
+  /**
+   * ADR-0015 {@code {atomic: {type, value}}} since #83: {@code Note <- c1}, the constant c1, is a
+   * generating function, and c1's entry is its single value, kind atomic, of type {@code xs:string}
+   * (ADR-0004).
+   */
+  @Test
+  void aConstantsEntryIsItsAtomicValue() {
+    TempWorkspace.write("testing-trace-atomic/order.mapping.json", corpusMapping());
+    String constant =
+        notesThrough(
+            "c1",
+            """
+            "c1": {"kind": "function", "fn": "constant", "params": {"value": "x"}}""");
+
+    Http.Reply reply = test("testing-trace-atomic/order", testRequest(constant, INPUT));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", result).isEqualTo("output");
+    assertThat(result.path("trace").path("c1"))
+        .isEqualTo(
+            Wire.read(bytes("{\"kind\": \"atomic\", \"type\": \"xs:string\", \"value\": \"x\"}")));
+  }
+
   /** {@code OrderId 4711} and the Notes {@code n1} … {@code n<count>}. */
   static String notes(int count) {
     StringBuilder input =

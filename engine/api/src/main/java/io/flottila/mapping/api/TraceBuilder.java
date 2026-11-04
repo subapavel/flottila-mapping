@@ -1,5 +1,6 @@
 package io.flottila.mapping.api;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.xdm.QueueBlock;
@@ -21,9 +22,9 @@ final class TraceBuilder {
 
   /**
    * The trace of {@code reports}, a tracer's reports in the order made: one entry per authoring id
-   * in the order of its first report, across both kinds. A box's entry is its first queue, as a box
-   * feeding several inputs is reported once per evaluation; a target field mapping's entry holds a
-   * parent record per report.
+   * in the order of its first report, across every kind. A box's entry is its first queue or single
+   * value, as a box feeding several inputs is reported once per evaluation; a target field
+   * mapping's entry holds a parent record per report.
    *
    * @param limit the trace limit: the most slots, contexts or occurrence records one entry keeps
    */
@@ -33,6 +34,7 @@ final class TraceBuilder {
     for (Tracer.Report report : reports) {
       switch (report) {
         case Tracer.Value value -> first.putIfAbsent(value.box(), value);
+        case Tracer.Atomic atomic -> first.putIfAbsent(atomic.box(), atomic);
         case Tracer.Occurrences occurrences -> {
           first.putIfAbsent(occurrences.field(), occurrences);
           parents.computeIfAbsent(occurrences.field(), field -> new ArrayList<>()).add(occurrences);
@@ -46,6 +48,8 @@ final class TraceBuilder {
                 id,
                 switch (report) {
                   case Tracer.Value value -> queue(value.queue(), limit);
+                  // every single value of milestone 1 is an xs:string (ADR-0004)
+                  case Tracer.Atomic atomic -> new Trace.Atomic(AtomicType.STRING, atomic.value());
                   case Tracer.Occurrences o ->
                       occurrences(o.min(), o.max(), parents.get(id), limit);
                 }));

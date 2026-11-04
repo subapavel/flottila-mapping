@@ -6,12 +6,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.SequencedMap;
 
 /**
  * The trace of a test run (ADR-0015 "Trace" as refined by #53; GLOSSARY "Trace", "Trace limit",
  * "Parent slot"): an entry per evaluated box and per target field mapping that ran, by authoring
- * id, in the order of first report. Constants and boxes that were never evaluated have none.
+ * id, in the order of first report: a queue, a single value or a field's occurrences. A box that
+ * was never evaluated has none.
  *
  * @param entries the entries by authoring id, in the order of first report
  */
@@ -24,8 +26,23 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
   /** One entry of the trace, by its kind. */
   public sealed interface Entry permits Queue, Occurrences, Atomic {}
 
-  /** Stub (#83). */
-  public record Atomic(AtomicType type, String value) implements Entry {}
+  /**
+   * The single value a box gave, at its first report (ADR-0015 {@code {atomic: {type, value}}}):
+   * the value of a single-value call with no queue input, such as a {@code constant} (#83).
+   *
+   * @param type the value's type
+   * @param value the value
+   */
+  public record Atomic(AtomicType type, String value) implements Entry {
+
+    /**
+     * The XML Schema name of the value's type (ADR-0004), such as {@code xs:string}: what a caller
+     * that does not reach the IR, as the service, shows (ADR-0024 "Service boundary").
+     */
+    public String typeName() {
+      return "xs:" + type.name().toLowerCase(Locale.ROOT);
+    }
+  }
 
   /**
    * The queue a box gave, at its first report: at most the trace limit's contexts, holding at most
