@@ -1,21 +1,24 @@
 package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.xdm.BooleanFunctions;
 import java.util.List;
 import java.util.Map;
 
 /**
- * The function family {@code boolean} (ADR-0025 "Families", F-15), #77: the single-value functions
- * that make or use a truth value, except {@code ifWithoutElse} (a context function, #78). Only the
- * exact text {@code true} is true; every other value, {@code TRUE}, {@code 1} and the empty string
- * included, is false, and a result is written {@code true} or {@code false}. This is an assumed
- * reading (spec #70, obs-boolean). None of these functions raises a data error, so none uses its
- * box. The binders are methods, not lambdas of the map, so that PIT mutates them.
+ * The function family {@code boolean} (ADR-0025 "Families", F-15): the single-value functions that
+ * make or use a truth value (#77), and {@code ifWithoutElse}, a context function over the algebra
+ * in {@link BooleanFunctions} (#78). Only the exact text {@code true} is true; every other value,
+ * {@code TRUE}, {@code 1} and the empty string included, is false, and a result is written {@code
+ * true} or {@code false}. This is an assumed reading (spec #70, obs-boolean). None of these
+ * functions raises a data error, so none uses its box. The binders are methods, not lambdas of the
+ * map, so that PIT mutates them.
  */
 final class BooleanFamily {
 
-  /** The family's queue functions: it has none. */
-  static final Map<String, QueueLibrary.Binder> QUEUE = Map.of();
+  /** The family's queue functions. */
+  static final Map<String, QueueLibrary.Binder> QUEUE =
+      Map.of("ifWithoutElse", BooleanFamily::ifWithoutElse);
 
   /** The family's single-value functions. */
   static final Map<String, SingleValueLibrary.Binder> VALUE =
@@ -52,6 +55,26 @@ final class BooleanFamily {
     Node.OfString then = args.get(1);
     Node.OfString otherwise = args.get(2);
     return frame -> isTrue(condition.eval(frame)) ? then.eval(frame) : otherwise.eval(frame);
+  }
+
+  /**
+   * {@code ifWithoutElse(condition, then; keepSuppressValues)}, its parameter parsed once: a false
+   * condition leaves no slot, or SUPPRESS at the slot when the parameter is {@code true}.
+   */
+  static Node.OfQueue ifWithoutElse(
+      AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
+    Node.OfQueue condition = inputs.get(0);
+    Node.OfQueue then = inputs.get(1);
+    boolean keepSuppressValues =
+        switch (params.getFirst()) {
+          case "false" -> false;
+          case "true" -> true;
+          default ->
+              throw new IllegalArgumentException(
+                  "ifWithoutElse has no keepSuppressValues " + params.getFirst());
+        };
+    return frame ->
+        BooleanFunctions.ifWithoutElse(condition.eval(frame), then.eval(frame), keepSuppressValues);
   }
 
   /**
