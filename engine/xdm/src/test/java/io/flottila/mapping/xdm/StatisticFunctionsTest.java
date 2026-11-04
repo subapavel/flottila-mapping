@@ -170,16 +170,17 @@ class StatisticFunctionsTest {
   }
 
   /**
-   * index: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of a context, or
-   * of the queue without a reset, is {@code initial + k * increment}.
+   * index from 0 by 1: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of a
+   * context, or of the queue without a reset, is k itself, counted here, not computed. The decimal
+   * and canonical forms of {@code initial + k * increment} are the literal examples of {@link
+   * #indexWritesItsNumbersCanonically}.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
   void indexNumbersTheValues(String name, Queue queue) {
-    BigDecimal initial = new BigDecimal("1.5");
-    BigDecimal increment = new BigDecimal("-0.5");
     for (boolean reset : new boolean[] {true, false}) {
-      QueueBlock result = StatisticFunctions.index(queue.block(), initial, increment, reset);
+      QueueBlock result =
+          StatisticFunctions.index(queue.block(), BigDecimal.ZERO, BigDecimal.ONE, reset);
 
       List<List<String>> expected = new ArrayList<>();
       long k = 0;
@@ -187,8 +188,7 @@ class StatisticFunctionsTest {
         k = reset ? 0 : k;
         List<String> slots = new ArrayList<>();
         for (String slot : context) {
-          slots.add(
-              slot == S ? S : canonical(initial.add(increment.multiply(BigDecimal.valueOf(k++)))));
+          slots.add(slot == S ? S : Long.toString(k++));
         }
         expected.add(slots);
       }
@@ -255,6 +255,22 @@ class StatisticFunctionsTest {
                 StatisticFunctions.index(
                     values, new BigDecimal("10"), new BigDecimal("-3"), false)))
         .containsExactly(context("10", S, "7"), context(), context(S, "4"));
+  }
+
+  @Test
+  void indexWritesItsNumbersCanonically() {
+    QueueBlock values = queue("q", context("a", "b", "c"), context(S, "d", "e", "f")).block();
+
+    assertThat(
+            read(
+                StatisticFunctions.index(
+                    values, new BigDecimal("1.5"), new BigDecimal("-0.5"), false)))
+        .containsExactly(context("1.5", "1", "0.5"), context(S, "0", "-0.5", "-1"));
+    assertThat(
+            read(
+                StatisticFunctions.index(
+                    values, new BigDecimal("0.10"), new BigDecimal("0.10"), true)))
+        .containsExactly(context("0.1", "0.2", "0.3"), context(S, "0.1", "0.2", "0.3"));
   }
 
   static Stream<Arguments> malformed() {

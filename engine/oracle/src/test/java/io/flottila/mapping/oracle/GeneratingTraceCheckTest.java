@@ -29,7 +29,7 @@ class GeneratingTraceCheckTest {
   }
 
   @Test
-  void onlyAGeneratingFieldMayHaveAnAtomicEntry() {
+  void onlyAFieldWithoutASourceFieldMayHaveAnAtomicEntry() {
     Map<String, Object> noSourceField = link("function");
     Map<String, Object> read = link("source");
 

@@ -3,7 +3,7 @@
      #74: each is po:<catalogue name>, its args in FunCall order, and it takes its box last because
      it can raise a data error through po:data-error (ADR-0026). A number is read by core's po:decimal, the
      xs:decimal lexical form with XML whitespace around it ignored, anything else is err:FORG0001 at
-     the box; a result is written in the XPath canonical form, as the runtime's ArithmeticFamily
+     the box; a result is written in the XPath canonical form, as the runtime's XsDecimal.canonical
      writes it. The build joins core.xsl and the family modules, the families by id, into the
      helper module po-runtime.xsl, of which this comment is no part. A family module uses what
      core.xsl declares and nothing of another family, and holds core.xsl's root start tag, byte for

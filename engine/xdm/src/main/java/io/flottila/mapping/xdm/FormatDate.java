@@ -60,9 +60,10 @@ public final class FormatDate {
     StringBuilder out = new StringBuilder();
     for (Token token : tokens(picture)) {
       out.append(
-          token.component() == null
-              ? token.literal()
-              : component(value, token.component(), picture));
+          switch (token) {
+            case Literal literal -> literal.text();
+            case Component c -> component(value, c.name(), picture);
+          });
     }
     return out.toString();
   }
@@ -79,15 +80,16 @@ public final class FormatDate {
     StringBuilder regex = new StringBuilder();
     List<String> components = new ArrayList<>();
     for (Token token : tokens(picture)) {
-      if (token.component() == null) {
-        regex.append(Pattern.quote(token.literal()));
-      } else {
-        String digits = DIGITS.get(token.component());
-        if (digits == null) {
-          throw unknown(picture);
+      switch (token) {
+        case Literal literal -> regex.append(Pattern.quote(literal.text()));
+        case Component c -> {
+          String digits = DIGITS.get(c.name());
+          if (digits == null) {
+            throw unknown(picture);
+          }
+          regex.append('(').append(digits).append(')');
+          components.add(c.name());
         }
-        regex.append('(').append(digits).append(')');
-        components.add(token.component());
       }
     }
     Matcher m = Pattern.compile(regex.toString()).matcher(text);
@@ -140,13 +142,22 @@ public final class FormatDate {
     return Optional.of(ZoneOffset.ofHoursMinutes(sign * hours, sign * minutes));
   }
 
+  /** One token of a picture: {@link Literal} text or a {@link Component}. */
+  private sealed interface Token permits Literal, Component {}
+
   /**
-   * One token of a picture: literal text, an escaped bracket as the bracket itself, or a component.
+   * Literal text of a picture, an escaped bracket as the bracket itself.
    *
-   * @param literal the text the token writes when it is literal; a component's own text otherwise
-   * @param component the component's name, such as {@code Y0001}, or null for literal text
+   * @param text the text the token writes
    */
-  private record Token(String literal, String component) {}
+  private record Literal(String text) implements Token {}
+
+  /**
+   * A component of a picture.
+   *
+   * @param name the component's name, such as {@code Y0001}
+   */
+  private record Component(String name) implements Token {}
 
   /** The tokens of {@code picture}, in order. */
   private static List<Token> tokens(String picture) {
@@ -158,7 +169,10 @@ public final class FormatDate {
         throw unknown(picture);
       }
       String text = m.group();
-      tokens.add(new Token(text.equals("[[") ? "[" : text.equals("]]") ? "]" : text, m.group(1)));
+      tokens.add(
+          m.group(1) != null
+              ? new Component(m.group(1))
+              : new Literal(text.equals("[[") ? "[" : text.equals("]]") ? "]" : text));
       end = m.end();
     }
     if (end != picture.length()) {
