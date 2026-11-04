@@ -257,6 +257,25 @@ Target wires: M1 -> `Out/All`. Nothing else is mapped.
 | --- | --- | --- |
 | `fn/mapWithDefault/004` | `collapseContexts-003.xml` | To observe in PO: removeContexts over an empty input. <Orders/> has no Order and no Line, so Sku in its default context Line is one empty context (F-17). removeContexts keeps one empty context, which mapWithDefault fills with D, so the root's one slot creates one All D, as in fn/mapWithDefault/005 without removeContexts. Since F-17 the input is no longer zero contexts, so this case no longer tells removeContexts apart from a no-op; ContextFunctionsTest does, over {0}. |
 
+## Mapping spec3-map-with-default-remove-contexts-item
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/Item/V`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S2 | source | `Orders/Order/Line/Sku` (default context) |
+| R1 | `removeContexts` | in1 = S2 |
+| M1 | `mapWithDefault{default=D}` | in1 = R1 |
+
+Target wires: `Orders/Order/Line` with context `Orders` -> `Out/Item` (node to node); M1 ->
+`Out/Item/V`. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/mapWithDefault/010` | `mapWithDefault-010.xml` | fn/mapWithDefault/004 with two contexts: two Lines without Sku give Sku the empty contexts [] []. removeContexts gives one empty context, which mapWithDefault fills with D, so Item 1 gets V D and Item 2 no V. Without removeContexts both Items get V D; removeContexts giving no context leaves both without V. |
+
 ## Mapping spec2-map-with-default-line
 
 Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
@@ -604,6 +623,25 @@ Target wires: K1 -> `Out/All`. Nothing else is mapped.
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
 | `fn/splitByValue/019` | `splitByValue-019.xml` | Tag in context Orders is true, false \| true, false, false, so createIf gives "", SUPPRESS, "", SUPPRESS, SUPPRESS. eachValue puts each slot, SUPPRESS included, in a context of its own, and collapseContexts gives one "" per context: five empty All. Dropping SUPPRESS gives two. |
+
+## Mapping spec3-suppress-split-each-item
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/Item/V`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S2 | source | `Orders/Order/Tag` with context `Orders` |
+| C1 | `createIf` | in1 = S2 |
+| P1 | `splitByValue{mode=eachValue}` | in1 = C1 |
+
+Target wires: `Orders/Order/Tag` with context `Orders` -> `Out/Item`; P1 -> `Out/Item/V`.
+Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/splitByValue/022` | `splitByValue-019.xml` | fn/splitByValue/019 without collapseContexts, so SUPPRESS shows: one Item per Tag, five. createIf gives "", SUPPRESS, "", SUPPRESS, SUPPRESS, and eachValue puts each slot in a context of its own, so Items 1 and 3 get an empty V and Items 2, 4 and 5 none. SUPPRESS taken for "" gives a V in every Item; dropping SUPPRESS gives a V in Items 1 and 2. |
 
 ## Mapping spec2-suppress-split-change-collapse
 
