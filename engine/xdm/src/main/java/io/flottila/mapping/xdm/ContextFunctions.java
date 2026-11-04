@@ -47,7 +47,8 @@ public final class ContextFunctions {
   public static QueueBlock createIf(QueueBlock condition) {
     String[] values = new String[condition.slots()];
     for (int i = 0; i < values.length; i++) {
-      // inline, as the block's own read of the values after this loop checks too (ADR-0021)
+      // its own check per slot, though the block's read of the values after this loop checks too
+      // (ADR-0021)
       Interrupts.check("createIf");
       // a SUPPRESS slot's value is null, which neither call takes for true
       String value = condition.value(i);

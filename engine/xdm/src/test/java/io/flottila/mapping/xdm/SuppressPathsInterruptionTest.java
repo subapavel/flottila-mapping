@@ -110,4 +110,24 @@ class SuppressPathsInterruptionTest {
     }
     assertThat(calls[0]).as("body calls").isEqualTo(1);
   }
+
+  /**
+   * createIf's own check before each slot fires first, by its message: the block it builds checks
+   * too, with a message of its own.
+   */
+  @Test
+  void onAnInterruptedThreadCreateIfStopsBeforeASlotNamingItself() {
+    QueueBlock conditions = queue("conditions", context("1", S, "no")).block();
+    // witness: the same call gives a block on a thread that is not interrupted
+    assertThat(ContextFunctions.createIf(conditions)).isNotNull();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> ContextFunctions.createIf(conditions))
+          .isInstanceOf(CancellationException.class)
+          .hasMessage("createIf was running when the thread was interrupted");
+    } finally {
+      Thread.interrupted();
+    }
+  }
 }
