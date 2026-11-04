@@ -1,6 +1,8 @@
 package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.xdm.FormatNumber;
+import io.flottila.mapping.xdm.NumberPattern;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -13,11 +15,12 @@ import java.util.regex.Pattern;
 
 /**
  * The function family {@code arithmetic} (ADR-0025 "Families", F-15), the basic functions of #72
- * ({@code add} to {@code min}) and the math functions of #73 ({@code sqr} to {@code round}). All
- * are single-value functions over {@code xs:decimal} strings (ADR-0005): a number is read in the
- * {@code xs:decimal} lexical form only, whitespace around it ignored, anything else is {@code
- * err:FORG0001} at the function box; the result is written in the XPath canonical form. The binders
- * are methods, not lambdas of the maps, so that PIT mutates them.
+ * ({@code add} to {@code min}), the math functions of #73 ({@code sqr} to {@code round}) and {@code
+ * formatNum} of #74 over the formatting core (ADR-0003). All are single-value functions over {@code
+ * xs:decimal} strings (ADR-0005): a number is read in the {@code xs:decimal} lexical form only,
+ * whitespace around it ignored, anything else is {@code err:FORG0001} at the function box; the
+ * result is written in the XPath canonical form. The binders are methods, not lambdas of the maps,
+ * so that PIT mutates them.
  */
 final class ArithmeticFamily {
 
@@ -33,6 +36,7 @@ final class ArithmeticFamily {
           Map.entry("divide", ArithmeticFamily::divide),
           Map.entry("equalsA", ArithmeticFamily::equalsA),
           Map.entry("floor", ArithmeticFamily::floor),
+          Map.entry("formatNum", ArithmeticFamily::formatNum),
           Map.entry("greater", ArithmeticFamily::greater),
           Map.entry("inv", ArithmeticFamily::inv),
           Map.entry("less", ArithmeticFamily::less),
@@ -159,6 +163,21 @@ final class ArithmeticFamily {
       }
       return fromDouble("power", box, Math.pow(b.doubleValue(), e.doubleValue()));
     };
+  }
+
+  /**
+   * {@code formatNum(value, pattern)}: the number formatted as the DecimalFormat {@code pattern}
+   * formats it, through the XPath picture the pattern compiles to (ADR-0003). The pattern is the
+   * box's own string, which lowering has checked (ADR-0026, #74); it is compiled per value, as the
+   * single-value binding takes its params as nodes.
+   */
+  static Node.OfString formatNum(AuthoringId box, List<Node.OfString> args) {
+    Node.OfString value = args.get(0);
+    Node.OfString pattern = args.get(1);
+    return frame ->
+        FormatNumber.format(
+            number("formatNum", box, value.eval(frame)),
+            NumberPattern.picture(pattern.eval(frame)));
   }
 
   /** The node of {@code function} over its one arg: {@code operation} of the number it gives. */

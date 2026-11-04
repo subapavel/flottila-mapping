@@ -75,9 +75,12 @@
     },
     "stringParam": {
       "title": "StringParam",
-      "description": "A string param: it takes its values only, or any string when it has none.",
+      "description": "A string param: it takes its values only, the patterns of its syntax only, or any string when it has neither.",
       "type": "object",
       "required": ["name", "type", "default"],
+      "not": {
+        "required": ["values", "syntax"]
+      },
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -94,6 +97,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "syntax": {
+          "description": "The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.",
+          "enum": ["numberPattern"]
         }
       }
     },

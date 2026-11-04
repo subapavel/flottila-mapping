@@ -108,6 +108,15 @@ class ArithmeticFamilyTest {
       assertDataError("round", value);
       assertDataError("power", value, "2");
       assertDataError("power", "2", value);
+      assertDataError("formatNum", value, "0");
     }
+  }
+
+  /** formatNum (#74): the number formatted through the picture its pattern compiles to. */
+  @Test
+  void formatNumFormatsTheNumberAsItsPatternDoes() {
+    assertThat(call("formatNum", " 1234.5 ", "#,##0.00")).isEqualTo("1,234.50");
+    assertThat(call("formatNum", "-0.5", "0.#%")).isEqualTo("-50%");
+    assertThat(call("formatNum", "0.5", "#.##")).isEqualTo("0.5");
   }
 }

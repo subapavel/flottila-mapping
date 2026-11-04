@@ -5,6 +5,7 @@ import com.github.erosb.jsonsKema.IJsonObject;
 import com.github.erosb.jsonsKema.IJsonString;
 import com.github.erosb.jsonsKema.IJsonValue;
 import io.flottila.mapping.mapping.internal.StrictJsonReader;
+import io.flottila.mapping.xdm.NumberPattern;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -18,12 +19,13 @@ import java.util.Optional;
  * The function catalogue (ADR-0025, ADR-0026): {@code function-catalogue.json}, a resource of this
  * package, read once and published as it is packed, through {@link #bytes()}. Only lowering reads
  * its entries, and only what lowering needs: a function's execution kind, the names of its inputs
- * and its params, in order, with each param's default and the values it takes; {@code family},
- * {@code portable} and {@code fidelity} are read past.
+ * and its params, in order, with each param's default and the values or the syntax it takes; {@code
+ * family}, {@code portable} and {@code fidelity} are read past.
  *
  * <p>Every param of the catalogue is a string param, which lowering makes a {@code Literal}: one
- * with {@code values} takes only those, one without them any string. A table param adds what is
- * read here when its function lands.
+ * with {@code values} takes only those, one with a {@code syntax} only the patterns the formatting
+ * core translates (ADR-0026, #74), one with neither any string. A table param adds what is read
+ * here when its function lands.
  */
 public final class FunctionCatalogue {
 
@@ -33,12 +35,31 @@ public final class FunctionCatalogue {
    * @param name the param's name, the key a box gives it under
    * @param fallback the {@code default}, the value of a box that leaves the param out
    * @param values the strings the param takes, or empty when it takes any string
+   * @param syntax the pattern syntax the param is written in, or empty when it has none
    */
-  record Param(String name, String fallback, Optional<List<String>> values) {
+  record Param(
+      String name, String fallback, Optional<List<String>> values, Optional<String> syntax) {
 
-    /** Whether the param takes the string {@code value}. */
+    /** Whether the param takes the string {@code value} by its values. */
     boolean takes(String value) {
       return values.map(allowed -> allowed.contains(value)).orElse(true);
+    }
+
+    /**
+     * Why the param's syntax refuses the pattern {@code value}, the element the formatting core
+     * names, or empty when it takes it or the param has no syntax. The schema's one syntax is
+     * {@code numberPattern}, a DecimalFormat pattern (ADR-0003, ADR-0026).
+     */
+    Optional<String> untranslatable(String value) {
+      return syntax.flatMap(
+          numberPattern -> {
+            try {
+              NumberPattern.picture(value);
+              return Optional.empty();
+            } catch (IllegalArgumentException refused) {
+              return Optional.of(refused.getMessage());
+            }
+          });
     }
   }
 
@@ -118,7 +139,12 @@ public final class FunctionCatalogue {
     if (entry.get("params") != null) {
       for (IJsonValue value : elements(entry, "params")) {
         IJsonObject param = (IJsonObject) value;
-        params.add(new Param(string(param, "name"), string(param, "default"), values(param)));
+        params.add(
+            new Param(
+                string(param, "name"),
+                string(param, "default"),
+                values(param),
+                Optional.ofNullable(param.get("syntax")).map(s -> ((IJsonString) s).getValue())));
       }
     }
     return new Entry(kind, List.copyOf(inputs), List.copyOf(params));

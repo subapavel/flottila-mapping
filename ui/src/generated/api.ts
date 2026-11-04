@@ -618,7 +618,7 @@ export interface components {
         };
         /**
          * StringParam
-         * @description A string param: it takes its values only, or any string when it has none.
+         * @description A string param: it takes its values only, the patterns of its syntax only, or any string when it has neither.
          */
         stringParam: {
             name: components["schemas"]["id"];
@@ -626,6 +626,11 @@ export interface components {
             type: "string";
             default: string;
             values?: string[];
+            /**
+             * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.
+             * @enum {unknown}
+             */
+            syntax?: "numberPattern";
         };
         /** TableParam */
         tableParam: {
@@ -708,7 +713,7 @@ export interface components {
                 catalogueParam: components["schemas"]["stringParam"] | components["schemas"]["tableParam"];
                 /**
                  * StringParam
-                 * @description A string param: it takes its values only, or any string when it has none.
+                 * @description A string param: it takes its values only, the patterns of its syntax only, or any string when it has neither.
                  */
                 stringParam: {
                     name: components["schemas"]["id"];
@@ -716,6 +721,11 @@ export interface components {
                     type: "string";
                     default: string;
                     values?: string[];
+                    /**
+                     * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.
+                     * @enum {unknown}
+                     */
+                    syntax?: "numberPattern";
                 };
                 /** TableParam */
                 tableParam: {

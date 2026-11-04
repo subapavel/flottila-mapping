@@ -76,7 +76,8 @@ import java.util.stream.IntStream;
  *       wrong-arity}; an input slot of the entry that is {@code null} or absent, {@code
  *       unconnected-input}; a param key the entry lacks, {@code unknown-parameter}; a table for a
  *       string param, {@code wrong-parameter-type}; a string outside the values of a param that
- *       lists them, {@code invalid-parameter-value}.
+ *       lists them, or a pattern the formatting core cannot translate for a param with a syntax
+ *       (ADR-0026, #74), {@code invalid-parameter-value}.
  * </ul>
  *
  * <p>Only the boxes {@code result} reaches are checked: a box it does not reach is not, and the
@@ -430,8 +431,10 @@ public final class Lowering {
    * Reports what is wrong with the param {@code key} of {@code box} against {@code entry}, at the
    * box: a key the entry lacks, {@code unknown-parameter}; a table, as every param of the catalogue
    * is a string param, {@code wrong-parameter-type}; a string outside the values of a param that
-   * lists them, {@code invalid-parameter-value}. A string the param takes, any string when it lists
-   * no values, is reported as nothing.
+   * lists them, or a pattern the formatting core cannot translate for a param with a syntax
+   * (ADR-0026, #74), {@code invalid-parameter-value}, naming the element the core cannot translate.
+   * A string the param takes, any string when it has neither values nor a syntax, is reported as
+   * nothing.
    */
   private void param(
       AuthoringId id, StandardFunctionBox box, FunctionCatalogue.Entry entry, String key) {
@@ -459,7 +462,16 @@ public final class Lowering {
                   + ", not \""
                   + value
                   + "\"");
-      case Text _ -> {}
+      case Text(String value) ->
+          param
+              .get()
+              .untranslatable(value)
+              .ifPresent(
+                  element ->
+                      report(
+                          MappingDiagnostics.INVALID_PARAMETER_VALUE,
+                          id,
+                          "the parameter " + key + " of " + box.fn() + ": " + element));
     }
   }
 

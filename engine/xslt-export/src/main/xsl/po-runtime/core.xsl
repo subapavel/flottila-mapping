@@ -95,4 +95,55 @@
     <xsl:sequence select="error($code,
                                 'the function box ' || $box || ': ' || $message)"/>
   </xsl:function>
+
+  <!-- The formatting core (ADR-0003), which several families share: a Java/SAP pattern of a box
+       parameter compiled to an XPath picture. Each helper does as its counterpart in engine/xdm
+       does, for a pattern that counterpart compiles, which lowering has checked (ADR-0026). -->
+
+  <!-- The runs of the Java/SAP pattern $pattern, as JavaPattern.runs splits it: ['q', text] for
+       quoted text, without its quotes and each '' in it read as ', and for '' outside quotes;
+       ['p', text] for the unquoted pattern characters between. -->
+  <xsl:function name="po:pattern-runs" as="array(xs:string)*">
+    <xsl:param name="pattern" as="xs:string"/>
+    <xsl:analyze-string select="$pattern" regex="''|'((?:[^']|'')*)'">
+      <xsl:matching-substring>
+        <xsl:sequence select="['q', if (. eq &quot;''&quot;) then &quot;'&quot;
+                                    else replace(regex-group(1), &quot;''&quot;, &quot;'&quot;)]"/>
+      </xsl:matching-substring>
+      <xsl:non-matching-substring>
+        <xsl:sequence select="['p', .]"/>
+      </xsl:non-matching-substring>
+    </xsl:analyze-string>
+  </xsl:function>
+
+  <!-- The XPath picture of the DecimalFormat pattern $pattern, as NumberPattern.picture compiles
+       it. Its quoted text holds no character a picture reads, so the quotes go; then the digits
+       and separators of each subpattern become po:number-digits of the positive one's. -->
+  <xsl:function name="po:number-picture" as="xs:string">
+    <xsl:param name="pattern" as="xs:string"/>
+    <xsl:variable name="text" as="xs:string"
+        select="string-join(po:pattern-runs($pattern) ! ?2)"/>
+    <xsl:variable name="number" as="xs:string"
+        select="replace(tokenize($text, ';')[1], '^[^#0,.]*([#0,.]+).*$', '$1', 's')"/>
+    <xsl:sequence select="replace($text, '[#0,.]+', po:number-digits($number))"/>
+  </xsl:function>
+
+  <!-- The picture's digits for $number, the digits and separators of a DecimalFormat subpattern,
+       as NumberPattern writes them: DecimalFormat's minimum of integer digits as 0s, at least one
+       when $number has no 0 but integer and fraction digits; with grouping, a separator after
+       every group of the size of the digits after the last one; then the fraction as it is. -->
+  <xsl:function name="po:number-digits" as="xs:string">
+    <xsl:param name="number" as="xs:string"/>
+    <xsl:variable name="integer" as="xs:string" select="substring-before($number || '.', '.')"/>
+    <xsl:variable name="zeros" as="xs:integer" select="
+        if (not(contains($number, '0')) and contains($number, '.') and $integer ne '') then 1
+        else string-length(replace($integer, '[^0]', ''))"/>
+    <xsl:variable name="grouping" as="xs:integer" select="
+        if (contains($integer, ',')) then string-length(replace($integer, '^.*,', '')) else 0"/>
+    <xsl:sequence select="string-join((
+        for $i in reverse(1 to max(($zeros, $grouping + 1)))
+        return (if ($i le $zeros) then '0' else '#',
+                if ($grouping gt 0 and $i gt 1 and ($i - 1) mod $grouping eq 0) then ',' else ()),
+        substring($number, string-length($integer) + 1)))"/>
+  </xsl:function>
 </xsl:stylesheet>

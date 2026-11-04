@@ -81,6 +81,26 @@
     ],
     "portable": true
   },
+  "formatNum": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "pattern",
+        "syntax": "numberPattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
   "greater": {
     "executionKind": "single",
     "fidelity": {

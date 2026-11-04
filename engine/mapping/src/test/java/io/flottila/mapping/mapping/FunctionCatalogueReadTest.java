@@ -67,7 +67,7 @@ class FunctionCatalogueReadTest {
             new Entry(
                 ExecutionKind.SINGLE,
                 List.of(),
-                List.of(new Param("value", "", Optional.empty()))));
+                List.of(new Param("value", "", Optional.empty(), Optional.empty()))));
     // witness: an entry with inputs loads them, in order
     assertThat(entries.get("useOneAsMany"))
         .isEqualTo(
@@ -100,7 +100,26 @@ class FunctionCatalogueReadTest {
                     List.of("queue"),
                     List.of(
                         new Param(
-                            "order", "ascending", Optional.of(List.of("ascending", "descending"))),
-                        new Param("default", "", Optional.empty())))));
+                            "order",
+                            "ascending",
+                            Optional.of(List.of("ascending", "descending")),
+                            Optional.empty()),
+                        new Param("default", "", Optional.empty(), Optional.empty())))));
+  }
+
+  /** A string param with a {@code syntax} loads it (ADR-0026, #74), and takes no values list. */
+  @Test
+  void aParamWithASyntaxLoadsIt() throws Exception {
+    String catalogue =
+        """
+        {"formatLike": {"executionKind": "single", "family": "arithmetic",
+          "fidelity": {"level": "exact"}, "inputs": [{"name": "value"}],
+          "params": [{"default": "0", "name": "pattern", "syntax": "numberPattern",
+                      "type": "string"}],
+          "portable": true}}
+        """;
+
+    assertThat(FunctionCatalogue.read(catalogue.getBytes(UTF_8)).get("formatLike").params())
+        .containsExactly(new Param("pattern", "0", Optional.empty(), Optional.of("numberPattern")));
   }
 }

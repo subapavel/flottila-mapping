@@ -48,13 +48,17 @@ export interface CatalogueInput {
   name: Id;
 }
 /**
- * A string param: it takes its values only, or any string when it has none.
+ * A string param: it takes its values only, the patterns of its syntax only, or any string when it has neither.
  */
 export interface StringParam {
   name: Id;
   type: "string";
   default: string;
   values?: string[];
+  /**
+   * The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.
+   */
+  syntax?: "numberPattern";
 }
 export interface TableParam {
   name: Id;
