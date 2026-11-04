@@ -20,7 +20,7 @@ import java.util.Map;
 public final class Tracer {
 
   /** One report of a traced compile. */
-  public sealed interface Report permits Value, Occurrences {}
+  public sealed interface Report permits Value, Occurrences, Atomic {}
 
   /**
    * A box's evaluation: the queue it gave.
@@ -29,6 +29,15 @@ public final class Tracer {
    * @param queue the queue it gave
    */
   public record Value(AuthoringId box, QueueBlock queue) implements Report {}
+
+  /**
+   * A box's evaluation that gave a single value (ADR-0015 {@code {atomic}}, #83), such as a {@code
+   * constant}'s.
+   *
+   * @param box the box's authoring id
+   * @param value the value it gave
+   */
+  public record Atomic(AuthoringId box, String value) implements Report {}
 
   /**
    * A traced {@code TargetSlots} under one parent slot (ADR-0006 since #53), reported before its
@@ -53,6 +62,10 @@ public final class Tracer {
 
   void value(AuthoringId box, QueueBlock queue) {
     report(new Value(box, queue));
+  }
+
+  void atomic(AuthoringId box, String value) {
+    report(new Atomic(box, value));
   }
 
   void occurrences(AuthoringId field, long parentSlot, QueueBlock queue, long min, long max) {

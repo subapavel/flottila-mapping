@@ -32,6 +32,20 @@ interface Node {
   }
 
   /**
+   * A {@code Literal}: its string, which a binder may read once, when it binds a call over it, as
+   * {@code fixValues} decodes its table (ADR-0026 "Table params", #83).
+   *
+   * @param value the literal's string
+   */
+  record Literal(String value) implements OfString {
+
+    @Override
+    public String eval(Frame frame) {
+      return value;
+    }
+  }
+
+  /**
    * {@code TargetSlots} (ADR-0006 "Target fields", refined by #52): the body once per created slot
    * of context {@code p} of the queue, where {@code p} is the parent's slot number, with the slot's
    * number and value in their frame slots. A slot number is the slot's index across all contexts of

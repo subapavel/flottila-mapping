@@ -31,8 +31,9 @@ import java.util.Map;
  * projection plan, a context or single-value function is bound by its name once per call site
  * (ADR-0025), and nothing is looked up by name while a mapping runs. A traced compile reports every
  * source queue, context function call and {@code Lift} it evaluates to the run's tracer, at its
- * box, and each {@code TargetSlots}' occurrences per parent slot, at its target field mapping; an
- * untraced compile has no hook at all.
+ * box, every single-value call but a {@code Lift}'s body as the box's single value (#83), and each
+ * {@code TargetSlots}' occurrences per parent slot, at its target field mapping; an untraced
+ * compile has no hook at all.
  */
 public final class Interpreter {
 
@@ -89,11 +90,11 @@ public final class Interpreter {
     return switch (expr) {
       case SourceQueue q -> queue(q);
       case VarRef v -> variable(v, scope.get(v.name()));
-      case Literal l -> constant(l.value());
+      case Literal l -> new Node.Literal(l.value());
       case FunCall c ->
           switch (c.function().resultType()) {
             case QueueType _ -> call(c, scope);
-            case AtomicType _ -> singleValueCall(c, scope);
+            case AtomicType _ -> tracedValue(c.origin(), singleValueCall(c, scope));
           };
       case Lift l -> lift(l, scope);
       case TargetSlots s -> slots(s, scope);
@@ -102,7 +103,7 @@ public final class Interpreter {
           new Node.Element(
               e.prefix(), e.name().namespace(), e.name().localName(), contents(e.content(), scope));
       case TextConstructor t -> text((Node.OfString) compile(t.value(), scope));
-      case AtomicToQueue a -> throw new UnsupportedOperationException("#83");
+      case AtomicToQueue a -> atomicToQueue((Node.OfString) compile(a.value(), scope));
     };
   }
 
@@ -141,8 +142,9 @@ public final class Interpreter {
   }
 
   /**
-   * A call of a single-value function, its args' string nodes bound by the function's name. It
-   * gives a string, not a queue, so it is not traced: the {@code Lift} around it is (ADR-0006).
+   * A call of a single-value function, its args' string nodes bound by the function's name. The
+   * node is not traced: a call that is a box's single value is traced around it, at its box, and a
+   * call that is a {@code Lift}'s body is the {@code Lift}'s, which traces its queue (ADR-0006).
    */
   private Node.OfString singleValueCall(FunCall c, Map<String, Integer> scope) {
     List<Node.OfString> args = new ArrayList<>();
@@ -166,7 +168,11 @@ public final class Interpreter {
       slotVars[k] = stringSlotCount++;
       slots.put(l.slotVars().get(k), slotVars[k]);
     }
-    Node.OfString body = (Node.OfString) compile(l.body(), slots);
+    // the body's call is the Lift's own box, which the Lift traces as a queue
+    Node.OfString body =
+        l.body() instanceof FunCall c
+            ? singleValueCall(c, slots)
+            : (Node.OfString) compile(l.body(), slots);
     return traced(
         l.origin(),
         frame -> {
@@ -197,8 +203,27 @@ public final class Interpreter {
     };
   }
 
-  private static Node.OfString constant(String value) {
-    return frame -> value;
+  /**
+   * {@code node}, a box's single value, which reports each value it gives at {@code box} when the
+   * compile is traced (ADR-0015 {@code {atomic}}, #83).
+   */
+  private Node.OfString tracedValue(AuthoringId box, Node.OfString node) {
+    if (!traced) {
+      return node;
+    }
+    return frame -> {
+      String value = node.eval(frame);
+      frame.tracer.atomic(box, value);
+      return value;
+    };
+  }
+
+  /**
+   * An {@code AtomicToQueue} (ADR-0006 since #83): one context holding its value. It is not traced;
+   * its value is, at its own box.
+   */
+  private static Node.OfQueue atomicToQueue(Node.OfString value) {
+    return frame -> QueueBlock.of(new String[] {value.eval(frame)}, new int[] {0, 1});
   }
 
   private static Node variable(VarRef v, int slot) {

@@ -62,7 +62,9 @@ import java.util.stream.Collectors;
  *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
  *       (ADR-0025), then the id of its function box, its origin, where the helper's declaration
  *       ends in the param {@code box}: a function that can raise a data error (ADR-0026). A {@code
- *       Literal} is an XPath string literal in apostrophes.
+ *       Literal} is an XPath string literal in apostrophes, a table param's text included
+ *       (ADR-0026). An {@code AtomicToQueue} is {@code [(value)]}, one context that holds its value
+ *       (ADR-0006 since #83).
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -174,6 +176,9 @@ public final class XsltExporter {
   private static final String LIFT =
       """
       po:lift((%s), function($in as xs:string*) as xs:string { let %s return %s })""";
+
+  /** An {@code AtomicToQueue}: one context that holds its value (ADR-0006 since #83). */
+  private static final String ATOMIC_TO_QUEUE = "[(%s)]";
 
   /** The {@code max} of a {@code TargetSlots} that is unbounded. */
   private static final String UNBOUNDED = "()";
@@ -345,7 +350,7 @@ public final class XsltExporter {
       case Literal l -> throw misplaced(l, "content");
       case FunCall c -> throw misplaced(c, "content");
       case Lift l -> throw misplaced(l, "content");
-      case AtomicToQueue a -> throw new UnsupportedOperationException("#83");
+      case AtomicToQueue a -> throw misplaced(a, "content");
     }
   }
 
@@ -372,7 +377,7 @@ public final class XsltExporter {
       case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
-      case AtomicToQueue a -> throw new UnsupportedOperationException("#83");
+      case AtomicToQueue a -> ATOMIC_TO_QUEUE.formatted(expression(a.value()));
     };
   }
 
