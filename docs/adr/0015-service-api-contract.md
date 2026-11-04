@@ -67,7 +67,8 @@ contract, and the editor ships with the service.
 - An atomic value (a single-value call with no queue input) is `{atomic: {type, value}}`.
 - The trace is an object keyed by `AuthoringId`, in first-report order (since #53, on the wire
   too). It holds every box that was evaluated.
-  Constants are not traced; the editor shows them from the model (ADR-0006). A box that was
+  `Literal`s are not traced; the editor shows them from the model (ADR-0006). Since #83 a `constant`
+  box is an atomic `FunCall` and is traced as `{atomic}`. A box that was
   never evaluated, because its field was never created, is absent.
 - A target field mapping's entry adds `occurrences`: per parent slot, the list of slots
   `{slot, status: created|suppressed|truncated}` (`truncated` = cut by `maxOccurs`), and any
