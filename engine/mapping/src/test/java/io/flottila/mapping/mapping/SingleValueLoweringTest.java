@@ -15,27 +15,36 @@ import static io.flottila.mapping.mapping.Models.table;
 import static io.flottila.mapping.mapping.Models.targetFieldMapping;
 import static io.flottila.mapping.mapping.Models.targetFieldMappings;
 import static io.flottila.mapping.mapping.Models.text;
+import static io.flottila.mapping.mapping.TestStructures.ADDRESS;
 import static io.flottila.mapping.mapping.TestStructures.ORDER;
 import static io.flottila.mapping.mapping.TestStructures.SKELETON;
 import static io.flottila.mapping.mapping.TestStructures.order;
 import static io.flottila.mapping.mapping.TestStructures.ref;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
+import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
+import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.structure.Occurrence;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -183,5 +192,114 @@ class SingleValueLoweringTest {
             Map.of(
                 id("t0"), new Occurrence(1, 1),
                 id("t1"), new Occurrence(0, Occurrence.UNBOUNDED)));
+  }
+
+  // --- the value of a generating field (ADR-0006 as amended by #83)
+
+  private static FunCall constant(String value, String box) {
+    return new FunCall(CONSTANT, List.of(new Literal(value, id(box))), id(box));
+  }
+
+  /**
+   * OrderId from a0, the structure field Address from the constant c1, and Address's leaf Street
+   * from the constant c2, so both generating shapes stand in one document.
+   */
+  private static TargetDocument generatingAddress() {
+    MappingModel model =
+        model(
+            ref(order()),
+            ref(order()),
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t0", "a0", boxes("a0", source(ORDER_ID))),
+                ADDRESS,
+                targetFieldMapping(
+                    "t1",
+                    "c1",
+                    boxes("c1", function("constant", inputs(), params("value", text("g"))))),
+                ADDRESS + "/Street",
+                targetFieldMapping(
+                    "t2",
+                    "c2",
+                    boxes("c2", function("constant", inputs(), params("value", text("s")))))),
+            Map.of());
+    return lowered(Lowering.lower(model, order(), order()));
+  }
+
+  /** Street's TargetRepeat as lowering gives it: one copy under Address, the value its text. */
+  private static TargetRepeat street() {
+    return new TargetRepeat(
+        1,
+        new VarRef("slot2", AtomicType.INTEGER, id("t2")),
+        "slot3",
+        Optional.empty(),
+        new ElementConstructor(
+            "",
+            new Name("", "Street"),
+            List.of(new TextConstructor(constant("s", "c2"), id("t2"))),
+            id("t2")),
+        id("t2"));
+  }
+
+  /** Address's TargetRepeat, under the root after OrderId. */
+  private static TargetRepeat address(TargetDocument document) {
+    return (TargetRepeat) document.content().getLast();
+  }
+
+  /**
+   * A structure field has no text, so the constant c1 stays on its TargetRepeat as its value, which
+   * each copy evaluates and never writes; Address's element holds its children only, Street's
+   * TargetRepeat. The IR verifier accepts it.
+   */
+  @Test
+  void aGeneratingStructureFieldKeepsItsValueOnItsTargetRepeatNotInItsElement() {
+    TargetDocument document = generatingAddress();
+
+    assertThat(address(document))
+        .isEqualTo(
+            new TargetRepeat(
+                1,
+                new VarRef("root", AtomicType.INTEGER, id("t1")),
+                "slot2",
+                Optional.of(constant("g", "c1")),
+                new ElementConstructor("", new Name("", "Address"), List.of(street()), id("t1")),
+                id("t1")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * A leaf keeps its value in its text, computed once per copy, and its TargetRepeat has none:
+   * Street under Address, from c2.
+   */
+  @Test
+  void aGeneratingLeafKeepsItsValueInItsTextOnly() {
+    ElementConstructor address = (ElementConstructor) address(generatingAddress()).body();
+
+    assertThat(address.content()).containsExactly(street());
+  }
+
+  /** An unmapped 2..2 Pair is created by a TargetRepeat with no value: nothing generates it. */
+  @Test
+  void anUnmappedRepeatHasNoValue() {
+    MappingModel model =
+        model(
+            ref(TestStructures.orders()),
+            ref(TestStructures.repeated()),
+            targetFieldMappings(
+                "/Doc/Pair/V",
+                targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order/Tag")))),
+            Map.of());
+
+    TargetDocument document =
+        lowered(Lowering.lower(model, TestStructures.orders(), TestStructures.repeated()));
+
+    assertThat(document.content())
+        .singleElement()
+        .isInstanceOfSatisfying(
+            TargetRepeat.class,
+            pair -> {
+              assertThat(pair.origin()).isEqualTo(new AuthoringId("/Doc/Pair"));
+              assertThat(pair.value()).isEmpty();
+            });
   }
 }

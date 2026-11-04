@@ -42,9 +42,10 @@ import java.util.stream.IntStream;
  * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, in its
  * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). One
  * whose {@code result} gives a single value, a generating function, becomes {@code TargetRepeat} of
- * {@code max(1, minOccurs)} copies at the target field mapping (ADR-0006 since #83). An unmapped
- * structure field whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code
- * TargetRepeat} of n copies, whatever is mapped below it, an unmapped optional field is left out
+ * {@code max(1, minOccurs)} copies at the target field mapping, the value in a leaf's text or, on a
+ * structure field, the {@code TargetRepeat}'s value (ADR-0006 since #83). An unmapped structure
+ * field whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code TargetRepeat}
+ * of n copies with no value, whatever is mapped below it, an unmapped optional field is left out
  * with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
  * slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value variable
  * {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or the
@@ -694,16 +695,21 @@ public final class Lowering {
    * The {@code TargetRepeat} of the mapped field at {@code path}, whose target field mapping is a
    * generating function, a single value (ADR-0006 "generating function" since #83): {@code max(1,
    * minOccurs)} copies of its element per parent occurrence, whatever its {@code maxOccurs}, its
-   * slot-number variable by its depth, and the target field mapping as the origin. A leaf's element
-   * holds the value itself, so it is computed once per copy.
+   * slot-number variable by its depth, and the target field mapping as the origin. The value is
+   * computed once per copy: a leaf's element holds it as its text, and a structure field, which has
+   * none, keeps it as the {@code TargetRepeat}'s value, its element holding its children only
+   * (ADR-0006 as amended by #83).
    */
   private TargetRepeat generated(FieldPath path, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
     AuthoringId origin = link.mapping();
+    Optional<Expr> value =
+        link.field().valueType().isPresent() ? Optional.empty() : Optional.of(link.value());
     return new TargetRepeat(
         Math.max(1, link.field().occurrence().min()),
         new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
         SLOT + depth,
+        value,
         element(path, link, link.value(), links),
         origin);
   }
