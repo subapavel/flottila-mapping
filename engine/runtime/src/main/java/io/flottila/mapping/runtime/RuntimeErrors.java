@@ -3,8 +3,9 @@ package io.flottila.mapping.runtime;
 /**
  * The codes of the runtime errors a mapping run raises from its data (ADR-0006, ADR-0015, ADR-0025
  * since #52): error QNames, the same names the export raises. A context function has one, {@code
- * po:<catalogue name upper-cased>}, whichever of its conditions fails. A test run's limit, {@code
- * flottila:TIMEOUT}, is not one of them.
+ * po:<catalogue name upper-cased>}, whichever of its conditions fails; a standard function's data
+ * error is the W3C code the export raises too ({@code err:FORG0001}, {@code err:FOAR0001}, ADR-0025
+ * "Names and fidelity"). A test run's limit, {@code flottila:TIMEOUT}, is not one of them.
  */
 public final class RuntimeErrors {
 
@@ -25,6 +26,9 @@ public final class RuntimeErrors {
 
   /** A function meets a value that is no number (or date), or has no number as its result. */
   public static final String FORG0001 = "err:FORG0001";
+
+  /** {@code divide} or {@code inv} by zero, at its box. */
+  public static final String FOAR0001 = "err:FOAR0001";
 
   private RuntimeErrors() {}
 }

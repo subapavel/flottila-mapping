@@ -89,12 +89,17 @@ class FamilyLocalityTest {
   /**
    * The files of {@code sources} that name {@code name}: {@code "name"}, or {@code po:name} not
    * followed by a name character, so that {@code po:sortByKey} and {@code po:sort-key} are no
-   * mention of {@code sort}.
+   * mention of {@code sort}. The {@code name} attribute of an {@code xsl:param} or {@code
+   * xsl:with-param} is a variable's name, no mention (core.xsl's {@code $max} and {@code $min}).
    */
   static List<String> mentions(Map<String, String> sources, String name) {
     Pattern mention =
         Pattern.compile(
-            "\"" + Pattern.quote(name) + "\"|po:" + Pattern.quote(name) + "(?![\\w.-])");
+            "(?<!<xsl:param name=)(?<!<xsl:with-param name=)\""
+                + Pattern.quote(name)
+                + "\"|po:"
+                + Pattern.quote(name)
+                + "(?![\\w.-])");
     return sources.entrySet().stream()
         .filter(source -> mention.matcher(source.getValue()).find())
         .map(Map.Entry::getKey)
@@ -124,6 +129,16 @@ class FamilyLocalityTest {
             "d/Other.java", "sorted(\"sortByKey\")");
     assertThat(new TreeSet<>(mentions(sample, "sort")))
         .containsExactly("a/Binding.java", "c/sort.xsl");
+    // witness: a param's name is no mention of the function of that name, a real foreign mention is
+    Map<String, String> params =
+        Map.of(
+            "core.xsl", "<xsl:param name=\"max\" as=\"xs:integer?\"/>",
+            "core2.xsl", "<xsl:with-param name=\"max\" select=\"1\"/>",
+            "text.xsl", "select=\"po:max($a, $b)\"",
+            "Text.java", "case \"max\" ->",
+            "cat.json", "\"max\": {");
+    assertThat(new TreeSet<>(mentions(params, "max")))
+        .containsExactly("Text.java", "cat.json", "text.xsl");
     // witness: a family's files are its own four, and nothing else is
     assertThat(ownFile(CATALOGUE_DIR + "/context.json", "context")).isTrue();
     assertThat(ownFile(HELPER_DIR + "/context.xsl", "context")).isTrue();

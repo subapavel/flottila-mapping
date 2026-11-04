@@ -96,4 +96,108 @@
                               math:sqrt(xs:double(po:math-number('sqrt', $value, $box))), $box)"
         xmlns:math="http://www.w3.org/2005/xpath-functions/math"/>
   </xsl:function>
+
+  <!-- $a div $b, as the runtime's ArithmeticFamily.quotient does by ADR-0005 (Saxon-HE's rule):
+       exact when it terminates, else a scale of max(18, ...) digits. Zero is err:FOAR0001 at
+       $box. -->
+  <xsl:function name="po:arithmetic-quotient" as="xs:string">
+    <xsl:param name="a" as="xs:decimal"/>
+    <xsl:param name="b" as="xs:decimal"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="
+        if ($b eq 0)
+        then po:data-error(xs:QName('err:FOAR0001'), $box, 'division by zero')
+        else string($a div $b)"/>
+  </xsl:function>
+
+  <xsl:function name="po:add" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(po:math-number('add', $a, $box) + po:math-number('add', $b, $box))"/>
+  </xsl:function>
+
+  <xsl:function name="po:subtract" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(po:math-number('subtract', $a, $box) - po:math-number('subtract', $b, $box))"/>
+  </xsl:function>
+
+  <xsl:function name="po:multiply" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(po:math-number('multiply', $a, $box) * po:math-number('multiply', $b, $box))"/>
+  </xsl:function>
+
+  <xsl:function name="po:divide" as="xs:string">
+    <xsl:param name="dividend" as="xs:string"/>
+    <xsl:param name="divisor" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:arithmetic-quotient(po:math-number('divide', $dividend, $box),
+                                                 po:math-number('divide', $divisor, $box), $box)"/>
+  </xsl:function>
+
+  <xsl:function name="po:equalsA" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(po:math-number('equalsA', $a, $box) eq po:math-number('equalsA', $b, $box))"/>
+  </xsl:function>
+
+  <xsl:function name="po:greater" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(po:math-number('greater', $a, $box) gt po:math-number('greater', $b, $box))"/>
+  </xsl:function>
+
+  <xsl:function name="po:less" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(po:math-number('less', $a, $box) lt po:math-number('less', $b, $box))"/>
+  </xsl:function>
+
+  <xsl:function name="po:max" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(max((po:math-number('max', $a, $box), po:math-number('max', $b, $box))))"/>
+  </xsl:function>
+
+  <xsl:function name="po:min" as="xs:string">
+    <xsl:param name="a" as="xs:string"/>
+    <xsl:param name="b" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(min((po:math-number('min', $a, $box), po:math-number('min', $b, $box))))"/>
+  </xsl:function>
+
+  <xsl:function name="po:abs" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(abs(po:math-number('abs', $value, $box)))"/>
+  </xsl:function>
+
+  <xsl:function name="po:neg" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="string(-po:math-number('neg', $value, $box))"/>
+  </xsl:function>
+
+  <!-- inv: 1 div the value, by the quotient rule (an assumed reading). -->
+  <xsl:function name="po:inv" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="po:arithmetic-quotient(1.0, po:math-number('inv', $value, $box), $box)"/>
+  </xsl:function>
+
+  <xsl:function name="po:sign" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="
+        let $v := po:math-number('sign', $value, $box)
+        return if ($v gt 0) then '1' else if ($v lt 0) then '-1' else '0'"/>
+  </xsl:function>
 </xsl:stylesheet>
