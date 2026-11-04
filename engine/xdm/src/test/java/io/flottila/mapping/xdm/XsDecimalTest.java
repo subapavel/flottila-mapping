@@ -6,8 +6,8 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.random.RandomGenerator;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -15,8 +15,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * The one number rule of the standard functions (#82, ADR-0005): the {@code xs:decimal} lexical
  * form, XML whitespace (space, tab, line feed, return) around it ignored, as the export's cast
- * reads it. The property test (ADR-0018) is a seeded loop, without jqwik: 2000 seeded texts over
- * the characters the rule turns on, against a reference reader written here.
+ * reads it. The property test (ADR-0018) is parameterised by seed, without jqwik: 200 seeds of 10
+ * texts each over the characters the rule turns on, against a reference reader written here.
  */
 class XsDecimalTest {
 
@@ -95,10 +95,15 @@ class XsDecimalTest {
     '0', '1', '9', '+', '-', '.', ' ', '\t', '\r', '\n', 'e', '\f', ' '
   };
 
-  @Test
-  void seededTextsAreReadAsTheReferenceReadsThem() {
-    RandomGenerator random = new SplittableRandom(82);
-    for (int i = 0; i < 2000; i++) {
+  static LongStream seeds() {
+    return LongStream.rangeClosed(1, 200);
+  }
+
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("seeds")
+  void seededTextsAreReadAsTheReferenceReadsThem(long seed) {
+    RandomGenerator random = new SplittableRandom(seed);
+    for (int i = 0; i < 10; i++) {
       StringBuilder text = new StringBuilder();
       int length = random.nextInt(8);
       for (int k = 0; k < length; k++) {
