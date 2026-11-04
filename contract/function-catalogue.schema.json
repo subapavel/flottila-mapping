@@ -99,8 +99,8 @@
           }
         },
         "syntax": {
-          "description": "The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.",
-          "enum": ["numberPattern"]
+          "description": "The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern, datePattern a java.text.SimpleDateFormat pattern.",
+          "enum": ["numberPattern", "datePattern"]
         }
       }
     },

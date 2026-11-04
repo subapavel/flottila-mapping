@@ -56,9 +56,9 @@ export interface StringParam {
   default: string;
   values?: string[];
   /**
-   * The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.
+   * The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern, datePattern a java.text.SimpleDateFormat pattern.
    */
-  syntax?: "numberPattern";
+  syntax?: "numberPattern" | "datePattern";
 }
 export interface TableParam {
   name: Id;

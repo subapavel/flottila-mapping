@@ -39,6 +39,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -74,7 +75,9 @@ public class MappingsResource {
 
   private final Workspace workspace;
   private final ObjectMapper json;
-  private final EngineFacade facade = new EngineFacade();
+
+  /** The engine, whose runs take their time in {@code flottila.mapping.time-zone} (#80). */
+  private final EngineFacade facade;
 
   /** {@code flottila.mapping.test-timeout}: how long a test run may take (ADR-0014). */
   private final Duration timeout;
@@ -88,6 +91,7 @@ public class MappingsResource {
     this.json = json;
     this.timeout = config.getValue("flottila.mapping.test-timeout", Duration.class);
     this.traceLimit = ServiceConfig.traceLimit(config);
+    this.facade = new EngineFacade(Clock.system(ServiceConfig.timeZone(config)));
   }
 
   /** The workspace's mappings, sorted by id. */

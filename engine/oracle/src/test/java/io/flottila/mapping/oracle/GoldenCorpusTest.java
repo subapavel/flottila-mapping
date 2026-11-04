@@ -71,7 +71,7 @@ class GoldenCorpusTest {
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
     Path base = mapping.getParent();
-    EngineFacade facade = new EngineFacade();
+    EngineFacade facade = c.facade();
 
     if (expectsRuntimeError(c)) {
       // a runtime error: every variant compiles, and its run raises the code at the authoring id
@@ -181,7 +181,7 @@ class GoldenCorpusTest {
   private static void checkTrace(CorpusCase c) throws Exception {
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
-    EngineFacade facade = new EngineFacade();
+    EngineFacade facade = c.facade();
     CompileResult compiled = facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN);
     if (!(compiled instanceof CompileResult.Compiled(CompiledMapping tested))) {
       throw new AssertionError(c.id() + ": expected Compiled, got " + compiled);

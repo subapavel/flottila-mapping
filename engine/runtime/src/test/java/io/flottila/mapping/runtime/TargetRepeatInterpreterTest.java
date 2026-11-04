@@ -23,6 +23,7 @@ import io.flottila.mapping.ir.VarRef;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -36,6 +37,9 @@ import org.junit.jupiter.api.Test;
  * "Target fields", ADR-0008; #63), with IR built by hand as lowering gives it.
  */
 class TargetRepeatInterpreterTest {
+
+  /** The time every run of this class starts at; no function here reads it. */
+  private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-04T12:00:00Z");
 
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
   private static final long UNBOUNDED = Long.MAX_VALUE;
@@ -98,7 +102,7 @@ class TargetRepeatInterpreterTest {
   private static String run(TargetDocument document, String input) throws Exception {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     Interpreter.compile(document, false)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer(), NOW);
     return out.toString(UTF_8);
   }
 
@@ -155,9 +159,12 @@ class TargetRepeatInterpreterTest {
 
     Interpreter.compile(document, false)
         .run(
-            new ByteArrayInputStream(INPUT.getBytes(UTF_8)), new ByteArrayOutputStream(), untraced);
+            new ByteArrayInputStream(INPUT.getBytes(UTF_8)),
+            new ByteArrayOutputStream(),
+            untraced,
+            NOW);
     Interpreter.compile(document, true)
-        .run(new ByteArrayInputStream(INPUT.getBytes(UTF_8)), out, tracer);
+        .run(new ByteArrayInputStream(INPUT.getBytes(UTF_8)), out, tracer, NOW);
 
     assertThat(untraced.reports()).isEmpty();
     assertThat(out.toString(UTF_8)).isEqualTo(run(document, INPUT));
@@ -239,7 +246,7 @@ class TargetRepeatInterpreterTest {
       throws Exception {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     Interpreter.compile(document, traced)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer);
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer, NOW);
     return out.toString(UTF_8);
   }
 
@@ -389,7 +396,10 @@ class TargetRepeatInterpreterTest {
               () ->
                   Interpreter.compile(twins, false)
                       .run(
-                          new ByteArrayInputStream("<Orders/>".getBytes(UTF_8)), out, new Tracer()))
+                          new ByteArrayInputStream("<Orders/>".getBytes(UTF_8)),
+                          out,
+                          new Tracer(),
+                          NOW))
           .isInstanceOf(CancellationException.class);
     } finally {
       Thread.interrupted();

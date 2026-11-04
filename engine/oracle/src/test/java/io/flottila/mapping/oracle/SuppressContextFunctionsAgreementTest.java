@@ -202,7 +202,8 @@ class SuppressContextFunctionsAgreementTest {
 
   private static byte[] ours(TargetDocument document, byte[] input) throws Exception {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    Interpreter.compile(document, false).run(new ByteArrayInputStream(input), out, new Tracer());
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(input), out, new Tracer(), CaseFiles.DEFAULT_NOW);
     return out.toByteArray();
   }
 
