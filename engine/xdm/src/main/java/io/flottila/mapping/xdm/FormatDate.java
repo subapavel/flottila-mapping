@@ -58,8 +58,11 @@ public final class FormatDate {
    */
   public static String format(OffsetDateTime value, String picture) {
     StringBuilder out = new StringBuilder();
-    for (String[] token : tokens(picture)) {
-      out.append(token[1] == null ? token[0] : component(value, token[1], picture));
+    for (Token token : tokens(picture)) {
+      out.append(
+          token.component() == null
+              ? token.literal()
+              : component(value, token.component(), picture));
     }
     return out.toString();
   }
@@ -75,16 +78,16 @@ public final class FormatDate {
   public static Optional<OffsetDateTime> parse(String text, String picture, ZoneOffset implicit) {
     StringBuilder regex = new StringBuilder();
     List<String> components = new ArrayList<>();
-    for (String[] token : tokens(picture)) {
-      if (token[1] == null) {
-        regex.append(Pattern.quote(token[0]));
+    for (Token token : tokens(picture)) {
+      if (token.component() == null) {
+        regex.append(Pattern.quote(token.literal()));
       } else {
-        String digits = DIGITS.get(token[1]);
+        String digits = DIGITS.get(token.component());
         if (digits == null) {
           throw unknown(picture);
         }
         regex.append('(').append(digits).append(')');
-        components.add(token[1]);
+        components.add(token.component());
       }
     }
     Matcher m = Pattern.compile(regex.toString()).matcher(text);
@@ -137,9 +140,17 @@ public final class FormatDate {
     return Optional.of(ZoneOffset.ofHoursMinutes(sign * hours, sign * minutes));
   }
 
-  /** The tokens of {@code picture}: {literal text, null} or {null-free text, component name}. */
-  private static List<String[]> tokens(String picture) {
-    List<String[]> tokens = new ArrayList<>();
+  /**
+   * One token of a picture: literal text, an escaped bracket as the bracket itself, or a component.
+   *
+   * @param literal the text the token writes when it is literal; a component's own text otherwise
+   * @param component the component's name, such as {@code Y0001}, or null for literal text
+   */
+  private record Token(String literal, String component) {}
+
+  /** The tokens of {@code picture}, in order. */
+  private static List<Token> tokens(String picture) {
+    List<Token> tokens = new ArrayList<>();
     Matcher m = TOKEN.matcher(picture);
     int end = 0;
     while (m.find()) {
@@ -147,8 +158,7 @@ public final class FormatDate {
         throw unknown(picture);
       }
       String text = m.group();
-      tokens.add(
-          new String[] {text.equals("[[") ? "[" : text.equals("]]") ? "]" : text, m.group(1)});
+      tokens.add(new Token(text.equals("[[") ? "[" : text.equals("]]") ? "]" : text, m.group(1)));
       end = m.end();
     }
     if (end != picture.length()) {
