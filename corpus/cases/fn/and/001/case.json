@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/boolean-and.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 and spec #70 (only the exact text true is true, results are true or false); obs-boolean row and/001",
+  "expect": "output",
+  "note": "and is true only when both inputs are the exact text true: true/true true; true/false false; TRUE/true false; empty/true false; 1/1 false."
+}

@@ -1,0 +1,104 @@
+{
+  "and": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "equals": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "if": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "condition"
+      },
+      {
+        "name": "then"
+      },
+      {
+        "name": "else"
+      }
+    ],
+    "portable": true
+  },
+  "isNil": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "not": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "notEquals": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "or": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  }
+}
