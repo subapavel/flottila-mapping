@@ -101,6 +101,11 @@ class FunctionCatalogueSchemaTest {
       "{\"name\": \"order\", \"type\": \"string\", \"default\": \"ascending\","
           + " \"values\": [\"ascending\", \"descending\"]}";
 
+  /** A string param that takes the number patterns lowering translates (ADR-0026, #74). */
+  private static final String PATTERN_PARAM =
+      "{\"name\": \"pattern\", \"type\": \"string\", \"default\": \"0\","
+          + " \"syntax\": \"numberPattern\"}";
+
   /** A table param, whose keys are source values. */
   private static final String TABLE_PARAM =
       "{\"name\": \"mapping\", \"type\": \"table\", \"default\": {\"DE\": \"Germany\", \"x y\": \"\"}}";
@@ -142,6 +147,19 @@ class FunctionCatalogueSchemaTest {
         accepted("a string param that takes only its values", withParams("[" + VALUES_PARAM + "]")),
         accepted(
             "a table param, whose keys are source values", withParams("[" + TABLE_PARAM + "]")),
+        accepted(
+            "a string param in the syntax numberPattern (ADR-0026, #74)",
+            withParams("[" + PATTERN_PARAM + "]")),
+        refused(
+            "a string param with a syntax and values",
+            withParams("[" + PATTERN_PARAM.replace("}", ", \"values\": [\"0\", \"0.00\"]}") + "]")),
+        refused(
+            "a syntax that is none",
+            withParams("[" + PATTERN_PARAM.replace("numberPattern", "regex") + "]")),
+        refused(
+            "a table param with a syntax",
+            withParams(
+                "[" + TABLE_PARAM.replaceFirst("}$", ", \"syntax\": \"numberPattern\"}") + "]")),
         accepted(
             "a string param and a table param",
             withParams("[" + VALUES_PARAM + ", " + TABLE_PARAM + "]")),

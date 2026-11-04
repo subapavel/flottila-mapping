@@ -26,11 +26,13 @@ import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetSlots;
+import io.flottila.mapping.ir.VarRef;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -274,5 +276,35 @@ class FunctionBoxLoweringTest {
     assertThat(refused(lowerNote(box)))
         .as(why)
         .containsExactly(errorAtId("invalid-parameter-value", "f1"));
+  }
+
+  // --- formatNum (#74): its pattern is a param of the syntax numberPattern (ADR-0026), which takes
+  // only the DecimalFormat patterns the formatting core translates to an XPath picture
+
+  @Test
+  void aNumberPatternParamKeepsTheAuthorsStringAsItsLiteral() {
+    StandardFunctionBox box = function("formatNum", inputs("a1"), params("pattern", text("#.##")));
+
+    // the core would write the picture 0.##; the Literal keeps what the author wrote
+    assertThat(loweredQueue(lowerNote(box)))
+        .isInstanceOfSatisfying(
+            Lift.class,
+            lift ->
+                assertThat(((FunCall) lift.body()).args())
+                    .containsExactly(
+                        new VarRef("in1", AtomicType.STRING, id("f1")),
+                        new Literal("#.##", id("f1"))));
+  }
+
+  @Test
+  void aNumberPatternWithoutAPictureIsInvalidParameterValueNamingItsElement() {
+    LowerResult result =
+        lowerNote(function("formatNum", inputs("a1"), params("pattern", text("0.00E0"))));
+
+    assertThat(refused(result)).containsExactly(errorAtId("invalid-parameter-value", "f1"));
+    assertThat(((Refused) result).diagnostics().getFirst().message())
+        .isEqualTo(
+            "the parameter pattern of formatNum: the number pattern \"0.00E0\" has no XPath"
+                + " picture: the exponent E");
   }
 }

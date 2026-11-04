@@ -13,6 +13,7 @@
       {
         "default": "0",
         "name": "pattern",
+        "syntax": "numberPattern",
         "type": "string"
       }
     ],
