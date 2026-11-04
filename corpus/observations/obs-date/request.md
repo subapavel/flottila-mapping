@@ -2,9 +2,10 @@
 
 Notation, what to return and the ESR / CPI naming: `../README.md`. Source: `src-orders.xsd` (root
 `Orders`). Target: `tgt-list.xsd` (root `Out`). The one request of the date family (spec #70,
-#80). Every mapping maps N1 -> `Out/All`; S1 is `Orders/Order/Line/Sku` and S2
-`Orders/Order/Line/Qty`, both with context `Orders`, so All has one value per Line. One run of an
-input answers every case that names it. Each case id is a directory under `corpus/cases/`.
+#80). Every mapping maps N1 -> `Out/All`, except the currentDate mappings that name another
+wire; S1 is `Orders/Order/Line/Sku` and S2 `Orders/Order/Line/Qty`, both with context `Orders`,
+so All has one value per Line. One run of an input answers every case that names it. Each case id
+is a directory under `corpus/cases/`.
 
 Say for each system the JVM's default time zone (it is the zone a date without an offset is read
 in, and the zone every date is written in), and whether the date functions parse leniently: our
@@ -51,3 +52,22 @@ Target wire: N1 -> `Out/All`.
 | `fn/compareDates/001` | `compareDates-001.xml` | `yyyyMMdd`, `yyyyMMdd` | The pairs 20261103 / 20261104, 20261104 / 20261104, 20261231 / 20260101: the result is -1, 0 or 1 (Date.compareTo). Ours: -1, 0, 1. Say if PO writes another number or text. |
 | `fn/compareDates/002` | `compareDates-002.xml` | `yyyy-MM-dd HH:mmXXX` both | The pairs 2026-11-04 10:00+02:00 / 2026-11-04 08:00Z, 2026-11-04 10:00+02:00 / 2026-11-04 08:01Z: dates are compared as instants. Ours: 0, -1. |
 | `fn/compareDates/004` | `compareDates-004.xml` | `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mmXXX` | The pairs 2026-11-04 09:30 / 2026-11-04 09:00Z, 2026-11-04 10:00 / 2026-11-04 09:00Z on a JVM whose zone is +01:00: date1 has no offset and is read in the JVM's zone. Ours: -1, 0; in UTC it would be 1, 1. |
+
+## Mappings current-date-nnn (currentDate)
+
+The run time cannot be fixed on PO or CPI: for each run, note the time the message was processed
+(the message monitor's start time, with its zone) and the JVM's default time zone, and compare.
+
+| Mapping | Boxes | Target wires |
+| --- | --- | --- |
+| `current-date` | N1 `CurrentDate` (format left as the editor proposes it) | N1 -> `Out/All` |
+| `current-date-time` | N1 `CurrentDate{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}` | N1 -> `Out/All` |
+| `current-date-item` | N1 `CurrentDate{yyyyMMdd}` | `Orders/Order` -> `Out/Item`; N1 -> `Out/Item/V` |
+| `current-date-concat` | N1 `CurrentDate{'@'HH:mm:ss.SSS}`; S2 `Orders/Order/Line/Sku` with context `Order`; F1 `concat`, in1 = S2, in2 = N1 | `Orders/Order` -> `Out/Item`; F1 -> `Out/Item/V` |
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/currentDate/001` | `currentDate-001.xml` | The default format: assumed yyyy/MM/dd, so one All with the run's date, 2026/01/01 for a run on that day. Say what the editor shows as the default. |
+| `fn/currentDate/002` | `currentDate-001.xml` | The run time to the millisecond, in the JVM's zone: ours, for a run at 2026-11-04T23:30:15.250-05:00, is 2026-11-04T23:30:15.250-05:00 (UTC would give 2026-11-05T04:30:15.250Z). Say whether the milliseconds are the run's start or 000. |
+| `fn/currentDate/003` | `currentDate-001.xml` | A generating function under a repeated parent: assumed one V per Item, all three Items, o2 without lines too, each the run's date in the JVM's zone (20261105 for a run at 2026-11-05T00:30:00+01:00). |
+| `fn/currentDate/004` | `currentDate-001.xml` | The time is fixed once per run: assumed a@t, b@t \| (empty) \| c@t with one t for the whole message, never two different times; an empty context stays empty. |
