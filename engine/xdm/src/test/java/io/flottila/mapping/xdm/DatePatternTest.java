@@ -35,6 +35,7 @@ class DatePatternTest {
           [yyyy]                        | [[[Y0001]]]
           '[x]' dd                      | [[x]] [D01]
           -/.,:; #0                     | -/.,:; #0
+          `{HH}~@_                      | `{[H01]}~@_
           """)
   void aPatternBecomesThePictureThatWritesAsItDoes(String pattern, String picture) {
     assertThat(DatePattern.picture(pattern)).isEqualTo(picture);
@@ -56,6 +57,9 @@ class DatePatternTest {
           HHX                | the field X of that length
           hh:mm a            | the pattern letter h
           EEE                | the pattern letter E
+          HH a               | the pattern letter a
+          HH z               | the pattern letter z
+          A                  | the pattern letter A
           'T'Tyyyy           | the pattern letter T
           dd.MM.yyyy dd      | the field d stands twice
           HHZXXX             | the field X stands twice
