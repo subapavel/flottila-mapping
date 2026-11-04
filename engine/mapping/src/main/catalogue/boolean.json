@@ -47,6 +47,32 @@
     ],
     "portable": true
   },
+  "ifWithoutElse": {
+    "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "condition"
+      },
+      {
+        "name": "then"
+      }
+    ],
+    "params": [
+      {
+        "default": "false",
+        "name": "keepSuppressValues",
+        "type": "string",
+        "values": [
+          "false",
+          "true"
+        ]
+      }
+    ],
+    "portable": true
+  },
   "isNil": {
     "executionKind": "single",
     "fidelity": {
