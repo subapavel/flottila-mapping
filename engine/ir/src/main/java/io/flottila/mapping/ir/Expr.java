@@ -16,7 +16,8 @@ public sealed interface Expr
         TargetSlots,
         TargetRepeat,
         ElementConstructor,
-        TextConstructor {
+        TextConstructor,
+        AtomicToQueue {
 
   /** The authoring element this node came from. */
   AuthoringId origin();

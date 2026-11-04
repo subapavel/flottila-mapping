@@ -56,6 +56,8 @@ class RuntimeErrorCoverageTest {
             "po:FORMATBYEXAMPLE",
             "po:SORT",
             "po:SORTBYKEY",
+            // #83: fixValues with missing = error, fn/fixValues/004
+            "po:FIXVALUES",
             "err:FORG0001",
             "err:FOAR0001")
         .doesNotContain("flottila:TIMEOUT");

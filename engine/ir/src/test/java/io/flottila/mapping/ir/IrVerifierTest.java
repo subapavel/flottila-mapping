@@ -327,6 +327,79 @@ class IrVerifierTest {
     assertRefused(document);
   }
 
+  // --- AtomicToQueue (ADR-0006 as amended by #83): a single value at a context or queue input is
+  // AtomicToQueue(value, origin), one context with one value, typed QUEUE over a STRING value
+
+  private static final AuthoringId Q1 = new AuthoringId("q1");
+
+  /** constant: no input, one string param, an atomic call. */
+  private static final FunctionRef CONSTANT =
+      new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING);
+
+  /** count: one queue input, no param. */
+  private static final FunctionRef COUNT = new FunctionRef("count", List.of(QUEUE), QUEUE);
+
+  /** A constant box's value at count's input: the atomic call, or its Literal once folded. */
+  @Test
+  void atomicToQueueTakesAStringAndIsAQueue() {
+    assertAccepted(over(call(COUNT, new AtomicToQueue(call(CONSTANT, literal("x")), Q1))));
+    assertAccepted(over(call(COUNT, new AtomicToQueue(literal("x"), Q1))));
+    // a context function's param stays a Literal: AtomicToQueue is an input, not a param
+    assertAccepted(
+        over(call(SPLIT_BY_VALUE, new AtomicToQueue(literal("x"), Q1), literal("eachValue"))));
+  }
+
+  static Stream<Arguments> atomicToQueueOfNoString() {
+    return Stream.of(
+        Arguments.of("over a source queue", over(call(COUNT, new AtomicToQueue(orderIds(), Q1)))),
+        Arguments.of(
+            "over a queue call",
+            over(call(COUNT, new AtomicToQueue(call(REMOVE_CONTEXTS, orderIds()), Q1)))),
+        Arguments.of(
+            "over an INTEGER, the root's slot number",
+            over(call(COUNT, new AtomicToQueue(rootSlot(), Q1)))));
+  }
+
+  /** The refusal names the AtomicToQueue and its origin, not the call around it. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("atomicToQueueOfNoString")
+  void atomicToQueueOfNoStringIsRefused(String why, TargetDocument document) {
+    // witness: the same call over AtomicToQueue of a string is accepted
+    assertAccepted(over(call(COUNT, new AtomicToQueue(literal("x"), Q1))));
+
+    assertThatThrownBy(() -> IrVerifier.verify(document))
+        .as(why)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("AtomicToQueue of q1");
+  }
+
+  /** AtomicToQueue is a queue, so it is no STRING where one belongs: a text, a single call. */
+  @Test
+  void atomicToQueueIsNoString() {
+    assertRefused(
+        document(
+            slots(
+                ORDER_ID,
+                orderIds(),
+                rootSlot(),
+                1,
+                1,
+                "v",
+                new AtomicToQueue(literal("x"), Q1),
+                T1)));
+    assertRefused(
+        over(
+            new Lift(
+                List.of(orderIds()),
+                List.of("in1"),
+                call(TRIM, new AtomicToQueue(literal("x"), Q1)),
+                R1)));
+    // witness: the Literal itself is a STRING in both places
+    assertAccepted(document(slots(ORDER_ID, orderIds(), rootSlot(), 1, 1, "v", literal("x"), T1)));
+    assertAccepted(
+        over(new Lift(List.of(orderIds()), List.of("in1"), call(TRIM, literal("x")), R1)));
+  }
+
   // --- slot variables (ADR-0006 since #52): a TargetSlots binds its occurrence's slot number,
   // an INTEGER, to slotVar in its body only, where it is the children's parentSlot
 

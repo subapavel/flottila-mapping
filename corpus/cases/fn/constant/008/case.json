@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/constant-empty.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 generating function (#83), assumed reading: a Constant without a value gives the empty string; obs-constant row fn/constant/008",
+  "expect": "output",
+  "note": "Constant with its value left empty on All: one All with empty text."
+}

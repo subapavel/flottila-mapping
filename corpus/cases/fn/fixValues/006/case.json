@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/fix-values-empty-table.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0026 \"Table params\" (#83), assumed reading: an empty table holds no key, so every key is missing; obs-constant row fn/fixValues/006",
+  "expect": "output",
+  "note": "FixValues with an empty table and the default value -: every Sku gives -."
+}

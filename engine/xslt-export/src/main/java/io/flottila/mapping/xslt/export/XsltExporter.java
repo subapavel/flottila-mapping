@@ -2,6 +2,7 @@ package io.flottila.mapping.xslt.export;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
@@ -46,7 +47,9 @@ import java.util.stream.Collectors;
  *       to its slot-number and value variables.
  *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
  *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
- *       slot number (ADR-0006; #63).
+ *       slot number (ADR-0006; #63). A generating structure field's value follows as {@code
+ *       <xsl:value-of select="substring(value, 1, 0)"/>}, a zero-length text that evaluates it
+ *       before the body (ADR-0006 as amended by #83).
  *   <li>Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
  *       since #52). A {@code TargetSlots} directly under the root is written outside any {@code
  *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
@@ -61,7 +64,9 @@ import java.util.stream.Collectors;
  *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
  *       (ADR-0025), then the id of its function box, its origin, where the helper's declaration
  *       ends in the param {@code box}: a function that can raise a data error (ADR-0026). A {@code
- *       Literal} is an XPath string literal in apostrophes.
+ *       Literal} is an XPath string literal in apostrophes, a table param's text included
+ *       (ADR-0026). An {@code AtomicToQueue} is {@code [(value)]}, one context that holds its value
+ *       (ADR-0006 since #83).
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -161,6 +166,12 @@ public final class XsltExporter {
   /** The occurrences of a {@code TargetRepeat}: its copies. */
   private static final String REPEAT = "1 to %d";
 
+  /**
+   * A generating structure field's value, which each copy of its {@code TargetRepeat} evaluates and
+   * writes as no text (ADR-0006 as amended by #83).
+   */
+  private static final String REPEAT_VALUE = "substring(%s, 1, 0)";
+
   /** The slot number of a {@code TargetRepeat}'s occurrence: its name, parent slot, copies. */
   private static final String REPEAT_SLOT_VARIABLE =
       """
@@ -173,6 +184,9 @@ public final class XsltExporter {
   private static final String LIFT =
       """
       po:lift((%s), function($in as xs:string*) as xs:string { let %s return %s })""";
+
+  /** An {@code AtomicToQueue}: one context that holds its value (ADR-0006 since #83). */
+  private static final String ATOMIC_TO_QUEUE = "[(%s)]";
 
   /** The {@code max} of a {@code TargetSlots} that is unbounded. */
   private static final String UNBOUNDED = "()";
@@ -320,6 +334,13 @@ public final class XsltExporter {
             depth + 1,
             REPEAT_SLOT_VARIABLE.formatted(
                 r.slotVar(), attribute(expression(r.parentSlot())), r.copies()));
+        r.value()
+            .ifPresent(
+                value ->
+                    line(
+                        out,
+                        depth + 1,
+                        VALUE_OF.formatted(attribute(REPEAT_VALUE.formatted(expression(value))))));
         instruction(r.body(), depth + 1, true, out);
         line(out, depth, END_FOR_EACH);
       }
@@ -344,6 +365,7 @@ public final class XsltExporter {
       case Literal l -> throw misplaced(l, "content");
       case FunCall c -> throw misplaced(c, "content");
       case Lift l -> throw misplaced(l, "content");
+      case AtomicToQueue a -> throw misplaced(a, "content");
     }
   }
 
@@ -370,6 +392,7 @@ public final class XsltExporter {
       case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
+      case AtomicToQueue a -> ATOMIC_TO_QUEUE.formatted(expression(a.value()));
     };
   }
 

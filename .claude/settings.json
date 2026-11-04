@@ -7,22 +7,12 @@
   },
   "autoCompactWindow": 400000,
   "permissions": {
-    "allow": [
-      "Bash(git fetch:*)",
-      "Bash(git pull:*)",
-      "Bash(git push origin:*)",
-      "Bash(git merge:*)",
-      "Bash(git commit:*)",
-      "Bash(git worktree:*)",
-      "Bash(gh api repos/subapavel/flottila-mapping/:*)",
-      "Bash(gh api -X POST repos/subapavel/flottila-mapping/:*)",
-      "Bash(gh api -X PATCH repos/subapavel/flottila-mapping/:*)",
-      "Bash(gh api -X PUT repos/subapavel/flottila-mapping/:*)",
-      "Bash(./mvnw:*)",
-      "Bash(scripts/:*)",
-      "Bash(bash scripts/:*)",
-      "Bash(npm ci:*)",
-      "Bash(npm run:*)"
+    "allow": ["Bash", "Read", "Edit", "Write", "WebFetch"],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf /:*)"
     ]
   },
   "subagentPromptCacheTtl": "1h",

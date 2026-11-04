@@ -3,12 +3,16 @@ package io.flottila.mapping.runtime;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
@@ -20,7 +24,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 
@@ -129,6 +137,50 @@ class TargetRepeatInterpreterTest {
   }
 
   /**
+   * #83: a traced TargetRepeat reports its copies under each parent slot at its origin, before its
+   * children report, and writes what the untraced one writes; the untraced one reports nothing. The
+   * Twins of Item 1 and Item 2, two each, so the Qtys under them run under slots 1, 2 and 3, 4.
+   */
+  @Test
+  void aTracedTargetRepeatReportsItsCopiesPerParentSlot() throws Exception {
+    TargetDocument document =
+        document(
+            items(
+                new SourceQueue(List.of(ORDERS, ORDER, ID), 1, new AuthoringId("a1")),
+                new TargetRepeat(
+                    2,
+                    integer("slot2", TWIN_ORIGIN),
+                    "slot3",
+                    new ElementConstructor("", TWIN, List.of(quantities()), TWIN_ORIGIN),
+                    TWIN_ORIGIN)));
+    Tracer untraced = new Tracer();
+    Tracer tracer = new Tracer();
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    Interpreter.compile(document, false)
+        .run(
+            new ByteArrayInputStream(INPUT.getBytes(UTF_8)),
+            new ByteArrayOutputStream(),
+            untraced,
+            NOW);
+    Interpreter.compile(document, true)
+        .run(new ByteArrayInputStream(INPUT.getBytes(UTF_8)), out, tracer, NOW);
+
+    assertThat(untraced.reports()).isEmpty();
+    assertThat(out.toString(UTF_8)).isEqualTo(run(document, INPUT));
+    assertThat(tracer.reports())
+        .filteredOn(Tracer.Repeat.class::isInstance)
+        .containsExactly(
+            new Tracer.Repeat(TWIN_ORIGIN, 1, 2), new Tracer.Repeat(TWIN_ORIGIN, 2, 2));
+    assertThat(tracer.reports())
+        .filteredOn(Tracer.FieldReport.class::isInstance)
+        .map(Tracer.FieldReport.class::cast)
+        .extracting(r -> r.field().value() + "@" + r.parentSlot())
+        .containsExactly(
+            "t1@1", "/Doc/Item/Twin@1", "t2@1", "t2@2", "/Doc/Item/Twin@2", "t2@3", "t2@4");
+  }
+
+  /**
    * The queue of the structure field Order holds one {@code ""} per occurrence (ADR-0008), so the
    * empty Order makes an Item too, and the descendants of Order are still read for the other queue.
    */
@@ -156,6 +208,144 @@ class TargetRepeatInterpreterTest {
     assertThat(run(document, INPUT))
         .isEqualTo(
             DECLARATION + "<Doc><Item><Id>o1</Id></Item><Item/><Item><Id>o3</Id></Item></Doc>");
+  }
+
+  // --- the value of a generating structure field (ADR-0006 as amended by #83)
+
+  private static final Name GEN = local("Gen");
+  private static final AuthoringId T3 = new AuthoringId("t3");
+  private static final AuthoringId C1 = new AuthoringId("c1");
+  private static final AuthoringId ADD = new AuthoringId("add1");
+
+  /** The constant c1 with {@code value}, an atomic FunCall at its box. */
+  private static FunCall constant(String value) {
+    return new FunCall(
+        new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING),
+        List.of(new Literal(value, C1)),
+        C1);
+  }
+
+  /**
+   * Item per Order Id (t1), and under each Item the structure field Gen {@code copies} times from
+   * the generating {@code value} (t3), holding Qty per slot of Qty's queue in context Line (t2).
+   */
+  private static TargetDocument generating(long copies, Expr value) {
+    return document(
+        items(
+            new SourceQueue(List.of(ORDERS, ORDER, ID), 1, new AuthoringId("a1")),
+            new TargetRepeat(
+                copies,
+                integer("slot2", T3),
+                "slot3",
+                Optional.of(value),
+                new ElementConstructor("", GEN, List.of(quantities()), T3),
+                T3)));
+  }
+
+  private static String run(TargetDocument document, String input, boolean traced, Tracer tracer)
+      throws Exception {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    Interpreter.compile(document, traced)
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer, NOW);
+    return out.toString(UTF_8);
+  }
+
+  /** A report in the order checked: Gen's copies, c1's value and Qty's parent slots only. */
+  private static String describe(Tracer.Report report) {
+    return switch (report) {
+      case Tracer.Repeat r ->
+          "repeat " + r.field().value() + "@" + r.parentSlot() + "x" + r.copies();
+      case Tracer.Atomic a -> "atomic " + a.box().value() + "=" + a.value();
+      case Tracer.Occurrences o when o.field().equals(T2) -> "qty@" + o.parentSlot();
+      case Tracer.Occurrences o -> null;
+      case Tracer.Value v -> null;
+    };
+  }
+
+  /**
+   * Seeded: for copies 1 to 4 and 0 to 5 Items, each Item reports Gen's copies, then per copy c1's
+   * value, before the copy's children: Qty under the copy's slot number (p - 1) * copies + j. So
+   * the value is evaluated once per copy, copies * Items times, never once per run, and the traced
+   * run writes what the untraced one writes. The Orders have 0 to 2 Lines, by the seed.
+   */
+  @Test
+  void aGeneratingStructureFieldReportsItsValueOncePerCopy() throws Exception {
+    Random random = new Random(83);
+    for (long copies = 1; copies <= 4; copies++) {
+      for (int parents = 0; parents <= 5; parents++) {
+        String value = "g" + random.nextInt(1000);
+        StringBuilder input = new StringBuilder("<Orders>");
+        for (int order = 1; order <= parents; order++) {
+          input.append("<Order><Id>o").append(order).append("</Id>");
+          for (int line = random.nextInt(3); line > 0; line--) {
+            input.append("<Line><Qty>").append(random.nextInt(10)).append("</Qty></Line>");
+          }
+          input.append("</Order>");
+        }
+        input.append("</Orders>");
+        List<String> expected = new ArrayList<>();
+        for (long p = 1; p <= parents; p++) {
+          expected.add("repeat t3@" + p + "x" + copies);
+          for (long j = 1; j <= copies; j++) {
+            expected.add("atomic c1=" + value);
+            expected.add("qty@" + ((p - 1) * copies + j));
+          }
+        }
+        TargetDocument document = generating(copies, constant(value));
+        Tracer tracer = new Tracer();
+
+        String traced = run(document, input.toString(), true, tracer);
+
+        assertThat(tracer.reports().stream().map(r -> describe(r)).filter(Objects::nonNull))
+            .as("copies %d, Items %d, input %s", copies, parents, input)
+            .containsExactlyElementsOf(expected);
+        assertThat(traced).isEqualTo(run(document, input.toString()));
+      }
+    }
+  }
+
+  /**
+   * The value is evaluated, never written: Gen, from the constant g, holds its Qty only, traced or
+   * not, two copies under each of the two Items, numbered as any TargetRepeat's.
+   */
+  @Test
+  void aGeneratingStructureFieldWritesNoText() throws Exception {
+    TargetDocument document = generating(2, constant("g"));
+    String expected =
+        DECLARATION
+            + "<Doc><Item><Gen><Qty>1</Qty></Gen><Gen><Qty>2</Qty></Gen></Item>"
+            + "<Item><Gen><Qty>3</Qty></Gen><Gen><Qty>4</Qty></Gen></Item></Doc>";
+
+    assertThat(run(document, INPUT)).isEqualTo(expected);
+    assertThat(run(document, INPUT, true, new Tracer())).isEqualTo(expected);
+  }
+
+  /**
+   * The value is evaluated in every compile, not only a traced one (ADR-0018 l.48-49): add over x
+   * and 1 raises err:FORG0001 at the add box in an untraced compile, as in a traced one. Witness:
+   * the constant g runs.
+   */
+  @Test
+  void anUntracedCompileRaisesTheValuesDataError() throws Exception {
+    FunCall add =
+        new FunCall(
+            new FunctionRef(
+                "add", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING),
+            List.of(new Literal("x", ADD), new Literal("1", ADD)),
+            ADD);
+    assertThat(run(generating(1, constant("g")), INPUT, false, new Tracer()))
+        .startsWith(DECLARATION);
+
+    for (boolean traced : List.of(false, true)) {
+      MappingRunException error =
+          catchThrowableOfType(
+              MappingRunException.class,
+              () -> run(generating(1, add), INPUT, traced, new Tracer()));
+
+      assertThat(error).as("traced %s", traced).isNotNull();
+      assertThat(error.code()).isEqualTo(RuntimeErrors.FORG0001);
+      assertThat(error.authoringId()).isEqualTo(ADD);
+    }
   }
 
   /** An output that interrupts the thread writing it at its first write. */

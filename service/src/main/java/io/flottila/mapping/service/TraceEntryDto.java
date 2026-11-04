@@ -7,22 +7,24 @@ import org.eclipse.microprofile.openapi.annotations.media.DiscriminatorMapping;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
- * One entry of a test run's trace (ADR-0015 "Trace" since #53), on the wire: a union on {@code
- * kind} (ADR-0024).
+ * One entry of a test run's trace (ADR-0015 "Trace" since #53, an atomic value since #83), on the
+ * wire: a union on {@code kind} (ADR-0024).
  */
 @Schema(
-    oneOf = {TraceQueueDto.class, TraceOccurrencesDto.class},
+    oneOf = {TraceQueueDto.class, TraceOccurrencesDto.class, TraceAtomicDto.class},
     discriminatorProperty = "kind",
     discriminatorMapping = {
       @DiscriminatorMapping(value = TraceQueueDto.KIND, schema = TraceQueueDto.class),
-      @DiscriminatorMapping(value = TraceOccurrencesDto.KIND, schema = TraceOccurrencesDto.class)
+      @DiscriminatorMapping(value = TraceOccurrencesDto.KIND, schema = TraceOccurrencesDto.class),
+      @DiscriminatorMapping(value = TraceAtomicDto.KIND, schema = TraceAtomicDto.class)
     })
-public sealed interface TraceEntryDto permits TraceQueueDto, TraceOccurrencesDto {
+public sealed interface TraceEntryDto permits TraceQueueDto, TraceOccurrencesDto, TraceAtomicDto {
 
   static TraceEntryDto of(Trace.Entry entry) {
     return switch (entry) {
       case Trace.Queue queue -> TraceQueueDto.of(queue);
       case Trace.Occurrences occurrences -> TraceOccurrencesDto.of(occurrences);
+      case Trace.Atomic atomic -> TraceAtomicDto.of(atomic);
     };
   }
 
