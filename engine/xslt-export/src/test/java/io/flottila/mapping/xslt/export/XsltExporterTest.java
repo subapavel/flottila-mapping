@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -837,6 +838,58 @@ class XsltExporterTest {
         .contains("<xsl:for-each select=\"1 to 1\">")
         .contains("<OrderId><xsl:value-of select=\"po:constant('it''s')\"/></OrderId>");
     assertThat(helperParamNames("po:constant")).containsExactly("value");
+  }
+
+  /**
+   * A generating structure field's value (ADR-0006 as amended by #83): inside the copies' {@code
+   * xsl:for-each}, after the slot-number variable and before the body, a zero-length {@code
+   * xsl:value-of} of {@code substring(value, 1, 0)}, so each copy evaluates it and writes no text.
+   * The value's apostrophe is doubled, its quotation marks escaped for the attribute. Witness: a
+   * TargetRepeat without a value writes no such line.
+   */
+  @Test
+  void aTargetRepeatValueIsAZeroLengthValueOfBeforeItsBody() {
+    AuthoringId c1 = id("c1");
+    AuthoringId t1 = id("t1");
+    Name address = new Name("", "Address");
+    FunCall constant =
+        new FunCall(
+            new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING),
+            List.of(new Literal("it's \"g\"", c1)),
+            c1);
+    ElementConstructor body = new ElementConstructor("", address, List.of(), t1);
+    TargetDocument valued =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    2,
+                    new VarRef(ROOT, AtomicType.INTEGER, t1),
+                    SLOT,
+                    Optional.of(constant),
+                    body,
+                    t1)));
+    TargetDocument unvalued =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(new TargetRepeat(2, new VarRef(ROOT, AtomicType.INTEGER, t1), SLOT, body, t1)));
+    IrVerifier.verify(valued);
+
+    assertThat(XsltExporter.export(valued))
+        .contains(
+            "      <xsl:for-each select=\"1 to 2\">\n"
+                + "        <xsl:variable name=\"slot2\" as=\"xs:integer\""
+                + " select=\"($root - 1) * 2 + .\"/>\n"
+                + "        <xsl:value-of select=\"substring(po:constant('it''s &quot;g&quot;'),"
+                + " 1, 0)\"/>\n"
+                + "        <Address>\n"
+                + "        </Address>\n"
+                + "      </xsl:for-each>\n");
+    assertThat(XsltExporter.export(unvalued)).doesNotContain("substring(");
   }
 
   /**

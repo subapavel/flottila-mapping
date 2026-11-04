@@ -47,7 +47,9 @@ import java.util.stream.Collectors;
  *       to its slot-number and value variables.
  *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
  *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
- *       slot number (ADR-0006; #63).
+ *       slot number (ADR-0006; #63). A generating structure field's value follows as {@code
+ *       <xsl:value-of select="substring(value, 1, 0)"/>}, a zero-length text that evaluates it
+ *       before the body (ADR-0006 as amended by #83).
  *   <li>Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
  *       since #52). A {@code TargetSlots} directly under the root is written outside any {@code
  *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
@@ -163,6 +165,12 @@ public final class XsltExporter {
 
   /** The occurrences of a {@code TargetRepeat}: its copies. */
   private static final String REPEAT = "1 to %d";
+
+  /**
+   * A generating structure field's value, which each copy of its {@code TargetRepeat} evaluates and
+   * writes as no text (ADR-0006 as amended by #83).
+   */
+  private static final String REPEAT_VALUE = "substring(%s, 1, 0)";
 
   /** The slot number of a {@code TargetRepeat}'s occurrence: its name, parent slot, copies. */
   private static final String REPEAT_SLOT_VARIABLE =
@@ -326,6 +334,13 @@ public final class XsltExporter {
             depth + 1,
             REPEAT_SLOT_VARIABLE.formatted(
                 r.slotVar(), attribute(expression(r.parentSlot())), r.copies()));
+        r.value()
+            .ifPresent(
+                value ->
+                    line(
+                        out,
+                        depth + 1,
+                        VALUE_OF.formatted(attribute(REPEAT_VALUE.formatted(expression(value))))));
         instruction(r.body(), depth + 1, true, out);
         line(out, depth, END_FOR_EACH);
       }
