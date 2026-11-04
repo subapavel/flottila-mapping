@@ -236,9 +236,28 @@ class GoldenCorpusTest {
             .extracting(Trace.ParentSlot::parentSlot)
             .containsExactly(1L);
       }
-      AuthoringId queue = new AuthoringId(text(link, "result"));
-      assertThat(entries.get(queue))
-          .as("%s: the queue of its result box %s", what, queue.value())
+      checkResultEntry(link, entries.get(new AuthoringId(text(link, "result"))), what);
+    }
+  }
+
+  /**
+   * The entry of the {@code result} box of {@code link}: the field's queue, or, for a generating
+   * function, a graph without a source-field box (ADR-0006 as amended by #83), its queue or its
+   * atomic value (ADR-0015 {@code {atomic: {type, value}}}). A field read from a source field never
+   * has an atomic entry. {@code GeneratingTraceCheckTest} runs it on synthetic links.
+   */
+  static void checkResultEntry(Map<String, Object> link, Trace.Entry entry, String what) {
+    String result = text(link, "result");
+    boolean generating =
+        object(link.get("boxes"), what + " boxes").values().stream()
+            .noneMatch(box -> "source".equals(object(box, what + " box").get("kind")));
+    if (generating) {
+      assertThat(entry)
+          .as("%s: the queue or value of its generating result box %s", what, result)
+          .isInstanceOfAny(Trace.Queue.class, Trace.Atomic.class);
+    } else {
+      assertThat(entry)
+          .as("%s: the queue of its result box %s", what, result)
           .isInstanceOf(Trace.Queue.class);
     }
   }

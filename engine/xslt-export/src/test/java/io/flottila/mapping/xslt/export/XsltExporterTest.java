@@ -12,6 +12,7 @@ import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrType;
 import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -759,6 +761,135 @@ class XsltExporterTest {
         .containsExactly("keys", "values", "comparison", "order", "box");
     assertThat(helperParamNames("po:removeContexts")).containsExactly("queue");
     assertThat(helperParamNames("po:replaceValue")).containsExactly("value", "replacement");
+  }
+
+  // --- the constant family since #83 (ADR-0006 generating function, ADR-0026 "Table params")
+
+  /**
+   * A table param is one Literal of the table's compact canonical JSON, so it is one XPath string
+   * literal: its apostrophe doubled, its quotation marks escaped for the attribute. Read back as an
+   * XML parser and then an XPath parser read it, it is the table's text. {@code po:fixValues} takes
+   * its input, then table, missing and defaultValue in catalogue order, and its box last, as it can
+   * raise {@code po:FIXVALUES}.
+   */
+  @Test
+  void aTableParamIsOneStringLiteralWithItsApostropheDoubled() {
+    AuthoringId f1 = id("f1");
+    String table = "{\"it's\":\"x\",\"q\":\"\\\"\"}";
+    FunCall fixValues =
+        new FunCall(
+            new FunctionRef(
+                "fixValues",
+                List.of(AtomicType.STRING, AtomicType.STRING, AtomicType.STRING, AtomicType.STRING),
+                AtomicType.STRING),
+            List.of(
+                new VarRef("in1", AtomicType.STRING, f1),
+                new Literal(table, f1),
+                new Literal("key", f1),
+                new Literal("", f1)),
+            f1);
+    Lift lift = new Lift(List.of(underRoot(ORDER, ORDER_ID, "a1")), List.of("in1"), fixValues, f1);
+
+    String stylesheet = XsltExporter.export(fieldLinkWith(lift, List.of(valueText())));
+
+    assertThat(stylesheet)
+        .contains(
+            "po:fixValues($in1, '{&quot;it''s&quot;:&quot;x&quot;,&quot;q&quot;:&quot;\\&quot;"
+                + "&quot;}', 'key', '', 'f1')");
+    String select = attributeValue(forEachSelect(stylesheet));
+    String call = "po:fixValues($in1, ";
+    assertThat(StringLiteral.at(select, select.indexOf(call) + call.length()).value())
+        .isEqualTo(table);
+    assertThat(helperParamNames("po:fixValues"))
+        .containsExactly("key", "table", "missing", "defaultValue", "box");
+  }
+
+  /**
+   * A constant box is an atomic FunCall, {@code po:constant} over its value, which the text of its
+   * TargetRepeat's element computes once per copy (ADR-0006 since #83); it cannot raise, so it
+   * takes no box.
+   */
+  @Test
+  void aConstantIsItsPoConstantCallInTheTextOfItsTargetRepeat() {
+    AuthoringId c1 = id("c1");
+    AuthoringId t1 = id("t1");
+    FunCall constant =
+        new FunCall(
+            new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING),
+            List.of(new Literal("it's", c1)),
+            c1);
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    1,
+                    new VarRef(ROOT, AtomicType.INTEGER, t1),
+                    SLOT,
+                    new ElementConstructor(
+                        "", ORDER_ID, List.of(new TextConstructor(constant, t1)), t1),
+                    t1)));
+    // witness: the IR verifier accepts the document as it stands
+    IrVerifier.verify(document);
+
+    assertThat(XsltExporter.export(document))
+        .contains("<xsl:for-each select=\"1 to 1\">")
+        .contains("<OrderId><xsl:value-of select=\"po:constant('it''s')\"/></OrderId>");
+    assertThat(helperParamNames("po:constant")).containsExactly("value");
+  }
+
+  /**
+   * A generating structure field's value (ADR-0006 as amended by #83): inside the copies' {@code
+   * xsl:for-each}, after the slot-number variable and before the body, a zero-length {@code
+   * xsl:value-of} of {@code substring(value, 1, 0)}, so each copy evaluates it and writes no text.
+   * The value's apostrophe is doubled, its quotation marks escaped for the attribute. Witness: a
+   * TargetRepeat without a value writes no such line.
+   */
+  @Test
+  void aTargetRepeatValueIsAZeroLengthValueOfBeforeItsBody() {
+    AuthoringId c1 = id("c1");
+    AuthoringId t1 = id("t1");
+    Name address = new Name("", "Address");
+    FunCall constant =
+        new FunCall(
+            new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING),
+            List.of(new Literal("it's \"g\"", c1)),
+            c1);
+    ElementConstructor body = new ElementConstructor("", address, List.of(), t1);
+    TargetDocument valued =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    2,
+                    new VarRef(ROOT, AtomicType.INTEGER, t1),
+                    SLOT,
+                    Optional.of(constant),
+                    body,
+                    t1)));
+    TargetDocument unvalued =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(new TargetRepeat(2, new VarRef(ROOT, AtomicType.INTEGER, t1), SLOT, body, t1)));
+    IrVerifier.verify(valued);
+
+    assertThat(XsltExporter.export(valued))
+        .contains(
+            "      <xsl:for-each select=\"1 to 2\">\n"
+                + "        <xsl:variable name=\"slot2\" as=\"xs:integer\""
+                + " select=\"($root - 1) * 2 + .\"/>\n"
+                + "        <xsl:value-of select=\"substring(po:constant('it''s &quot;g&quot;'),"
+                + " 1, 0)\"/>\n"
+                + "        <Address>\n"
+                + "        </Address>\n"
+                + "      </xsl:for-each>\n");
+    assertThat(XsltExporter.export(unvalued)).doesNotContain("substring(");
   }
 
   /**

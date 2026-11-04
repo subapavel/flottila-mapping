@@ -42,8 +42,12 @@ class OpenApiContractTest {
           "TestResult",
               Map.of("output", "TestOutput", "refused", "TestRefused", "error", "TestError"),
           "StructureResponse", Map.of("loaded", "StructureLoaded", "refused", "StructureRefused"),
-          // ADR-0015 "Trace" since #53: an entry by kind
-          "TraceEntryDto", Map.of("queue", "TraceQueueDto", "occurrences", "TraceOccurrencesDto"));
+          // ADR-0015 "Trace" since #53: an entry by kind; since #83 an atomic value too
+          "TraceEntryDto",
+              Map.of(
+                  "queue", "TraceQueueDto",
+                  "occurrences", "TraceOccurrencesDto",
+                  "atomic", "TraceAtomicDto"));
 
   /**
    * Properties and, after the bar, the required ones (#28 design, "Endpoints", "Shared shapes").
@@ -65,6 +69,8 @@ class OpenApiContractTest {
               "capped contextCount contexts kind slotCount"
                   + " | capped contextCount contexts kind slotCount"),
           Map.entry("TraceOccurrencesDto", "capped kind max min parents | capped kind min parents"),
+          // ADR-0015 {atomic: {type, value}} since #83
+          Map.entry("TraceAtomicDto", "kind type value | kind type value"),
           Map.entry("ParentSlotDto", "created parentSlot slots | created parentSlot slots"),
           Map.entry("SlotStatusDto", "slot status | slot status"),
           // ADR-0015 since #52 (O2): authoringId, absent for flottila:TIMEOUT

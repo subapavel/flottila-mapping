@@ -1,16 +1,19 @@
 package io.flottila.mapping.api;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.SequencedMap;
 
 /**
  * The trace of a test run (ADR-0015 "Trace" as refined by #53; GLOSSARY "Trace", "Trace limit",
  * "Parent slot"): an entry per evaluated box and per target field mapping that ran, by authoring
- * id, in the order of first report. Constants and boxes that were never evaluated have none.
+ * id, in the order of first report: a queue, a single value or a field's occurrences. A box that
+ * was never evaluated has none.
  *
  * @param entries the entries by authoring id, in the order of first report
  */
@@ -21,7 +24,25 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
   }
 
   /** One entry of the trace, by its kind. */
-  public sealed interface Entry permits Queue, Occurrences {}
+  public sealed interface Entry permits Queue, Occurrences, Atomic {}
+
+  /**
+   * The single value a box gave, at its first report (ADR-0015 {@code {atomic: {type, value}}}):
+   * the value of a single-value call with no queue input, such as a {@code constant} (#83).
+   *
+   * @param type the value's type
+   * @param value the value
+   */
+  public record Atomic(AtomicType type, String value) implements Entry {
+
+    /**
+     * The XML Schema name of the value's type (ADR-0004), such as {@code xs:string}: what a caller
+     * that does not reach the IR, as the service, shows (ADR-0024 "Service boundary").
+     */
+    public String typeName() {
+      return "xs:" + type.name().toLowerCase(Locale.ROOT);
+    }
+  }
 
   /**
    * The queue a box gave, at its first report: at most the trace limit's contexts, holding at most
@@ -49,7 +70,8 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
   /**
    * The occurrences a target field mapping created, per parent slot in the order run (ADR-0006): at
    * most the trace limit's parent records and slot records, always keeping the last parent. The
-   * field's queue is the entry of its {@code result} box.
+   * field's queue is the entry of its {@code result} box; a generating function's field has no
+   * queue, and its occurrences are its copies, all created (ADR-0006 as amended by #83).
    *
    * @param min the field's effective minimum occurrence
    * @param max the field's effective maximum occurrence; {@link Long#MAX_VALUE} is unbounded
@@ -66,8 +88,9 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
   }
 
   /**
-   * The slots of context {@code parentSlot} of the field's queue. {@code created < min} marks the
-   * parent slot that raised {@code po:MINOCCURS}.
+   * The slots of context {@code parentSlot} of the field's queue, or a generating function's copies
+   * under that parent slot (#83). {@code created < min} marks the parent slot that raised {@code
+   * po:MINOCCURS}.
    *
    * @param parentSlot the slot number of the parent occurrence
    * @param created how many occurrences the slots create, at most max

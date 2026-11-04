@@ -429,6 +429,22 @@
         },
         "type" : "object"
       },
+      "TraceAtomicDto" : {
+        "type" : "object",
+        "required" : [ "kind", "type", "value" ],
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "const" : "atomic"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "value" : {
+            "type" : "string"
+          }
+        }
+      },
       "TraceContext" : {
         "type" : "array",
         "items" : {
@@ -441,12 +457,15 @@
           "$ref" : "#/components/schemas/TraceQueueDto"
         }, {
           "$ref" : "#/components/schemas/TraceOccurrencesDto"
+        }, {
+          "$ref" : "#/components/schemas/TraceAtomicDto"
         } ],
         "discriminator" : {
           "propertyName" : "kind",
           "mapping" : {
             "queue" : "#/components/schemas/TraceQueueDto",
-            "occurrences" : "#/components/schemas/TraceOccurrencesDto"
+            "occurrences" : "#/components/schemas/TraceOccurrencesDto",
+            "atomic" : "#/components/schemas/TraceAtomicDto"
           }
         }
       },

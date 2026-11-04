@@ -1,4 +1,18 @@
 {
+  "constant": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "params": [
+      {
+        "default": "",
+        "name": "value",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
   "copyValue": {
     "executionKind": "context",
     "fidelity": {
@@ -13,6 +27,40 @@
       {
         "default": "0",
         "name": "position",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "fixValues": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "key"
+      }
+    ],
+    "params": [
+      {
+        "default": {},
+        "name": "table",
+        "type": "table"
+      },
+      {
+        "default": "key",
+        "name": "missing",
+        "type": "string",
+        "values": [
+          "key",
+          "default",
+          "error"
+        ]
+      },
+      {
+        "default": "",
+        "name": "defaultValue",
         "type": "string"
       }
     ],
