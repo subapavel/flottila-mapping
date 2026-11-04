@@ -13,7 +13,7 @@ export type TestResult = Schemas['TestResult'];
 
 /**
  * The answer of `GET /api/catalogue`, typed by json-schema-to-typescript from the contract's catalogue schema
- * (ADR-0026). `ApiClient` gets no method for it until spec 6.
+ * (ADR-0026). `ApiClient` gets no method for it until spec 5.
  */
 export type { FunctionCatalogue } from '../generated/function-catalogue';
 

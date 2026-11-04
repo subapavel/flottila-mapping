@@ -71,6 +71,13 @@
       <artifactId>jimfs</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- CatalogueResourceTest validates the served catalogue against its contract schema; the
+         engine also brings it at compile scope, but a test's import is declared where it is used -->
+    <dependency>
+      <groupId>com.github.erosb</groupId>
+      <artifactId>json-sKema</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
