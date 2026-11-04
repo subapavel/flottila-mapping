@@ -274,7 +274,7 @@ class StatisticFunctionsTest {
   void aValueThatIsNoDecimalIsADataError(String value) {
     QueueBlock values = queue("q", context("1"), context(S, value)).block();
 
-    assertThat(StatisticFunctions.decimal(value)).isEmpty();
+    assertThat(XsDecimal.parse(value)).isEmpty();
     assertThatThrownBy(() -> StatisticFunctions.sum(values))
         .isInstanceOf(QueueDataException.class)
         .hasMessage("sum: \"" + value + "\" is no xs:decimal");
@@ -285,9 +285,9 @@ class StatisticFunctionsTest {
 
   @Test
   void decimalReadsTheLexicalFormAroundXmlWhitespace() {
-    assertThat(StatisticFunctions.decimal(" \t\r\n-1.50\n")).contains(new BigDecimal("-1.50"));
-    assertThat(StatisticFunctions.decimal("+7.")).contains(new BigDecimal("7"));
-    assertThat(StatisticFunctions.decimal(".5")).contains(new BigDecimal("0.5"));
+    assertThat(XsDecimal.parse(" \t\r\n-1.50\n")).contains(new BigDecimal("-1.50"));
+    assertThat(XsDecimal.parse("+7.")).contains(new BigDecimal("7"));
+    assertThat(XsDecimal.parse(".5")).contains(new BigDecimal("0.5"));
   }
 
   // --- interruption (ADR-0021) ---

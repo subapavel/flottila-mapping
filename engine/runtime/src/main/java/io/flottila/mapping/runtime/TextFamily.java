@@ -1,12 +1,13 @@
 package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.xdm.XsDecimal;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.Optional;
 
 /**
  * The function family {@code text} (ADR-0025 "Families", F-15), #76: the single-value functions on
@@ -38,9 +39,6 @@ final class TextFamily {
           Map.entry("toLowerCase", TextFamily::toLowerCase),
           Map.entry("toUpperCase", TextFamily::toUpperCase),
           Map.entry("trim", TextFamily::trim));
-
-  /** The {@code xs:decimal} lexical form, XML whitespace around it already removed. */
-  private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)");
 
   private static final BigDecimal HALF = new BigDecimal("0.5");
 
@@ -134,9 +132,9 @@ final class TextFamily {
       String text = value.eval(frame);
       String startText = start.eval(frame);
       String lengthText = length.eval(frame);
-      BigDecimal from = decimal(startText);
-      BigDecimal count = decimal(lengthText);
-      if (from == null || count == null) {
+      Optional<BigDecimal> from = XsDecimal.parse(startText);
+      Optional<BigDecimal> count = XsDecimal.parse(lengthText);
+      if (from.isEmpty() || count.isEmpty()) {
         throw MappingRunException.dataError(
             RuntimeErrors.FORG0001,
             box,
@@ -147,7 +145,7 @@ final class TextFamily {
                 + "\" are not both xs:decimal",
             null);
       }
-      return substring(text, from, count);
+      return substring(text, from.get(), count.get());
     };
   }
 
@@ -203,12 +201,6 @@ final class TextFamily {
       j += Character.charCount(y);
     }
     return Boolean.compare(i < a.length(), j < b.length());
-  }
-
-  /** The {@code xs:decimal} {@code text} writes, XML whitespace around it ignored, or null. */
-  private static BigDecimal decimal(String text) {
-    String form = strip(text);
-    return DECIMAL.matcher(form).matches() ? new BigDecimal(form) : null;
   }
 
   /** XPath's {@code round}: the nearest integer, a tie towards positive infinity. */

@@ -95,16 +95,18 @@
   </xsl:function>
 
   <!-- substring: the code points of $value from the 0-based position $start for $length, each
-       rounded by XPath's round and the range cut to $value. Unless $start and $length are both
-       xs:decimal, it raises err:FORG0001 at $box. -->
+       rounded by XPath's round and the range cut to $value. Unless po:decimal reads $start and
+       $length both as xs:decimal, it raises err:FORG0001 at $box. -->
   <xsl:function name="po:substring" as="xs:string">
     <xsl:param name="value" as="xs:string"/>
     <xsl:param name="start" as="xs:string"/>
     <xsl:param name="length" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
+    <xsl:variable name="at" as="xs:decimal?" select="po:decimal($start)"/>
+    <xsl:variable name="span" as="xs:decimal?" select="po:decimal($length)"/>
     <xsl:sequence select="
-        if ($start castable as xs:decimal and $length castable as xs:decimal)
-        then substring($value, xs:decimal($start) + 1, xs:decimal($length))
+        if (exists($at) and exists($span))
+        then substring($value, $at + 1, $span)
         else po:data-error(xs:QName('err:FORG0001'), $box,
             'substring: the parameters start &quot;' || $start || '&quot; and length &quot;'
             || $length || '&quot; are not both xs:decimal')"/>

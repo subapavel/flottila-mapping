@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The function family statistic (ADR-0025 "Families", F-15), #75: each is po:<catalogue name>,
      its args in FunCall order, and one that can raise a data error takes its box last and raises
-     through po:data-error (ADR-0026), as the runtime's StatisticFamily does. A number is read in
-     the xs:decimal lexical form, XML whitespace around it ignored, anything else is err:FORG0001 at
-     the box; a result is written in the XPath canonical form. SUPPRESS is no value: no function
-     reads, counts or numbers it (an assumed reading). The build joins core.xsl and the family
-     modules, the families by id, into the helper module po-runtime.xsl, of which this comment is no
-     part. A family module uses what core.xsl declares and nothing of another family, and holds
+     through po:data-error (ADR-0026), as the runtime's StatisticFamily does. A number is read by
+     core's po:decimal, the xs:decimal lexical form with XML whitespace around it ignored, anything
+     else is err:FORG0001 at the box; a result is written in the XPath canonical form. SUPPRESS is
+     no value: no function reads, counts or numbers it (an assumed reading). The build joins
+     core.xsl and the family modules, the families by id, into the helper module po-runtime.xsl,
+     of which this comment is no part. A family module uses what core.xsl declares and nothing of another family, and holds
      core.xsl's root start tag, byte for byte. -->
 <xsl:stylesheet version="3.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
@@ -16,15 +16,16 @@
     xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
-  <!-- The xs:decimal that $text writes, for the function $function, as the runtime's
-       StatisticFunctions.decimal reads it: the cast ignores XML whitespace around the lexical
-       form. Anything else is err:FORG0001 at $box. -->
+  <!-- The xs:decimal that $text writes, for the function $function, read by po:decimal as the
+       runtime's StatisticFunctions reads it through XsDecimal.parse. Anything else is
+       err:FORG0001 at $box. -->
   <xsl:function name="po:statistic-number" as="xs:decimal">
     <xsl:param name="function" as="xs:string"/>
     <xsl:param name="text" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
+    <xsl:variable name="number" as="xs:decimal?" select="po:decimal($text)"/>
     <xsl:sequence select="
-        if ($text castable as xs:decimal) then xs:decimal($text)
+        if (exists($number)) then $number
         else po:data-error(xs:QName('err:FORG0001'), $box,
                            $function || ': &quot;' || $text || '&quot; is no xs:decimal')"/>
   </xsl:function>
@@ -78,7 +79,7 @@
        the k-th value of a context, counting from 0, or of the whole queue unless $reset, becomes
        $initial + k * $increment, and each SUPPRESS stays at its slot without a number. Unless
        $initial and $increment are both xs:decimal, it raises err:FORG0001 at $box before it reads
-       $values, as the runtime's binding does. -->
+       $values, as the runtime's binding does. po:decimal reads both. -->
   <xsl:function name="po:statistic-numbers" as="array(item()*)">
     <xsl:param name="function" as="xs:string"/>
     <xsl:param name="values" as="array(item()*)"/>
@@ -86,15 +87,15 @@
     <xsl:param name="increment" as="xs:string"/>
     <xsl:param name="reset" as="xs:boolean"/>
     <xsl:param name="box" as="xs:string"/>
+    <xsl:variable name="first" as="xs:decimal?" select="po:decimal($initial)"/>
+    <xsl:variable name="step" as="xs:decimal?" select="po:decimal($increment)"/>
     <xsl:choose>
-      <xsl:when test="not($initial castable as xs:decimal and $increment castable as xs:decimal)">
+      <xsl:when test="empty($first) or empty($step)">
         <xsl:sequence select="po:data-error(xs:QName('err:FORG0001'), $box,
             $function || ': the parameters initial &quot;' || $initial || '&quot; and increment &quot;'
             || $increment || '&quot; are not both xs:decimal')"/>
       </xsl:when>
       <xsl:otherwise>
-        <xsl:variable name="first" as="xs:decimal" select="xs:decimal($initial)"/>
-        <xsl:variable name="step" as="xs:decimal" select="xs:decimal($increment)"/>
         <xsl:iterate select="1 to array:size($values)">
           <xsl:param name="numbered" as="xs:integer" select="0"/>
           <xsl:param name="result" as="array(item()*)" select="[]"/>

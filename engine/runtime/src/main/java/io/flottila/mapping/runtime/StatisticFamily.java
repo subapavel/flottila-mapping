@@ -2,6 +2,7 @@ package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.xdm.StatisticFunctions;
+import io.flottila.mapping.xdm.XsDecimal;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -76,8 +77,8 @@ final class StatisticFamily {
       String initial,
       String increment,
       boolean reset) {
-    Optional<BigDecimal> first = StatisticFunctions.decimal(initial);
-    Optional<BigDecimal> step = StatisticFunctions.decimal(increment);
+    Optional<BigDecimal> first = XsDecimal.parse(initial);
+    Optional<BigDecimal> step = XsDecimal.parse(increment);
     if (first.isEmpty() || step.isEmpty()) {
       String message =
           function
