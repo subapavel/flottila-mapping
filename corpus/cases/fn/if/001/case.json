@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/boolean-if.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 and spec #70 (only the exact text true is true, results are true or false); obs-boolean row if/001",
+  "expect": "output",
+  "note": "if(condition, then, else) gives then only for the exact text true: true gives q1; false, TRUE and the empty string give the else values e2, e3, e4."
+}

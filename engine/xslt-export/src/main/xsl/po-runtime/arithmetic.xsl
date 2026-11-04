@@ -200,4 +200,15 @@
         let $v := po:math-number('sign', $value, $box)
         return if ($v gt 0) then '1' else if ($v lt 0) then '-1' else '0'"/>
   </xsl:function>
+
+  <!-- formatNum (#74): the number $value formatted with the XPath picture the DecimalFormat
+       pattern $pattern compiles to in core.xsl's formatting core (ADR-0003), as the runtime's
+       ArithmeticFamily.formatNum does. -->
+  <xsl:function name="po:formatNum" as="xs:string">
+    <xsl:param name="value" as="xs:string"/>
+    <xsl:param name="pattern" as="xs:string"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:sequence select="format-number(po:math-number('formatNum', $value, $box),
+                                        po:number-picture($pattern))"/>
+  </xsl:function>
 </xsl:stylesheet>

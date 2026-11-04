@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/format-num-grouping-last.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §5 Arithmetic: FormatNum takes a java.text.DecimalFormat pattern [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; ADR-0003: the pattern is translated to the XPath picture #,##0; assumed reading: DecimalFormat over the xs:decimal (ADR-0005) with the symbols . and , (obs-arithmetic fmt-009)",
+  "expect": "output",
+  "note": "DecimalFormat groups by the digits after the last separator alone, so #,##,##0 groups by three: 1234567 gives 1,234,567, not 12,34,567, and 12 gives 12."
+}

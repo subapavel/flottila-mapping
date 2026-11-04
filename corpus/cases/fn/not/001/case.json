@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/boolean-not.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 and spec #70 (only the exact text true is true, results are true or false); obs-boolean row not/001",
+  "expect": "output",
+  "note": "not is true unless the input is the exact text true: true gives false; false, TRUE, 1 and the empty string give true."
+}
