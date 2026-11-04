@@ -6,7 +6,6 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.IntFunction;
-import java.util.regex.Pattern;
 
 /**
  * The context functions of the runtime library over queue blocks (ADR-0025): the algebra, where the
@@ -182,10 +181,6 @@ public final class ContextFunctions {
     NUMERIC
   }
 
-  /** The {@code xs:decimal} lexical form (ADR-0005), with XML whitespace on either side. */
-  private static final Pattern DECIMAL =
-      Pattern.compile("[ \t\r\n]*[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)[ \t\r\n]*");
-
   /**
    * {@code sort}: the values of each context of {@code queue} in the order of {@code comparison},
    * ascending or {@code descending}. The contexts stay as they are; the result copies references
@@ -304,17 +299,16 @@ public final class ContextFunctions {
     return (i, j) -> keys.compare(key.apply(i), key.apply(j));
   }
 
-  /** {@code value} as a decimal, read as the export's {@code xs:decimal} cast reads it. */
+  /** {@code value} as a decimal, read by {@link XsDecimal#parse} as the export reads it. */
   private static BigDecimal decimal(String function, String value) {
-    if (!DECIMAL.matcher(value).matches()) {
-      throw new QueueDataException(
-          function
-              + " compares numerically, and \""
-              + value
-              + "\" is not in the xs:decimal lexical form (ADR-0005)");
-    }
-    // the pattern allows only XML whitespace around the number, which trim removes
-    return new BigDecimal(value.trim());
+    return XsDecimal.parse(value)
+        .orElseThrow(
+            () ->
+                new QueueDataException(
+                    function
+                        + " compares numerically, and \""
+                        + value
+                        + "\" is not in the xs:decimal lexical form (ADR-0005)"));
   }
 
   // splitByValue (#55): one function per mode, which the runtime binds once per call site. Each

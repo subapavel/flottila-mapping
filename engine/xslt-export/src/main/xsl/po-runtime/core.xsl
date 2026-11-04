@@ -96,6 +96,16 @@
                                 'the function box ' || $box || ': ' || $message)"/>
   </xsl:function>
 
+  <!-- The xs:decimal that $text writes, or () when it writes none: the one number rule of the
+       standard functions (#82, ADR-0005), as the runtime's XsDecimal.parse reads it. The cast
+       takes the xs:decimal lexical form with XML whitespace around it ignored; an exponent, NaN,
+       a sign or a point alone and '' are no xs:decimal. A function that meets none raises its own
+       data error at its box. -->
+  <xsl:function name="po:decimal" as="xs:decimal?">
+    <xsl:param name="text" as="xs:string"/>
+    <xsl:sequence select="if ($text castable as xs:decimal) then xs:decimal($text) else ()"/>
+  </xsl:function>
+
   <!-- The formatting core (ADR-0003), which several families share: a Java/SAP pattern of a box
        parameter compiled to an XPath picture. Each helper does as its counterpart in engine/xdm
        does, for a pattern that counterpart compiles, which lowering has checked (ADR-0026). -->

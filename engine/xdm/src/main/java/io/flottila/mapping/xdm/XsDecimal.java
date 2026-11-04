@@ -6,9 +6,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The one number rule of the standard functions (#82, ADR-0005): every function that reads a
- * number reads it through {@link #parse}, as the export reads it through {@code po:decimal} in
- * {@code core.xsl}. A function that meets no decimal raises its own data error at its box (F-19).
+ * The one number rule of the standard functions (#82, ADR-0005): every function that reads a number
+ * reads it through {@link #parse}, as the export reads it through {@code po:decimal} in {@code
+ * core.xsl}. A function that meets no decimal raises its own data error at its box (F-19).
  */
 public final class XsDecimal {
 

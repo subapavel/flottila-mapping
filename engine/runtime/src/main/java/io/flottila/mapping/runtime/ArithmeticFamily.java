@@ -3,6 +3,7 @@ package io.flottila.mapping.runtime;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.xdm.FormatNumber;
 import io.flottila.mapping.xdm.NumberPattern;
+import io.flottila.mapping.xdm.XsDecimal;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -10,17 +11,15 @@ import java.util.Map;
 import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
 import java.util.function.UnaryOperator;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * The function family {@code arithmetic} (ADR-0025 "Families", F-15), the basic functions of #72
  * ({@code add} to {@code min}), the math functions of #73 ({@code sqr} to {@code round}) and {@code
  * formatNum} of #74 over the formatting core (ADR-0003). All are single-value functions over {@code
- * xs:decimal} strings (ADR-0005): a number is read in the {@code xs:decimal} lexical form only,
- * whitespace around it ignored, anything else is {@code err:FORG0001} at the function box; the
- * result is written in the XPath canonical form. The binders are methods, not lambdas of the maps,
- * so that PIT mutates them.
+ * xs:decimal} strings (ADR-0005): a number is read by {@link XsDecimal#parse}, the {@code
+ * xs:decimal} lexical form with XML whitespace around it ignored, anything else is {@code
+ * err:FORG0001} at the function box; the result is written in the XPath canonical form. The binders
+ * are methods, not lambdas of the maps, so that PIT mutates them.
  */
 final class ArithmeticFamily {
 
@@ -58,10 +57,6 @@ final class ArithmeticFamily {
   private static final int MAX_EXACT_EXPONENT = 1000;
 
   private static final BigDecimal HALF = new BigDecimal("0.5");
-
-  /** The xs:decimal lexical form around which XML whitespace is ignored; group 1 is the number. */
-  private static final Pattern DECIMAL =
-      Pattern.compile("[ \\t\\r\\n]*([+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+))[ \\t\\r\\n]*");
 
   private ArithmeticFamily() {}
 
@@ -240,11 +235,8 @@ final class ArithmeticFamily {
 
   /** The number {@code text} writes, or {@code err:FORG0001} at {@code box} when it is none. */
   private static BigDecimal number(String function, AuthoringId box, String text) {
-    Matcher m = DECIMAL.matcher(text);
-    if (!m.matches()) {
-      throw dataError(function, box, "'" + text + "' is no xs:decimal");
-    }
-    return new BigDecimal(m.group(1));
+    return XsDecimal.parse(text)
+        .orElseThrow(() -> dataError(function, box, "'" + text + "' is no xs:decimal"));
   }
 
   /** The xs:decimal that {@code d} equals, or {@code err:FORG0001} when it is NaN or infinite. */

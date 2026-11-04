@@ -2,40 +2,23 @@ package io.flottila.mapping.xdm;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Optional;
 import java.util.concurrent.CancellationException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * The queue algebra of the function family statistic (ADR-0025 "Families", #75): {@code sum},
  * {@code average} and {@code count} give one value per context (#2 §5), and {@code index} numbers
  * the values of each context or of the whole queue, which {@code engine/runtime} also binds {@code
- * counter} to. A number is an {@code xs:decimal} (ADR-0005), read by {@link #decimal} and written
- * in the XPath canonical form. SUPPRESS is no value: no function reads, counts or numbers it, and
- * {@code index} keeps it at its slot (an assumed reading of #75). A function never changes its
- * input; a block is immutable.
+ * counter} to. A number is an {@code xs:decimal} (ADR-0005), read by {@link XsDecimal#parse} and
+ * written in the XPath canonical form. SUPPRESS is no value: no function reads, counts or numbers
+ * it, and {@code index} keeps it at its slot (an assumed reading of #75). A function never changes
+ * its input; a block is immutable.
  */
 public final class StatisticFunctions {
-
-  /** The {@code xs:decimal} lexical form (ADR-0005), with XML whitespace on either side. */
-  private static final Pattern DECIMAL =
-      Pattern.compile("[ \t\r\n]*([+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+))[ \t\r\n]*");
 
   /** The fractional digits of a quotient beyond its dividend's own (ADR-0005). */
   private static final int DIVISION_SCALE = 18;
 
   private StatisticFunctions() {}
-
-  /**
-   * {@code text} as a decimal: its {@code xs:decimal} lexical form, which an exponent, {@code NaN}
-   * and a sign alone are not, with XML whitespace around it ignored, as the export's cast reads it.
-   * Empty when {@code text} is none.
-   */
-  public static Optional<BigDecimal> decimal(String text) {
-    Matcher m = DECIMAL.matcher(text);
-    return m.matches() ? Optional.of(new BigDecimal(m.group(1))) : Optional.empty();
-  }
 
   /**
    * {@code sum}: per context of {@code values}, one context holding the total of its values; a
@@ -138,7 +121,7 @@ public final class StatisticFunctions {
       if (value != null) {
         total =
             total.add(
-                decimal(value)
+                XsDecimal.parse(value)
                     .orElseThrow(
                         () ->
                             new QueueDataException(
