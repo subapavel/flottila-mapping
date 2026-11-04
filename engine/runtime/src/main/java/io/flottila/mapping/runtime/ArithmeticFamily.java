@@ -213,10 +213,9 @@ final class ArithmeticFamily {
   }
 
   /**
-   * ADR-0005, as Saxon-HE 12.5 divides: the quotient rounded half-down to {@code max(18, scale of
-   * dividend - scale of divisor + 18)} fractional digits, the scales without trailing zeros. A
-   * quotient with more digits than that is rounded too (1 / 2^30), which is narrower than
-   * ADR-0005's "a quotient that terminates is exact" (observed, case fn/divide/004).
+   * ADR-0005 as amended by F-20, as Saxon-HE 12.5 divides: every quotient, one that terminates too,
+   * rounded half-down to {@code max(18, scale of dividend - scale of divisor + 18)} fractional
+   * digits, the scales without trailing zeros, so 1 / 2^30 is rounded (case fn/divide/004).
    *
    * @throws MappingRunException {@code err:FOAR0001} at {@code box} when {@code divisor} is zero
    */

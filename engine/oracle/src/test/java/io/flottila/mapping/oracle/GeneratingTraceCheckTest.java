@@ -10,8 +10,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * Witness of the corpus trace check's result entry (#83): a generating field, whose graph has no
- * source-field box, may have an atomic entry; a field read from a source field may not. Not a
+ * Witness of the corpus trace check's result entry (#83, F-21): a field whose graph has no
+ * source-field box may have an atomic entry, a generating function's value, or a queue, as {@code
+ * count} of a constant gives; a field read from a source field may not have an atomic entry. Not a
  * corpus or differential class, so the ratchet does not read its test as a case id
  * (scripts/ratchet.java).
  */
@@ -29,12 +30,12 @@ class GeneratingTraceCheckTest {
 
   @Test
   void onlyAGeneratingFieldMayHaveAnAtomicEntry() {
-    Map<String, Object> generating = link("function");
+    Map<String, Object> noSourceField = link("function");
     Map<String, Object> read = link("source");
 
-    assertThatCode(() -> GoldenCorpusTest.checkResultEntry(generating, ATOMIC, "generating"))
+    assertThatCode(() -> GoldenCorpusTest.checkResultEntry(noSourceField, ATOMIC, "no source"))
         .doesNotThrowAnyException();
-    assertThatCode(() -> GoldenCorpusTest.checkResultEntry(generating, QUEUE, "generating"))
+    assertThatCode(() -> GoldenCorpusTest.checkResultEntry(noSourceField, QUEUE, "no source"))
         .doesNotThrowAnyException();
     assertThatCode(() -> GoldenCorpusTest.checkResultEntry(read, QUEUE, "read"))
         .doesNotThrowAnyException();
@@ -42,7 +43,7 @@ class GeneratingTraceCheckTest {
     assertThatThrownBy(() -> GoldenCorpusTest.checkResultEntry(read, ATOMIC, "read"))
         .isInstanceOf(AssertionError.class);
     // no entry at all fails either way
-    assertThatThrownBy(() -> GoldenCorpusTest.checkResultEntry(generating, null, "generating"))
+    assertThatThrownBy(() -> GoldenCorpusTest.checkResultEntry(noSourceField, null, "no source"))
         .isInstanceOf(AssertionError.class);
   }
 }

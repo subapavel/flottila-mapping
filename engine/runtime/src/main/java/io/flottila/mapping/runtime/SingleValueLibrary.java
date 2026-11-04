@@ -8,7 +8,8 @@ import java.util.Map;
  * The binding of the single-value functions (ADR-0025): a catalogue name, bound once per call site
  * when the interpreter compiles, by the binder of its function family (ADR-0025 "Families") to a
  * string node over its args' string nodes. Such a call stands in a {@code Lift}'s body, which runs
- * it once per slot (ADR-0006).
+ * it once per slot, or, over single values only, is a single value of its own: a box's value, an
+ * arg of another call, or an {@code AtomicToQueue}'s value (ADR-0006 since #83).
  */
 final class SingleValueLibrary {
 
