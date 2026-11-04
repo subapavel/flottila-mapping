@@ -32,5 +32,5 @@ Rules: never write or edit a file, never run a build. Library facts: verify with
 library's own docs; a signature from memory is marked "unverified". Prefer the smallest design
 that keeps the documented intent; an interface only where a second implementation exists now.
 
-Memory (`.claude/agent-memory/designer/MEMORY.md`): accepted shapes and why, verified library
+Memory (`.claude/agent-memory/designer/MEMORY.md`, read first; new facts go in the hand-back's `Worth recording:` block): accepted shapes and why, verified library
 constraints. Never ticket state. Under 120 lines.

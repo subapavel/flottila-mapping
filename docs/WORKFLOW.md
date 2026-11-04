@@ -97,6 +97,7 @@ directories, comma-separated, e.g. `engine/xdm,engine/ir`):
 | 1b | `./mvnw -B -pl <class-C modules among <modules>> -am test-compile org.pitest:pitest-maven:mutationCoverage`, then `scripts/pit-summary.sh ratchet/mutation.tsv <modules>` | `.logs/<t>-pit.log` | a class-C engine module is touched (#67): a score below its `ratchet/` floor is `EXECUTED_FAIL`; none touched prints `NOT_RUN`. The last lines of the script are `module killed/generated score% floor N% ok|DROP`, one per module |
 | 2 | `./mvnw -B -q -DskipTests verify` | `.logs/<t>-compile-all.log` | always: the whole reactor compiles; Spotless, enforcer, licences |
 | 2b | `scripts/check-lf-checkout.sh` | `.logs/<t>-lf-checkout.log` | always: every tracked file checks out byte-identical on Windows (`.gitattributes`, #49) |
+| 2c | `scripts/check-trailers.sh <integration-ref>..HEAD` | `.logs/<t>-trailers.log` | always: every commit the ticket adds carries the §11 trailers, merges of the integration tip included (spec-3 retro) |
 | 3 | `git diff --exit-code contract/` | — | the service or `contract/` changed |
 | 4 | in `ui/`: `npm run licences`, `typecheck`, `lint`, `test`, `test:browser`, `e2e`; `npm run gen:types && git diff --exit-code src/generated` | `ui/.logs/<t>-<check>.log` | `ui/` or `contract/` changed |
 | 5 | `java scripts/ratchet.java check` | `.logs/<t>-ratchet.log` | always: no listed case failing or missing, no coverage below `ratchet/` of the integration branch; unbuilt modules print `NOT_RUN` (ADR-0019) |

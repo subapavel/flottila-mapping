@@ -68,7 +68,8 @@ Take hand-backs in the order they arrive; refill a freed slot from the frontier 
    resolve, re-run the scoped checks". After a merge: verifier regenerates `ratchet/` on the
    integration branch; a ratchet drop is a failure of this ticket.
 5. **Record** — evidence comment (`docs/agents/issue-tracker.md`), close the ticket, update the
-   spec's status comment and `agent/HANDOFF.md` (push), remove the verify worktree.
+   spec's status comment and `agent/HANDOFF.md`, append every hand-back's `Worth recording:` lines
+   to `.claude/agent-memory/<role>/MEMORY.md` (AGENTS.md, Memory), push, remove the verify worktree.
 6. **Carry or ticket** — a point a review leaves open is carried to the spec review only when it
    is a judgement call. One that gives invalid output, contradicts an ADR, or names a test that
    cannot fail is a ticket (or a finding, `docs/WORKFLOW.md` §7) now, before the next merge.
@@ -87,12 +88,13 @@ then stop with `IDLE_NO_FRONTIER`, see §5):
 3. **Fix** — one implementer (Opus 5.5, high) on a worktree branch `t/<spec>-review` with every
    finding as one packet; merger; spec gate again. A second round only on what the first fix
    touched.
-4. **PR** — call the Skill tool with `pr` for the body (summary, evidence lines, merge danger),
+4. **PR** — first commit `agent/HANDOFF.md` with state `SPEC_DONE` and the next action on the
+   integration branch and push it: `main` refuses direct pushes, so the handoff reaches `main` with
+   the spec merge. Then call the Skill tool with `pr` for the body (summary, evidence lines, merge danger),
    `gh pr create --base main --head spec/<spec>-<slug>`, the body closing the spec. Wait for CI in
    the foreground (`gh pr checks --watch`, with a timeout). Red CI is a fix packet, not a retry.
 5. **Merge** — `rm -f .logs/.batch-in-review && gh pr merge --merge` (never squash, never
-   rebase, never force). Rewrite `agent/HANDOFF.md` on `main` with state `SPEC_DONE` and the next
-   action. Remove every worktree whose branch is merged into `main`
+   rebase, never force). Remove every worktree whose branch is merged into `main`
    (`git worktree remove <path>` for each one `git branch --merged main` names), then
    `git worktree prune`.
 6. Suggest `/retro` to the owner in one line.

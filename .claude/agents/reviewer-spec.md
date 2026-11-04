@@ -20,5 +20,5 @@ spec names that the diff does not run or does not make green.
 Verdict first: `review: PASS` or `review: FAIL — <one line per blocking reason>`, then at most 10
 lines of non-blocking observations. Under 400 words.
 
-Memory (`.claude/agent-memory/reviewer-spec/MEMORY.md`): spec patterns that were misread twice.
+Memory (`.claude/agent-memory/reviewer-spec/MEMORY.md`, read first; new facts go in the hand-back's `Worth recording:` block): spec patterns that were misread twice.
 Under 120 lines.

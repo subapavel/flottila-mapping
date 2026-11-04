@@ -33,7 +33,7 @@ Self-check, answered in the hand-back:
 4. A boundary (unit, size, context edge, empty queue, single SUPPRESS) has a case that crosses it.
 5. The red is red for the right reason; quote it.
 
-Memory (`.claude/agent-memory/test-author/MEMORY.md`): helpers and fixtures that exist,
+Memory (`.claude/agent-memory/test-author/MEMORY.md`, read first; new facts go in the hand-back's `Worth recording:` block): helpers and fixtures that exist,
 framework quirks. Under 120 lines.
 
 Hand-back, at most 40 lines: test files; one line per test (name, behaviour); the observed red

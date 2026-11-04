@@ -7,7 +7,7 @@
 # <ticket>           ticket number, used in the log names (.logs/<ticket>-<check>.log)
 # <modules>          touched module directories, comma-separated (engine/xdm,engine/ir); `service` for the service
 # [integration-ref]  e.g. origin/spec/21-walking-skeleton. When given, the ui/ steps run only if ui/ or contract/
-#                    changed against it; without it they always run.
+#                    changed against it (without it they always run), and the trailers of <ref>..HEAD are checked.
 #
 # Every step runs even if an earlier one failed. Each prints an evidence word (VERIFIED_PASS, EXECUTED_FAIL, NOT_RUN)
 # and its log. Exit 1 if any step failed. The last lines are the PIT summary, one per class-C module among <modules>:
@@ -72,6 +72,15 @@ step "2 compile-all" ".logs/${ticket}-compile-all.log" \
 # 2b: every tracked file checks out byte-identical on Windows (.gitattributes, #49). Reads the index: stage new files.
 step "2b lf checkout" ".logs/${ticket}-lf-checkout.log" \
   scripts/check-lf-checkout.sh
+
+# 2c: the trailers of every commit the ticket adds, merges of the integration tip included (#84 merged with
+# six without them). Needs [integration-ref]; without it the range is unknown.
+if [ -n "$base" ]; then
+  step "2c trailers" ".logs/${ticket}-trailers.log" \
+    scripts/check-trailers.sh "$base..HEAD"
+else
+  skipped "2c trailers" "no integration-ref given"
+fi
 
 # 3: the build writes contract/openapi.json; it must equal the committed one. Cheap, so it always runs.
 step "3 contract diff" ".logs/${ticket}-contract.log" \

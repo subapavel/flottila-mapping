@@ -106,3 +106,10 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   (PSF-2.0) through js-yaml 5; `argparse` 2.0.1 (Python-2.0) was already in the lock through
   openapi-typescript. Neither licence is on the CLAUDE.md list: raise it, do not override.
 - Map objects without a `title` make json2ts write "referenced by `undefined`" comments.
+
+## Spec 3 (recorded at the retro)
+
+- `./mvnw` inside a `while read` loop eats the loop's stdin: run it with `< /dev/null`.
+- FamilyLocalityTest fails on an XSL variable named like a catalogue function (`$count`): rename it.
+- Merging the integration tip: `git merge --no-ff -F <file>` with the §11 trailers; a plain merge
+  fails gate row 2c (six such commits reached #84).
