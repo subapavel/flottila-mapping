@@ -122,4 +122,26 @@ class FunctionCatalogueReadTest {
     assertThat(FunctionCatalogue.read(catalogue.getBytes(UTF_8)).get("formatLike").params())
         .containsExactly(new Param("pattern", "0", Optional.empty(), Optional.of("numberPattern")));
   }
+
+  /**
+   * A param checks a pattern by its own syntax (ADR-0026, #80): a date pattern through {@code
+   * DatePattern}, a number pattern through {@code NumberPattern}, each naming what it refuses.
+   */
+  @Test
+  void aParamChecksAPatternByItsSyntax() {
+    Param date = new Param("format", "yyyy/MM/dd", Optional.empty(), Optional.of("datePattern"));
+    Param number = new Param("pattern", "0", Optional.empty(), Optional.of("numberPattern"));
+    Param any = new Param("value", "", Optional.empty(), Optional.empty());
+
+    assertThat(date.untranslatable("dd.MM.yyyy HH:mm")).isEmpty();
+    assertThat(date.untranslatable("dd/MM/yy"))
+        .contains(
+            "the date pattern \"dd/MM/yy\" has no XPath picture: the field yy of that length");
+    // the same pattern by the other syntax: the number core refuses it for its own reason
+    assertThat(number.untranslatable("dd/MM/yy"))
+        .contains(
+            "the number pattern \"dd/MM/yy\" has no XPath picture: a subpattern has no digit");
+    assertThat(number.untranslatable("0.00")).isEmpty();
+    assertThat(any.untranslatable("dd/MM/yy")).isEmpty();
+  }
 }

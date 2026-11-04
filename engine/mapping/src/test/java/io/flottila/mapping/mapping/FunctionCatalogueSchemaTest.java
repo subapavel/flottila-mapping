@@ -150,6 +150,9 @@ class FunctionCatalogueSchemaTest {
         accepted(
             "a string param in the syntax numberPattern (ADR-0026, #74)",
             withParams("[" + PATTERN_PARAM + "]")),
+        accepted(
+            "a string param in the syntax datePattern (ADR-0026, #80)",
+            withParams("[" + PATTERN_PARAM.replace("numberPattern", "datePattern") + "]")),
         refused(
             "a string param with a syntax and values",
             withParams("[" + PATTERN_PARAM.replace("}", ", \"values\": [\"0\", \"0.00\"]}") + "]")),

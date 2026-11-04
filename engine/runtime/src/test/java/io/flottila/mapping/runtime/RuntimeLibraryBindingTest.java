@@ -21,6 +21,7 @@ import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -35,6 +36,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * {@code Note} under the root over {@code Note} in the root's context.
  */
 class RuntimeLibraryBindingTest {
+
+  /** The time every run of this class starts at; no function here reads it. */
+  private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-04T12:00:00Z");
 
   private static final String NS = "urn:flottila:corpus:skeleton";
   private static final Name ORDER = new Name(NS, "Order");
@@ -107,7 +111,7 @@ class RuntimeLibraryBindingTest {
         "<s:Order xmlns:s=\"" + NS + "\"><Note>x</Note><Note>x</Note><Note>y</Note></s:Order>";
 
     Interpreter.compile(document, false)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer(), NOW);
 
     assertThat(out.toString(UTF_8))
         .isEqualTo(
@@ -161,7 +165,7 @@ class RuntimeLibraryBindingTest {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
 
     Interpreter.compile(document, false)
-        .run(new ByteArrayInputStream(ITEMS.getBytes(UTF_8)), out, new Tracer());
+        .run(new ByteArrayInputStream(ITEMS.getBytes(UTF_8)), out, new Tracer(), NOW);
 
     return out.toString(UTF_8);
   }
@@ -268,7 +272,7 @@ class RuntimeLibraryBindingTest {
     String input = "<s:Order xmlns:s=\"" + NS + "\"><Note>x</Note><Note>y</Note></s:Order>";
 
     Interpreter.compile(document, false)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer(), NOW);
 
     assertThat(out.toString(UTF_8))
         .isEqualTo(
@@ -293,7 +297,7 @@ class RuntimeLibraryBindingTest {
     String input = "<s:Order xmlns:s=\"" + NS + "\">" + children + "</s:Order>";
 
     Interpreter.compile(document, false)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer());
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, new Tracer(), NOW);
 
     return out.toString(UTF_8);
   }

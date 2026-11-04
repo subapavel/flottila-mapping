@@ -1,0 +1,28 @@
+{
+  "dateTrans": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "date"
+      }
+    ],
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "sourceFormat",
+        "syntax": "datePattern",
+        "type": "string"
+      },
+      {
+        "default": "yyyy/MM/dd",
+        "name": "targetFormat",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  }
+}

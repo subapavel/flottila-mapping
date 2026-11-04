@@ -22,6 +22,7 @@ import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.xdm.QueueBlock;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,6 +37,9 @@ import org.junit.jupiter.api.Test;
  * SUPPRESS, which the output cannot.
  */
 class LiftInterpreterTest {
+
+  /** The time every run of this class starts at; no function here reads it. */
+  private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-04T12:00:00Z");
 
   private static final String NS = "urn:flottila:corpus:skeleton";
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
@@ -103,7 +107,7 @@ class LiftInterpreterTest {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     String input = "<s:Order xmlns:s=\"" + NS + "\">" + content + "</s:Order>";
     Interpreter.compile(document, traced)
-        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer);
+        .run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer, NOW);
     return out.toString(UTF_8);
   }
 

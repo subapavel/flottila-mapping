@@ -5,6 +5,7 @@ import com.github.erosb.jsonsKema.IJsonObject;
 import com.github.erosb.jsonsKema.IJsonString;
 import com.github.erosb.jsonsKema.IJsonValue;
 import io.flottila.mapping.mapping.internal.StrictJsonReader;
+import io.flottila.mapping.xdm.DatePattern;
 import io.flottila.mapping.xdm.NumberPattern;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * The function catalogue (ADR-0025, ADR-0026): {@code function-catalogue.json}, a resource of this
@@ -24,8 +26,8 @@ import java.util.Optional;
  *
  * <p>Every param of the catalogue is a string param, which lowering makes a {@code Literal}: one
  * with {@code values} takes only those, one with a {@code syntax} only the patterns the formatting
- * core translates (ADR-0026, #74), one with neither any string. A table param adds what is read
- * here when its function lands.
+ * core translates (ADR-0026, #74, #80), one with neither any string. A table param adds what is
+ * read here when its function lands.
  */
 public final class FunctionCatalogue {
 
@@ -47,14 +49,15 @@ public final class FunctionCatalogue {
 
     /**
      * Why the param's syntax refuses the pattern {@code value}, the element the formatting core
-     * names, or empty when it takes it or the param has no syntax. The schema's one syntax is
-     * {@code numberPattern}, a DecimalFormat pattern (ADR-0003, ADR-0026).
+     * names, or empty when it takes it or the param has no syntax. The schema's syntaxes are {@code
+     * numberPattern}, a DecimalFormat pattern, and {@code datePattern}, a SimpleDateFormat pattern
+     * (ADR-0003, ADR-0026), each checked by the core's compiler of its syntax.
      */
     Optional<String> untranslatable(String value) {
       return syntax.flatMap(
-          numberPattern -> {
+          name -> {
             try {
-              NumberPattern.picture(value);
+              PICTURES.get(name).apply(value);
               return Optional.empty();
             } catch (IllegalArgumentException refused) {
               return Optional.of(refused.getMessage());
@@ -77,6 +80,13 @@ public final class FunctionCatalogue {
       return params.stream().filter(p -> p.name().equals(name)).findFirst();
     }
   }
+
+  /**
+   * The formatting core's compiler of each syntax the schema lists (ADR-0026): a pattern to its
+   * XPath picture, or refused with the element it cannot translate.
+   */
+  private static final Map<String, UnaryOperator<String>> PICTURES =
+      Map.of("numberPattern", NumberPattern::picture, "datePattern", DatePattern::picture);
 
   /** The packed catalogue's bytes, never handed out: {@link #bytes()} copies them. */
   private static final byte[] PACKED;
