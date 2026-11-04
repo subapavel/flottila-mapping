@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-replaceString-aa-b.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of replaceString follows java.lang.String and XPath); obs-text row replaceString/004",
+  "expect": "output",
+  "note": "replaceString{search=aa, replacement=b} replaces matches left to right without overlap: aaa gives ba, aaaa gives bb."
+}

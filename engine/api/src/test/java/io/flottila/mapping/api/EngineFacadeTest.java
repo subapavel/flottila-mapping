@@ -337,7 +337,7 @@ class EngineFacadeTest {
         orderToOrder(
             """
             {"%1$s/OrderId": {"id": "t1", "result": "f1",
-                              "boxes": {"f1": {"kind": "function", "fn": "trim", "inputs": ["a1"]},
+                              "boxes": {"f1": {"kind": "function", "fn": "rfcLookup", "inputs": ["a1"]},
                                         "a1": {"kind": "source", "field": "%1$s/OrderId"}}},
              "%1$s/Quantity": {"id": "t2", "result": null,
                                "boxes": {"a2": {"kind": "source", "field": "%1$s/Quantity"}}}}
@@ -771,7 +771,7 @@ class EngineFacadeTest {
             {"%1$s/OrderId": {"id": "t1", "result": "a1",
                               "boxes": {"a1": {"kind": "source", "field": "%1$s/OrderId"}}},
              "%1$s/Quantity": {"id": "t2", "result": "f1",
-                               "boxes": {"f1": {"kind": "function", "fn": "trim",
+                               "boxes": {"f1": {"kind": "function", "fn": "rfcLookup",
                                                 "inputs": ["a2"]},
                                          "a2": {"kind": "source", "field": "%1$s/Quantity"}}}}
             """

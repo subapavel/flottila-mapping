@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-endsWith.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of endsWith follows java.lang.String and XPath); obs-text row endsWith/001",
+  "expect": "output",
+  "note": "endsWith(Sku, Qty) is true for a suffix and for an empty suffix, false when the suffix is inside, or longer than the value."
+}

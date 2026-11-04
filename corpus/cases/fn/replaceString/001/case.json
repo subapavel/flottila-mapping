@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-replaceString-a-bb.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of replaceString follows java.lang.String and XPath); obs-text row replaceString/001",
+  "expect": "output",
+  "note": "replaceString{search=a, replacement=bb} replaces every a: banana gives bbbnbbnbb, a value without a is kept, aaa gives six b."
+}
