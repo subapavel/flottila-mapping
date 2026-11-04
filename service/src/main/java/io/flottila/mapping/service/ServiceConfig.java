@@ -14,13 +14,15 @@ import jakarta.enterprise.event.Observes;
 import jakarta.inject.Singleton;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import org.eclipse.microprofile.config.Config;
 import org.jboss.logging.Logger;
 
 /**
  * The service's configuration that {@code application.properties} cannot express (ADR-0014,
- * ADR-0015, ADR-0024): the startup warning for a host beyond loopback, the startup check of the
- * trace limit, and a strict JSON reader.
+ * ADR-0015, ADR-0024): the startup warning for a host beyond loopback, the startup checks of the
+ * trace limit and the time zone, and a strict JSON reader.
  */
 @Singleton
 public class ServiceConfig implements ObjectMapperCustomizer {
@@ -28,15 +30,40 @@ public class ServiceConfig implements ObjectMapperCustomizer {
   /** The most one trace entry of a test run keeps (ADR-0015, "Trace"). */
   static final String TRACE_LIMIT = "flottila.mapping.trace-limit";
 
+  /** The time zone of the service's runs (#80). */
+  static final String TIME_ZONE = "flottila.mapping.time-zone";
+
   private static final Logger LOG = Logger.getLogger(ServiceConfig.class);
 
   void warnAtStartup(@Observes StartupEvent event, Config config) {
     warnUnlessLoopback(config.getValue("quarkus.http.host", String.class));
   }
 
-  /** A trace limit below 1 is a configuration error, so the service does not start (#53). */
+  /**
+   * A trace limit below 1 (#53) or a time zone that is none (#80) is a configuration error, so the
+   * service does not start.
+   */
   void checkAtStartup(@Observes StartupEvent event, Config config) {
     traceLimit(config);
+    timeZone(config);
+  }
+
+  /**
+   * {@value #TIME_ZONE}: the time zone of the service's runs (#80), a {@code ZoneId}, UTC by
+   * default. A run's time is taken in it, and the offset of that time is the zone a date without an
+   * offset is read in and every date is written in; an export's caller sets it as the processor's
+   * implicit time zone.
+   *
+   * @throws IllegalArgumentException when it names no time zone
+   */
+  static ZoneId timeZone(Config config) {
+    String zone = config.getValue(TIME_ZONE, String.class);
+    try {
+      return ZoneId.of(zone);
+    } catch (DateTimeException none) {
+      throw new IllegalArgumentException(
+          TIME_ZONE + " is \"" + zone + "\", which is no time zone: " + none.getMessage(), none);
+    }
   }
 
   /**
