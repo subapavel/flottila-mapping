@@ -6,17 +6,20 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.random.RandomGenerator;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The one number rule of the standard functions (#82, ADR-0005): the {@code xs:decimal} lexical
  * form, XML whitespace (space, tab, line feed, return) around it ignored, as the export's cast
- * reads it. The property test (ADR-0018) is a seeded loop, without jqwik: 2000 seeded texts over
- * the characters the rule turns on, against a reference reader written here.
+ * reads it. The property test (ADR-0018) is parameterised by seed, without jqwik: 200 seeds of 10
+ * texts each over the characters the rule turns on, against a reference reader written here. The
+ * canonical form, the quotient and round, which every family writes and divides through (#70 R11),
+ * are pinned by worked examples.
  */
 class XsDecimalTest {
 
@@ -90,15 +93,63 @@ class XsDecimalTest {
     assertThat(XsDecimal.parse(text)).isEmpty();
   }
 
+  /** The canonical form: no exponent, no trailing zero, 0 for every zero. */
+  @ParameterizedTest(name = "{0} is {1}")
+  @CsvSource({"1.50, 1.5", "0.000, 0", "-0.0, 0", "1E+3, 1000", "100, 100", "-12.125, -12.125"})
+  void aNumberIsWrittenInTheCanonicalForm(String number, String text) {
+    assertThat(XsDecimal.canonical(new BigDecimal(number))).isEqualTo(text);
+  }
+
+  /**
+   * ADR-0005 as amended by F-20: max(18, scale of dividend - scale of divisor + 18) fractional
+   * digits, trailing zeros not counted and a scale below 0 as 0, the last digit rounded half-down.
+   * 1 / 2^30 and the tie 3 / 2^19 are Saxon-HE 12.5's quotients of F-20; the others are worked by
+   * hand, each digit count checked against Python's decimal module.
+   */
+  @ParameterizedTest(name = "{0} / {1} is {2}")
+  @CsvSource({
+    "1, 3, 0.333333333333333333",
+    "2, 3, 0.666666666666666667",
+    "-1, 3, -0.333333333333333333",
+    "-2, 3, -0.666666666666666667",
+    "1, 1073741824, 0.000000000931322575",
+    "3, 524288, 0.000005722045898437",
+    "0.01, 3, 0.00333333333333333333",
+    "1.000, 3, 0.333333333333333333",
+    "1, 300, 0.003333333333333333",
+    "1, 0.3, 3.333333333333333333",
+    "0.000001, 0.03, 0.0000333333333333333333",
+    "1, 0.001, 1000",
+    "10, 4, 2.5"
+  })
+  void aQuotientHasTheScaleOfAdr0005(String dividend, String divisor, String quotient) {
+    assertThat(
+            XsDecimal.canonical(
+                XsDecimal.quotient(new BigDecimal(dividend), new BigDecimal(divisor))))
+        .isEqualTo(quotient);
+  }
+
+  /** XPath's round: the nearest whole number, a half toward positive infinity. */
+  @ParameterizedTest(name = "round({0}) is {1}")
+  @CsvSource({"2.5, 3", "-2.5, -2", "2.4, 2", "-2.6, -3", "0.5, 1", "-0.5, 0", "7, 7"})
+  void roundGoesToTheNearestWholeNumberAHalfUp(String number, String rounded) {
+    assertThat(XsDecimal.round(new BigDecimal(number)).toPlainString()).isEqualTo(rounded);
+  }
+
   /** The characters the rule turns on, XML whitespace and two it does not take as whitespace. */
   private static final char[] ALPHABET = {
     '0', '1', '9', '+', '-', '.', ' ', '\t', '\r', '\n', 'e', '\f', ' '
   };
 
-  @Test
-  void seededTextsAreReadAsTheReferenceReadsThem() {
-    RandomGenerator random = new SplittableRandom(82);
-    for (int i = 0; i < 2000; i++) {
+  static LongStream seeds() {
+    return LongStream.rangeClosed(1, 200);
+  }
+
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("seeds")
+  void seededTextsAreReadAsTheReferenceReadsThem(long seed) {
+    RandomGenerator random = new SplittableRandom(seed);
+    for (int i = 0; i < 10; i++) {
       StringBuilder text = new StringBuilder();
       int length = random.nextInt(8);
       for (int k = 0; k < length; k++) {

@@ -154,21 +154,3 @@ Target wire: F1 -> `Out/All`.
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
 | `fn/trim/001` | `trim-001.xml` | trim leaves out space, tab, line feed and return at both ends and nothing inside: '  a b  ' gives a b, an all-space value gives an empty value; a no-break space is not trimmed. |
-
-## Mapping create-a (target `tgt-create.xsd`, root `Create`), with replaceValue for the constant
-
-obs-target-creation's create-a, whose A1 is `Constant{keep}`. The constants family is not in the
-catalogue yet, so the case's mapping builds A1 as `replaceValue{replacement=keep}` over S1.
-
-| Box | Function | Inputs |
-| --- | --- | --- |
-| S1 | source | `Orders/Order/Line/Sku` with context `Orders` |
-| A1 | `replaceValue{replacement=keep}` | in1 = S1 |
-| A2 | `equalsS` | in1 = S1, in2 = A1 |
-| A3 | `createIf` | in1 = A2 |
-
-Target wires: A3 -> `Create/Row`; `Orders/Order/Line/Qty` (default context `Line`) -> `Create/Row/Val`.
-
-| Case | Input | Question it decides and the assumed reading |
-| --- | --- | --- |
-| `target/max/004` | `target-max-004.xml` | The same input as obs-target-creation a1 (`a1.xml`), whose answer is already recorded: two `Row`, `Val` 2 and 3. Only the replaceValue in place of the constant is new, and A1 is `keep` for every line either way, so the same output is expected. |

@@ -8,12 +8,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.type.LogicalType;
+import io.flottila.mapping.api.EngineFacade;
 import io.quarkus.jackson.ObjectMapperCustomizer;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.event.Observes;
+import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import org.eclipse.microprofile.config.Config;
@@ -22,7 +25,8 @@ import org.jboss.logging.Logger;
 /**
  * The service's configuration that {@code application.properties} cannot express (ADR-0014,
  * ADR-0015, ADR-0024): the startup warning for a host beyond loopback, the startup checks of the
- * trace limit and the time zone, and a strict JSON reader.
+ * trace limit and the time zone, a strict JSON reader, and the one engine facade of the service,
+ * over the run clock in the configured time zone (CODING_STANDARDS: the clock is injected).
  */
 @Singleton
 public class ServiceConfig implements ObjectMapperCustomizer {
@@ -64,6 +68,20 @@ public class ServiceConfig implements ObjectMapperCustomizer {
       throw new IllegalArgumentException(
           TIME_ZONE + " is \"" + zone + "\", which is no time zone: " + none.getMessage(), none);
     }
+  }
+
+  /** The run clock: the system's, in {@value #TIME_ZONE} (#80). */
+  @Produces
+  @Singleton
+  Clock clock(Config config) {
+    return Clock.system(timeZone(config));
+  }
+
+  /** The engine every resource calls, whose runs take their time from {@code clock} (#80). */
+  @Produces
+  @Singleton
+  EngineFacade engine(Clock clock) {
+    return new EngineFacade(clock);
   }
 
   /**

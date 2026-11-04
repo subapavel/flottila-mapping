@@ -30,7 +30,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The interpreter on {@code TargetRepeat} and on the queue of a source structure field (ADR-0006
@@ -263,45 +267,78 @@ class TargetRepeatInterpreterTest {
   }
 
   /**
-   * Seeded: for copies 1 to 4 and 0 to 5 Items, each Item reports Gen's copies, then per copy c1's
-   * value, before the copy's children: Qty under the copy's slot number (p - 1) * copies + j. So
-   * the value is evaluated once per copy, copies * Items times, never once per run, and the traced
-   * run writes what the untraced one writes. The Orders have 0 to 2 Lines, by the seed.
+   * Per seed, copies and Items, the slot numbers of Qty under each Item's copies, the Items split
+   * by {@code |}: copy j of Item p is slot (p - 1) * copies + j, as ADR-0006 numbers a {@code
+   * TargetRepeat}'s copies.
    */
-  @Test
-  void aGeneratingStructureFieldReportsItsValueOncePerCopy() throws Exception {
-    Random random = new Random(83);
-    for (long copies = 1; copies <= 4; copies++) {
-      for (int parents = 0; parents <= 5; parents++) {
-        String value = "g" + random.nextInt(1000);
-        StringBuilder input = new StringBuilder("<Orders>");
-        for (int order = 1; order <= parents; order++) {
-          input.append("<Order><Id>o").append(order).append("</Id>");
-          for (int line = random.nextInt(3); line > 0; line--) {
-            input.append("<Line><Qty>").append(random.nextInt(10)).append("</Qty></Line>");
-          }
-          input.append("</Order>");
-        }
-        input.append("</Orders>");
-        List<String> expected = new ArrayList<>();
-        for (long p = 1; p <= parents; p++) {
-          expected.add("repeat t3@" + p + "x" + copies);
-          for (long j = 1; j <= copies; j++) {
-            expected.add("atomic c1=" + value);
-            expected.add("qty@" + ((p - 1) * copies + j));
-          }
-        }
-        TargetDocument document = generating(copies, constant(value));
-        Tracer tracer = new Tracer();
+  static Stream<Arguments> repeats() {
+    return Stream.of(
+        Arguments.of(1L, 1L, 0, ""),
+        Arguments.of(2L, 1L, 1, "1"),
+        Arguments.of(3L, 1L, 2, "1 | 2"),
+        Arguments.of(4L, 1L, 3, "1 | 2 | 3"),
+        Arguments.of(5L, 1L, 4, "1 | 2 | 3 | 4"),
+        Arguments.of(6L, 1L, 5, "1 | 2 | 3 | 4 | 5"),
+        Arguments.of(7L, 2L, 0, ""),
+        Arguments.of(8L, 2L, 1, "1 2"),
+        Arguments.of(9L, 2L, 2, "1 2 | 3 4"),
+        Arguments.of(10L, 2L, 3, "1 2 | 3 4 | 5 6"),
+        Arguments.of(11L, 2L, 4, "1 2 | 3 4 | 5 6 | 7 8"),
+        Arguments.of(12L, 2L, 5, "1 2 | 3 4 | 5 6 | 7 8 | 9 10"),
+        Arguments.of(13L, 3L, 0, ""),
+        Arguments.of(14L, 3L, 1, "1 2 3"),
+        Arguments.of(15L, 3L, 2, "1 2 3 | 4 5 6"),
+        Arguments.of(16L, 3L, 3, "1 2 3 | 4 5 6 | 7 8 9"),
+        Arguments.of(17L, 3L, 4, "1 2 3 | 4 5 6 | 7 8 9 | 10 11 12"),
+        Arguments.of(18L, 3L, 5, "1 2 3 | 4 5 6 | 7 8 9 | 10 11 12 | 13 14 15"),
+        Arguments.of(19L, 4L, 0, ""),
+        Arguments.of(20L, 4L, 1, "1 2 3 4"),
+        Arguments.of(21L, 4L, 2, "1 2 3 4 | 5 6 7 8"),
+        Arguments.of(22L, 4L, 3, "1 2 3 4 | 5 6 7 8 | 9 10 11 12"),
+        Arguments.of(23L, 4L, 4, "1 2 3 4 | 5 6 7 8 | 9 10 11 12 | 13 14 15 16"),
+        Arguments.of(24L, 4L, 5, "1 2 3 4 | 5 6 7 8 | 9 10 11 12 | 13 14 15 16 | 17 18 19 20"));
+  }
 
-        String traced = run(document, input.toString(), true, tracer);
-
-        assertThat(tracer.reports().stream().map(r -> describe(r)).filter(Objects::nonNull))
-            .as("copies %d, Items %d, input %s", copies, parents, input)
-            .containsExactlyElementsOf(expected);
-        assertThat(traced).isEqualTo(run(document, input.toString()));
+  /**
+   * For copies 1 to 4 and 0 to 5 Items, each Item reports Gen's copies, then per copy c1's value,
+   * before the copy's children: Qty under the copy's slot number. So the value is evaluated once
+   * per copy, copies * Items times, never once per run, and the traced run writes what the untraced
+   * one writes. The value and the Orders' 0 to 2 Lines come from the seed.
+   */
+  @ParameterizedTest(name = "seed {0}: copies {1}, Items {2}")
+  @MethodSource("repeats")
+  void aGeneratingStructureFieldReportsItsValueOncePerCopy(
+      long seed, long copies, int parents, String slots) throws Exception {
+    Random random = new Random(seed);
+    String value = "g" + random.nextInt(1000);
+    StringBuilder input = new StringBuilder("<Orders>");
+    for (int order = 1; order <= parents; order++) {
+      input.append("<Order><Id>o").append(order).append("</Id>");
+      for (int line = random.nextInt(3); line > 0; line--) {
+        input.append("<Line><Qty>").append(random.nextInt(10)).append("</Qty></Line>");
+      }
+      input.append("</Order>");
+    }
+    input.append("</Orders>");
+    String[] items = slots.isEmpty() ? new String[0] : slots.split(" \\| ");
+    assertThat(items).as("the row's Items").hasSize(parents);
+    List<String> expected = new ArrayList<>();
+    for (int p = 1; p <= items.length; p++) {
+      expected.add("repeat t3@" + p + "x" + copies);
+      for (String slot : items[p - 1].split(" ")) {
+        expected.add("atomic c1=" + value);
+        expected.add("qty@" + slot);
       }
     }
+    TargetDocument document = generating(copies, constant(value));
+    Tracer tracer = new Tracer();
+
+    String traced = run(document, input.toString(), true, tracer);
+
+    assertThat(tracer.reports().stream().map(r -> describe(r)).filter(Objects::nonNull))
+        .as("input %s", input)
+        .containsExactlyElementsOf(expected);
+    assertThat(traced).isEqualTo(run(document, input.toString()));
   }
 
   /**

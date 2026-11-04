@@ -9,7 +9,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.xdm.SuppressQueues.Queue;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -138,44 +137,50 @@ class StatisticFunctionsTest {
     assertThat(read(result)).isEqualTo(expected);
   }
 
+  /** Half a unit of the 18th fractional digit, ADR-0005's least quotient precision. */
+  private static final BigDecimal HALF_UNIT_18 = new BigDecimal("5E-19");
+
   /**
-   * average: one context per context, holding the total divided by the count by ADR-0005's rule,
-   * {@code 18 + scale} digits rounded half-down; a context without a value gives an empty context.
+   * average: one context per context, holding one canonical number within half a unit of the 18th
+   * fractional digit of total / count (ADR-0005), checked against the total, not recomputed; a
+   * context without a value gives an empty context. The exact digits and their rounding are the
+   * literal examples of {@link #averageFollowsTheDivisionRuleOfAdr0005}.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
   void averageDividesTheTotalByTheCount(String name, Queue queue) {
-    QueueBlock result = StatisticFunctions.average(queue.block());
+    List<List<String>> result = read(StatisticFunctions.average(queue.block()));
 
-    List<List<String>> expected = new ArrayList<>();
-    for (List<String> context : queue.contexts()) {
-      List<BigDecimal> numbers = numbers(context);
+    assertThat(result).hasSameSizeAs(queue.contexts());
+    for (int c = 0; c < result.size(); c++) {
+      List<BigDecimal> numbers = numbers(queue.contexts().get(c));
       if (numbers.isEmpty()) {
-        expected.add(List.of());
-      } else {
-        BigDecimal total = total(numbers);
-        int scale = Math.max(0, total.stripTrailingZeros().scale()) + 18;
-        expected.add(
-            List.of(
-                canonical(
-                    total.divide(
-                        BigDecimal.valueOf(numbers.size()), scale, RoundingMode.HALF_DOWN))));
+        assertThat(result.get(c)).as("context %d", c).isEmpty();
+        continue;
       }
+      assertThat(result.get(c)).as("context %d", c).hasSize(1);
+      String text = result.get(c).getFirst();
+      BigDecimal average = new BigDecimal(text);
+      BigDecimal count = BigDecimal.valueOf(numbers.size());
+      assertThat(text).as("context %d is canonical", c).isEqualTo(canonical(average));
+      assertThat(average.multiply(count).subtract(total(numbers)).abs())
+          .as("context %d: %s * %s against the total", c, text, count)
+          .isLessThanOrEqualTo(count.multiply(HALF_UNIT_18));
     }
-    assertThat(read(result)).isEqualTo(expected);
   }
 
   /**
-   * index: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of a context, or
-   * of the queue without a reset, is {@code initial + k * increment}.
+   * index from 0 by 1: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of a
+   * context, or of the queue without a reset, is k itself, counted here, not computed. The decimal
+   * and canonical forms of {@code initial + k * increment} are the literal examples of {@link
+   * #indexWritesItsNumbersCanonically}.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
   void indexNumbersTheValues(String name, Queue queue) {
-    BigDecimal initial = new BigDecimal("1.5");
-    BigDecimal increment = new BigDecimal("-0.5");
     for (boolean reset : new boolean[] {true, false}) {
-      QueueBlock result = StatisticFunctions.index(queue.block(), initial, increment, reset);
+      QueueBlock result =
+          StatisticFunctions.index(queue.block(), BigDecimal.ZERO, BigDecimal.ONE, reset);
 
       List<List<String>> expected = new ArrayList<>();
       long k = 0;
@@ -183,8 +188,7 @@ class StatisticFunctionsTest {
         k = reset ? 0 : k;
         List<String> slots = new ArrayList<>();
         for (String slot : context) {
-          slots.add(
-              slot == S ? S : canonical(initial.add(increment.multiply(BigDecimal.valueOf(k++)))));
+          slots.add(slot == S ? S : Long.toString(k++));
         }
         expected.add(slots);
       }
@@ -251,6 +255,22 @@ class StatisticFunctionsTest {
                 StatisticFunctions.index(
                     values, new BigDecimal("10"), new BigDecimal("-3"), false)))
         .containsExactly(context("10", S, "7"), context(), context(S, "4"));
+  }
+
+  @Test
+  void indexWritesItsNumbersCanonically() {
+    QueueBlock values = queue("q", context("a", "b", "c"), context(S, "d", "e", "f")).block();
+
+    assertThat(
+            read(
+                StatisticFunctions.index(
+                    values, new BigDecimal("1.5"), new BigDecimal("-0.5"), false)))
+        .containsExactly(context("1.5", "1", "0.5"), context(S, "0", "-0.5", "-1"));
+    assertThat(
+            read(
+                StatisticFunctions.index(
+                    values, new BigDecimal("0.10"), new BigDecimal("0.10"), true)))
+        .containsExactly(context("0.1", "0.2", "0.3"), context(S, "0.1", "0.2", "0.3"));
   }
 
   static Stream<Arguments> malformed() {

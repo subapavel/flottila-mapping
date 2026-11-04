@@ -92,6 +92,26 @@ Target wires: U1 -> `Out/All`. Nothing else is mapped.
 | --- | --- | --- |
 | `fn/useOneAsMany/005` | `useOneAsMany-005.xml` | createIf over Tag in context Orders gives SUPPRESS, ""; Sku in context Order has two slots, then one. Value 1, SUPPRESS, is repeated twice and value 2 once, in the one context of Sku in context Orders: SUPPRESS, SUPPRESS, "", so one empty All. SUPPRESS repeated as "" gives three. |
 
+## Mapping spec3-suppress-use-one-as-many-occurrences
+
+Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).
+
+Boxes for target field `Out/All`:
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Id` with context `Orders` |
+| S2 | source | `Orders/Order/Line/Sku` with context `Order` |
+| C1 | `createIf` | in1 = S2 |
+| S3 | source | `Orders/Order/Line/Sku` with context `Orders` |
+| U1 | `useOneAsMany` | in1 = S1, in2 = C1, in3 = S3 |
+
+Target wires: U1 -> `Out/All`. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `fn/useOneAsMany/009` | `useOneAsMany-009.xml` | SUPPRESS in the second input: Id is A, B; createIf over Sku in context Order gives "", SUPPRESS \| ""; Sku in context Orders has three slots. The SUPPRESS slot counts as an occurrence, so A is repeated twice and B once: All A, A, B. SUPPRESS not counted gives two occurrences for three slots, an error at U1; SUPPRESS carried into the result gives All A, B. |
+
 ## Mapping spec2-use-one-as-many
 
 Source `src-orders.xsd` (root `Orders`), target `tgt-list.xsd` (root `Out`).

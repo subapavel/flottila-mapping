@@ -1,8 +1,9 @@
 package io.flottila.mapping.service;
 
-import static io.flottila.mapping.service.Fixtures.NS;
+import static io.flottila.mapping.service.Fixtures.NOTE_AT_10_UTC;
 import static io.flottila.mapping.service.Fixtures.bytes;
 import static io.flottila.mapping.service.Fixtures.corpusMapping;
+import static io.flottila.mapping.service.Fixtures.notesInTheRunsZone;
 import static io.flottila.mapping.service.Wire.testRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The time zone of the service's runs is configurable (#80): {@code flottila.mapping.time-zone} is
  * +01:00 here, so a test run writes a date at +01:00. Under the default, UTC, the same date is
- * written as it is read, 10:00 Z.
+ * written as it is read, 10:00 Z ({@code TestRunResourceTest.aTestRunWritesADateInUtcByDefault}).
  */
 @QuarkusTest
 @TestProfile(TestRunTimeZoneTest.PlusOne.class)
@@ -38,24 +39,13 @@ class TestRunTimeZoneTest {
   @Test
   void aTestRunWritesADateInTheConfiguredZone() {
     TempWorkspace.write("testing-time-zone/order.mapping.json", corpusMapping());
-    String model =
-        TestRunResourceTest.notesThrough(
-            "d1",
-            """
-            "d1": {"kind": "function", "fn": "dateTrans", "inputs": ["a2"],
-                   "params": {"sourceFormat": "yyyy-MM-dd HH:mmXXX", "targetFormat": "HH:mm XXX"}},
-            "a2": {"kind": "source", "field": "NOTE"}""");
-    String input =
-        "<src:Order xmlns:src=\""
-            + NS
-            + "\"><OrderId>1</OrderId><Note>2026-11-04 10:00Z</Note></src:Order>";
 
     Http.Reply reply =
         new Http(root)
             .post(
                 "api/mappings/testing-time-zone/order/test",
                 "application/json",
-                bytes(testRequest(model, input)));
+                bytes(testRequest(notesInTheRunsZone(), NOTE_AT_10_UTC)));
 
     assertThat(reply.status()).as("%s", reply).isEqualTo(200);
     JsonNode result = reply.json();

@@ -3,7 +3,6 @@ package io.flottila.mapping.runtime;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.xdm.XsDecimal;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,8 +38,6 @@ final class TextFamily {
           Map.entry("toLowerCase", TextFamily::toLowerCase),
           Map.entry("toUpperCase", TextFamily::toUpperCase),
           Map.entry("trim", TextFamily::trim));
-
-  private static final BigDecimal HALF = new BigDecimal("0.5");
 
   private TextFamily() {}
 
@@ -203,16 +200,11 @@ final class TextFamily {
     return Boolean.compare(i < a.length(), j < b.length());
   }
 
-  /** XPath's {@code round}: the nearest integer, a tie towards positive infinity. */
-  private static BigDecimal round(BigDecimal number) {
-    return number.add(HALF).setScale(0, RoundingMode.FLOOR);
-  }
-
   private static String substring(String text, BigDecimal start, BigDecimal length) {
     int points = text.codePointCount(0, text.length());
-    BigDecimal first = round(start);
+    BigDecimal first = XsDecimal.round(start);
     BigDecimal from = first.max(BigDecimal.ZERO);
-    BigDecimal to = first.add(round(length)).min(BigDecimal.valueOf(points));
+    BigDecimal to = first.add(XsDecimal.round(length)).min(BigDecimal.valueOf(points));
     if (from.compareTo(to) >= 0) {
       return "";
     }

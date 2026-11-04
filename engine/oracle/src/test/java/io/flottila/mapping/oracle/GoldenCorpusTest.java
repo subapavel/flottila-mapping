@@ -241,19 +241,21 @@ class GoldenCorpusTest {
   }
 
   /**
-   * The entry of the {@code result} box of {@code link}: the field's queue, or, for a generating
-   * function, a graph without a source-field box (ADR-0006 as amended by #83), its queue or its
-   * atomic value (ADR-0015 {@code {atomic: {type, value}}}). A field read from a source field never
-   * has an atomic entry. {@code GeneratingTraceCheckTest} runs it on synthetic links.
+   * The entry of the {@code result} box of {@code link}: the field's queue, or, for a graph without
+   * a source-field box, its queue or its atomic value (ADR-0015 {@code {atomic: {type, value}}}).
+   * Such a graph is a generating function when its result is a single value, and a queue when it is
+   * one, such as {@code count} of a constant (ADR-0006 as amended by #83, F-21). A field read from
+   * a source field never has an atomic entry. {@code GeneratingTraceCheckTest} runs it on synthetic
+   * links.
    */
   static void checkResultEntry(Map<String, Object> link, Trace.Entry entry, String what) {
     String result = text(link, "result");
-    boolean generating =
+    boolean noSourceField =
         object(link.get("boxes"), what + " boxes").values().stream()
             .noneMatch(box -> "source".equals(object(box, what + " box").get("kind")));
-    if (generating) {
+    if (noSourceField) {
       assertThat(entry)
-          .as("%s: the queue or value of its generating result box %s", what, result)
+          .as("%s: the queue or value of its result box %s, with no source field", what, result)
           .isInstanceOfAny(Trace.Queue.class, Trace.Atomic.class);
     } else {
       assertThat(entry)

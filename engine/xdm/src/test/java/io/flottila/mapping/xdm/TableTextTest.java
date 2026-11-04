@@ -8,7 +8,10 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * {@code TableText} (#83, ADR-0026 "Table params"): a table param travels through the IR as one
@@ -16,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * strings quoted as {@code JSON.stringify} quotes them, no white space), which {@code write} gives
  * and {@code read} turns back into the table. The worked examples are Node 22's {@code
  * JSON.stringify} over the keys in {@code Array.prototype.sort} order, the independent oracle; the
- * property is a seeded loop (ADR-0018: no jqwik).
+ * property is parameterised by seed (ADR-0018: no jqwik).
  */
 class TableTextTest {
 
@@ -117,16 +120,21 @@ class TableTextTest {
     return s.toString();
   }
 
+  static LongStream seeds() {
+    return LongStream.rangeClosed(1, 200);
+  }
+
   /**
-   * Over 2,000 seeded tables of up to 6 rows, keys and values of up to 8 characters with quotation
-   * marks, backslashes, apostrophes, control characters and characters outside the BMP: {@code
-   * read(write(t))} is {@code t}, writing again gives the same text, and the text holds no raw
-   * control character, so it is one JSON string literal's worth of safe text.
+   * Over 200 seeds of 10 tables each, up to 6 rows, keys and values of up to 8 characters with
+   * quotation marks, backslashes, apostrophes, control characters and characters outside the BMP:
+   * {@code read(write(t))} is {@code t}, writing again gives the same text, and the text holds no
+   * raw control character, so it is one JSON string literal's worth of safe text.
    */
-  @Test
-  void readOfWriteIsTheIdentity() {
-    SplittableRandom random = new SplittableRandom(83);
-    for (int n = 0; n < 2_000; n++) {
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("seeds")
+  void readOfWriteIsTheIdentity(long seed) {
+    SplittableRandom random = new SplittableRandom(seed);
+    for (int n = 0; n < 10; n++) {
       SortedMap<String, String> table = new TreeMap<>();
       int rows = random.nextInt(7);
       for (int r = 0; r < rows; r++) {

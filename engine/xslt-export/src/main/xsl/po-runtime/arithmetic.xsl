@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The function family arithmetic (ADR-0025 "Families", F-15), the math functions of #73: each is
-     po:<catalogue name>, its args in FunCall order, and it takes its box last because it can raise
-     a data error through po:data-error (ADR-0026). A number is read by core's po:decimal, the
+<!-- The function family arithmetic (ADR-0025 "Families", F-15), the functions of #72, #73 and
+     #74: each is po:<catalogue name>, its args in FunCall order, and it takes its box last because
+     it can raise a data error through po:data-error (ADR-0026). A number is read by core's po:decimal, the
      xs:decimal lexical form with XML whitespace around it ignored, anything else is err:FORG0001 at
-     the box; a result is written in the XPath canonical form, as the runtime's ArithmeticFamily
+     the box; a result is written in the XPath canonical form, as the runtime's XsDecimal.canonical
      writes it. The build joins core.xsl and the family modules, the families by id, into the
      helper module po-runtime.xsl, of which this comment is no part. A family module uses what
      core.xsl declares and nothing of another family, and holds core.xsl's root start tag, byte for
@@ -100,9 +100,9 @@
         xmlns:math="http://www.w3.org/2005/xpath-functions/math"/>
   </xsl:function>
 
-  <!-- $a div $b, as the runtime's ArithmeticFamily.quotient does by ADR-0005 (Saxon-HE's rule):
-       exact when it terminates, else a scale of max(18, ...) digits. Zero is err:FOAR0001 at
-       $box. -->
+  <!-- $a div $b, as the runtime's ArithmeticFamily.quotient does by ADR-0005 as amended by F-20
+       (Saxon-HE's rule): every quotient, one that terminates too, to max(18, scale of $a - scale
+       of $b + 18) fractional digits, the last rounded half-down. Zero is err:FOAR0001 at $box. -->
   <xsl:function name="po:arithmetic-quotient" as="xs:string">
     <xsl:param name="a" as="xs:decimal"/>
     <xsl:param name="b" as="xs:decimal"/>

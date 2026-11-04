@@ -22,13 +22,10 @@
     "/Create/Row": {
       "boxes": {
         "A1": {
-          "fn": "replaceValue",
-          "inputs": [
-            "S1"
-          ],
+          "fn": "constant",
           "kind": "function",
           "params": {
-            "replacement": "keep"
+            "value": "keep"
           }
         },
         "A2": {

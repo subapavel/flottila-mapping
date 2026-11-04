@@ -125,7 +125,7 @@ Target wires: `Orders/Order` -> `Out/Item`; N1 -> `Out/Item/V`; C2 -> `Out/Item/
 
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
-| `fn/constant/006` | `constant-001.xml` | What a constant is at a node function's input. Assumed: one context with one value, so count is 1 in one context and only the first Item gets a V 1; W w is in every Item. Return C1's and N1's display queues. One context per Item would give V 1 in every Item. |
+| `fn/constant/006` | `constant-001.xml` | What a constant is at a context function's input. Assumed: one context with one value, so count is 1 in one context and only the first Item gets a V 1; W w is in every Item. Return C1's and N1's display queues. One context per Item would give V 1 in every Item. |
 
 ### Mapping constant-gen-numbering (target `tgt-gen.xsd`, root `Gens`)
 

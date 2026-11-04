@@ -2,11 +2,11 @@ package io.flottila.mapping.api;
 
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.structure.ValueType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.SequencedMap;
 
 /**
@@ -40,7 +40,12 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
      * that does not reach the IR, as the service, shows (ADR-0024 "Service boundary").
      */
     public String typeName() {
-      return "xs:" + type.name().toLowerCase(Locale.ROOT);
+      ValueType named =
+          switch (type) {
+            case STRING -> ValueType.STRING;
+            case INTEGER -> ValueType.INTEGER;
+          };
+      return named.typeName();
     }
   }
 

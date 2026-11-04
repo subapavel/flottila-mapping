@@ -58,8 +58,12 @@ public final class FormatDate {
    */
   public static String format(OffsetDateTime value, String picture) {
     StringBuilder out = new StringBuilder();
-    for (String[] token : tokens(picture)) {
-      out.append(token[1] == null ? token[0] : component(value, token[1], picture));
+    for (Token token : tokens(picture)) {
+      out.append(
+          switch (token) {
+            case Literal literal -> literal.text();
+            case Component c -> component(value, c.name(), picture);
+          });
     }
     return out.toString();
   }
@@ -75,16 +79,17 @@ public final class FormatDate {
   public static Optional<OffsetDateTime> parse(String text, String picture, ZoneOffset implicit) {
     StringBuilder regex = new StringBuilder();
     List<String> components = new ArrayList<>();
-    for (String[] token : tokens(picture)) {
-      if (token[1] == null) {
-        regex.append(Pattern.quote(token[0]));
-      } else {
-        String digits = DIGITS.get(token[1]);
-        if (digits == null) {
-          throw unknown(picture);
+    for (Token token : tokens(picture)) {
+      switch (token) {
+        case Literal literal -> regex.append(Pattern.quote(literal.text()));
+        case Component c -> {
+          String digits = DIGITS.get(c.name());
+          if (digits == null) {
+            throw unknown(picture);
+          }
+          regex.append('(').append(digits).append(')');
+          components.add(c.name());
         }
-        regex.append('(').append(digits).append(')');
-        components.add(token[1]);
       }
     }
     Matcher m = Pattern.compile(regex.toString()).matcher(text);
@@ -137,9 +142,26 @@ public final class FormatDate {
     return Optional.of(ZoneOffset.ofHoursMinutes(sign * hours, sign * minutes));
   }
 
-  /** The tokens of {@code picture}: {literal text, null} or {null-free text, component name}. */
-  private static List<String[]> tokens(String picture) {
-    List<String[]> tokens = new ArrayList<>();
+  /** One token of a picture: {@link Literal} text or a {@link Component}. */
+  private sealed interface Token permits Literal, Component {}
+
+  /**
+   * Literal text of a picture, an escaped bracket as the bracket itself.
+   *
+   * @param text the text the token writes
+   */
+  private record Literal(String text) implements Token {}
+
+  /**
+   * A component of a picture.
+   *
+   * @param name the component's name, such as {@code Y0001}
+   */
+  private record Component(String name) implements Token {}
+
+  /** The tokens of {@code picture}, in order. */
+  private static List<Token> tokens(String picture) {
+    List<Token> tokens = new ArrayList<>();
     Matcher m = TOKEN.matcher(picture);
     int end = 0;
     while (m.find()) {
@@ -148,7 +170,9 @@ public final class FormatDate {
       }
       String text = m.group();
       tokens.add(
-          new String[] {text.equals("[[") ? "[" : text.equals("]]") ? "]" : text, m.group(1)});
+          m.group(1) != null
+              ? new Component(m.group(1))
+              : new Literal(text.equals("[[") ? "[" : text.equals("]]") ? "]" : text));
       end = m.end();
     }
     if (end != picture.length()) {
