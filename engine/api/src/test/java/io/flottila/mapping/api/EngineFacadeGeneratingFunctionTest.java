@@ -3,6 +3,7 @@ package io.flottila.mapping.api;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -322,7 +323,9 @@ class EngineFacadeGeneratingFunctionTest {
 
   /**
    * count over a constant: the constant is one context with one value, so count gives 1 in context
-   * 1 only, and only the first Item gets a V. W, from a constant directly, is in every Item.
+   * 1 only, and only the first Item gets a V. W, from a constant directly, is in every Item. The
+   * AtomicToQueue at count's input is not traced (ADR-0006 as amended by #83): the trace holds the
+   * boxes and target field mappings only, C1 and C2 as atomic values, N1 as count's queue.
    */
   @Test
   void aConstantIntoAContextFunctionIsOneContextWithOneValue() throws Exception {
@@ -346,6 +349,24 @@ class EngineFacadeGeneratingFunctionTest {
             DECLARATION
                 + "<Out><Item><V>1</V><W>w</W></Item><Item><W>w</W></Item>"
                 + "<Item><W>w</W></Item></Out>");
+
+    TestRunResult result =
+        facade.testRun(
+            compiled(model, observations(), CompileOptions.TEST_RUN),
+            THREE_ORDERS.getBytes(UTF_8),
+            TIMEOUT,
+            LIMIT);
+    assertThat(result).isInstanceOf(TestRunResult.Output.class);
+    Trace trace = ((TestRunResult.Output) result).trace();
+    assertThat(trace.entries().keySet())
+        .extracting(AuthoringId::value)
+        .containsExactlyInAnyOrder("S0", "T0", "C1", "N1", "T1", "C2", "T2");
+    assertThat(trace.entries().get(new AuthoringId("C1")))
+        .isEqualTo(new Trace.Atomic(AtomicType.STRING, "x"));
+    assertThat(trace.entries().get(new AuthoringId("N1")))
+        .isEqualTo(new Trace.Queue(List.of(List.of("1")), false, 1, 1));
+    assertThat(trace.entries().get(new AuthoringId("C2")))
+        .isEqualTo(new Trace.Atomic(AtomicType.STRING, "w"));
   }
 
   /**
@@ -398,8 +419,9 @@ class EngineFacadeGeneratingFunctionTest {
   /**
    * Grp per Order (two orders), L (2..3) from the constant C1: the trace holds L's occurrences per
    * parent slot, all created, two each, numbered (p - 1) * 2 + j, with L's min and max, and C1's
-   * value as a queue of one context with one value, the entry the corpus check reads as the field's
-   * queue. The Order queue and Grp's occurrences are there as for any field link.
+   * value as the atomic entry of ADR-0015 ({@code {atomic: {type, value}}}, the first atomic box,
+   * #83), type string and value k. The Order queue and Grp's occurrences are there as for any field
+   * link.
    */
   @Test
   void theTraceRecordsTheGeneratingFieldsOccurrencesAndTheConstantsValue(@TempDir Path base)
@@ -437,7 +459,7 @@ class EngineFacadeGeneratingFunctionTest {
                     new Trace.ParentSlot(2, 2, List.of(created(3), created(4)))),
                 false));
     assertThat(trace.entries().get(new AuthoringId("C1")))
-        .isEqualTo(new Trace.Queue(List.of(List.of("k")), false, 1, 1));
+        .isEqualTo(new Trace.Atomic(AtomicType.STRING, "k"));
     // witness: the field link's own entries, as before #83
     assertThat(trace.entries().get(new AuthoringId("T0")))
         .isEqualTo(
