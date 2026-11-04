@@ -24,7 +24,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,17 +48,41 @@ public final class EngineFacade {
   /** The runtime error of a test run that exceeds its timeout (ADR-0014, ADR-0015). */
   private static final String TIMEOUT = "flottila:TIMEOUT";
 
+  /** How a test run waits by the wall clock. */
+  private static final Deadline WALL_CLOCK =
+      (run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+
   /** How {@link #testRun} waits for its run: the wall clock, unless a test gives its own. */
   private final Deadline deadline;
 
-  /** A facade; it holds no mutable state, and its test runs wait by the wall clock. */
+  /** Where each run takes its time from; its zone gives the run's time zone (#80). */
+  private final Clock clock;
+
+  /**
+   * A facade; it holds no mutable state, its runs take their time from the UTC system clock, and
+   * its test runs wait by the wall clock.
+   */
   public EngineFacade() {
-    this((run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
+    this(Clock.systemUTC());
+  }
+
+  /**
+   * A facade whose runs take their time from {@code clock} (#80): each run reads it once as it
+   * starts, and the offset of that time in the clock's zone is the run's time zone, in which a date
+   * without an offset is read and every date is written. Its test runs wait by the wall clock.
+   */
+  public EngineFacade(Clock clock) {
+    this(WALL_CLOCK, clock);
   }
 
   /** A facade whose test runs wait by {@code deadline}: a test's fake clock (CODING_STANDARDS). */
   EngineFacade(Deadline deadline) {
+    this(deadline, Clock.systemUTC());
+  }
+
+  private EngineFacade(Deadline deadline, Clock clock) {
     this.deadline = deadline;
+    this.clock = clock;
   }
 
   /**
@@ -222,12 +248,14 @@ public final class EngineFacade {
     return run(mapping, input, new Tracer());
   }
 
-  /** {@link #run}, reporting to {@code tracer}. */
-  private static byte[] run(CompiledMapping mapping, byte[] input, Tracer tracer)
+  /** {@link #run}, reporting to {@code tracer}, at the time the clock gives as it starts. */
+  private byte[] run(CompiledMapping mapping, byte[] input, Tracer tracer)
       throws MalformedInputException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     try {
-      mapping.executable().run(new ByteArrayInputStream(input), out, tracer);
+      mapping
+          .executable()
+          .run(new ByteArrayInputStream(input), out, tracer, OffsetDateTime.now(clock));
     } catch (IOException e) {
       // only the output stream can throw it, and a ByteArrayOutputStream never does
       throw new UncheckedIOException(e);

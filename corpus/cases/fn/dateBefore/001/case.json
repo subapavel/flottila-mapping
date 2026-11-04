@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/date-before.mapping.json",
+  "provenance": "assumed",
+  "ref": "#2 §5 Date: DateBefore takes java.text.SimpleDateFormat patterns [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; ADR-0003; assumed reading: true when date1, read in format1, is before date2, read in format2, else false (obs-date dateBefore-001)",
+  "expect": "output",
+  "note": "format1 yyyyMMdd for Sku, format2 dd.MM.yyyy for Qty, both in context Orders: the pairs 20261103 and 04.11.2026, 20261104 and 04.11.2026, 20261105 and 04.11.2026. All is true, false, false: the same day is not before."
+}

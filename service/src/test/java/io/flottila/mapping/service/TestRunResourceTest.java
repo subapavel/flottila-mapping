@@ -78,7 +78,7 @@ class TestRunResourceTest {
    * <- result} at t2 (0..unbounded), whose boxes are {@code boxes}; {@code a2} reads the source
    * {@code Note}.
    */
-  private static String notesThrough(String result, String boxes) {
+  static String notesThrough(String result, String boxes) {
     String side =
         """
         {"bundle": ["../structures/skeleton/order.xsd"], "fingerprint": "%s", \

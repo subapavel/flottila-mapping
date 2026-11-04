@@ -4,6 +4,7 @@ import io.flottila.mapping.serializer.XmlSerializer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.OffsetDateTime;
 
 /**
  * A compiled mapping: the projection plan and the tree of executable nodes (ADR-0021). It is
@@ -40,12 +41,14 @@ public final class ExecutableMapping {
    * undefined; a caller that needs all or nothing buffers it.
    *
    * @param tracer receives the reports of a traced compile; an untraced compile never calls it
+   * @param now the time the run starts at, fixed for the whole run: its offset is the run's time
+   *     zone, in which a date without an offset is read and every date is written (#80)
    * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
    * @throws IOException when {@code out} cannot be written
    * @throws MappingRunException when the run meets a runtime error in its data (ADR-0015)
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
    */
-  public void run(InputStream in, OutputStream out, Tracer tracer)
+  public void run(InputStream in, OutputStream out, Tracer tracer, OffsetDateTime now)
       throws MalformedInputException, IOException {
     Frame frame =
         new Frame(
@@ -54,7 +57,8 @@ public final class ExecutableMapping {
             new XmlSerializer(out),
             integerSlotCount,
             stringSlotCount,
-            targetQueueCount);
+            targetQueueCount,
+            now);
     frame.integers[rootSlot] = 1;
     frame.out.startDocument();
     root.write(frame);

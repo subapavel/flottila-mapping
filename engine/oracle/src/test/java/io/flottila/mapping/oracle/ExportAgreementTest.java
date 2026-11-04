@@ -241,7 +241,8 @@ class ExportAgreementTest {
                 + "\"><OrderId>1</OrderId><Note>a</Note><Note>b</Note></s:Order>");
 
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    Interpreter.compile(document, false).run(new ByteArrayInputStream(input), out, new Tracer());
+    Interpreter.compile(document, false)
+        .run(new ByteArrayInputStream(input), out, new Tracer(), CaseFiles.DEFAULT_NOW);
     byte[] ours = out.toByteArray();
     byte[] saxon =
         SaxonRunner.run(XsltExporter.export(document), XsltExporter.helperModule(), input, dir);

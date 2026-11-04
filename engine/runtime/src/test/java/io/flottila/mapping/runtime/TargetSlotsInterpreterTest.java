@@ -25,6 +25,7 @@ import io.flottila.mapping.xdm.QueueBlock;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Out/Item/V}, {@code Out/All}). Expected outputs are byte literals worked out from ADR-0006.
  */
 class TargetSlotsInterpreterTest {
+
+  /** The time every run of this class starts at; no function here reads it. */
+  private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-04T12:00:00Z");
 
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
   private static final String MINOCCURS = "po:MINOCCURS";
@@ -176,7 +180,7 @@ class TargetSlotsInterpreterTest {
       throws Exception {
     ExecutableMapping mapping = Interpreter.compile(document, traced);
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    mapping.run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer);
+    mapping.run(new ByteArrayInputStream(input.getBytes(UTF_8)), out, tracer, NOW);
     return out.toString(UTF_8);
   }
 
@@ -498,7 +502,7 @@ class TargetSlotsInterpreterTest {
           new FutureTask<>(
               () -> {
                 mapping.run(
-                    new ByteArrayInputStream(input), OutputStream.nullOutputStream(), tracer);
+                    new ByteArrayInputStream(input), OutputStream.nullOutputStream(), tracer, NOW);
                 return null;
               });
       Thread.ofPlatform().name("traced run").daemon(true).start(run);

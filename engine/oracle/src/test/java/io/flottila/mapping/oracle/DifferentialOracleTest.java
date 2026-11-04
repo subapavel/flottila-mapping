@@ -67,7 +67,7 @@ class DifferentialOracleTest {
     byte[] model = Files.readAllBytes(mapping);
     Path base = mapping.getParent();
     byte[] input = Files.readAllBytes(c.input());
-    EngineFacade facade = new EngineFacade();
+    EngineFacade facade = c.facade();
 
     ExportResult.Exported exported = SaxonRunner.exported(facade.export(model, base), c.id());
     CompileResult result = facade.compile(model, base, CompileOptions.DEPLOY);
@@ -82,7 +82,7 @@ class DifferentialOracleTest {
       String authoringId = (String) c.expectedError().get("authoringId");
       SaxonApiException saxon =
           SaxonRunner.raised(
-              exported.stylesheet(), exported.helperModule(), input, caseDir, c.id());
+              exported.stylesheet(), exported.helperModule(), input, caseDir, c.now(), c.id());
       SaxonRunner.assertSameError(saxon, code, c.id());
       SaxonRunner.assertNamesItsPlace(saxon.getMessage(), code, authoringId, c.id() + " Saxon's");
       assertThatThrownBy(() -> facade.run(compiled, input))
@@ -97,7 +97,8 @@ class DifferentialOracleTest {
       return;
     }
 
-    byte[] saxon = SaxonRunner.run(exported.stylesheet(), exported.helperModule(), input, caseDir);
+    byte[] saxon =
+        SaxonRunner.run(exported.stylesheet(), exported.helperModule(), input, caseDir, c.now());
     byte[] ours = facade.run(compiled, input);
 
     SaxonRunner.assertAgree(saxon, ours, c.id());

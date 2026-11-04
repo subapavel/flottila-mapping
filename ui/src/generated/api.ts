@@ -636,10 +636,10 @@ export interface components {
             default: string;
             values?: string[];
             /**
-             * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.
+             * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern, datePattern a java.text.SimpleDateFormat pattern.
              * @enum {unknown}
              */
-            syntax?: "numberPattern";
+            syntax?: "numberPattern" | "datePattern";
         };
         /** TableParam */
         tableParam: {
@@ -731,10 +731,10 @@ export interface components {
                     default: string;
                     values?: string[];
                     /**
-                     * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern.
+                     * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern, datePattern a java.text.SimpleDateFormat pattern.
                      * @enum {unknown}
                      */
-                    syntax?: "numberPattern";
+                    syntax?: "numberPattern" | "datePattern";
                 };
                 /** TableParam */
                 tableParam: {

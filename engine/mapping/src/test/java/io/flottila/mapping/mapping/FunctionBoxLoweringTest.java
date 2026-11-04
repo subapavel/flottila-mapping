@@ -307,4 +307,37 @@ class FunctionBoxLoweringTest {
             "the parameter pattern of formatNum: the number pattern \"0.00E0\" has no XPath"
                 + " picture: the exponent E");
   }
+
+  // --- dateTrans (#80): its formats are params of the syntax datePattern (ADR-0026), which takes
+  // only the SimpleDateFormat patterns the formatting core translates to an XPath picture
+
+  @Test
+  void aDatePatternParamKeepsTheAuthorsStringAndADefaultForTheOther() {
+    StandardFunctionBox box =
+        function("dateTrans", inputs("a1"), params("targetFormat", text("dd.MM.yyyy")));
+
+    // the core would write the picture [D01].[M01].[Y0001]; the Literal keeps what the author
+    // wrote, and the left-out sourceFormat is the catalogue's default
+    assertThat(loweredQueue(lowerNote(box)))
+        .isInstanceOfSatisfying(
+            Lift.class,
+            lift ->
+                assertThat(((FunCall) lift.body()).args())
+                    .containsExactly(
+                        new VarRef("in1", AtomicType.STRING, id("f1")),
+                        new Literal("yyyy/MM/dd", id("f1")),
+                        new Literal("dd.MM.yyyy", id("f1"))));
+  }
+
+  @Test
+  void aDatePatternWithoutAPictureIsInvalidParameterValueNamingItsElement() {
+    LowerResult result =
+        lowerNote(function("dateTrans", inputs("a1"), params("sourceFormat", text("hh:mm"))));
+
+    assertThat(refused(result)).containsExactly(errorAtId("invalid-parameter-value", "f1"));
+    assertThat(((Refused) result).diagnostics().getFirst().message())
+        .isEqualTo(
+            "the parameter sourceFormat of dateTrans: the date pattern \"hh:mm\" has no XPath"
+                + " picture: the pattern letter h");
+  }
 }
