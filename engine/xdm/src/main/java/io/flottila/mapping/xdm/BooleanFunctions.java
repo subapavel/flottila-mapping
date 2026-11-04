@@ -38,10 +38,7 @@ public final class BooleanFunctions {
     QueueBlock.Builder result = new QueueBlock.Builder();
     for (int c = 0; c < contexts; c++) {
       // one check per context: its slots are read below, bounded by the longer input's count
-      if (Thread.currentThread().isInterrupted()) {
-        throw new CancellationException(
-            "ifWithoutElse was running when the thread was interrupted");
-      }
+      Interrupts.check("ifWithoutElse");
       result.newContext();
       int count = count(condition, then, c);
       for (int j = 0; j < count; j++) {

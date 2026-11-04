@@ -50,13 +50,8 @@ final class ArithmeticFamily {
           Map.entry("sqrt", ArithmeticFamily::sqrt),
           Map.entry("subtract", ArithmeticFamily::subtract));
 
-  /** The scale of a quotient, at least (ADR-0005). */
-  private static final int DIVISION_SCALE = 18;
-
   /** The greatest exponent of an exact {@code power}; above it the power is an xs:double. */
   private static final int MAX_EXACT_EXPONENT = 1000;
-
-  private static final BigDecimal HALF = new BigDecimal("0.5");
 
   private ArithmeticFamily() {}
 
@@ -126,7 +121,7 @@ final class ArithmeticFamily {
 
   /** {@code round(value)}: the nearest whole number, a half toward positive infinity. */
   static Node.OfString round(AuthoringId box, List<Node.OfString> args) {
-    return unary("round", box, args, x -> x.add(HALF).setScale(0, RoundingMode.FLOOR));
+    return unary("round", box, args, XsDecimal::round);
   }
 
   /** {@code sqr(value)}: the value times itself, exactly. */
@@ -154,7 +149,7 @@ final class ArithmeticFamily {
       if (e.signum() >= 0
           && e.compareTo(BigDecimal.valueOf(MAX_EXACT_EXPONENT)) <= 0
           && e.stripTrailingZeros().scale() <= 0) {
-        return format(b.pow(e.intValueExact()));
+        return XsDecimal.canonical(b.pow(e.intValueExact()));
       }
       return fromDouble("power", box, Math.pow(b.doubleValue(), e.doubleValue()));
     };
@@ -182,7 +177,7 @@ final class ArithmeticFamily {
       List<Node.OfString> args,
       UnaryOperator<BigDecimal> operation) {
     Node.OfString value = args.getFirst();
-    return frame -> format(operation.apply(number(function, box, value.eval(frame))));
+    return frame -> XsDecimal.canonical(operation.apply(number(function, box, value.eval(frame))));
   }
 
   /** The node of {@code function} over two numbers, the result written canonically. */
@@ -194,7 +189,7 @@ final class ArithmeticFamily {
     Node.OfString first = args.get(0);
     Node.OfString second = args.get(1);
     return frame ->
-        format(
+        XsDecimal.canonical(
             operation.apply(
                 number(function, box, first.eval(frame)),
                 number(function, box, second.eval(frame))));
@@ -223,13 +218,7 @@ final class ArithmeticFamily {
     if (divisor.signum() == 0) {
       throw MappingRunException.dataError(RuntimeErrors.FOAR0001, box, "division by zero", null);
     }
-    int scale = Math.max(DIVISION_SCALE, scale(dividend) - scale(divisor) + DIVISION_SCALE);
-    return dividend.divide(divisor, scale, RoundingMode.HALF_DOWN);
-  }
-
-  /** The fractional digits of {@code value} without its trailing zeros, never below 0. */
-  private static int scale(BigDecimal value) {
-    return Math.max(0, value.stripTrailingZeros().scale());
+    return XsDecimal.quotient(dividend, divisor);
   }
 
   /** The number {@code text} writes, or {@code err:FORG0001} at {@code box} when it is none. */
@@ -243,12 +232,7 @@ final class ArithmeticFamily {
     if (Double.isNaN(d) || Double.isInfinite(d)) {
       throw dataError(function, box, "the result is " + d + ", no xs:decimal");
     }
-    return format(new BigDecimal(d));
-  }
-
-  /** The XPath canonical form of {@code d}: no exponent, no trailing zero, {@code 0} for zero. */
-  private static String format(BigDecimal d) {
-    return d.signum() == 0 ? "0" : d.stripTrailingZeros().toPlainString();
+    return XsDecimal.canonical(new BigDecimal(d));
   }
 
   private static MappingRunException dataError(String function, AuthoringId box, String message) {

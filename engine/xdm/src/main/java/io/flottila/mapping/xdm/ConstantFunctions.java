@@ -51,7 +51,7 @@ public final class ConstantFunctions {
     QueueBlock.Builder copies = new QueueBlock.Builder();
     for (int c = 0; c < values.contexts(); c++) {
       // one check per context: it copies one slot at most
-      checkInterrupt("copyValue");
+      Interrupts.check("copyValue");
       copies.newContext();
       if (position < values.end(c) - values.start(c)) {
         int slot = values.start(c) + position;
@@ -63,12 +63,5 @@ public final class ConstantFunctions {
       }
     }
     return copies.build();
-  }
-
-  /** Every loop over contexts checks for interruption (ADR-0021). */
-  private static void checkInterrupt(String function) {
-    if (Thread.currentThread().isInterrupted()) {
-      throw new CancellationException(function + " was running when the thread was interrupted");
-    }
   }
 }

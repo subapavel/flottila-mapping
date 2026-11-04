@@ -44,11 +44,11 @@ public final class Lifting {
     String[] slot = new String[queues.length];
     QueueBlock.Builder result = new QueueBlock.Builder();
     for (int c = 0; c < contexts; c++) {
-      checkInterrupt();
+      Interrupts.check("a lift");
       result.newContext();
       int count = count(queues, c);
       for (int j = 0; j < count; j++) {
-        checkInterrupt();
+        Interrupts.check("a lift");
         append(result, queues, c, j, slot, body);
       }
     }
@@ -60,20 +60,13 @@ public final class Lifting {
     String[] values = new String[queue.slots()];
     String[] slot = new String[1];
     for (int i = 0; i < values.length; i++) {
-      checkInterrupt();
+      Interrupts.check("a lift");
       if (!queue.suppressed(i)) {
         slot[0] = queue.value(i);
         values[i] = apply(body, slot);
       }
     }
     return queue.withSameSuppress(values);
-  }
-
-  /** Every loop over contexts or slots checks for interruption (ADR-0021). */
-  private static void checkInterrupt() {
-    if (Thread.currentThread().isInterrupted()) {
-      throw new CancellationException("a lift was running when the thread was interrupted");
-    }
   }
 
   /**

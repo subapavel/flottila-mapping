@@ -1,7 +1,6 @@
 package io.flottila.mapping.xdm;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.concurrent.CancellationException;
 
 /**
@@ -14,9 +13,6 @@ import java.util.concurrent.CancellationException;
  * its input; a block is immutable.
  */
 public final class StatisticFunctions {
-
-  /** The fractional digits of a quotient beyond its dividend's own (ADR-0005). */
-  private static final int DIVISION_SCALE = 18;
 
   private StatisticFunctions() {}
 
@@ -33,8 +29,8 @@ public final class StatisticFunctions {
     int[] starts = new int[sums.length + 1];
     for (int c = 0; c < sums.length; c++) {
       // one check per context: its slots are read below, bounded by their count
-      checkInterrupt("sum");
-      sums[c] = canonical(total("sum", values, c));
+      Interrupts.check("sum");
+      sums[c] = XsDecimal.canonical(total("sum", values, c));
       starts[c + 1] = c + 1;
     }
     return QueueBlock.ofSlots(sums, starts);
@@ -54,14 +50,12 @@ public final class StatisticFunctions {
     QueueBlock.Builder averages = new QueueBlock.Builder();
     for (int c = 0; c < values.contexts(); c++) {
       // one check per context: its slots are read below, bounded by their count
-      checkInterrupt("average");
+      Interrupts.check("average");
       averages.newContext();
       BigDecimal total = total("average", values, c);
       int count = count(values, c);
       if (count > 0) {
-        int scale = Math.max(0, total.stripTrailingZeros().scale()) + DIVISION_SCALE;
-        averages.append(
-            canonical(total.divide(BigDecimal.valueOf(count), scale, RoundingMode.HALF_DOWN)));
+        averages.append(XsDecimal.canonical(XsDecimal.quotient(total, BigDecimal.valueOf(count))));
       }
     }
     return averages.build();
@@ -78,7 +72,7 @@ public final class StatisticFunctions {
     int[] starts = new int[counts.length + 1];
     for (int c = 0; c < counts.length; c++) {
       // one check per context: its slots are read below, bounded by their count
-      checkInterrupt("count");
+      Interrupts.check("count");
       counts[c] = String.valueOf(count(values, c));
       starts[c + 1] = c + 1;
     }
@@ -99,13 +93,14 @@ public final class StatisticFunctions {
     long k = 0;
     for (int c = 0; c < values.contexts(); c++) {
       // one check per context: its slots are numbered below, bounded by their count
-      checkInterrupt("index");
+      Interrupts.check("index");
       if (resetEachContext) {
         k = 0;
       }
       for (int i = values.start(c); i < values.end(c); i++) {
         if (!values.suppressed(i)) {
-          numbers[i] = canonical(initial.add(increment.multiply(BigDecimal.valueOf(k++))));
+          numbers[i] =
+              XsDecimal.canonical(initial.add(increment.multiply(BigDecimal.valueOf(k++))));
         }
       }
     }
@@ -143,20 +138,5 @@ public final class StatisticFunctions {
       }
     }
     return count;
-  }
-
-  /**
-   * The XPath canonical form of {@code value}: no exponent, no trailing zero, {@code 0} for zero.
-   */
-  private static String canonical(BigDecimal value) {
-    // since JDK 8 a zero of any scale strips to BigDecimal.ZERO, which prints as 0
-    return value.stripTrailingZeros().toPlainString();
-  }
-
-  /** Every loop over contexts checks for interruption (ADR-0021). */
-  private static void checkInterrupt(String function) {
-    if (Thread.currentThread().isInterrupted()) {
-      throw new CancellationException(function + " was running when the thread was interrupted");
-    }
   }
 }

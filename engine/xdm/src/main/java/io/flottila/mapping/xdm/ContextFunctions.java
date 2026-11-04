@@ -28,7 +28,7 @@ public final class ContextFunctions {
   public static QueueBlock collapseContexts(QueueBlock queue) {
     String[] firsts = new String[queue.contexts()];
     for (int c = 0; c < firsts.length; c++) {
-      checkInterrupt("collapseContexts");
+      Interrupts.check("collapseContexts");
       // an empty context and a SUPPRESS first slot both give the null that "" replaces
       String first = queue.end(c) > queue.start(c) ? queue.value(queue.start(c)) : null;
       firsts[c] = Objects.requireNonNullElse(first, "");
@@ -48,9 +48,7 @@ public final class ContextFunctions {
     String[] values = new String[condition.slots()];
     for (int i = 0; i < values.length; i++) {
       // inline, as the block's own read of the values after this loop checks too (ADR-0021)
-      if (Thread.currentThread().isInterrupted()) {
-        throw new CancellationException("createIf was running when the thread was interrupted");
-      }
+      Interrupts.check("createIf");
       // a SUPPRESS slot's value is null, which neither call takes for true
       String value = condition.value(i);
       if ("1".equals(value) || "true".equalsIgnoreCase(value)) {
@@ -74,7 +72,7 @@ public final class ContextFunctions {
     int[] starts = new int[values.length + 1];
     for (int c = 0; c < values.length; c++) {
       // one check per context: holdsValue reads its slots, bounded by their count
-      checkInterrupt("exists");
+      Interrupts.check("exists");
       values[c] = String.valueOf(holdsValue(queue, c));
       starts[c + 1] = c + 1;
     }
@@ -136,7 +134,7 @@ public final class ContextFunctions {
     int slots = 0;
     for (int c = 0; c < queue.contexts(); c++) {
       // one check per context: its slots are read below, bounded by their count
-      checkInterrupt("mapWithDefault");
+      Interrupts.check("mapWithDefault");
       starts[c] = slots;
       if (holdsValue(queue, c)) {
         for (int i = queue.start(c); i < queue.end(c); i++) {
@@ -232,7 +230,7 @@ public final class ContextFunctions {
     String[] sorted = new String[values.slots()];
     for (int c = 0; c < values.contexts(); c++) {
       // one check per context: a context's slots are read and sorted below, bounded by their count
-      checkInterrupt(function);
+      Interrupts.check(function);
       if (keys.end(c) != values.end(c)) {
         throw new QueueDataException(
             function
@@ -350,7 +348,7 @@ public final class ContextFunctions {
     int count = 0;
     for (int c = 0; c < queue.contexts(); c++) {
       // one check per context: its slots are read below, bounded by their count (ADR-0021)
-      checkInterrupt("splitByValue");
+      Interrupts.check("splitByValue");
       starts[count++] = queue.start(c);
       for (int i = queue.start(c) + 1; i < queue.end(c); i++) {
         // a SUPPRESS slot's value is null, which equals only another SUPPRESS slot's
@@ -380,7 +378,7 @@ public final class ContextFunctions {
     int count = 0;
     for (int c = 0; c < queue.contexts(); c++) {
       // one check per context: its slots are read below, bounded by their count (ADR-0021)
-      checkInterrupt("splitByValue");
+      Interrupts.check("splitByValue");
       starts[count++] = slots;
       for (int i = queue.start(c); i < queue.end(c); i++) {
         // a SUPPRESS slot's value is null, which is no ""
@@ -433,16 +431,9 @@ public final class ContextFunctions {
     String[] repeated = new String[occurrences.slots()];
     for (int k = 0; k < occurrences.contexts(); k++) {
       // one check per context: its slots are filled in one call, without a loop of this class
-      checkInterrupt("useOneAsMany");
+      Interrupts.check("useOneAsMany");
       Arrays.fill(repeated, occurrences.start(k), occurrences.end(k), value.value(k));
     }
     return contexts.withValues(repeated);
-  }
-
-  /** Every loop over slots or contexts checks for interruption (ADR-0021). */
-  private static void checkInterrupt(String function) {
-    if (Thread.currentThread().isInterrupted()) {
-      throw new CancellationException(function + " was running when the thread was interrupted");
-    }
   }
 }
