@@ -1,6 +1,6 @@
 # Decimal arithmetic: Saxon-HE's division scale, double only inside sqrt and fractional power
 
-Status: accepted (2026-10-30, grilling #4)
+Status: accepted (2026-10-30, grilling #4); amended by F-20 (2026-11-04, #72)
 
 ADR-0002 makes every number an `xs:decimal`. The engine holds a decimal as a `BigDecimal`. It
 reads only the `xs:decimal` lexical form, so `1e3` raises `FORG0001`. It writes the XPath
@@ -9,14 +9,13 @@ canonical form: `4.2 − 0.2` → `4`, `1234567 + 0` → `1234567`, `1.50 × 1` 
 F&O leaves the precision of a non-terminating division implementation-defined. Our exported
 XSLT is checked against Saxon-HE, so we adopt the rule observed on Saxon-HE 12.5:
 
-- A quotient that terminates is exact.
-- Otherwise the scale is `max(18, scale(dividend) − scale(divisor) + 18)` fractional digits,
+- Every quotient, including one that terminates (F-20), has the scale `max(18, scale(dividend) − scale(divisor) + 18)` fractional digits,
   with trailing zeros of the operands not counted, and the last digit is rounded half-down. For
   example, `1 div 3` → `0.333333333333333333` and `2.0 div 3` → `0.666666666666666667`.
 - Division by zero raises `FOAR0001`.
 
 The rule is written down from Saxon-HE's observed outputs, never from its source (FOUNDING §8).
-Oracle cases pin it. One consequence is that `1 div 30000000000000000000001` → `0`.
+Oracle cases pin it. One consequence is that `1 div 30000000000000000000001` → `0`. Another is that `1 div 2^30` → `0.000000000931322575`, not its exact value (F-20).
 
 `power` with an integer exponent is computed exactly in decimal: the portable export uses a
 helper that multiplies repeatedly. `sqrt`, and `power` with a non-integer exponent, compute in

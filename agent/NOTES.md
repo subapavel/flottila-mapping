@@ -200,3 +200,9 @@ Module notes by section, read on demand.
   - Licences pulled: JUnit 6.1.3 (EPL-2.0), opentest4j / apiguardian / jspecify (Apache-2.0),
     JMH 1.37 (GPL-2.0 + CPE, ADR-0017 exception in `bench/jmh`), jopt-simple 5.0.4 (MIT),
     commons-math3 3.6.1 (Apache-2.0). Nothing new for the repo.
+
+## Main checkout is the merger's while it runs (2026-11-04, #73)
+
+- The architect committed a docs change in the main checkout while a merger's `--no-commit` merge was staged. The commit took the merge with it: e461749 carries #73 under a docs message with `Ticket: #74`.
+- Rule: while a merger runs, the architect writes nothing in the main checkout. Docs wait for the hand-back, or go through a separate worktree.
+- A merger checks `git rev-parse HEAD` between commit and push.
