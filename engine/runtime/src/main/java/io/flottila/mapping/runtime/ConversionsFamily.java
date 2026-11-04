@@ -27,11 +27,14 @@ final class ConversionsFamily {
    * {@code fixValues(key; table, missing, defaultValue)}: the table's value of the key, matched
    * exactly. Lowering gives every param as a {@code Literal}, so the table and {@code missing} are
    * read here, once (ADR-0026 "Table params").
+   *
+   * @throws IllegalArgumentException when the table or {@code missing} is no {@code Literal}, or
+   *     {@code missing} is none of the catalogue's values: a compiler bug
    */
   static Node.OfString fixValues(AuthoringId box, List<Node.OfString> args) {
     Node.OfString key = args.get(0);
-    Map<String, String> table = TableText.read(((Node.Literal) args.get(1)).value());
-    String missing = ((Node.Literal) args.get(2)).value();
+    Map<String, String> table = TableText.read(literal(box, args.get(1), "table"));
+    String missing = literal(box, args.get(2), "missing");
     Node.OfString defaultValue = args.get(3);
     return switch (missing) {
       case "key" ->
@@ -59,5 +62,14 @@ final class ConversionsFamily {
           };
       default -> throw new IllegalArgumentException("fixValues has no missing " + missing);
     };
+  }
+
+  /** The string of {@code arg}, the param {@code param} of {@code fixValues} at {@code box}. */
+  private static String literal(AuthoringId box, Node.OfString arg, String param) {
+    if (!(arg instanceof Node.Literal(String value))) {
+      throw new IllegalArgumentException(
+          "fixValues at " + box.value() + ": the param " + param + " is no literal");
+    }
+    return value;
   }
 }

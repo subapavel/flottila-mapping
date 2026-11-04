@@ -65,4 +65,26 @@ class ConversionsFamilyTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("keep");
   }
+
+  /**
+   * Lowering gives the table and missing as {@code Literal}s, so a computed one is a compiler bug,
+   * named at its box and param.
+   */
+  @Test
+  void aTableOrMissingThatIsNoLiteralIsACompilerBugAtTheBox() {
+    Node.Literal table = new Node.Literal("{\"a\":\"A\"}");
+    Node.Literal key = new Node.Literal("key");
+    Node.OfString computed = frame -> "key";
+    assertThatThrownBy(
+            () ->
+                SingleValueLibrary.bind("fixValues", BOX, List.of(A, computed, key, frame -> "D")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("fixValues at F1: the param table is no literal");
+    assertThatThrownBy(
+            () ->
+                SingleValueLibrary.bind(
+                    "fixValues", BOX, List.of(A, table, computed, frame -> "D")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("fixValues at F1: the param missing is no literal");
+  }
 }
