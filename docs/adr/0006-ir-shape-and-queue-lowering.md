@@ -96,7 +96,7 @@ for-each over the source context".
   value; one that yields a queue, such as `count` of a constant, maps as a queue, F-21) on a target becomes
   `TargetRepeat(max(1, minOccurs))` per parent slot. Its children are numbered
   `(p − 1) · copies + j`.
-  - Since #83 a box lowers to a queue or a single value. A single-value function whose inputs are all single values (or that has none, as `constant`) is an atomic `FunCall`, and its params are `Literal`s.
+  - Since #83 a box lowers to a queue or a single value. A single-value function whose inputs are all single values (or that has none, as `constant`) is an atomic `FunCall`, and its params are `Literal`s. Every input of a single-value call is evaluated before the call, as PO computes every input queue of a box, so `if` has no untaken branch: a data error in either branch is raised at its box in both back ends (F-22).
   - Inside a `Lift` body a single value applies to every slot of every context. At a context or queue input it is `AtomicToQueue(value, origin)`: one context with one value (ADR-0004). It is typed `QUEUE` over a `STRING` value, it is not traced, and it exports as `[(value)]`.
   - On a target, the `TargetRepeat`'s `origin` is the target field mapping's authoring id, and its value is computed once per copy.
   - The trace records a generating field's occurrences per parent slot (all created, the count `copies`) and the value of each box in the graph, as for any other target field (GLOSSARY "Trace").
