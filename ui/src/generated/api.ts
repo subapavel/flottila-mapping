@@ -581,8 +581,17 @@ export interface components {
             input: string;
         };
         TestResult: components["schemas"]["TestOutput"] | components["schemas"]["TestRefused"] | components["schemas"]["TestError"];
+        TraceAtomicDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "atomic";
+            type: string;
+            value: string;
+        };
         TraceContext: components["schemas"]["TraceValue"][];
-        TraceEntryDto: components["schemas"]["TraceQueueDto"] | components["schemas"]["TraceOccurrencesDto"];
+        TraceEntryDto: components["schemas"]["TraceQueueDto"] | components["schemas"]["TraceOccurrencesDto"] | components["schemas"]["TraceAtomicDto"];
         TraceOccurrencesDto: {
             /**
              * @description discriminator enum property added by openapi-typescript
