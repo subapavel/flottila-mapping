@@ -34,7 +34,10 @@ import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
+import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
@@ -651,6 +654,70 @@ class LoweringTest {
                 "slot2",
                 new ElementConstructor("", new Name("", "Pair"), List.of(v), pair),
                 pair));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * #83, ADR-0006 "generating function": a box with no input, {@code constant}, is an atomic {@code
+   * FunCall} over its param as a {@code Literal}, no {@code Lift}. On a target it stands in a
+   * {@code TargetRepeat} of {@code max(1, minOccurs)} copies whose origin is the target field
+   * mapping, and the element's text is the call itself, so its value is computed once per copy.
+   * OrderId is 1..1 and Note 0..unbounded: one copy each. Note's box leaves {@code value} out and
+   * gets the default {@code ""}. The IR verifier accepts the document.
+   */
+  @Test
+  void aZeroInputBoxLowersToAnAtomicFunCallUnderTargetRepeat() {
+    TargetDocument document =
+        lowered(
+            lower(
+                orderToOrder(
+                    targetFieldMappings(
+                        ORDER_ID,
+                        targetFieldMapping(
+                            "t1",
+                            "c1",
+                            boxes(
+                                "c1",
+                                function(
+                                    "constant",
+                                    inputs(),
+                                    Models.params("value", Models.text("x"))))),
+                        NOTE,
+                        targetFieldMapping(
+                            "t2",
+                            "c2",
+                            boxes("c2", function("constant", inputs(), noParams())))))));
+
+    FunctionRef constant =
+        new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING);
+    assertThat(document.content())
+        .containsExactly(
+            new TargetRepeat(
+                1,
+                new VarRef("root", AtomicType.INTEGER, id("t1")),
+                "slot2",
+                new ElementConstructor(
+                    "",
+                    new Name("", "OrderId"),
+                    List.of(
+                        new TextConstructor(
+                            new FunCall(constant, List.of(new Literal("x", id("c1"))), id("c1")),
+                            id("t1"))),
+                    id("t1")),
+                id("t1")),
+            new TargetRepeat(
+                1,
+                new VarRef("root", AtomicType.INTEGER, id("t2")),
+                "slot2",
+                new ElementConstructor(
+                    "",
+                    new Name("", "Note"),
+                    List.of(
+                        new TextConstructor(
+                            new FunCall(constant, List.of(new Literal("", id("c2"))), id("c2")),
+                            id("t2"))),
+                    id("t2")),
+                id("t2")));
     assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
   }
 

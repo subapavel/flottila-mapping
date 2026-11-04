@@ -76,6 +76,62 @@ class FunctionCatalogueReadTest {
   }
 
   /**
+   * #83, ADR-0026 "Table params": a {@code {type: "table"}} param's default is a JSON object of
+   * strings, and it loads as that table, beside the function's string params. Today every default
+   * is read as a string, so the table is a {@code ClassCastException}.
+   */
+  @Test
+  void aTableDefaultLoadsAsATable() throws Exception {
+    String catalogue =
+        """
+        {"lookup": {"executionKind": "single", "family": "constant",
+          "fidelity": {"level": "exact"}, "inputs": [{"name": "key"}],
+          "params": [{"default": {"a": "1", "it's": "\\"q\\""}, "name": "table", "type": "table"},
+                     {"default": "key", "name": "missing", "type": "string",
+                      "values": ["key", "default", "error"]}],
+          "portable": true}}
+        """;
+
+    Entry entry = FunctionCatalogue.read(catalogue.getBytes(UTF_8)).get("lookup");
+
+    assertThat(entry.inputs()).containsExactly("key");
+    assertThat(entry.param("table").orElseThrow().fallback())
+        .isEqualTo(new Table(Map.of("a", "1", "it's", "\"q\"")));
+    // witness: the string param after it still loads with its values
+    Param missing = entry.param("missing").orElseThrow();
+    assertThat(missing.values()).contains(List.of("key", "default", "error"));
+    assertThat(missing.takes("error")).isTrue();
+    assertThat(missing.takes("Error")).isFalse();
+  }
+
+  /**
+   * The packed catalogue's {@code fixValues} (#83): input {@code key}; {@code table} defaults to
+   * the empty table, {@code missing} takes {@code key}, {@code default} or {@code error} and
+   * defaults to {@code key}, {@code defaultValue} takes any string.
+   */
+  @Test
+  void thePackedFixValuesHasATableParamWithAnEmptyDefault() {
+    Entry entry = FunctionCatalogue.entry("fixValues").orElseThrow();
+
+    assertThat(entry.executionKind()).isEqualTo(ExecutionKind.SINGLE);
+    assertThat(entry.inputs()).containsExactly("key");
+    assertThat(entry.params())
+        .extracting(Param::name)
+        .containsExactly("table", "missing", "defaultValue");
+    assertThat(entry.param("table").orElseThrow().fallback()).isEqualTo(new Table(Map.of()));
+    Param missing = entry.param("missing").orElseThrow();
+    assertThat(missing.values()).contains(List.of("key", "default", "error"));
+    assertThat(missing.takes("ignore")).isFalse();
+    Param defaultValue = entry.param("defaultValue").orElseThrow();
+    assertThat(defaultValue.values()).isEmpty();
+    // constant: no inputs, one string param value
+    Entry constant = FunctionCatalogue.entry("constant").orElseThrow();
+    assertThat(constant.executionKind()).isEqualTo(ExecutionKind.SINGLE);
+    assertThat(constant.inputs()).isEmpty();
+    assertThat(constant.params()).extracting(Param::name).containsExactly("value");
+  }
+
+  /**
    * A string param with {@code values} takes only those, loaded in order; one without them takes
    * any string, as {@code mapWithDefault}'s default does.
    */
