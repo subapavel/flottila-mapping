@@ -51,7 +51,13 @@ class RuntimeErrorCoverageTest {
     // ADR-0006 and ADR-0025 since #52: po:MINOCCURS and one code per context function's data error
     assertThat(codes)
         .contains(
-            "po:MINOCCURS", "po:USEONEASMANY", "po:FORMATBYEXAMPLE", "po:SORT", "po:SORTBYKEY")
+            "po:MINOCCURS",
+            "po:USEONEASMANY",
+            "po:FORMATBYEXAMPLE",
+            "po:SORT",
+            "po:SORTBYKEY",
+            "err:FORG0001",
+            "err:FOAR0001")
         .doesNotContain("flottila:TIMEOUT");
     assertThat(uncovered(CaseFiles.all(), codes)).isEmpty();
   }
