@@ -21,7 +21,8 @@ import java.util.Optional;
  *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, its queue is a queue and its
  *       parent slot an {@code INTEGER};
  *   <li>a {@link TargetRepeat} has at least one copy and an {@code INTEGER} parent slot, and binds
- *       its slot number ({@code INTEGER}) only in its body (#63);
+ *       its slot number ({@code INTEGER}) only in its body (#63); its value, when present, is a
+ *       {@code STRING} in the parent's scope, so it cannot read its own slot number (#83);
  *   <li>a {@link FunCall} has one argument per parameter type of its {@link FunctionRef}, each of
  *       that type; a context function's (one whose result is a queue) atomic argument is a param,
  *       and a param is a {@link Literal} (ADR-0025);
@@ -98,6 +99,7 @@ public final class IrVerifier {
           throw refused(r, "it has " + r.copies() + " copies, not at least 1");
         }
         value(r, r.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
+        r.value().ifPresent(v -> value(r, v, AtomicType.STRING, scope, "its value"));
         Map<String, AtomicType> body = new HashMap<>(scope);
         body.put(r.slotVar(), AtomicType.INTEGER);
         content(r.body(), body);
