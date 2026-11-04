@@ -80,6 +80,9 @@ contract, and the editor ships with the service.
   (`flottila.mapping.trace-limit`, 10,000) per entry; a limit below 1 is refused at startup and
   by the facade (#53). Since #53 the cap marker is `capped: true`,
   not `truncated`, which names a slot cut by `maxOccurs`.
+- The run clock's zone (`flottila.mapping.time-zone`, a region or offset id, default `UTC`, #80):
+  a mapping run reads its time once, in that zone, for `currentDate` and the date functions; the
+  export passes it as the processor's implicit time zone. An unknown zone is refused at startup.
 - Since #53 each entry carries `kind`:
   - `queue` {contexts, capped, slotCount, contextCount}: at most the limit's slots and contexts,
     the totals always;
