@@ -24,6 +24,9 @@ public final class RuntimeErrors {
   /** {@code useOneAsMany}'s inputs do not have the counts it needs, at its box. */
   public static final String USEONEASMANY = "po:USEONEASMANY";
 
+  /** {@code fixValues} meets a key its table lacks, with {@code missing} {@code error}. */
+  public static final String FIXVALUES = "po:FIXVALUES";
+
   /** A function meets a value that is no number (or date), or has no number as its result. */
   public static final String FORG0001 = "err:FORG0001";
 

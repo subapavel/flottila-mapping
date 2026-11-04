@@ -23,6 +23,7 @@ public sealed interface TraceEntryDto permits TraceQueueDto, TraceOccurrencesDto
     return switch (entry) {
       case Trace.Queue queue -> TraceQueueDto.of(queue);
       case Trace.Occurrences occurrences -> TraceOccurrencesDto.of(occurrences);
+      case Trace.Atomic atomic -> throw new UnsupportedOperationException("#83");
     };
   }
 

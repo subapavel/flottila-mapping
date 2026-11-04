@@ -2,6 +2,7 @@ package io.flottila.mapping.xslt.export;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
@@ -344,6 +345,7 @@ public final class XsltExporter {
       case Literal l -> throw misplaced(l, "content");
       case FunCall c -> throw misplaced(c, "content");
       case Lift l -> throw misplaced(l, "content");
+      case AtomicToQueue a -> throw new UnsupportedOperationException("#83");
     }
   }
 
@@ -370,6 +372,7 @@ public final class XsltExporter {
       case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
+      case AtomicToQueue a -> throw new UnsupportedOperationException("#83");
     };
   }
 

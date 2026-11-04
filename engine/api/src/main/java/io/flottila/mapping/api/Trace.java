@@ -1,5 +1,6 @@
 package io.flottila.mapping.api;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,7 +22,10 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
   }
 
   /** One entry of the trace, by its kind. */
-  public sealed interface Entry permits Queue, Occurrences {}
+  public sealed interface Entry permits Queue, Occurrences, Atomic {}
+
+  /** Stub (#83). */
+  public record Atomic(AtomicType type, String value) implements Entry {}
 
   /**
    * The queue a box gave, at its first report: at most the trace limit's contexts, holding at most

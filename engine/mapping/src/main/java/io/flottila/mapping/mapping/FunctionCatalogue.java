@@ -22,23 +22,35 @@ import java.util.Optional;
  * and its params, in order, with each param's default and the values or the syntax it takes; {@code
  * family}, {@code portable} and {@code fidelity} are read past.
  *
- * <p>Every param of the catalogue is a string param, which lowering makes a {@code Literal}: one
- * with {@code values} takes only those, one with a {@code syntax} only the patterns the formatting
- * core translates (ADR-0026, #74), one with neither any string. A table param adds what is read
- * here when its function lands.
+ * <p>A param is a string param or a table param, by its {@code type}, and lowering makes either a
+ * {@code Literal} (ADR-0026, #83). A string param with {@code values} takes only those, one with a
+ * {@code syntax} only the patterns the formatting core translates (ADR-0026, #74), one with neither
+ * any string. A table param takes any table of strings, and its default is a table.
  */
 public final class FunctionCatalogue {
 
   /**
-   * A string param of a function.
+   * A param of a function: a string param, or a table param, whose default is a table.
    *
    * @param name the param's name, the key a box gives it under
-   * @param fallback the {@code default}, the value of a box that leaves the param out
-   * @param values the strings the param takes, or empty when it takes any string
-   * @param syntax the pattern syntax the param is written in, or empty when it has none
+   * @param fallback the {@code default}, the value of a box that leaves the param out: a {@link
+   *     Text} for a string param, a {@link Table} for a table param
+   * @param values the strings a string param takes, or empty when it takes any string; empty for a
+   *     table param
+   * @param syntax the pattern syntax a string param is written in, or empty when it has none
    */
   record Param(
-      String name, String fallback, Optional<List<String>> values, Optional<String> syntax) {
+      String name, ParamValue fallback, Optional<List<String>> values, Optional<String> syntax) {
+
+    /** A string param whose {@code default} is the string {@code fallback}. */
+    Param(String name, String fallback, Optional<List<String>> values, Optional<String> syntax) {
+      this(name, new Text(fallback), values, syntax);
+    }
+
+    /** Whether the param is a table param, whose box value is a table. */
+    boolean table() {
+      return fallback instanceof Table;
+    }
 
     /** Whether the param takes the string {@code value} by its values. */
     boolean takes(String value) {
@@ -123,8 +135,8 @@ public final class FunctionCatalogue {
 
   /**
    * {@code entry}'s execution kind, inputs and params; a function without inputs, as {@code
-   * constant}, or without params leaves the member out, and a param that takes any string leaves
-   * {@code values} out.
+   * constant}, or without params leaves the member out, and a string param that takes any string
+   * leaves {@code values} out.
    */
   private static Entry entry(IJsonObject entry) {
     ExecutionKind kind =
@@ -142,12 +154,24 @@ public final class FunctionCatalogue {
         params.add(
             new Param(
                 string(param, "name"),
-                string(param, "default"),
+                fallback(param),
                 values(param),
                 Optional.ofNullable(param.get("syntax")).map(s -> ((IJsonString) s).getValue())));
       }
     }
     return new Entry(kind, List.copyOf(inputs), List.copyOf(params));
+  }
+
+  /** The {@code default} of {@code param}: a table for a table param, else a string. */
+  private static ParamValue fallback(IJsonObject param) {
+    if (string(param, "type").equals("table")) {
+      Map<String, String> rows = new HashMap<>();
+      ((IJsonObject) param.get("default"))
+          .getProperties()
+          .forEach((key, row) -> rows.put(key.getValue(), ((IJsonString) row).getValue()));
+      return new Table(rows);
+    }
+    return new Text(string(param, "default"));
   }
 
   /** The {@code values} of {@code param}, or empty when it has none and takes any string. */

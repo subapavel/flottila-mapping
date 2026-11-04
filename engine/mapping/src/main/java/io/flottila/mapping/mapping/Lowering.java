@@ -1,5 +1,6 @@
 package io.flottila.mapping.mapping;
 
+import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
@@ -24,6 +25,7 @@ import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.xdm.TableText;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,20 +40,27 @@ import java.util.stream.IntStream;
 /**
  * Validation stage 3 and lowering of a mapping model to IR (ADR-0006, ADR-0011, ADR-0022; #26). A
  * target field mapping becomes {@code TargetSlots} over the queue its {@code result} gives, in its
- * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). An
- * unmapped structure field whose effective occurrence is {@code n..n} with {@code n > 0} becomes
- * {@code TargetRepeat} of n copies, whatever is mapped below it, an unmapped optional field is left
- * out with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused.
- * The slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value
- * variable {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or
- * the parent's {@code slot<d - 1>}. A leaf's element holds its value, a structure field's its
- * children in target field order. A source-field box gives its {@code SourceQueue}, of a leaf or of
- * a structure field (ADR-0008; #63). A standard function box whose function the catalogue holds
- * gives, by its execution kind, a {@code FunCall} over its inputs' queues and then its params as
- * {@code Literal}s for a context or queue function, or a {@code Lift} over its inputs' queues whose
- * body is the atomic {@code FunCall} over the slot variables and then the params for a single-value
- * function (ADR-0006, ADR-0025). A param the box leaves out is its catalogue default. A box that
- * feeds several inputs is lowered once per use.
+ * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). One
+ * whose {@code result} gives a single value, a generating function, becomes {@code TargetRepeat} of
+ * {@code max(1, minOccurs)} copies at the target field mapping (ADR-0006 since #83). An unmapped
+ * structure field whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code
+ * TargetRepeat} of n copies, whatever is mapped below it, an unmapped optional field is left out
+ * with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
+ * slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value variable
+ * {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or the
+ * parent's {@code slot<d - 1>}. A leaf's element holds its value, a structure field's its children
+ * in target field order.
+ *
+ * <p>A box lowers to a queue or a single value (ADR-0006 since #83). A source-field box gives its
+ * {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63). A standard function box
+ * whose function the catalogue holds gives, by its execution kind, a {@code FunCall} over its
+ * inputs' queues, a single value as {@code AtomicToQueue}, and then its params as {@code Literal}s
+ * for a context or queue function. For a single-value function it gives the atomic {@code FunCall}
+ * over its inputs and then the params when every input is a single value, as for {@code constant},
+ * which has none; otherwise a {@code Lift} over its queue inputs whose body is that {@code FunCall}
+ * over their slot variables and the single values (ADR-0006, ADR-0025). A param the box leaves out
+ * is its catalogue default, and a table param's {@code Literal} is its {@code TableText} (ADR-0026,
+ * #83). A box that feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
@@ -75,9 +84,9 @@ import java.util.stream.IntStream;
  *   <li>a function box against its catalogue entry: more inputs than the entry has, {@code
  *       wrong-arity}; an input slot of the entry that is {@code null} or absent, {@code
  *       unconnected-input}; a param key the entry lacks, {@code unknown-parameter}; a table for a
- *       string param, {@code wrong-parameter-type}; a string outside the values of a param that
- *       lists them, or a pattern the formatting core cannot translate for a param with a syntax
- *       (ADR-0026, #74), {@code invalid-parameter-value}.
+ *       string param or a string for a table param, {@code wrong-parameter-type}; a string outside
+ *       the values of a param that lists them, or a pattern the formatting core cannot translate
+ *       for a param with a syntax (ADR-0026, #74), {@code invalid-parameter-value}.
  * </ul>
  *
  * <p>Only the boxes {@code result} reaches are checked: a box it does not reach is not, and the
@@ -103,8 +112,8 @@ public final class Lowering {
 
   private static final QueueType QUEUE = new QueueType();
 
-  /** A target field mapping that lowers: its field and queue. */
-  private record Link(Field field, AuthoringId mapping, Expr queue) {}
+  /** A target field mapping that lowers: its field, and the queue or single value it gives. */
+  private record Link(Field field, AuthoringId mapping, Expr value) {}
 
   private final MappingModel model;
   private final Structure source;
@@ -337,10 +346,11 @@ public final class Lowering {
   }
 
   /**
-   * The call of {@code box}'s function over its inputs' queues and then its params, or empty once
+   * The call of {@code box}'s function over its inputs' values and then its params, or empty once
    * its refusals are reported. Every defect of the box against its catalogue entry is reported at
    * the box before any input is lowered. Each param is a {@code Literal} at the box: the string the
-   * box gives, or the entry's default when the box leaves the param out (ADR-0025).
+   * box gives, or a table's {@code TableText} (ADR-0026, #83), or the entry's default when the box
+   * leaves the param out (ADR-0025).
    */
   private Optional<Expr> call(TargetFieldMapping mapping, AuthoringId id, StandardFunctionBox box) {
     Optional<FunctionCatalogue.Entry> catalogued = FunctionCatalogue.entry(box.fn());
@@ -374,67 +384,97 @@ public final class Lowering {
     }
     List<Expr> params = new ArrayList<>();
     for (FunctionCatalogue.Param param : entry.params()) {
-      // the box's string, or the default when the box leaves the param out
-      switch (box.params().getOrDefault(param.name(), new Text(param.fallback()))) {
-        case Text(String value) -> params.add(new Literal(value, id));
-        // reported above as wrong-parameter-type, so the call is not lowered
-        case Table _ -> {}
-      }
+      // the box's value, or the default when the box leaves the param out; a value of the other
+      // kind is reported above as wrong-parameter-type, so the call is not lowered
+      ParamValue value = box.params().getOrDefault(param.name(), param.fallback());
+      params.add(
+          new Literal(
+              switch (value) {
+                case Text(String text) -> text;
+                case Table(Map<String, String> rows) -> TableText.write(rows);
+              },
+              id));
     }
     if (found.size() > reported) {
       return Optional.empty();
     }
-    List<Expr> queues = new ArrayList<>();
+    List<Expr> values = new ArrayList<>();
     for (Optional<AuthoringId> slot : slots) {
       Optional<Expr> arg = queue(mapping, slot.orElseThrow());
       if (arg.isEmpty()) {
         return Optional.empty();
       }
-      queues.add(arg.get());
+      values.add(arg.get());
     }
     return Optional.of(
         switch (entry.executionKind()) {
-          case SINGLE -> lift(box.fn(), queues, params, id);
-          case CONTEXT, QUEUE -> contextCall(box.fn(), queues, params, id);
+          case SINGLE -> singleValueCall(box.fn(), values, params, id);
+          case CONTEXT, QUEUE -> contextCall(box.fn(), values, params, id);
         });
   }
 
-  /** The {@code FunCall} of context or queue function {@code fn}: its queues, then its params. */
+  /**
+   * Whether {@code value}, a box's lowered value, is a single value, an atomic {@code FunCall}
+   * (ADR-0006 since #83), rather than a queue.
+   */
+  private static boolean single(Expr value) {
+    return value instanceof FunCall c && c.function().resultType() instanceof AtomicType;
+  }
+
+  /**
+   * The {@code FunCall} of context or queue function {@code fn}: its inputs, each a queue and a
+   * single value as {@code AtomicToQueue} at the value's box (ADR-0006 since #83), then its params.
+   */
   private static FunCall contextCall(
-      String fn, List<Expr> queues, List<Expr> params, AuthoringId id) {
-    List<Expr> args = new ArrayList<>(queues);
+      String fn, List<Expr> inputs, List<Expr> params, AuthoringId id) {
+    List<Expr> args = new ArrayList<>();
+    for (Expr input : inputs) {
+      args.add(single(input) ? new AtomicToQueue(input, input.origin()) : input);
+    }
     args.addAll(params);
-    List<IrType> types = new ArrayList<>(Collections.nCopies(queues.size(), QUEUE));
+    List<IrType> types = new ArrayList<>(Collections.nCopies(inputs.size(), QUEUE));
     types.addAll(Collections.nCopies(params.size(), AtomicType.STRING));
     return new FunCall(new FunctionRef(fn, types, QUEUE), args, id);
   }
 
   /**
-   * The {@code Lift} of single-value function {@code fn} over {@code queues} (ADR-0006 since #51):
-   * one slot variable {@code in1} … per queue, and as body the atomic {@code FunCall} over them and
-   * then the params. Each node carries the box's id.
+   * The call of single-value function {@code fn} (ADR-0006 since #51 and #83). Over inputs that are
+   * all single values, none for {@code constant}, it is the atomic {@code FunCall} over them and
+   * then the params. Otherwise it is the {@code Lift} over its queue inputs, one slot variable
+   * {@code in1} … per queue, whose body is that {@code FunCall} with each queue input's slot
+   * variable in its place, so a single value applies to every slot of every context. Each node
+   * carries the box's id.
    */
-  private static Lift lift(String fn, List<Expr> queues, List<Expr> params, AuthoringId id) {
+  private static Expr singleValueCall(
+      String fn, List<Expr> inputs, List<Expr> params, AuthoringId id) {
+    List<Expr> queues = new ArrayList<>();
     List<String> slotVars = new ArrayList<>();
     List<Expr> args = new ArrayList<>();
-    for (int k = 1; k <= queues.size(); k++) {
-      slotVars.add("in" + k);
-      args.add(new VarRef("in" + k, AtomicType.STRING, id));
+    for (Expr input : inputs) {
+      if (single(input)) {
+        args.add(input);
+      } else {
+        queues.add(input);
+        String slotVar = "in" + queues.size();
+        slotVars.add(slotVar);
+        args.add(new VarRef(slotVar, AtomicType.STRING, id));
+      }
     }
     args.addAll(params);
     FunctionRef function =
         new FunctionRef(fn, Collections.nCopies(args.size(), AtomicType.STRING), AtomicType.STRING);
-    return new Lift(queues, slotVars, new FunCall(function, args, id), id);
+    FunCall call = new FunCall(function, args, id);
+    return queues.isEmpty() ? call : new Lift(queues, slotVars, call, id);
   }
 
   /**
    * Reports what is wrong with the param {@code key} of {@code box} against {@code entry}, at the
-   * box: a key the entry lacks, {@code unknown-parameter}; a table, as every param of the catalogue
-   * is a string param, {@code wrong-parameter-type}; a string outside the values of a param that
-   * lists them, or a pattern the formatting core cannot translate for a param with a syntax
-   * (ADR-0026, #74), {@code invalid-parameter-value}, naming the element the core cannot translate.
-   * A string the param takes, any string when it has neither values nor a syntax, is reported as
-   * nothing.
+   * box: a key the entry lacks, {@code unknown-parameter}; a table for a string param or a string
+   * for a table param (ADR-0026, #83), {@code wrong-parameter-type}; a string outside the values of
+   * a param that lists them, or a pattern the formatting core cannot translate for a param with a
+   * syntax (ADR-0026, #74), {@code invalid-parameter-value}, naming the element the core cannot
+   * translate. A table for a table param, and a string the param takes, any string when it has
+   * neither values nor a syntax, are reported as nothing.
    */
   private void param(
       AuthoringId id, StandardFunctionBox box, FunctionCatalogue.Entry entry, String key) {
@@ -444,11 +484,18 @@ public final class Lowering {
       return;
     }
     switch (box.params().get(key)) {
-      case Table _ ->
+      case Table _ when !param.get().table() ->
           report(
               MappingDiagnostics.WRONG_PARAMETER_TYPE,
               id,
               "the parameter " + key + " of " + box.fn() + " is a string, not a table");
+      // any table of strings
+      case Table _ -> {}
+      case Text _ when param.get().table() ->
+          report(
+              MappingDiagnostics.WRONG_PARAMETER_TYPE,
+              id,
+              "the parameter " + key + " of " + box.fn() + " is a table, not a string");
       case Text(String value) when !param.get().takes(value) ->
           report(
               MappingDiagnostics.INVALID_PARAMETER_VALUE,
@@ -512,7 +559,8 @@ public final class Lowering {
       Link link = links.get(child);
       Field field = target.field(child).orElseThrow();
       if (link != null) {
-        content.add(slots(child, link, links));
+        content.add(
+            single(link.value()) ? generated(child, link, links) : slots(child, link, links));
       } else if (field.valueType().isPresent()) {
         if (field.occurrence().min() > 0) {
           found.add(
@@ -602,34 +650,61 @@ public final class Lowering {
   }
 
   /**
-   * The {@code TargetSlots} of the mapped field at {@code path}: its variables by its depth, its
-   * parent's slot number, its effective occurrence, and its element, which holds its value for a
-   * leaf and its children for a structure field. Its prefix is taken before its children's, so
-   * prefixes follow document order (ADR-0022).
+   * The {@code TargetSlots} of the mapped field at {@code path}, whose target field mapping gives a
+   * queue: its variables by its depth, its parent's slot number, its effective occurrence, and its
+   * element, which holds the slot's value for a leaf.
    */
   private TargetSlots slots(FieldPath path, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
-    String slotVar = SLOT + depth;
     String valueVar = VALUE + depth;
-    String parentSlot = parentSlot(depth);
+    AuthoringId origin = link.mapping();
+    Occurrence occurrence = link.field().occurrence();
+    return new TargetSlots(
+        link.value(),
+        new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
+        occurrence.min(),
+        occurrence.max(),
+        SLOT + depth,
+        valueVar,
+        element(path, link, new VarRef(valueVar, AtomicType.STRING, origin), links),
+        origin);
+  }
+
+  /**
+   * The {@code TargetRepeat} of the mapped field at {@code path}, whose target field mapping is a
+   * generating function, a single value (ADR-0006 "generating function" since #83): {@code max(1,
+   * minOccurs)} copies of its element per parent occurrence, whatever its {@code maxOccurs}, its
+   * slot-number variable by its depth, and the target field mapping as the origin. A leaf's element
+   * holds the value itself, so it is computed once per copy.
+   */
+  private TargetRepeat generated(FieldPath path, Link link, Map<FieldPath, Link> links) {
+    int depth = path.steps().size();
+    AuthoringId origin = link.mapping();
+    return new TargetRepeat(
+        Math.max(1, link.field().occurrence().min()),
+        new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
+        SLOT + depth,
+        element(path, link, link.value(), links),
+        origin);
+  }
+
+  /**
+   * The element of the mapped field at {@code path}: for a leaf its text, {@code leafValue}, and
+   * for a structure field its children. Its prefix is taken before its children's, so prefixes
+   * follow document order (ADR-0022).
+   */
+  private ElementConstructor element(
+      FieldPath path, Link link, Expr leafValue, Map<FieldPath, Link> links) {
     Field field = link.field();
     FieldPath.Step step = field.step();
     AuthoringId origin = link.mapping();
     String prefix = prefix(step.namespace());
     List<Expr> content =
         field.valueType().isPresent()
-            ? List.of(new TextConstructor(new VarRef(valueVar, AtomicType.STRING, origin), origin))
+            ? List.of(new TextConstructor(leafValue, origin))
             : children(path, links);
-    return new TargetSlots(
-        link.queue(),
-        new VarRef(parentSlot, AtomicType.INTEGER, origin),
-        field.occurrence().min(),
-        field.occurrence().max(),
-        slotVar,
-        valueVar,
-        new ElementConstructor(
-            prefix, new Name(step.namespace(), step.localName()), content, origin),
-        origin);
+    return new ElementConstructor(
+        prefix, new Name(step.namespace(), step.localName()), content, origin);
   }
 
   /** {@code ns0}, {@code ns1} … per namespace in the order met; none for no namespace. */

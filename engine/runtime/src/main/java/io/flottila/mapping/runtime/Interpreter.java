@@ -1,5 +1,6 @@
 package io.flottila.mapping.runtime;
 
+import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
@@ -101,6 +102,7 @@ public final class Interpreter {
           new Node.Element(
               e.prefix(), e.name().namespace(), e.name().localName(), contents(e.content(), scope));
       case TextConstructor t -> text((Node.OfString) compile(t.value(), scope));
+      case AtomicToQueue a -> throw new UnsupportedOperationException("#83");
     };
   }
 
