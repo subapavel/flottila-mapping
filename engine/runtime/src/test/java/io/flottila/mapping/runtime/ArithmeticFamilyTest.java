@@ -8,38 +8,115 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * The family {@code arithmetic}'s single-value binding of {@code formatNum} (ADR-0025): the value,
- * read as an {@code xs:decimal}, formatted with the picture its DecimalFormat pattern compiles to
- * (ADR-0003); a value that is no decimal stops the run with {@code err:FORG0001} at the box (F-19).
+ * The arithmetic family's math functions (#73), called through {@link SingleValueLibrary} as a
+ * {@code Lift}'s body calls them: numbers in the {@code xs:decimal} lexical form, results in the
+ * XPath canonical form, and {@code err:FORG0001} at the function box otherwise. The corpus cases
+ * {@code fn/sqr} to {@code fn/round} pin the same through the facade and against Saxon-HE.
  */
 class ArithmeticFamilyTest {
 
-  private static final AuthoringId N1 = new AuthoringId("N1");
+  private static final AuthoringId BOX = new AuthoringId("V1");
 
-  /** The node of {@code formatNum(value, pattern)} at N1, over constant args. */
-  private static Node.OfString formatNum(String value, String pattern) {
-    return SingleValueLibrary.bind("formatNum", N1, List.of(frame -> value, frame -> pattern));
+  private static String call(String name, String... args) {
+    List<Node.OfString> nodes =
+        java.util.Arrays.stream(args).<Node.OfString>map(a -> f -> a).toList();
+    return SingleValueLibrary.bind(name, BOX, nodes).eval(null);
   }
 
-  @Test
-  void formatNumFormatsTheDecimalAsItsPatternDoes() {
-    assertThat(formatNum(" 1234.5 ", "#,##0.00").eval(null)).isEqualTo("1,234.50");
-    assertThat(formatNum("-0.5", "0.#%").eval(null)).isEqualTo("-50%");
-  }
-
-  @Test
-  void aValueThatIsNoDecimalIsForg0001AtTheBox() {
-    Node.OfString call = formatNum("1e3", "0");
-
-    assertThatThrownBy(() -> call.eval(null))
+  private static void assertDataError(String name, String... args) {
+    assertThatThrownBy(() -> call(name, args))
         .isInstanceOfSatisfying(
             MappingRunException.class,
             e -> {
-              assertThat(e.code()).isEqualTo("err:FORG0001");
-              assertThat(e.authoringId()).isEqualTo(N1);
-            })
-        .hasMessage(
-            "the function box N1: formatNum reads \"1e3\", which is not in the xs:decimal lexical"
-                + " form (ADR-0005)");
+              assertThat(e.code()).isEqualTo(RuntimeErrors.FORG0001).isEqualTo("err:FORG0001");
+              assertThat(e.authoringId()).isEqualTo(BOX);
+              assertThat(e.getMessage()).startsWith("the function box V1: " + name + ": ");
+            });
+  }
+
+  @Test
+  void roundTakesAHalfTowardPositiveInfinity() {
+    assertThat(call("round", "2.5")).isEqualTo("3");
+    assertThat(call("round", "-2.5")).isEqualTo("-2");
+    assertThat(call("round", "-0.5")).isEqualTo("0");
+    assertThat(call("round", "-0.4")).isEqualTo("0");
+    assertThat(call("round", "-0.6")).isEqualTo("-1");
+    assertThat(call("round", "100")).isEqualTo("100");
+  }
+
+  @Test
+  void ceilAndFloorGoToTheWholeNumberOnEachSide() {
+    assertThat(call("ceil", "1.2")).isEqualTo("2");
+    assertThat(call("ceil", "-1.2")).isEqualTo("-1");
+    assertThat(call("ceil", "-0.5")).isEqualTo("0");
+    assertThat(call("floor", "1.2")).isEqualTo("1");
+    assertThat(call("floor", "-1.2")).isEqualTo("-2");
+    assertThat(call("floor", "-0.0")).isEqualTo("0");
+  }
+
+  @Test
+  void sqrIsExactAndCanonical() {
+    assertThat(call("sqr", "1.5")).isEqualTo("2.25");
+    assertThat(call("sqr", "10")).isEqualTo("100");
+    assertThat(call("sqr", "-0.1")).isEqualTo("0.01");
+    assertThat(call("sqr", " +.5\n")).isEqualTo("0.25");
+    assertThat(call("sqr", "5.")).isEqualTo("25");
+  }
+
+  @Test
+  void sqrtIsADoubleWrittenAsTheDecimalItEquals() {
+    assertThat(call("sqrt", "4")).isEqualTo("2");
+    assertThat(call("sqrt", "0")).isEqualTo("0");
+    assertThat(call("sqrt", "2"))
+        .isEqualTo("1.4142135623730951454746218587388284504413604736328125");
+  }
+
+  @Test
+  void powerIsExactForAWholeExponentUpToOneThousand() {
+    assertThat(call("power", "10", "25")).isEqualTo("10000000000000000000000000");
+    assertThat(call("power", "0.1", "2.0")).isEqualTo("0.01");
+    assertThat(call("power", "0", "0")).isEqualTo("1");
+    assertThat(call("power", "1", "1000")).isEqualTo("1");
+    assertThat(call("power", "3", "1000")).hasSize(478).startsWith("13220708194808066368");
+  }
+
+  @Test
+  void powerIsADoubleOtherwise() {
+    assertThat(call("power", "10", "-2"))
+        .isEqualTo("0.01000000000000000020816681711721685132943093776702880859375");
+    assertThat(call("power", "9", "0.5")).isEqualTo("3");
+    // the exponent above 1000: 10^1001 would be exact, as a double it is 1E1001, Infinity
+    assertDataError("power", "10", "1001");
+    assertThat(call("power", "10", "-1"))
+        .isEqualTo("0.1000000000000000055511151231257827021181583404541015625");
+  }
+
+  @Test
+  void aResultThatIsNaNOrInfiniteIsADataError() {
+    assertDataError("sqrt", "-1");
+    assertDataError("power", "-8", "0.5");
+    assertDataError("power", "0", "-1");
+  }
+
+  @Test
+  void aValueThatIsNoDecimalIsADataErrorOfEveryFunction() {
+    for (String value : List.of("", "abc", "1e3", "1,5", "--1", ".", "INF", "NaN", "1 2", "٣")) {
+      assertDataError("sqr", value);
+      assertDataError("sqrt", value);
+      assertDataError("ceil", value);
+      assertDataError("floor", value);
+      assertDataError("round", value);
+      assertDataError("power", value, "2");
+      assertDataError("power", "2", value);
+      assertDataError("formatNum", value, "0");
+    }
+  }
+
+  /** formatNum (#74): the number formatted through the picture its pattern compiles to. */
+  @Test
+  void formatNumFormatsTheNumberAsItsPatternDoes() {
+    assertThat(call("formatNum", " 1234.5 ", "#,##0.00")).isEqualTo("1,234.50");
+    assertThat(call("formatNum", "-0.5", "0.#%")).isEqualTo("-50%");
+    assertThat(call("formatNum", "0.5", "#.##")).isEqualTo("0.5");
   }
 }

@@ -12,8 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * F&amp;O 3.1 {@code format-number} over the pictures {@link NumberPattern} writes, as Saxon-HE
  * 12.5 formats (observed, #74): round half to even, leading zeros to the minimum, trailing ones
  * down to it, regular grouping, percent and per mille, and a negative number's sub-picture or a
- * minus sign. The input is read in the {@code xs:decimal} lexical form only (ADR-0005). In the
- * table a value is in double quotes when it starts with {@code #}.
+ * minus sign. In the table a value is in double quotes when it starts with {@code #}.
  */
 class FormatNumberTest {
 
@@ -72,27 +71,5 @@ class FormatNumberTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "the picture \"" + picture + "\" is none that a number pattern compiles to (ADR-0003)");
-  }
-
-  @ParameterizedTest
-  @CsvSource(
-      delimiter = '|',
-      textBlock =
-          """
-          1.5        | 1.5
-          '  +5 '    | 5
-          -.5        | -0.5
-          1.         | 1
-          '\t7\n'    | 7
-          """)
-  void aDecimalIsReadInTheXsDecimalLexicalForm(String lexical, String value) {
-    assertThat(FormatNumber.decimal(lexical.replace("\\t", "\t").replace("\\n", "\n")))
-        .hasValueSatisfying(d -> assertThat(d).isEqualByComparingTo(value));
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = {"1e3", "", " ", "1,5", "1 2", "abc", "+", "."})
-  void anythingElseIsNoDecimal(String lexical) {
-    assertThat(FormatNumber.decimal(lexical)).isEmpty();
   }
 }

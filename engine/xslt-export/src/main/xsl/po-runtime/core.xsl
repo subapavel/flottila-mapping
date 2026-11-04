@@ -97,8 +97,8 @@
   </xsl:function>
 
   <!-- The formatting core (ADR-0003), which several families share: a Java/SAP pattern of a box
-       parameter compiled to an XPath picture, and a value read as a number. Each helper does as
-       its counterpart in engine/xdm does, for a pattern that counterpart compiles. -->
+       parameter compiled to an XPath picture. Each helper does as its counterpart in engine/xdm
+       does, for a pattern that counterpart compiles, which lowering has checked (ADR-0026). -->
 
   <!-- The runs of the Java/SAP pattern $pattern, as JavaPattern.runs splits it: ['q', text] for
        quoted text, without its quotes and each '' in it read as ', and for '' outside quotes;
@@ -145,19 +145,5 @@
         return (if ($i le $zeros) then '0' else '#',
                 if ($grouping gt 0 and $i gt 1 and ($i - 1) mod $grouping eq 0) then ',' else ()),
         substring($number, string-length($integer) + 1)))"/>
-  </xsl:function>
-
-  <!-- $value as an xs:decimal (ADR-0005), as FormatNumber.decimal reads it: a value that is none
-       raises err:FORG0001 at the function box $box, whose function $function the message names,
-       as the runtime does (ADR-0025, F-19). -->
-  <xsl:function name="po:decimal" as="xs:decimal">
-    <xsl:param name="value" as="xs:string"/>
-    <xsl:param name="function" as="xs:string"/>
-    <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence select="
-        if ($value castable as xs:decimal) then xs:decimal($value)
-        else po:data-error(xs:QName('err:FORG0001'), $box,
-                           $function || ' reads &quot;' || $value
-                           || '&quot;, which is not in the xs:decimal lexical form (ADR-0005)')"/>
   </xsl:function>
 </xsl:stylesheet>

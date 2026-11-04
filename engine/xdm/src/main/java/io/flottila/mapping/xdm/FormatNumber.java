@@ -2,7 +2,6 @@ package io.flottila.mapping.xdm;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,10 +15,6 @@ import java.util.regex.Pattern;
  * passive text again.
  */
 public final class FormatNumber {
-
-  /** The {@code xs:decimal} lexical form (ADR-0005), with XML whitespace on either side. */
-  private static final Pattern DECIMAL =
-      Pattern.compile("[ \t\r\n]*[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)[ \t\r\n]*");
 
   /** A sub-picture: prefix, integer digits, decimal separator and fraction digits, suffix. */
   private static final Pattern SUB_PICTURE =
@@ -72,17 +67,6 @@ public final class FormatNumber {
           : "-" + subPicture(picture, pictures[0]).format(value.negate());
     }
     return subPicture(picture, pictures[0]).format(value);
-  }
-
-  /**
-   * {@code lexical} as an {@code xs:decimal}, read as the export's {@code xs:decimal} cast reads
-   * it, or nothing when it is not in the lexical form (ADR-0005).
-   */
-  public static Optional<BigDecimal> decimal(String lexical) {
-    // the pattern allows only XML whitespace around the number, which trim removes
-    return DECIMAL.matcher(lexical).matches()
-        ? Optional.of(new BigDecimal(lexical.trim()))
-        : Optional.empty();
   }
 
   /** {@code text}, a sub-picture of {@code picture}, analysed. */

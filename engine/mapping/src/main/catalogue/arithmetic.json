@@ -1,4 +1,28 @@
 {
+  "ceil": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "floor": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
   "formatNum": {
     "executionKind": "single",
     "fidelity": {
@@ -15,6 +39,59 @@
         "name": "pattern",
         "syntax": "numberPattern",
         "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "power": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in xs:double (ADR-0005)."
+    },
+    "inputs": [
+      {
+        "name": "base"
+      },
+      {
+        "name": "exponent"
+      }
+    ],
+    "portable": true
+  },
+  "round": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sqr": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sqrt": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Computed in xs:double and cast back to xs:decimal (ADR-0005)."
+    },
+    "inputs": [
+      {
+        "name": "value"
       }
     ],
     "portable": true

@@ -1,0 +1,326 @@
+package io.flottila.mapping.xdm;
+
+import static io.flottila.mapping.xdm.SuppressQueues.S;
+import static io.flottila.mapping.xdm.SuppressQueues.context;
+import static io.flottila.mapping.xdm.SuppressQueues.queue;
+import static io.flottila.mapping.xdm.SuppressQueues.read;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import io.flottila.mapping.xdm.SuppressQueues.Queue;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.SplittableRandom;
+import java.util.concurrent.CancellationException;
+import java.util.function.Supplier;
+import java.util.random.RandomGenerator;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+/**
+ * The queue algebra of the function family statistic (#75, ADR-0025 "Families"): {@code sum},
+ * {@code average} and {@code count} give one value per context (#2 §5), {@code index} numbers the
+ * values per context or across the queue. Numbers are {@code xs:decimal}s (ADR-0005), SUPPRESS is
+ * no value (an assumed reading of #75). The property tests (ADR-0018) are seeded loops, without
+ * jqwik: each runs the edges and 200 seeded numeric queues against a reference written here.
+ */
+class StatisticFunctionsTest {
+
+  private static final BigDecimal ONE = BigDecimal.ONE;
+
+  /** Numbers in the xs:decimal lexical form, some with XML whitespace or trailing zeros. */
+  private static final String[] NUMBERS = {
+    "0",
+    "1",
+    "-1",
+    "2.5",
+    "+3",
+    "0.50",
+    "-0.0",
+    ".25",
+    "7.",
+    " 4 ",
+    "\t-12.125\n",
+    "1000000",
+    "0.001",
+    "99999999999999999999.99"
+  };
+
+  /** A seeded queue of numbers: empty contexts, queues without contexts and SUPPRESS come up. */
+  static Queue numeric(long seed) {
+    RandomGenerator random = new SplittableRandom(seed);
+    List<List<String>> contexts = new ArrayList<>();
+    int count = random.nextInt(8) == 0 ? random.nextInt(30) : random.nextInt(5);
+    for (int c = 0; c < count; c++) {
+      List<String> context = new ArrayList<>();
+      int slots = random.nextInt(8) == 0 ? random.nextInt(70) : random.nextInt(4);
+      for (int k = 0; k < slots; k++) {
+        context.add(random.nextInt(5) == 0 ? S : NUMBERS[random.nextInt(NUMBERS.length)]);
+      }
+      contexts.add(Collections.unmodifiableList(context));
+    }
+    return new Queue("seed " + seed, List.copyOf(contexts));
+  }
+
+  static Stream<Arguments> queues() {
+    Stream<Queue> edges =
+        Stream.of(
+            queue("no context"),
+            queue("one empty context", context()),
+            queue("only SUPPRESS", context(S), context(S, S)),
+            queue(
+                "SUPPRESS across contexts and an empty context",
+                context("1", S),
+                context(),
+                context(S, "2.5", "0")));
+    return Stream.concat(
+            edges,
+            java.util.stream.LongStream.rangeClosed(1, 200)
+                .mapToObj(StatisticFunctionsTest::numeric))
+        .map(q -> Arguments.of(q.name(), q));
+  }
+
+  /** The values of {@code context}, SUPPRESS left out, as decimals. */
+  private static List<BigDecimal> numbers(List<String> context) {
+    List<BigDecimal> numbers = new ArrayList<>();
+    for (String slot : context) {
+      if (slot != S) {
+        numbers.add(new BigDecimal(slot.strip()));
+      }
+    }
+    return numbers;
+  }
+
+  private static BigDecimal total(List<BigDecimal> numbers) {
+    return numbers.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  /** The XPath canonical form: no exponent, no trailing zero, {@code 0} for every zero. */
+  private static String canonical(BigDecimal value) {
+    return value.compareTo(BigDecimal.ZERO) == 0 ? "0" : value.stripTrailingZeros().toPlainString();
+  }
+
+  // --- property tests ---
+
+  /** sum: one context per context, holding the total of its values; an empty one gives 0. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void sumGivesOneTotalPerContext(String name, Queue queue) {
+    QueueBlock input = queue.block();
+
+    QueueBlock result = StatisticFunctions.sum(input);
+
+    List<List<String>> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      expected.add(List.of(canonical(total(numbers(context)))));
+    }
+    assertThat(read(result)).isEqualTo(expected);
+    // a block is immutable: the call leaves its input as it was
+    assertThat(read(input)).isEqualTo(queue.contexts());
+  }
+
+  /** count: one context per context, holding the number of its values, SUPPRESS not counted. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void countGivesTheValuesPerContext(String name, Queue queue) {
+    QueueBlock result = StatisticFunctions.count(queue.block());
+
+    List<List<String>> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      expected.add(List.of(String.valueOf(numbers(context).size())));
+    }
+    assertThat(read(result)).isEqualTo(expected);
+  }
+
+  /**
+   * average: one context per context, holding the total divided by the count by ADR-0005's rule,
+   * {@code 18 + scale} digits rounded half-down; a context without a value gives an empty context.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void averageDividesTheTotalByTheCount(String name, Queue queue) {
+    QueueBlock result = StatisticFunctions.average(queue.block());
+
+    List<List<String>> expected = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      List<BigDecimal> numbers = numbers(context);
+      if (numbers.isEmpty()) {
+        expected.add(List.of());
+      } else {
+        BigDecimal total = total(numbers);
+        int scale = Math.max(0, total.stripTrailingZeros().scale()) + 18;
+        expected.add(
+            List.of(
+                canonical(
+                    total.divide(
+                        BigDecimal.valueOf(numbers.size()), scale, RoundingMode.HALF_DOWN))));
+      }
+    }
+    assertThat(read(result)).isEqualTo(expected);
+  }
+
+  /**
+   * index: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of a context, or
+   * of the queue without a reset, is {@code initial + k * increment}.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void indexNumbersTheValues(String name, Queue queue) {
+    BigDecimal initial = new BigDecimal("1.5");
+    BigDecimal increment = new BigDecimal("-0.5");
+    for (boolean reset : new boolean[] {true, false}) {
+      QueueBlock result = StatisticFunctions.index(queue.block(), initial, increment, reset);
+
+      List<List<String>> expected = new ArrayList<>();
+      long k = 0;
+      for (List<String> context : queue.contexts()) {
+        k = reset ? 0 : k;
+        List<String> slots = new ArrayList<>();
+        for (String slot : context) {
+          slots.add(
+              slot == S ? S : canonical(initial.add(increment.multiply(BigDecimal.valueOf(k++)))));
+        }
+        expected.add(slots);
+      }
+      assertThat(read(result)).as("reset %s", reset).isEqualTo(expected);
+    }
+  }
+
+  // --- examples ---
+
+  @Test
+  void sumIsExactAndCanonical() {
+    QueueBlock values =
+        queue(
+                "q",
+                context("1", "2.5"),
+                context("1.50", "1.50"),
+                context("-0.0"),
+                context(" 2 ", "+1.", ".5"))
+            .block();
+
+    assertThat(read(StatisticFunctions.sum(values)))
+        .containsExactly(context("3.5"), context("3"), context("0"), context("3.5"));
+  }
+
+  @Test
+  void averageFollowsTheDivisionRuleOfAdr0005() {
+    QueueBlock values =
+        queue(
+                "q",
+                context("3", "3", "4"),
+                context("2.0", "0", "0"),
+                context("0.01", "0", "0"),
+                context("100", "0", "0"),
+                context("1", "2"),
+                context())
+            .block();
+
+    assertThat(read(StatisticFunctions.average(values)))
+        .containsExactly(
+            context("3.333333333333333333"),
+            context("0.666666666666666667"),
+            context("0.00333333333333333333"),
+            // 100 has no fractional digit, so a scale below 0 counts as 0: 18 digits
+            context("33.333333333333333333"),
+            context("1.5"),
+            context());
+  }
+
+  @Test
+  void countCountsTheEmptyStringAndAnyTextButNotSuppress() {
+    QueueBlock values = queue("q", context("", "x", S, "1e3"), context(S)).block();
+
+    assertThat(read(StatisticFunctions.count(values))).containsExactly(context("3"), context("0"));
+  }
+
+  @Test
+  void indexKeepsSuppressAndTheContexts() {
+    QueueBlock values = queue("q", context("a", S, "b"), context(), context(S, "c")).block();
+
+    assertThat(read(StatisticFunctions.index(values, ONE, ONE, true)))
+        .containsExactly(context("1", S, "2"), context(), context(S, "1"));
+    assertThat(
+            read(
+                StatisticFunctions.index(
+                    values, new BigDecimal("10"), new BigDecimal("-3"), false)))
+        .containsExactly(context("10", S, "7"), context(), context(S, "4"));
+  }
+
+  static Stream<Arguments> malformed() {
+    return Stream.of(
+        Arguments.of("1e3"),
+        Arguments.of(""),
+        Arguments.of(" "),
+        Arguments.of("+"),
+        Arguments.of("."),
+        Arguments.of("1 2"),
+        Arguments.of("NaN"),
+        Arguments.of("INF"),
+        Arguments.of("1,5"),
+        Arguments.of(" 1"),
+        Arguments.of("٣"));
+  }
+
+  /** A value that is not in the xs:decimal lexical form is a data error naming the function. */
+  @ParameterizedTest(name = "\"{0}\"")
+  @MethodSource("malformed")
+  void aValueThatIsNoDecimalIsADataError(String value) {
+    QueueBlock values = queue("q", context("1"), context(S, value)).block();
+
+    assertThat(StatisticFunctions.decimal(value)).isEmpty();
+    assertThatThrownBy(() -> StatisticFunctions.sum(values))
+        .isInstanceOf(QueueDataException.class)
+        .hasMessage("sum: \"" + value + "\" is no xs:decimal");
+    assertThatThrownBy(() -> StatisticFunctions.average(values))
+        .isInstanceOf(QueueDataException.class)
+        .hasMessage("average: \"" + value + "\" is no xs:decimal");
+  }
+
+  @Test
+  void decimalReadsTheLexicalFormAroundXmlWhitespace() {
+    assertThat(StatisticFunctions.decimal(" \t\r\n-1.50\n")).contains(new BigDecimal("-1.50"));
+    assertThat(StatisticFunctions.decimal("+7.")).contains(new BigDecimal("7"));
+    assertThat(StatisticFunctions.decimal(".5")).contains(new BigDecimal("0.5"));
+  }
+
+  // --- interruption (ADR-0021) ---
+
+  static Stream<Arguments> interruptible() {
+    QueueBlock values = queue("values", context("1", S), context("2")).block();
+    return Stream.of(
+        Arguments.of("sum", (Supplier<QueueBlock>) () -> StatisticFunctions.sum(values)),
+        Arguments.of("average", (Supplier<QueueBlock>) () -> StatisticFunctions.average(values)),
+        Arguments.of("count", (Supplier<QueueBlock>) () -> StatisticFunctions.count(values)),
+        Arguments.of(
+            "index",
+            (Supplier<QueueBlock>) () -> StatisticFunctions.index(values, ONE, ONE, true)));
+  }
+
+  /**
+   * Each function checks before each context, with its own name in the message: the block it builds
+   * checks too, with another message, so the name tells the function's check.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("interruptible")
+  void onAnInterruptedThreadAFunctionStopsBeforeAContext(
+      String function, Supplier<QueueBlock> call) {
+    // witness: the same call gives a block on a thread that is not interrupted
+    assertThat(call.get()).isNotNull();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(call::get)
+          .isInstanceOf(CancellationException.class)
+          .hasMessage(function + " was running when the thread was interrupted");
+    } finally {
+      Thread.interrupted();
+    }
+  }
+}

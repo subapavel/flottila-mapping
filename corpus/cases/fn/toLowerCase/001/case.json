@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-toLowerCase.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of toLowerCase follows java.lang.String and XPath); obs-text row toLowerCase/001",
+  "expect": "output",
+  "note": "toLowerCase uses the Unicode mapping: capital e-acute gives e-acute, digits stay."
+}

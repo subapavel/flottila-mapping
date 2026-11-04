@@ -23,7 +23,7 @@ public final class RuntimeErrors {
   /** {@code useOneAsMany}'s inputs do not have the counts it needs, at its box. */
   public static final String USEONEASMANY = "po:USEONEASMANY";
 
-  /** A standard function meets a malformed number or date, at its box (ADR-0025, F-19). */
+  /** A function meets a value that is no number (or date), or has no number as its result. */
   public static final String FORG0001 = "err:FORG0001";
 
   private RuntimeErrors() {}
