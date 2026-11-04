@@ -1,6 +1,6 @@
 # The published function catalogue: a closed schema, fidelity as a level with a text, the box id by the helper's signature
 
-Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pattern params). Refines ADR-0011 (catalogue members) and ADR-0025.
+Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pattern params; #83, table params). Refines ADR-0011 (catalogue members) and ADR-0025.
 
 ## Decision
 
@@ -31,6 +31,12 @@ Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pa
   - The IR `Literal` keeps the box's own string. The runtime and `core.xsl` each translate it through the same core, so the model and the trace show what the author wrote.
   - The translation runs on every value until spec 6 (speed) decides whether to cache it.
 
+- **Table params (#83 amendment).**
+  - A `{type: "table"}` param lowers to one `Literal` holding the table's compact canonical JSON (ADR-0010 key order and escapes), which `xdm.TableText` writes and reads. The IR and `IrVerifier` are unchanged: ADR-0025's one `Literal` per param holds.
+  - The runtime decodes the table once, at bind. The `po:` helper takes it as `xs:string` and reads it with `parse-json`.
+  - A string where a table belongs is `wrong-parameter-type` at the box. A non-string row stays a stage-1 `wrong-type`, and a duplicate key stays a transport error (ADR-0011).
+  - The `po:fixValues` signature, the JSON spelling in exports, and the `missing` param with its values (`key`, `default`, `error`; the runtime error `po:FIXVALUES`) are contract.
+
 ## Considered options
 
 - **Fidelity as a string with a sibling `deviation`**: rejected. "A text only with a deviation" needs `if/then`, and the generated types would lose it.
@@ -40,6 +46,8 @@ Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pa
 - **Keeping the old arity beside the new one**: rejected. The generator refuses a second declaration with the same name.
 - **Lowering writes the translated picture into the IR** (#74): rejected for now. The export would receive a picture the author never wrote, and the date pictures of #80 would need a second IR shape. Spec 6 (speed) may revisit it as a cache.
 - **A list of pattern-param names in `Lowering`**: rejected. It is a central list (F-15). The catalogue already describes each param.
+- **A `TableLiteral` with a `TableType` in the IR** (#83): rejected for now. No single-value binder takes a table, so every family's binder would widen mid-spec, and every back end gets a new record.
+- **A `Literal` per table row** (#83): rejected. It breaks ADR-0025's one positional argument per param.
 - **Validation in the generator, or an ETag**: rejected. The generator would need a JSON Schema library, and no client makes conditional requests.
 
 ## Consequences

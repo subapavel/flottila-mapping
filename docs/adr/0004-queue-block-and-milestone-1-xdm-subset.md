@@ -32,8 +32,8 @@ with the XSLT front end.
 
 Source queues are built by projection. The IR node `SourceQueue(field, context, origin)` means
 `array:join(context ! [field ! string()])`. One StAX/JSON pass over the input fills a builder
-for every `SourceQueue` of the mapping. Milestone 1 builds no tree. A constant stays an atomic
-`Literal`. A queue meets the rest of XDM only through the IR nodes `QueueToArray` and
+for every `SourceQueue` of the mapping. Milestone 1 builds no tree. A constant is an atomic value: lowering gives
+`FunCall(constant, [Literal])`, which the optimiser may fold to a `Literal` (#83). A queue meets the rest of XDM only through the IR nodes `QueueToArray` and
 `ArrayToQueue`, where SUPPRESS becomes `map{'po:marker':'SUPPRESS'}`. The optimiser removes these
 nodes when the callee accepts a queue directly. Milestone 1 has no such callee.
 
