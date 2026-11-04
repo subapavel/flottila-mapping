@@ -92,7 +92,8 @@ for-each over the source context".
     `[slot number, value]` per created occurrence, and `po:at-least` is written only when
     `min > 0`. Its third argument, the target field mapping's id, names the field in the
     `po:MINOCCURS` message, as the runtime does (spec-2 review).
-- A **generating function** (a function graph with no source field) on a target becomes
+- A **generating function** (a function graph with no source field whose result is a single
+  value; one that yields a queue, such as `count` of a constant, maps as a queue, F-21) on a target becomes
   `TargetRepeat(max(1, minOccurs))` per parent slot. Its children are numbered
   `(p − 1) · copies + j`.
   - Since #83 a box lowers to a queue or a single value. A single-value function whose inputs are all single values (or that has none, as `constant`) is an atomic `FunCall`, and its params are `Literal`s.
