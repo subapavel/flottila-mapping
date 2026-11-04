@@ -16,7 +16,8 @@ import java.util.function.IntFunction;
  * A date is read strictly in its pattern ({@link FormatDate#parse}), in the run's offset when the
  * pattern has none; a date the pattern does not read is {@code err:FORG0001} at the function box. A
  * date is written in the run's offset, as a SimpleDateFormat writes in its zone, and dates are
- * compared as instants. The binders are methods, not lambdas of the maps, so that PIT mutates them.
+ * compared as instants. {@code currentDate} writes the run's time, fixed once per mapping run. The
+ * binders are methods, not lambdas of the maps, so that PIT mutates them.
  */
 final class DateFamily {
 
@@ -27,11 +28,22 @@ final class DateFamily {
   static final Map<String, SingleValueLibrary.Binder> VALUE =
       Map.ofEntries(
           Map.entry("compareDates", DateFamily::compareDates),
+          Map.entry("currentDate", DateFamily::currentDate),
           Map.entry("dateAfter", DateFamily::dateAfter),
           Map.entry("dateBefore", DateFamily::dateBefore),
           Map.entry("dateTrans", DateFamily::dateTrans));
 
   private DateFamily() {}
+
+  /**
+   * {@code currentDate(; targetFormat)}: the run's time, {@link Frame#now}, written in {@code
+   * targetFormat} in its own offset, the run's. It has no input, so it is a generating function
+   * (ADR-0006 since #83, F-21), and its value is the same wherever the run reads it.
+   */
+  static Node.OfString currentDate(AuthoringId box, List<Node.OfString> args) {
+    Node.OfString target = args.getFirst();
+    return frame -> FormatDate.format(frame.now, DatePattern.picture(target.eval(frame)));
+  }
 
   /**
    * {@code dateTrans(date, sourceFormat, targetFormat)}: the date read in {@code sourceFormat},

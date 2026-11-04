@@ -7,7 +7,7 @@
      without an offset is in the implicit time zone, the offset of current-dateTime(), which the
      processor's caller sets as the runtime's run time; a date is written in that zone, and dates
      are compared as instants, as the runtime's DateFamily does. A date its pattern does not read
-     is err:FORG0001 at the box. The build joins core.xsl and the family modules, the families by
+     is err:FORG0001 at the box. currentDate writes current-dateTime() itself. The build joins core.xsl and the family modules, the families by
      id, into the helper module po-runtime.xsl, of which this comment is no part. A family module
      uses what core.xsl declares and nothing of another family, and holds core.xsl's root start
      tag, byte for byte. -->
@@ -143,6 +143,14 @@
         else po:data-error(xs:QName('err:FORG0001'), $box,
                            $function || ': ''' || $text || ''' is no date in the pattern '
                            || $pattern)"/>
+  </xsl:function>
+
+  <!-- currentDate: the run's time, current-dateTime(), written in $targetFormat. The processor
+       fixes that value for the whole run and gives it the implicit time zone, as the runtime's
+       DateFamily.currentDate writes Frame.now. It cannot raise, so it takes no box. -->
+  <xsl:function name="po:currentDate" as="xs:string">
+    <xsl:param name="targetFormat" as="xs:string"/>
+    <xsl:sequence select="format-dateTime(current-dateTime(), po:date-picture($targetFormat))"/>
   </xsl:function>
 
   <!-- dateTrans: the date $date read in $sourceFormat, written in $targetFormat in the implicit

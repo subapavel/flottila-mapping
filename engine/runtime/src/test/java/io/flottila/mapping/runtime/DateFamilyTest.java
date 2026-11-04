@@ -15,8 +15,8 @@ import org.junit.jupiter.api.Test;
  * it, in a run whose time is {@link #UTC} or {@link #PLUS_ONE}: a date is read strictly in its
  * pattern (ADR-0003), in the run's offset when the pattern has none, and written in the run's
  * offset; a date its pattern does not read is {@code err:FORG0001} at the function box. The corpus
- * cases {@code fn/dateTrans} to {@code fn/compareDates} pin the same through the facade and against
- * Saxon-HE.
+ * cases {@code fn/currentDate} to {@code fn/compareDates} pin the same through the facade and
+ * against Saxon-HE.
  */
 class DateFamilyTest {
 
@@ -43,6 +43,13 @@ class DateFamilyTest {
               assertThat(e.authoringId()).isEqualTo(BOX);
               assertThat(e.getMessage()).isEqualTo("the function box D1: " + name + ": " + message);
             });
+  }
+
+  @Test
+  void currentDateWritesTheRunsTimeInItsOwnOffset() {
+    assertThat(call(UTC, "currentDate", "yyyy/MM/dd")).isEqualTo("2026/11/04");
+    assertThat(call(PLUS_ONE, "currentDate", "yyyy-MM-dd HH:mm:ss.SSS XXX"))
+        .isEqualTo("2026-11-04 13:00:00.000 +01:00");
   }
 
   @Test

@@ -28,6 +28,21 @@
     ],
     "portable": true
   },
+  "currentDate": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "targetFormat",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
   "dateAfter": {
     "executionKind": "single",
     "fidelity": {
