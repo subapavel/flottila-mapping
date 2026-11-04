@@ -1,11 +1,14 @@
 package io.flottila.mapping.service;
 
 import static io.flottila.mapping.service.Fixtures.INPUT;
+import static io.flottila.mapping.service.Fixtures.NOTE_AT_10_UTC;
 import static io.flottila.mapping.service.Fixtures.NS;
 import static io.flottila.mapping.service.Fixtures.OUTPUT;
 import static io.flottila.mapping.service.Fixtures.assertBytes;
 import static io.flottila.mapping.service.Fixtures.bytes;
 import static io.flottila.mapping.service.Fixtures.corpusMapping;
+import static io.flottila.mapping.service.Fixtures.notesInTheRunsZone;
+import static io.flottila.mapping.service.Fixtures.notesThrough;
 import static io.flottila.mapping.service.Fixtures.unwired;
 import static io.flottila.mapping.service.Fixtures.workingCopy;
 import static io.flottila.mapping.service.Wire.assertProblem;
@@ -46,6 +49,22 @@ class TestRunResourceTest {
         .isEqualTo(Duration.ofSeconds(10));
   }
 
+  /**
+   * #80: {@code flottila.mapping.time-zone} is UTC unless configured, so a date with its offset is
+   * written as it is read, 10:00 Z; {@code TestRunTimeZoneTest} configures +01:00.
+   */
+  @Test
+  void aTestRunWritesADateInUtcByDefault() {
+    TempWorkspace.write("testing-utc/order.mapping.json", corpusMapping());
+
+    Http.Reply reply = test("testing-utc/order", testRequest(notesInTheRunsZone(), NOTE_AT_10_UTC));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", result).isEqualTo("output");
+    assertThat(result.path("output").textValue()).contains("<Note>10:00 Z</Note>");
+  }
+
   @Test
   void testRunsAnUnsavedWorkingCopy() {
     // the disk copy is unconnected; only the body wires the field
@@ -71,27 +90,6 @@ class TestRunResourceTest {
     List<String> names = new ArrayList<>();
     object.fieldNames().forEachRemaining(names::add);
     return names;
-  }
-
-  /**
-   * A working copy over {@code order.xsd} with {@code OrderId <- a1} at t1 (1..1) and {@code Note
-   * <- result} at t2 (0..unbounded), whose boxes are {@code boxes}; {@code a2} reads the source
-   * {@code Note}.
-   */
-  private static String notesThrough(String result, String boxes) {
-    String side =
-        """
-        {"bundle": ["../structures/skeleton/order.xsd"], "fingerprint": "%s", \
-        "root": {"element": "%s"}}"""
-            .formatted(Fixtures.FINGERPRINT, Fixtures.ORDER);
-    return """
-        {"formatVersion": 1, "source": %2$s, "target": %2$s, "targetFieldMappings": {
-          "/%1$s/OrderId": {"id": "t1", "result": "a1",
-            "boxes": {"a1": {"kind": "source", "field": "/%1$s/OrderId"}}},
-          "/%1$s/Note": {"id": "t2", "result": "%3$s", "boxes": {%4$s}}}}
-        """
-        .formatted(
-            Fixtures.ORDER, side, result, boxes.replace("NOTE", "/" + Fixtures.ORDER + "/Note"));
   }
 
   /** {@code Note <- c1}, {@code c1} createIf over {@code a2}. */
@@ -183,6 +181,30 @@ class TestRunResourceTest {
                      "t1": {"kind": "occurrences", "min": 1, "max": 1, "capped": false,
                             "parents": [{"parentSlot": 1, "created": 0, "slots": []}]}}
                     """)));
+  }
+
+  /**
+   * ADR-0015 {@code {atomic: {type, value}}} since #83: {@code Note <- c1}, the constant c1, is a
+   * generating function, and c1's entry is its single value, kind atomic, of type {@code xs:string}
+   * (ADR-0004).
+   */
+  @Test
+  void aConstantsEntryIsItsAtomicValue() {
+    TempWorkspace.write("testing-trace-atomic/order.mapping.json", corpusMapping());
+    String constant =
+        notesThrough(
+            "c1",
+            """
+            "c1": {"kind": "function", "fn": "constant", "params": {"value": "x"}}""");
+
+    Http.Reply reply = test("testing-trace-atomic/order", testRequest(constant, INPUT));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", result).isEqualTo("output");
+    assertThat(result.path("trace").path("c1"))
+        .isEqualTo(
+            Wire.read(bytes("{\"kind\": \"atomic\", \"type\": \"xs:string\", \"value\": \"x\"}")));
   }
 
   /** {@code OrderId 4711} and the Notes {@code n1} … {@code n<count>}. */

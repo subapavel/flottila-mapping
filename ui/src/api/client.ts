@@ -12,6 +12,12 @@ export type FieldDto = Schemas['FieldDto'];
 export type TestResult = Schemas['TestResult'];
 
 /**
+ * The answer of `GET /api/catalogue`, typed by json-schema-to-typescript from the contract's catalogue schema
+ * (ADR-0026). `ApiClient` gets no method for it until spec 5.
+ */
+export type { FunctionCatalogue } from '../generated/function-catalogue';
+
+/**
  * The test request with the model typed by json-schema-to-typescript, as ADR-0015 asks of `ApiClient`.
  * openapi-typescript's own `mapping-model.schema` type marks the schema's `$defs` as a required member, so a
  * `MappingModel` is not assignable to it.

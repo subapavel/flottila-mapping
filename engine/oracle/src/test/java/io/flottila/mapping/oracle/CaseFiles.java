@@ -2,11 +2,14 @@ package io.flottila.mapping.oracle;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import io.flottila.mapping.api.EngineFacade;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,11 +20,14 @@ import java.util.stream.StreamSupport;
 
 /**
  * The golden corpus on disk (ADR-0018): {@code cases/<area>/<topic>/<nnn>/} holds {@code case.json}
- * {@code {mapping, provenance, ref, expect, note}}, the input and the expectation. {@code mapping}
- * is the model's path under {@code corpus/}; the model's bundle references are relative to the
- * model's own directory. The JDK has no JSON reader, so a strict one is included.
+ * {@code {mapping, provenance, ref, expect, note, now?}}, the input and the expectation. {@code
+ * mapping} is the model's path under {@code corpus/}; the model's bundle references are relative to
+ * the model's own directory. The JDK has no JSON reader, so a strict one is included.
  */
 final class CaseFiles {
+
+  /** The time a run of a case without {@code now} starts at, and of every other oracle run. */
+  static final OffsetDateTime DEFAULT_NOW = OffsetDateTime.parse("2026-01-01T12:00:00Z");
 
   private CaseFiles() {}
 
@@ -58,6 +64,20 @@ final class CaseFiles {
 
     String expect() {
       return text("expect");
+    }
+
+    /**
+     * The time the case's runs start at, in both back ends (#80): its optional {@code now}, an
+     * xs:dateTime with an offset, or {@link #DEFAULT_NOW}. Its offset is the run's time zone.
+     */
+    OffsetDateTime now() {
+      return json.containsKey("now") ? OffsetDateTime.parse(text("now")) : DEFAULT_NOW;
+    }
+
+    /** An engine facade whose runs start at {@link #now()}. */
+    EngineFacade facade() {
+      OffsetDateTime now = now();
+      return new EngineFacade(Clock.fixed(now.toInstant(), now.getOffset()));
     }
 
     Path input() {

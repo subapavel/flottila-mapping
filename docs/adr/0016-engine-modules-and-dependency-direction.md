@@ -44,8 +44,9 @@ module's row is fixed now (ADR-0021); its spec comes after milestone 1.
 - `contract/` at the root holds the hand-written `mapping-model.schema.json` and
   `function-catalogue.schema.json` and the generated, committed `openapi.json`. They sit in one
   directory because `openapi.json` refers to the model with the relative `$ref:
-  ./mapping-model.schema.json` (ADR-0015). `engine/mapping` packs the schemas into its jar from
-  there. `ui` `gen:types` reads them without Java.
+  ./mapping-model.schema.json` (ADR-0015). `engine/mapping` packs the model schema into its jar from
+  there, because it validates against it. The catalogue schema is checked by a test only (ADR-0026),
+  so it is not packed. `ui` `gen:types` reads them without Java.
 
 ## Enforcement
 

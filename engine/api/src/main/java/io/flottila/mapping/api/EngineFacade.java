@@ -3,6 +3,7 @@ package io.flottila.mapping.api;
 import io.flottila.mapping.ir.IrOptimiser;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.mapping.FunctionCatalogue;
 import io.flottila.mapping.mapping.LoadResult;
 import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Lowered;
@@ -23,7 +24,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,17 +48,41 @@ public final class EngineFacade {
   /** The runtime error of a test run that exceeds its timeout (ADR-0014, ADR-0015). */
   private static final String TIMEOUT = "flottila:TIMEOUT";
 
+  /** How a test run waits by the wall clock. */
+  private static final Deadline WALL_CLOCK =
+      (run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+
   /** How {@link #testRun} waits for its run: the wall clock, unless a test gives its own. */
   private final Deadline deadline;
 
-  /** A facade; it holds no mutable state, and its test runs wait by the wall clock. */
+  /** Where each run takes its time from; its zone gives the run's time zone (#80). */
+  private final Clock clock;
+
+  /**
+   * A facade; it holds no mutable state, its runs take their time from the UTC system clock, and
+   * its test runs wait by the wall clock.
+   */
   public EngineFacade() {
-    this((run, timeout, tracer) -> run.get(timeout.toNanos(), TimeUnit.NANOSECONDS));
+    this(Clock.systemUTC());
+  }
+
+  /**
+   * A facade whose runs take their time from {@code clock} (#80): each run reads it once as it
+   * starts, and the offset of that time in the clock's zone is the run's time zone, in which a date
+   * without an offset is read and every date is written. Its test runs wait by the wall clock.
+   */
+  public EngineFacade(Clock clock) {
+    this(WALL_CLOCK, clock);
   }
 
   /** A facade whose test runs wait by {@code deadline}: a test's fake clock (CODING_STANDARDS). */
   EngineFacade(Deadline deadline) {
+    this(deadline, Clock.systemUTC());
+  }
+
+  private EngineFacade(Deadline deadline, Clock clock) {
     this.deadline = deadline;
+    this.clock = clock;
   }
 
   /**
@@ -93,6 +120,15 @@ public final class EngineFacade {
   }
 
   /**
+   * The published function catalogue (ADR-0026): the bytes of the packed {@code
+   * function-catalogue.json}, an instance of {@code contract/function-catalogue.schema.json}. Each
+   * call gives a copy of its own.
+   */
+  public byte[] catalogue() {
+    return FunctionCatalogue.bytes();
+  }
+
+  /**
    * A new mapping model in {@code formatVersion} 1 (ADR-0010) between two structures, with no
    * target field mapping and no UDF.
    *
@@ -108,7 +144,8 @@ public final class EngineFacade {
    * Compiles a mapping model (ADR-0016): load with stages 1 and 2, the source and target
    * structures, stage 3 and lowering, the optimiser if {@code options} ask for it, then the closure
    * compile. The first of these that refuses the model gives the result; the structures are both
-   * read before either refusal is reported.
+   * read before either refusal is reported. The compiled mapping keeps the occurrence of each
+   * target field mapping's field, which a generating function's trace entry shows (#83).
    *
    * @param model the mapping model's bytes
    * @param base the directory the model's schema bundle references are relative to
@@ -121,11 +158,14 @@ public final class EngineFacade {
         model,
         base,
         CompileResult.Refused::new,
-        document -> {
+        lowered -> {
+          TargetDocument document = lowered.document();
           // lowering has verified the IR; the optimiser verifies it again (ADR-0006)
           TargetDocument ir = options.optimised() ? IrOptimiser.optimise(document) : document;
           return new CompileResult.Compiled(
-              new CompiledMapping(Interpreter.compile(ir, options.traced())));
+              new CompiledMapping(
+                  Interpreter.compile(ir, options.traced()),
+                  Lowering.occurrences(lowered.model(), lowered.target())));
         });
   }
 
@@ -144,21 +184,23 @@ public final class EngineFacade {
         model,
         base,
         ExportResult.Refused::new,
-        document ->
-            new ExportResult.Exported(XsltExporter.export(document), XsltExporter.helperModule()));
+        lowered ->
+            new ExportResult.Exported(
+                XsltExporter.export(lowered.document()), XsltExporter.helperModule()));
   }
 
   /**
    * The chain compile and export share: load with stages 1 and 2, the source and target structures,
    * then stage 3 and lowering. The first of these that refuses the model gives {@code refused} its
    * diagnostics, which the result sorts; the structures are both read before either refusal is
-   * reported. A model that lowers gives {@code lowered} its unoptimised IR.
+   * reported. A model that lowers gives {@code lowered} its unoptimised IR, with the model and the
+   * target structure it was lowered from.
    */
   private static <R> R loadAndLower(
       byte[] model,
       Path base,
       Function<List<Diagnostic>, R> refused,
-      Function<TargetDocument, R> lowered)
+      Function<LoweredModel, R> lowered)
       throws MalformedJsonException {
     return switch (MappingModelFormat.load(model)) {
       case Refused r -> refused.apply(r.diagnostics());
@@ -171,11 +213,15 @@ public final class EngineFacade {
         }
         yield switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
           case Refused r -> refused.apply(r.diagnostics());
-          case Lowered(TargetDocument document) -> lowered.apply(document);
+          case Lowered(TargetDocument document) ->
+              lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document));
         };
       }
     };
   }
+
+  /** A model that lowers, the target structure it was lowered over, and its unoptimised IR. */
+  private record LoweredModel(MappingModel model, Structure target, TargetDocument document) {}
 
   /** The structure {@code ref} names, or empty once its load error is added to {@code refusals}. */
   private static Optional<Structure> structure(
@@ -202,12 +248,14 @@ public final class EngineFacade {
     return run(mapping, input, new Tracer());
   }
 
-  /** {@link #run}, reporting to {@code tracer}. */
-  private static byte[] run(CompiledMapping mapping, byte[] input, Tracer tracer)
+  /** {@link #run}, reporting to {@code tracer}, at the time the clock gives as it starts. */
+  private byte[] run(CompiledMapping mapping, byte[] input, Tracer tracer)
       throws MalformedInputException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     try {
-      mapping.executable().run(new ByteArrayInputStream(input), out, tracer);
+      mapping
+          .executable()
+          .run(new ByteArrayInputStream(input), out, tracer, OffsetDateTime.now(clock));
     } catch (IOException e) {
       // only the output stream can throw it, and a ByteArrayOutputStream never does
       throw new UncheckedIOException(e);
@@ -254,7 +302,8 @@ public final class EngineFacade {
     Thread.ofPlatform().name("flottila test run").daemon(true).start(task);
     try {
       byte[] output = deadline.await(task, timeout, tracer);
-      return new TestRunResult.Output(output, TraceBuilder.build(tracer.reports(), traceLimit));
+      return new TestRunResult.Output(
+          output, TraceBuilder.build(tracer.reports(), mapping.occurrences(), traceLimit));
     } catch (TimeoutException late) {
       // the run reports on until its next interrupt check: first the snapshot, a copy of the
       // reports so far taken under the tracer's lock, then the interrupt, and last the trace,
@@ -265,7 +314,7 @@ public final class EngineFacade {
           TIMEOUT,
           "the test run took longer than its timeout of " + timeout.toMillis() + " ms",
           Optional.empty(),
-          TraceBuilder.build(soFar, traceLimit));
+          TraceBuilder.build(soFar, mapping.occurrences(), traceLimit));
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new CancellationException("the test run was interrupted while it was awaited");
@@ -278,7 +327,7 @@ public final class EngineFacade {
               error.code(),
               error.getMessage(),
               Optional.of(error.authoringId()),
-              TraceBuilder.build(tracer.reports(), traceLimit));
+              TraceBuilder.build(tracer.reports(), mapping.occurrences(), traceLimit));
         }
         default -> throw new IllegalStateException("the test run failed", failed.getCause());
       }

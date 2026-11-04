@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -48,6 +49,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tracer.occurrences()} lists every report of a traced {@code TargetSlots}, one per parent slot.
  */
 class InterpreterTest {
+
+  /** The time every run of this class starts at; no function here reads it. */
+  private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-04T12:00:00Z");
 
   private static final String NS = "urn:flottila:corpus:skeleton";
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
@@ -145,7 +149,7 @@ class InterpreterTest {
       throws Exception {
     ExecutableMapping mapping = Interpreter.compile(document, traced);
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    mapping.run(new ByteArrayInputStream(input), out, tracer);
+    mapping.run(new ByteArrayInputStream(input), out, tracer, NOW);
     return out.toByteArray();
   }
 
@@ -595,7 +599,7 @@ class InterpreterTest {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
 
     try {
-      assertThatThrownBy(() -> mapping.run(in, out, new Tracer()))
+      assertThatThrownBy(() -> mapping.run(in, out, new Tracer(), NOW))
           .isInstanceOf(CancellationException.class);
     } finally {
       Thread.interrupted();
@@ -652,7 +656,7 @@ class InterpreterTest {
     InterruptingOutput out = new InterruptingOutput();
 
     try {
-      assertThatThrownBy(() -> mapping.run(new ByteArrayInputStream(input), out, new Tracer()))
+      assertThatThrownBy(() -> mapping.run(new ByteArrayInputStream(input), out, new Tracer(), NOW))
           .isInstanceOf(CancellationException.class);
     } finally {
       Thread.interrupted();

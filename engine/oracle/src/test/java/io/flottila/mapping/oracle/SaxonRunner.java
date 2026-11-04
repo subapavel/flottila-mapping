@@ -8,12 +8,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import javax.xml.transform.stream.StreamSource;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.QName;
 import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.Xslt30Transformer;
+import net.sf.saxon.value.DateTimeValue;
 
 /**
  * The Saxon side of the differential oracle (ADR-0018, #27 design): Saxon-HE 12.5 runs an exported
@@ -37,10 +39,22 @@ final class SaxonRunner {
   }
 
   /**
-   * Writes {@code mapping.xsl} and {@code po-runtime.xsl} into {@code dir}, compiles the first with
-   * a fresh {@code Processor(false)} and runs it on {@code input}.
+   * {@link #run(String, String, byte[], Path, OffsetDateTime)} at {@link CaseFiles#DEFAULT_NOW}.
    */
   static byte[] run(String stylesheet, String helperModule, byte[] input, Path dir)
+      throws Exception {
+    return run(stylesheet, helperModule, input, dir, CaseFiles.DEFAULT_NOW);
+  }
+
+  /**
+   * Writes {@code mapping.xsl} and {@code po-runtime.xsl} into {@code dir}, compiles the first with
+   * a fresh {@code Processor(false)} and runs it on {@code input} with {@code now} as its current
+   * dateTime, whose offset Saxon takes as the implicit time zone (javap: {@code
+   * Controller.getImplicitTimezone} reads {@code getCurrentDateTime}), as the export asks of its
+   * caller (#80).
+   */
+  static byte[] run(
+      String stylesheet, String helperModule, byte[] input, Path dir, OffsetDateTime now)
       throws Exception {
     Files.createDirectories(dir);
     Path mapping = Files.writeString(dir.resolve("mapping.xsl"), stylesheet);
@@ -48,15 +62,19 @@ final class SaxonRunner {
     Processor processor = new Processor(false);
     Xslt30Transformer transformer =
         processor.newXsltCompiler().compile(new StreamSource(mapping.toFile())).load30();
+    transformer.getUnderlyingController().setCurrentDateTime(DateTimeValue.fromOffsetDateTime(now));
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     transformer.transform(
         new StreamSource(new ByteArrayInputStream(input)), transformer.newSerializer(out));
     return out.toByteArray();
   }
 
-  /** The namespace URI of each prefix a runtime error's QName takes (ADR-0015, ADR-0025). */
+  /**
+   * The namespace URI of each prefix a runtime error's QName takes (ADR-0015, ADR-0025): {@code
+   * err} for a malformed number or date, {@code err:FORG0001}, and the like (spec #70).
+   */
   private static final Map<String, String> ERROR_NAMESPACES =
-      Map.of("po", "urn:flottila:mapping:po");
+      Map.of("po", "urn:flottila:mapping:po", "err", "http://www.w3.org/2005/xqt-errors");
 
   /**
    * The error Saxon raises when it runs {@code stylesheet} on {@code input}, as {@link #run} does;
@@ -65,8 +83,20 @@ final class SaxonRunner {
   static SaxonApiException raised(
       String stylesheet, String helperModule, byte[] input, Path dir, String what)
       throws Exception {
+    return raised(stylesheet, helperModule, input, dir, CaseFiles.DEFAULT_NOW, what);
+  }
+
+  /** {@link #raised(String, String, byte[], Path, String)}, run at {@code now}. */
+  static SaxonApiException raised(
+      String stylesheet,
+      String helperModule,
+      byte[] input,
+      Path dir,
+      OffsetDateTime now,
+      String what)
+      throws Exception {
     try {
-      byte[] output = run(stylesheet, helperModule, input, dir);
+      byte[] output = run(stylesheet, helperModule, input, dir, now);
       throw new AssertionError(
           what + ": expected Saxon to raise an error, it wrote " + new String(output, UTF_8));
     } catch (SaxonApiException raised) {
@@ -89,6 +119,19 @@ final class SaxonRunner {
     assertThat("Q{" + raised.getNamespace() + "}" + raised.getLocalName())
         .as("%s: Saxon's error, %s", what, saxon.getMessage())
         .isEqualTo("Q{" + namespace + "}" + code.substring(colon + 1));
+  }
+
+  /**
+   * The message of the runtime error {@code code} starts with the place it is raised at (ADR-0026,
+   * F-19): {@code the target field mapping <id> } for {@code po:MINOCCURS}, {@code the function box
+   * <id>: } for a function's data error, {@code <id>} being {@code authoringId}.
+   */
+  static void assertNamesItsPlace(String message, String code, String authoringId, String what) {
+    String place =
+        code.equals("po:MINOCCURS")
+            ? "the target field mapping " + authoringId + " "
+            : "the function box " + authoringId + ": ";
+    assertThat(message).as("%s: the message names its place", what).startsWith(place);
   }
 
   /** {@code saxon} and {@code ours} agree: identical, and declared on the same elements. */

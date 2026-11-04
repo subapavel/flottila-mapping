@@ -221,8 +221,8 @@ _Avoid_: function registry
 
 **Fidelity**:
 How a standard function relates to SAP PO/CPI behaviour: _exact_, _deviation_ (a documented
-difference with an id and an example) or _assumed_ (an assumed reading waiting for an observed
-case).
+difference, with a short text) or _assumed_ (an assumed reading waiting for an observed case). A
+function is assumed while one of its corpus cases is (ADR-0026).
 _Avoid_: compatibility level
 
 **Portable function**:
@@ -287,8 +287,10 @@ block; tickets, tests and diagnostics use the slot number.
 _Avoid_: index alone
 
 **Generating function**:
-A function graph with no source field, such as a constant or `concat` of two constants. On a
-target field it gives `max(1, minOccurs)` occurrences per parent occurrence.
+A function graph with no source field whose result is a single value, such as a constant or
+`concat` of two constants (one that yields a queue, such as `count` of a constant, is a queue, F-21). On a
+target field it gives `max(1, minOccurs)` occurrences per parent occurrence and computes its value
+once per occurrence; on a structure field that value is traced, never written.
 _Avoid_: constant (for the general case)
 
 **Test run**:

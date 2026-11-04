@@ -131,6 +131,45 @@ final class Fixtures {
         .formatted(ORDER, result, side);
   }
 
+  /**
+   * A working copy over {@code order.xsd} with {@code OrderId <- a1} at t1 (1..1) and {@code Note
+   * <- result} at t2 (0..unbounded), whose boxes are {@code boxes}; {@code NOTE} in them stands for
+   * the source field {@code Note}.
+   */
+  static String notesThrough(String result, String boxes) {
+    String side =
+        """
+        {"bundle": ["../structures/skeleton/order.xsd"], "fingerprint": "%s", \
+        "root": {"element": "%s"}}"""
+            .formatted(FINGERPRINT, ORDER);
+    return """
+        {"formatVersion": 1, "source": %2$s, "target": %2$s, "targetFieldMappings": {
+          "/%1$s/OrderId": {"id": "t1", "result": "a1",
+            "boxes": {"a1": {"kind": "source", "field": "/%1$s/OrderId"}}},
+          "/%1$s/Note": {"id": "t2", "result": "%3$s", "boxes": {%4$s}}}}
+        """
+        .formatted(ORDER, side, result, boxes.replace("NOTE", "/" + ORDER + "/Note"));
+  }
+
+  /**
+   * {@code Note <- d1}, d1 dateTrans over the source Note from {@code yyyy-MM-dd HH:mmXXX} to
+   * {@code HH:mm XXX}: the Note's time written in the run's time zone (#80).
+   */
+  static String notesInTheRunsZone() {
+    return notesThrough(
+        "d1",
+        """
+        "d1": {"kind": "function", "fn": "dateTrans", "inputs": ["a2"],
+               "params": {"sourceFormat": "yyyy-MM-dd HH:mmXXX", "targetFormat": "HH:mm XXX"}},
+        "a2": {"kind": "source", "field": "NOTE"}""");
+  }
+
+  /** OrderId 1 and the one Note {@code 2026-11-04 10:00Z}, a time in UTC. */
+  static final String NOTE_AT_10_UTC =
+      "<src:Order xmlns:src=\""
+          + NS
+          + "\"><OrderId>1</OrderId><Note>2026-11-04 10:00Z</Note></src:Order>";
+
   /** Compares as text first, so a failure shows the difference, then byte for byte. */
   static void assertBytes(byte[] actual, byte[] expected) {
     assertThat(new String(actual, UTF_8)).isEqualTo(new String(expected, UTF_8));

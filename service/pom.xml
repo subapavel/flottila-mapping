@@ -71,6 +71,13 @@
       <artifactId>jimfs</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- CatalogueResourceTest validates the served catalogue against its contract schema; the
+         engine also brings it at compile scope, but a test's import is declared where it is used -->
+    <dependency>
+      <groupId>com.github.erosb</groupId>
+      <artifactId>json-sKema</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -78,13 +85,14 @@
       <resource>
         <directory>src/main/resources</directory>
       </resource>
-      <!-- Swagger UI resolves the contract's ./mapping-model.schema.json against /q/openapi (#45, ADR-0015):
-           the contract's file, served as /q/mapping-model.schema.json -->
+      <!-- Swagger UI resolves the contract's ./mapping-model.schema.json and ./function-catalogue.schema.json
+           against /q/openapi (#45, ADR-0015, ADR-0026): the contract's files, served as /q/<file> -->
       <resource>
         <directory>${maven.multiModuleProjectDirectory}/contract</directory>
         <targetPath>META-INF/resources/q</targetPath>
         <includes>
           <include>mapping-model.schema.json</include>
+          <include>function-catalogue.schema.json</include>
         </includes>
       </resource>
     </resources>

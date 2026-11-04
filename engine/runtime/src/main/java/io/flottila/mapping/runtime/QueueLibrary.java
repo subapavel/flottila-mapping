@@ -51,16 +51,16 @@ final class QueueLibrary {
   }
 
   /**
-   * {@code node}, whose data error is rethrown as the runtime error {@code code} at {@code box}. An
-   * input's own data error has already been rethrown at its own box, so only the call's reaches the
-   * catch.
+   * {@code node}, whose data error is rethrown as the runtime error {@code code} at {@code box}
+   * ({@link MappingRunException#dataError}), with the algebra's message. An input's own data error
+   * has already been rethrown at its own box, so only the call's reaches the catch.
    */
   static Node.OfQueue raising(String code, AuthoringId box, Node.OfQueue node) {
     return frame -> {
       try {
         return node.eval(frame);
       } catch (QueueDataException dataError) {
-        throw new MappingRunException(code, box, dataError.getMessage(), dataError);
+        throw MappingRunException.dataError(code, box, dataError.getMessage(), dataError);
       }
     };
   }

@@ -67,7 +67,8 @@ contract, and the editor ships with the service.
 - An atomic value (a single-value call with no queue input) is `{atomic: {type, value}}`.
 - The trace is an object keyed by `AuthoringId`, in first-report order (since #53, on the wire
   too). It holds every box that was evaluated.
-  Constants are not traced; the editor shows them from the model (ADR-0006). A box that was
+  `Literal`s are not traced; the editor shows them from the model (ADR-0006). Since #83 a `constant`
+  box is an atomic `FunCall` and is traced as `{atomic}`. A box that was
   never evaluated, because its field was never created, is absent.
 - A target field mapping's entry adds `occurrences`: per parent slot, the list of slots
   `{slot, status: created|suppressed|truncated}` (`truncated` = cut by `maxOccurs`), and any
@@ -79,6 +80,9 @@ contract, and the editor ships with the service.
   (`flottila.mapping.trace-limit`, 10,000) per entry; a limit below 1 is refused at startup and
   by the facade (#53). Since #53 the cap marker is `capped: true`,
   not `truncated`, which names a slot cut by `maxOccurs`.
+- The run clock's zone (`flottila.mapping.time-zone`, a region or offset id, default `UTC`, #80):
+  a mapping run reads its time once, in that zone, for `currentDate` and the date functions; the
+  export passes it as the processor's implicit time zone. An unknown zone is refused at startup.
 - Since #53 each entry carries `kind`:
   - `queue` {contexts, capped, slotCount, contextCount}: at most the limit's slots and contexts,
     the totals always;
@@ -91,7 +95,7 @@ contract, and the editor ships with the service.
     atomic box, in spec 3.
 - Since #53 the slot budget of an occurrences entry is spent in parent order, so the kept last
   parent can show `created` without its slot records; a cut queue shows its first contexts, and
-  the last one shown may look empty. The editor reads `capped` and the totals (spec 6). The
+  the last one shown may look empty. The editor reads `capped` and the totals (spec 5). The
   nullable slot of a context is the schema-only type `TraceValue` (`string | null`), code-first.
 - A runtime error returns the trace up to the error. A test run compiled without tracing returns
   an empty trace.

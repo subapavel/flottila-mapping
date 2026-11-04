@@ -74,7 +74,9 @@ public class MappingsResource {
 
   private final Workspace workspace;
   private final ObjectMapper json;
-  private final EngineFacade facade = new EngineFacade();
+
+  /** The engine, whose runs take their time in {@code flottila.mapping.time-zone} (#80). */
+  private final EngineFacade facade;
 
   /** {@code flottila.mapping.test-timeout}: how long a test run may take (ADR-0014). */
   private final Duration timeout;
@@ -83,9 +85,10 @@ public class MappingsResource {
   private final int traceLimit;
 
   @Inject
-  MappingsResource(Workspace workspace, ObjectMapper json, Config config) {
+  MappingsResource(Workspace workspace, ObjectMapper json, Config config, EngineFacade facade) {
     this.workspace = workspace;
     this.json = json;
+    this.facade = facade;
     this.timeout = config.getValue("flottila.mapping.test-timeout", Duration.class);
     this.traceLimit = ServiceConfig.traceLimit(config);
   }
@@ -215,7 +218,7 @@ public class MappingsResource {
 
   /**
    * Save (ADR-0015): stages 1 and 2 only, so a stage 3 error still saves. The id and its mapping
-   * model file are checked before the body is read. {@code If-Match} is not enforced until spec 6.
+   * model file are checked before the body is read. {@code If-Match} is not enforced until spec 5.
    */
   @PUT
   @jakarta.ws.rs.Path(ID)

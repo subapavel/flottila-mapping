@@ -7,9 +7,10 @@ import java.util.Optional;
 
 /**
  * Re-checks IR after lowering and after every optimiser pass (ADR-0006). A refusal is a compiler
- * bug, not a user error, so it throws. A node's type is derived: a {@link SourceQueue} and a {@link
- * Lift} are queues, a {@link Literal} a string, a {@link VarRef} has the type it stores and a
- * {@link FunCall} its {@link FunctionRef}'s result; content gives no value. It checks:
+ * bug, not a user error, so it throws. A node's type is derived: a {@link SourceQueue}, a {@link
+ * Lift} and an {@link AtomicToQueue} are queues, a {@link Literal} a string, a {@link VarRef} has
+ * the type it stores and a {@link FunCall} its {@link FunctionRef}'s result; content gives no
+ * value. It checks:
  *
  * <ul>
  *   <li>every {@link VarRef} reads a variable in scope with the type it is bound with: the root's
@@ -20,10 +21,12 @@ import java.util.Optional;
  *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, its queue is a queue and its
  *       parent slot an {@code INTEGER};
  *   <li>a {@link TargetRepeat} has at least one copy and an {@code INTEGER} parent slot, and binds
- *       its slot number ({@code INTEGER}) only in its body (#63);
+ *       its slot number ({@code INTEGER}) only in its body (#63); its value, when present, is a
+ *       {@code STRING} in the parent's scope, so it cannot read its own slot number (#83);
  *   <li>a {@link FunCall} has one argument per parameter type of its {@link FunctionRef}, each of
  *       that type; a context function's (one whose result is a queue) atomic argument is a param,
  *       and a param is a {@link Literal} (ADR-0025);
+ *   <li>an {@link AtomicToQueue}'s value is a {@code STRING} (#83);
  *   <li>a {@link Lift} has at least one input, each a queue, one slot variable per input, all
  *       distinct and none named {@code in}, which the export binds (ADR-0025), and a {@code STRING}
  *       body (ADR-0006 since #51);
@@ -96,6 +99,7 @@ public final class IrVerifier {
           throw refused(r, "it has " + r.copies() + " copies, not at least 1");
         }
         value(r, r.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
+        r.value().ifPresent(v -> value(r, v, AtomicType.STRING, scope, "its value"));
         Map<String, AtomicType> body = new HashMap<>(scope);
         body.put(r.slotVar(), AtomicType.INTEGER);
         content(r.body(), body);
@@ -110,6 +114,10 @@ public final class IrVerifier {
       case TextConstructor t -> {
         value(t, t.value(), AtomicType.STRING, scope, "its value");
         yield Optional.empty();
+      }
+      case AtomicToQueue a -> {
+        value(a, a.value(), AtomicType.STRING, scope, "its value");
+        yield Optional.of(QUEUE);
       }
     };
   }

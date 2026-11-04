@@ -17,7 +17,7 @@
     "e2e": "playwright test",
     "e2e:stack": "playwright test --config playwright.stack.config.ts",
     "licences": "node --test scripts/*.test.mjs && node scripts/check-licences.mjs",
-    "gen:types": "openapi-typescript ../contract/openapi.json -o src/generated/api.ts && json2ts -i ../contract/mapping-model.schema.json -o src/generated/mapping-model.ts"
+    "gen:types": "openapi-typescript ../contract/openapi.json -o src/generated/api.ts && json2ts -i ../contract/mapping-model.schema.json -o src/generated/mapping-model.ts && json2ts -i ../contract/function-catalogue.schema.json -o src/generated/function-catalogue.ts"
   },
   "dependencies": {
     "@patternfly/react-core": "6.7.0",

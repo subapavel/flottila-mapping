@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-startsWith.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of startsWith follows java.lang.String and XPath); obs-text row startsWith/001",
+  "expect": "output",
+  "note": "startsWith(Sku, Qty) is true for a prefix and for an empty prefix, false when the prefix is inside, or longer than the value."
+}

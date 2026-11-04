@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-concat.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of concat follows java.lang.String and XPath); obs-text row concat/001",
+  "expect": "output",
+  "note": "concat(Sku, Qty) joins the two strings; an empty side leaves the other as it is, two empty give an empty value."
+}

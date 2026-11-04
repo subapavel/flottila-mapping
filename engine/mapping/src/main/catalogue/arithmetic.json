@@ -1,0 +1,283 @@
+{
+  "abs": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "add": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "ceil": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "divide": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Quotient scale follows Saxon-HE (ADR-0005); PO divides in float or BigDecimal mode."
+    },
+    "inputs": [
+      {
+        "name": "dividend"
+      },
+      {
+        "name": "divisor"
+      }
+    ],
+    "portable": true
+  },
+  "equalsA": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "floor": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "formatNum": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "pattern",
+        "syntax": "numberPattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "greater": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "inv": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "less": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "max": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "min": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "multiply": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "neg": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "power": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in xs:double (ADR-0005)."
+    },
+    "inputs": [
+      {
+        "name": "base"
+      },
+      {
+        "name": "exponent"
+      }
+    ],
+    "portable": true
+  },
+  "round": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sign": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sqr": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sqrt": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Computed in xs:double and cast back to xs:decimal (ADR-0005)."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "subtract": {
+    "executionKind": "single",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  }
+}

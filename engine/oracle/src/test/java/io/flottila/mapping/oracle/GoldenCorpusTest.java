@@ -71,7 +71,7 @@ class GoldenCorpusTest {
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
     Path base = mapping.getParent();
-    EngineFacade facade = new EngineFacade();
+    EngineFacade facade = c.facade();
 
     if (expectsRuntimeError(c)) {
       // a runtime error: every variant compiles, and its run raises the code at the authoring id
@@ -181,7 +181,7 @@ class GoldenCorpusTest {
   private static void checkTrace(CorpusCase c) throws Exception {
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
-    EngineFacade facade = new EngineFacade();
+    EngineFacade facade = c.facade();
     CompileResult compiled = facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN);
     if (!(compiled instanceof CompileResult.Compiled(CompiledMapping tested))) {
       throw new AssertionError(c.id() + ": expected Compiled, got " + compiled);
@@ -236,9 +236,30 @@ class GoldenCorpusTest {
             .extracting(Trace.ParentSlot::parentSlot)
             .containsExactly(1L);
       }
-      AuthoringId queue = new AuthoringId(text(link, "result"));
-      assertThat(entries.get(queue))
-          .as("%s: the queue of its result box %s", what, queue.value())
+      checkResultEntry(link, entries.get(new AuthoringId(text(link, "result"))), what);
+    }
+  }
+
+  /**
+   * The entry of the {@code result} box of {@code link}: the field's queue, or, for a graph without
+   * a source-field box, its queue or its atomic value (ADR-0015 {@code {atomic: {type, value}}}).
+   * Such a graph is a generating function when its result is a single value, and a queue when it is
+   * one, such as {@code count} of a constant (ADR-0006 as amended by #83, F-21). A field read from
+   * a source field never has an atomic entry. {@code GeneratingTraceCheckTest} runs it on synthetic
+   * links.
+   */
+  static void checkResultEntry(Map<String, Object> link, Trace.Entry entry, String what) {
+    String result = text(link, "result");
+    boolean noSourceField =
+        object(link.get("boxes"), what + " boxes").values().stream()
+            .noneMatch(box -> "source".equals(object(box, what + " box").get("kind")));
+    if (noSourceField) {
+      assertThat(entry)
+          .as("%s: the queue or value of its result box %s, with no source field", what, result)
+          .isInstanceOfAny(Trace.Queue.class, Trace.Atomic.class);
+    } else {
+      assertThat(entry)
+          .as("%s: the queue of its result box %s", what, result)
           .isInstanceOf(Trace.Queue.class);
     }
   }

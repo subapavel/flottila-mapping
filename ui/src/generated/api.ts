@@ -4,6 +4,42 @@
  */
 
 export interface paths {
+    "/api/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The function catalogue, keyed by function id */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["function-catalogue.schema"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mappings": {
         parameters: {
             query?: never;
@@ -545,8 +581,17 @@ export interface components {
             input: string;
         };
         TestResult: components["schemas"]["TestOutput"] | components["schemas"]["TestRefused"] | components["schemas"]["TestError"];
+        TraceAtomicDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "atomic";
+            type: string;
+            value: string;
+        };
         TraceContext: components["schemas"]["TraceValue"][];
-        TraceEntryDto: components["schemas"]["TraceQueueDto"] | components["schemas"]["TraceOccurrencesDto"];
+        TraceEntryDto: components["schemas"]["TraceQueueDto"] | components["schemas"]["TraceOccurrencesDto"] | components["schemas"]["TraceAtomicDto"];
         TraceOccurrencesDto: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -574,6 +619,164 @@ export interface components {
             contextCount: number;
         };
         TraceValue: string | null;
+        /** @description A function, family, input or param name: camelCase, at most 64 characters. */
+        id: string;
+        /** CatalogueInput */
+        catalogueInput: {
+            name: components["schemas"]["id"];
+        };
+        /**
+         * StringParam
+         * @description A string param: it takes its values only, the patterns of its syntax only, or any string when it has neither.
+         */
+        stringParam: {
+            name: components["schemas"]["id"];
+            /** @constant */
+            type: "string";
+            default: string;
+            values?: string[];
+            /**
+             * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern, datePattern a java.text.SimpleDateFormat pattern.
+             * @enum {unknown}
+             */
+            syntax?: "numberPattern" | "datePattern";
+        };
+        /** TableParam */
+        tableParam: {
+            name: components["schemas"]["id"];
+            /** @constant */
+            type: "table";
+            /**
+             * TableDefault
+             * @description A table of strings: its keys are source values, so it is the one open object.
+             */
+            default: {
+                [key: string]: string;
+            };
+        };
+        catalogueParam: components["schemas"]["stringParam"] | components["schemas"]["tableParam"];
+        /** ExactFidelity */
+        exactFidelity: {
+            /** @constant */
+            level: "exact";
+        };
+        /**
+         * AssumedFidelity
+         * @description An assumed reading, while one of the function's corpus cases is assumed.
+         */
+        assumedFidelity: {
+            /** @constant */
+            level: "assumed";
+        };
+        /**
+         * DeviationFidelity
+         * @description A documented difference from SAP PO/CPI behaviour.
+         */
+        deviationFidelity: {
+            /** @constant */
+            level: "deviation";
+            text: string;
+        };
+        /** @description How the function relates to SAP PO/CPI behaviour (ADR-0026). */
+        fidelity: components["schemas"]["exactFidelity"] | components["schemas"]["assumedFidelity"] | components["schemas"]["deviationFidelity"];
+        /**
+         * CatalogueEntry
+         * @description One standard function. Its inputs and params are in signature order; a function without inputs or params leaves the member out.
+         */
+        catalogueEntry: {
+            family: components["schemas"]["id"];
+            /** @enum {unknown} */
+            executionKind: "single" | "context" | "queue";
+            inputs?: components["schemas"]["catalogueInput"][];
+            params?: components["schemas"]["catalogueParam"][];
+            /** @description Whether the function's export runs on any conforming XSLT 3.0 processor. */
+            portable: boolean;
+            fidelity: components["schemas"]["fidelity"];
+        };
+        /**
+         * FunctionCatalogue
+         * @description The published function catalogue (ADR-0025, ADR-0026): every standard function, keyed by its id. Adding a member is a schema change.
+         */
+        "function-catalogue.schema": {
+            $defs: {
+                /** @description A function, family, input or param name: camelCase, at most 64 characters. */
+                id: string;
+                /**
+                 * CatalogueEntry
+                 * @description One standard function. Its inputs and params are in signature order; a function without inputs or params leaves the member out.
+                 */
+                catalogueEntry: {
+                    family: components["schemas"]["id"];
+                    /** @enum {unknown} */
+                    executionKind: "single" | "context" | "queue";
+                    inputs?: components["schemas"]["catalogueInput"][];
+                    params?: components["schemas"]["catalogueParam"][];
+                    /** @description Whether the function's export runs on any conforming XSLT 3.0 processor. */
+                    portable: boolean;
+                    fidelity: components["schemas"]["fidelity"];
+                };
+                /** CatalogueInput */
+                catalogueInput: {
+                    name: components["schemas"]["id"];
+                };
+                catalogueParam: components["schemas"]["stringParam"] | components["schemas"]["tableParam"];
+                /**
+                 * StringParam
+                 * @description A string param: it takes its values only, the patterns of its syntax only, or any string when it has neither.
+                 */
+                stringParam: {
+                    name: components["schemas"]["id"];
+                    /** @constant */
+                    type: "string";
+                    default: string;
+                    values?: string[];
+                    /**
+                     * @description The Java/SAP pattern syntax the param is written in, which lowering checks through the formatting core (ADR-0003, ADR-0026): numberPattern is a java.text.DecimalFormat pattern, datePattern a java.text.SimpleDateFormat pattern.
+                     * @enum {unknown}
+                     */
+                    syntax?: "numberPattern" | "datePattern";
+                };
+                /** TableParam */
+                tableParam: {
+                    name: components["schemas"]["id"];
+                    /** @constant */
+                    type: "table";
+                    /**
+                     * TableDefault
+                     * @description A table of strings: its keys are source values, so it is the one open object.
+                     */
+                    default: {
+                        [key: string]: string;
+                    };
+                };
+                /** @description How the function relates to SAP PO/CPI behaviour (ADR-0026). */
+                fidelity: components["schemas"]["exactFidelity"] | components["schemas"]["assumedFidelity"] | components["schemas"]["deviationFidelity"];
+                /** ExactFidelity */
+                exactFidelity: {
+                    /** @constant */
+                    level: "exact";
+                };
+                /**
+                 * AssumedFidelity
+                 * @description An assumed reading, while one of the function's corpus cases is assumed.
+                 */
+                assumedFidelity: {
+                    /** @constant */
+                    level: "assumed";
+                };
+                /**
+                 * DeviationFidelity
+                 * @description A documented difference from SAP PO/CPI behaviour.
+                 */
+                deviationFidelity: {
+                    /** @constant */
+                    level: "deviation";
+                    text: string;
+                };
+            };
+        } & {
+            [key: string]: components["schemas"]["catalogueEntry"];
+        };
         /** ElementRoot */
         elementRoot: {
             /** @description The root element's EQName. */

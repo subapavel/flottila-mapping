@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/fix-values-key.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0026 \"Table params\" (#83), assumed reading: a key the table lacks gives the key itself unless the box says otherwise (missing: key, the default); obs-constant row fn/fixValues/002",
+  "expect": "output",
+  "note": "FixValues a=A, d=D, the missing-key option left as proposed: b, c, e, f are not in the table and pass as they are."
+}

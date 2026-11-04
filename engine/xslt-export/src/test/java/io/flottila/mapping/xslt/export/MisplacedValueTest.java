@@ -3,6 +3,7 @@ package io.flottila.mapping.xslt.export;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
@@ -25,8 +26,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * A value where content stands is a compiler bug (XsltExporter), for the nodes of a call as for the
- * others: a {@code Literal} or a {@code FunCall}, whose origin is {@code x9}, as an element's
- * content beside the field link's text.
+ * others: a {@code Literal}, a {@code FunCall} or an {@code AtomicToQueue} (#83), whose origin is
+ * {@code x9}, as an element's content beside the field link's text.
  */
 class MisplacedValueTest {
 
@@ -65,9 +66,8 @@ class MisplacedValueTest {
         Arguments.of(
             "a FunCall",
             new FunCall(
-                new FunctionRef("removeContexts", List.of(QUEUE), QUEUE),
-                List.of(orderIds()),
-                X9)));
+                new FunctionRef("removeContexts", List.of(QUEUE), QUEUE), List.of(orderIds()), X9)),
+        Arguments.of("an AtomicToQueue", new AtomicToQueue(new Literal("a", X9), X9)));
   }
 
   @ParameterizedTest(name = "{0} as an element's content")

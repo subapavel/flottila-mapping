@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/fix-values-default-empty.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0026 \"Table params\" (#83), assumed reading: the default value left empty is the empty string; obs-constant row fn/fixValues/005",
+  "expect": "output",
+  "note": "FixValues a=A, missing: default, no default value: every other key gives an empty V."
+}

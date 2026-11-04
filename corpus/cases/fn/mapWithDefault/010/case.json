@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/map-with-default-remove-contexts-item.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0004 and GLOSSARY \"Empty context\" (observed #31 d2): a parent occurrence without children is an empty context; ContextFunctions.removeContexts gives a queue without a value one empty context (ADR-0004 starts {0, n}); observation #61",
+  "expect": "output",
+  "note": "fn/mapWithDefault/004 with two contexts, so removeContexts is no longer a no-op: the order has two Lines without Sku, so Sku in its default context Line is two empty contexts [] []. removeContexts gives one empty context, and mapWithDefault fills it: [D]. One Item per Line in context Orders: Item 1 reads context 1 and gets V D, Item 2 has no context and no V. Without removeContexts both Items get V D; removeContexts giving no context leaves both without V."
+}

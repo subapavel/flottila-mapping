@@ -44,11 +44,12 @@ Status: accepted (2026-11-02, #50 design, spec #48)
     `po-runtime.xsl` (`core.xsl`, then the families by id) and the runtime's family index. A name
     in two families fails the build. Nothing hand-written lists the families.
   - The merged catalogue gives each entry its `family` (Q16). Artifact names, their bytes for the
-    same entries, the IR and ADR-0023's one-file export are unchanged.
+    same entries (until #71 adds `fidelity` and the box param, ADR-0026), the IR and ADR-0023's
+    one-file export are unchanged.
   - Today's eleven functions form the family `context`. `RuntimeErrors` stays one shared,
     append-only file (Q15).
   - A family is the PO palette group: `ifWithoutElse` belongs to `boolean`, `formatNum` to
-    `arithmetic`, whatever their execution kind. Two tickets of one family add whole entries to
+    `arithmetic`, `fixValues` to `conversions` (spec-3 review), whatever their execution kind. Two tickets of one family add whole entries to
     the same files; the merger resolves that as a mechanical adjacent edit.
   - A `<Family>Family` binds each name through a package-private method, not a lambda in a
     static initializer: PIT makes no mutants for the latter (#69).

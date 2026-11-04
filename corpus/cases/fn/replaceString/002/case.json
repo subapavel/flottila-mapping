@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/text-replaceString-dollar.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0025 (functions bind by name; the reading of replaceString follows java.lang.String and XPath); obs-text row replaceString/002",
+  "expect": "output",
+  "note": "replaceString{search=$, replacement=\\$1} takes both literally, no regular expression and no group reference: a$b$ gives a\\$1b\\$1."
+}

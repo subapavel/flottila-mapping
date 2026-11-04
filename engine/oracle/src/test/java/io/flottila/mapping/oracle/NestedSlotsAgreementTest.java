@@ -197,7 +197,11 @@ class NestedSlotsAgreementTest {
   private static byte[] ours(Generated generated) throws Exception {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     Interpreter.compile(generated.document(), false)
-        .run(new ByteArrayInputStream(generated.input().getBytes(UTF_8)), out, new Tracer());
+        .run(
+            new ByteArrayInputStream(generated.input().getBytes(UTF_8)),
+            out,
+            new Tracer(),
+            CaseFiles.DEFAULT_NOW);
     return out.toByteArray();
   }
 

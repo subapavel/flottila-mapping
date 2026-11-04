@@ -26,7 +26,11 @@ import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -337,7 +341,7 @@ class EngineFacadeTest {
         orderToOrder(
             """
             {"%1$s/OrderId": {"id": "t1", "result": "f1",
-                              "boxes": {"f1": {"kind": "function", "fn": "trim", "inputs": ["a1"]},
+                              "boxes": {"f1": {"kind": "function", "fn": "rfcLookup", "inputs": ["a1"]},
                                         "a1": {"kind": "source", "field": "%1$s/OrderId"}}},
              "%1$s/Quantity": {"id": "t2", "result": null,
                                "boxes": {"a2": {"kind": "source", "field": "%1$s/Quantity"}}}}
@@ -771,7 +775,7 @@ class EngineFacadeTest {
             {"%1$s/OrderId": {"id": "t1", "result": "a1",
                               "boxes": {"a1": {"kind": "source", "field": "%1$s/OrderId"}}},
              "%1$s/Quantity": {"id": "t2", "result": "f1",
-                               "boxes": {"f1": {"kind": "function", "fn": "trim",
+                               "boxes": {"f1": {"kind": "function", "fn": "rfcLookup",
                                                 "inputs": ["a2"]},
                                          "a2": {"kind": "source", "field": "%1$s/Quantity"}}}}
             """
@@ -1216,6 +1220,55 @@ class EngineFacadeTest {
         .isFalse();
   }
 
+  // --- the published catalogue (ADR-0026): the facade serves the packed bytes
+
+  /** The one {@code function-catalogue.json} engine/mapping packs, read without the facade. */
+  private static byte[] packedCatalogue() throws Exception {
+    Path artifact =
+        Path.of(
+            io.flottila.mapping.mapping.Lowering.class
+                .getProtectionDomain()
+                .getCodeSource()
+                .getLocation()
+                .toURI());
+    if (!Files.isDirectory(artifact)) {
+      try (java.nio.file.FileSystem jar = java.nio.file.FileSystems.newFileSystem(artifact)) {
+        return Files.readAllBytes(onlyCatalogue(jar.getPath("/")));
+      }
+    }
+    return Files.readAllBytes(onlyCatalogue(artifact));
+  }
+
+  private static Path onlyCatalogue(Path root) throws Exception {
+    List<Path> found;
+    try (Stream<Path> files = Files.walk(root)) {
+      found =
+          files
+              .filter(
+                  p ->
+                      p.getFileName() != null
+                          && p.getFileName().toString().equals("function-catalogue.json"))
+              .toList();
+    }
+    assertThat(found).as("function-catalogue.json under %s", root).hasSize(1);
+    return found.getFirst();
+  }
+
+  @Test
+  void theCatalogueIsThePackedResource() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    byte[] packed = packedCatalogue();
+    // witness: the packed catalogue holds spec 2's functions
+    assertThat(new String(packed, UTF_8)).contains("\"useOneAsMany\": {");
+
+    byte[] first = facade.catalogue();
+
+    assertThat(first).isEqualTo(packed);
+    // a fresh copy on each call: a caller that writes into one changes no other
+    first[0] = (byte) ' ';
+    assertThat(facade.catalogue()).isEqualTo(packed).isNotSameAs(first);
+  }
+
   /** ADR-0015 since #52: {@code flottila:TIMEOUT} has no authoring id. */
   @Test
   void aTimeoutHasNoAuthoringId() throws Exception {
@@ -1563,5 +1616,102 @@ class EngineFacadeTest {
     assertThatThrownBy(() -> facade.run(numeric, input))
         .hasMessageContaining("sortByKey")
         .hasMessageContaining("SUPPRESS");
+  }
+
+  // --- the run's time (#80): each run reads the facade's clock as it starts, and the offset of
+  // that time is the zone a date is written in
+
+  /** {@code Note <- dateTrans(Note)}, each Note an instant with its offset, written as its time. */
+  private static final byte[] DATE_TO_TIME =
+      withFunctionBox(
+          """
+          {"kind": "function", "fn": "dateTrans", "inputs": ["a2"],
+           "params": {"sourceFormat": "yyyy-MM-dd HH:mmXXX", "targetFormat": "HH:mm XXX"}}""");
+
+  private static final byte[] TEN_IN_UTC =
+      utf8(
+          "<src:Order xmlns:src=\""
+              + NS
+              + "\"><OrderId>1</OrderId><Note>2026-11-04 10:00Z</Note></src:Order>");
+
+  @Test
+  void aRunWritesADateInTheZoneOfItsClock() throws Exception {
+    Clock plusOne = Clock.fixed(Instant.parse("2026-11-04T12:00:00Z"), ZoneOffset.ofHours(1));
+    EngineFacade inPlusOne = new EngineFacade(plusOne);
+    EngineFacade inUtc = new EngineFacade();
+    CompiledMapping mapping = compiled(inUtc.compile(DATE_TO_TIME, skeleton(), DEPLOY));
+
+    // the default clock is UTC's, whatever the JVM's own zone
+    assertThat(new String(inUtc.run(mapping, TEN_IN_UTC), UTF_8)).isEqualTo(withNotes("10:00 Z"));
+    assertThat(new String(inPlusOne.run(mapping, TEN_IN_UTC), UTF_8))
+        .isEqualTo(withNotes("11:00 +01:00"));
+    // a test run reads the same clock
+    TestRunResult tested =
+        inPlusOne.testRun(
+            compiled(inPlusOne.compile(DATE_TO_TIME, skeleton(), CompileOptions.TEST_RUN)),
+            TEN_IN_UTC,
+            Duration.ofSeconds(10),
+            TRACE_LIMIT);
+    assertThat(tested)
+        .isInstanceOfSatisfying(
+            TestRunResult.Output.class,
+            output ->
+                assertThat(new String(output.output(), UTF_8))
+                    .isEqualTo(withNotes("11:00 +01:00")));
+  }
+
+  /** A clock in UTC that moves one millisecond on at each read, from 12:00:00.000. */
+  private static final class TickingClock extends Clock {
+    private Instant next = Instant.parse("2026-11-04T12:00:00Z");
+
+    @Override
+    public ZoneId getZone() {
+      return ZoneOffset.UTC;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zone) {
+      throw new UnsupportedOperationException("the facade reads the clock in its own zone");
+    }
+
+    @Override
+    public Instant instant() {
+      Instant now = next;
+      next = next.plusMillis(1);
+      return now;
+    }
+  }
+
+  /** {@code Note <- concat(Note, currentDate)}, the time written to the millisecond. */
+  private static final byte[] NOTE_AT_TIME =
+      orderToOrder(
+          """
+          {"%1$s/OrderId": {"id": "t1", "result": "a1",
+                            "boxes": {"a1": {"kind": "source", "field": "%1$s/OrderId"}}},
+           "%1$s/Note": {"id": "t2", "result": "f1",
+                         "boxes": {"f1": {"kind": "function", "fn": "concat",
+                                          "inputs": ["a2", "c1"]},
+                                   "c1": {"kind": "function", "fn": "currentDate",
+                                          "params": {"targetFormat": "'@'HH:mm:ss.SSS"}},
+                                   "a2": {"kind": "source", "field": "%1$s/Note"}}}}
+          """
+              .formatted(ORDER));
+
+  @Test
+  void currentDateIsTheTimeTheRunReadsOnceAsItStarts() throws Exception {
+    EngineFacade facade = new EngineFacade(new TickingClock());
+    CompiledMapping mapping = compiled(facade.compile(NOTE_AT_TIME, skeleton(), DEPLOY));
+    byte[] input =
+        utf8(
+            "<src:Order xmlns:src=\""
+                + NS
+                + "\"><OrderId>1</OrderId><Note>a</Note><Note>b</Note></src:Order>");
+
+    // one time for every value of a run, though the clock moves on at each read
+    assertThat(new String(facade.run(mapping, input), UTF_8))
+        .isEqualTo(withNotes("a@12:00:00.000", "b@12:00:00.000"));
+    // the next run reads the clock again as it starts
+    assertThat(new String(facade.run(mapping, input), UTF_8))
+        .isEqualTo(withNotes("a@12:00:00.001", "b@12:00:00.001"));
   }
 }
