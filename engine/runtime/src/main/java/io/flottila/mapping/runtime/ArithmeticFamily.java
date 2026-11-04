@@ -40,8 +40,9 @@ final class ArithmeticFamily {
           Map.entry("sign", ArithmeticFamily::sign),
           Map.entry("subtract", ArithmeticFamily::subtract));
 
-  /** The {@code xs:decimal} lexical form, in the ASCII digits only, without surrounding space. */
-  private static final Pattern DECIMAL = Pattern.compile("[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)");
+  /** The {@code xs:decimal} lexical form, in the ASCII digits only, in XML white space. */
+  private static final Pattern DECIMAL =
+      Pattern.compile("[ \\t\\r\\n]*[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)[ \\t\\r\\n]*");
 
   /** The scale of a quotient that does not terminate, at least (ADR-0005). */
   private static final int DIVISION_SCALE = 18;
@@ -136,29 +137,12 @@ final class ArithmeticFamily {
    * @throws MappingRunException {@code err:FORG0001} at {@code box} when it is none
    */
   static BigDecimal decimal(String text, AuthoringId box) {
-    String trimmed = trimXmlSpace(text);
-    if (!DECIMAL.matcher(trimmed).matches()) {
+    if (!DECIMAL.matcher(text).matches()) {
       throw MappingRunException.dataError(
           RuntimeErrors.FORG0001, box, "\"" + text + "\" is no xs:decimal", null);
     }
-    return new BigDecimal(trimmed);
-  }
-
-  /** {@code text} without the white space of XML (space, tab, line feed, carriage return). */
-  private static String trimXmlSpace(String text) {
-    int from = 0;
-    int to = text.length();
-    while (from < to && isXmlSpace(text.charAt(from))) {
-      from++;
-    }
-    while (to > from && isXmlSpace(text.charAt(to - 1))) {
-      to--;
-    }
-    return text.substring(from, to);
-  }
-
-  private static boolean isXmlSpace(char c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+    // the pattern allows XML white space only, which strip() cuts and nothing else
+    return new BigDecimal(text.strip());
   }
 
   /**
@@ -183,8 +167,10 @@ final class ArithmeticFamily {
     return Math.max(0, value.stripTrailingZeros().scale());
   }
 
-  /** The XPath canonical form of {@code value}: no exponent, no trailing zeros, no {@code -0}. */
+  /**
+   * The XPath canonical form of {@code value}: no exponent, no trailing zeros; a zero is {@code 0}.
+   */
   static String canonical(BigDecimal value) {
-    return value.signum() == 0 ? "0" : value.stripTrailingZeros().toPlainString();
+    return value.stripTrailingZeros().toPlainString();
   }
 }
