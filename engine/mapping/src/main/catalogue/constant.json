@@ -1,0 +1,21 @@
+{
+  "copyValue": {
+    "executionKind": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "position",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  }
+}
