@@ -165,6 +165,7 @@ fn/mapWithDefault/006
 fn/mapWithDefault/007
 fn/mapWithDefault/008
 fn/mapWithDefault/009
+fn/mapWithDefault/010
 fn/max/001
 fn/min/001
 fn/multiply/001
@@ -238,6 +239,7 @@ fn/splitByValue/018
 fn/splitByValue/019
 fn/splitByValue/020
 fn/splitByValue/021
+fn/splitByValue/022
 fn/sqr/001
 fn/sqr/002
 fn/sqrt/001
@@ -270,6 +272,7 @@ fn/useOneAsMany/005
 fn/useOneAsMany/006
 fn/useOneAsMany/007
 fn/useOneAsMany/008
+fn/useOneAsMany/009
 link/direct-copy/001
 target/firstRead/001
 target/firstRead/002
