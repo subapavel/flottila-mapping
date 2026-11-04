@@ -24,7 +24,7 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
 ## ETag
 
 - The ETag is `"sha256:<64 lowercase hex>"`, a strong tag over exactly the canonical bytes the response carries.
-- Spec 6's `If-Match` compares it. Until then `If-Match` is ignored.
+- Spec 5's `If-Match` compares it. Until then `If-Match` is ignored.
 
 ## Problems
 
@@ -44,7 +44,7 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
 - `model-refused` adds `diagnostics`. It answers:
   - a save refused at stage 1 or 2;
   - a GET of a stored file that is refused.
-- Creating an existing id is 409. This is not the spec-6 `If-Match` 409.
+- Creating an existing id is 409. This is not the spec-5 `If-Match` 409.
 
 ## Results
 

@@ -67,7 +67,7 @@ the position in that list (first bullet = 1). `#2 §7.n` is item n of the open a
 | ADR-0005: PO's result for `1/3` | `obs-division` | `d1.xml`, `d2.xml` (div-1) |
 
 Not covered here, by design: #2 §7.14 `XSI_NIL`; #2 §7.15 and a shared box with UDF state
-(ADR-0020, a later spec); `po-owner-local` (spec 5). #2 §7.4 is covered for the functions named
+(ADR-0020, a later spec); `po-owner-local` (spec 6). #2 §7.4 is covered for the functions named
 above only; `sort`, `sortByKey`, `sum`, `count` and the rest of the catalogue stay open.
 
 ## Spec 2 cases (#61)
