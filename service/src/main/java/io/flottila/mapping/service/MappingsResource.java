@@ -39,7 +39,6 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -86,12 +85,12 @@ public class MappingsResource {
   private final int traceLimit;
 
   @Inject
-  MappingsResource(Workspace workspace, ObjectMapper json, Config config) {
+  MappingsResource(Workspace workspace, ObjectMapper json, Config config, EngineFacade facade) {
     this.workspace = workspace;
     this.json = json;
+    this.facade = facade;
     this.timeout = config.getValue("flottila.mapping.test-timeout", Duration.class);
     this.traceLimit = ServiceConfig.traceLimit(config);
-    this.facade = new EngineFacade(Clock.system(ServiceConfig.timeZone(config)));
   }
 
   /** The workspace's mappings, sorted by id. */
@@ -219,7 +218,7 @@ public class MappingsResource {
 
   /**
    * Save (ADR-0015): stages 1 and 2 only, so a stage 3 error still saves. The id and its mapping
-   * model file are checked before the body is read. {@code If-Match} is not enforced until spec 6.
+   * model file are checked before the body is read. {@code If-Match} is not enforced until spec 5.
    */
   @PUT
   @jakarta.ws.rs.Path(ID)

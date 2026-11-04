@@ -3,6 +3,7 @@ package io.flottila.mapping.service;
 import static jakarta.ws.rs.core.MediaType.APPLICATION_JSON;
 
 import io.flottila.mapping.api.EngineFacade;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Response;
@@ -21,7 +22,12 @@ public class CatalogueResource {
   /** The function catalogue's schema, next to {@code openapi.json} in {@code contract/}. */
   static final String CATALOGUE = "./function-catalogue.schema.json";
 
-  private final EngineFacade facade = new EngineFacade();
+  private final EngineFacade facade;
+
+  @Inject
+  CatalogueResource(EngineFacade facade) {
+    this.facade = facade;
+  }
 
   @GET
   @Produces(APPLICATION_JSON)
