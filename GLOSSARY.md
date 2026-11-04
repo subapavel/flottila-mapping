@@ -288,7 +288,8 @@ _Avoid_: index alone
 
 **Generating function**:
 A function graph with no source field, such as a constant or `concat` of two constants. On a
-target field it gives `max(1, minOccurs)` occurrences per parent occurrence.
+target field it gives `max(1, minOccurs)` occurrences per parent occurrence and computes its value
+once per occurrence; on a structure field that value is traced, never written.
 _Avoid_: constant (for the general case)
 
 **Test run**:

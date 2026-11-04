@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -11,7 +11,7 @@ Every front end lowers to records of `sealed interface Expr`. The records are `L
 field mapping, a function box or a source-field box, and later an XSLT instruction. Tracing,
 the display queue and design-time errors refer to nothing else.
 
-The IR is pure data: records, enums, strings, ints and a symbolic
+The IR is pure data: records, enums, strings, ints, `Optional` and `List` of those, and a symbolic
 `FunctionRef(name, params, result)`. It holds no `MethodHandle` or `Class`; back ends link calls.
 
 ## Typing
@@ -99,6 +99,7 @@ for-each over the source context".
   - Inside a `Lift` body a single value applies to every slot of every context. At a context or queue input it is `AtomicToQueue(value, origin)`: one context with one value (ADR-0004). It is typed `QUEUE` over a `STRING` value, it is not traced, and it exports as `[(value)]`.
   - On a target, the `TargetRepeat`'s `origin` is the target field mapping's authoring id, and its value is computed once per copy.
   - The trace records a generating field's occurrences per parent slot (all created, the count `copies`) and the value of each box in the graph, as for any other target field (GLOSSARY "Trace").
+  - On a structure field the value stays on its `TargetRepeat`: `value` is an optional `STRING` in the parent's scope (it cannot read its own `slotVar`, as `TargetSlots.queue`). Each copy evaluates it before its body and never writes it, in every compile, traced or not, so the trace holds its boxes and a data error in it is raised at its box (ADR-0018 l.48–49, l.124–127). A leaf's value stays in its text; an unmapped field has none. The export writes `<xsl:value-of select="substring(value, 1, 0)"/>` before the body, a zero-length text node. That Saxon-HE 12.5 evaluates it is observed, not required by XSLT 3.0, and a differential error test in `engine/oracle` pins it (#83).
   - Documented (SAP PI 7.11): the counts. Assumed (`obs-constant`): the repeat per parent occurrence, `concat` of constants, and `AtomicToQueue`'s shape.
 - An unmapped structure field with `minOccurs = maxOccurs = n > 0` is created n times. An
   unmapped optional field is left out with its subtree. Since #63 both lower to
