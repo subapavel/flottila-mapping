@@ -11,9 +11,14 @@ import java.io.Serial;
  *   <li>a refused construct ({@code schema-construct-unsupported}, {@code schema-invalid}): the end
  *       of its start tag, or the end of refused text;
  *   <li>{@code schema-root-not-found}: the end of the {@code xs:schema} start tag;
+ *   <li>in a JSON Schema (#97): where the JSON parser stops; a refused or invalid keyword, the
+ *       {@code $ref} of {@code schema-reference-outside-bundle} among them, at its key; a refused
+ *       schema (the root, the second declaration of a property) at its first character; a {@code
+ *       $ref} json-sKema resolves outside the bundle, against an {@code $id}, at line 1, column 1;
  *   <li>an error about a whole file ({@code schema-unreadable}, {@code
  *       package-reference-unsupported}, {@code root-selector-unsupported}, a bundle of other than
- *       one file): line 1, column 1.
+ *       one XSD file or of no JSON Schema file, a JSON Schema file that is not UTF-8): line 1,
+ *       column 1.
  * </ul>
  */
 public final class StructureLoadException extends Exception {

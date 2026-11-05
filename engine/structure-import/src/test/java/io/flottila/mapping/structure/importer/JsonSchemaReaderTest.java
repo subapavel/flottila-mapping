@@ -109,6 +109,7 @@ class JsonSchemaReaderTest {
                 "/$/value 0..1 xs:string",
                 "/$/card 0..1 xs:string",
                 "/$/iban 0..1 xs:string",
+                "/$/cheque 0..1 xs:string",
                 "/$/memo 0..1 xs:string")),
         argumentSet(
             "a type list [T, null] marks the field nillable",
@@ -326,6 +327,7 @@ class JsonSchemaReaderTest {
     "draft-07,         schema-construct-unsupported, 2, 3",
     "dynamic-ref,      schema-construct-unsupported, 4, 45",
     "root-not-object,  schema-construct-unsupported, 1, 1",
+    "root-string,      schema-construct-unsupported, 1, 1",
     "root-array,       schema-construct-unsupported, 2, 3",
     "array-of-arrays,  schema-construct-unsupported, 4, 33",
     // the second declaration of the merged property, at its schema
@@ -336,6 +338,7 @@ class JsonSchemaReaderTest {
     // two problems: the first in document order
     "two-problems,     schema-invalid,               4, 15",
     "missing-anchor,   schema-invalid,               4, 14",
+    "type-list-number, schema-invalid,               4, 32",
   })
   void aRefusedSchemaIsRefusedWhereItStands(String fixture, String code, int line, int column) {
     String file = "refused/" + fixture + ".schema.json";

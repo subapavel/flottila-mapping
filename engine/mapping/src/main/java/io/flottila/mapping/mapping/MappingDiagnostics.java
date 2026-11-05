@@ -90,6 +90,12 @@ public final class MappingDiagnostics {
    */
   public static final String FINGERPRINT_MISMATCH = "fingerprint-mismatch";
 
+  /**
+   * A mapping whose target is a JSON root, at {@code /target} (ADR-0008 "JSON as a target", #97): a
+   * JSON Schema loads and shows as a target, and JSON output comes after milestone 1.
+   */
+  public static final String JSON_TARGET_UNSUPPORTED = "json-target-unsupported";
+
   // stage 3, a reached standard function box against its catalogue entry (ADR-0025)
 
   /** A function box with more inputs than its catalogue entry has, at the box. */

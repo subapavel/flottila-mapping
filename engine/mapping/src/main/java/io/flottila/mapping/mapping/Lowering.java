@@ -23,6 +23,7 @@ import io.flottila.mapping.mapping.internal.FieldPathText;
 import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.xdm.TableText;
@@ -139,7 +140,8 @@ public final class Lowering {
   }
 
   /**
-   * Lowers {@code model} over the structures its source and target refer to.
+   * Lowers {@code model} over the structures its source and target refer to. A model whose target
+   * is a JSON root is refused with {@code json-target-unsupported} alone (ADR-0008, #97).
    *
    * @return the IR, which the IR verifier has accepted, or every stage-3 diagnostic
    */
@@ -168,6 +170,17 @@ public final class Lowering {
   }
 
   private LowerResult lower() {
+    if (model.target().root() instanceof JsonRoot) {
+      // ADR-0008 "JSON as a target": nothing is lowered onto a target that cannot be written
+      return new Refused(
+          List.of(
+              new Diagnostic(
+                  Severity.ERROR,
+                  MappingDiagnostics.JSON_TARGET_UNSUPPORTED,
+                  new AtPointer("/target"),
+                  "the target is a JSON root: a JSON Schema loads as a target, but JSON output"
+                      + " comes after milestone 1")));
+    }
     // the fields that are mapped, for the parent check and the target walk
     for (String path : model.targetFieldMappings().keySet()) {
       resolve(target, path).ifPresent(mapped::add);

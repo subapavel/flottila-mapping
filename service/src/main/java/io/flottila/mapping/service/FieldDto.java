@@ -11,8 +11,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * A field of a structure type (ADR-0007, ADR-0008), on the wire.
  *
- * @param kind {@code element} or {@code attribute}
- * @param step the last step of the field's path, for example {@code @id} or {@code Q{urn:a}Order}
+ * @param kind {@code element}, {@code attribute} or {@code json-property} (#97)
+ * @param step the last step of the field's path, for example {@code @id}, {@code Q{urn:a}Order} or,
+ *     percent-encoded, {@code a%2Fb}
  * @param namespace the namespace, {@code ""} when the name has none
  * @param localName the local name
  * @param min the effective minimum occurrence
@@ -24,7 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record FieldDto(
     @Schema(
             required = true,
-            enumeration = {"element", "attribute"})
+            enumeration = {"element", "attribute", "json-property"})
         String kind,
     @Schema(required = true) String step,
     @Schema(required = true) String namespace,
@@ -38,7 +39,8 @@ public record FieldDto(
   static FieldDto of(Field field) {
     FieldPath.Step step = field.step();
     return new FieldDto(
-        step.kind().name().toLowerCase(Locale.ROOT),
+        // ELEMENT is element, JSON_PROPERTY is json-property
+        step.kind().name().toLowerCase(Locale.ROOT).replace('_', '-'),
         step.toString(),
         step.namespace(),
         step.localName(),

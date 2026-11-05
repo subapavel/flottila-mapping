@@ -32,6 +32,11 @@
       <artifactId>xmlschema-core</artifactId>
       <version>${xmlschema.version}</version>
     </dependency>
+    <!-- the JSON Schema reader library (ADR-0008, #97); MIT, version managed in the root POM -->
+    <dependency>
+      <groupId>com.github.erosb</groupId>
+      <artifactId>json-sKema</artifactId>
+    </dependency>
   </dependencies>
 
   <build>
@@ -41,7 +46,8 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <compilerArgs combine.children="append">
-            <!-- xmlschema-core 2.3.3 has no module descriptor: an automatic module (ADR-0017) -->
+            <!-- xmlschema-core 2.3.3 and json-sKema 0.32.0 have no module descriptor: automatic
+                 modules (ADR-0017, F-3) -->
             <arg>-Xlint:-requires-automatic</arg>
           </compilerArgs>
         </configuration>

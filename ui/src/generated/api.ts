@@ -442,7 +442,7 @@ export interface components {
         };
         FieldDto: {
             /** @enum {string} */
-            kind: "element" | "attribute";
+            kind: "element" | "attribute" | "json-property";
             step: string;
             namespace: string;
             localName: string;

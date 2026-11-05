@@ -8,7 +8,8 @@
   },
   "oneOf": [
     {"required": ["card"], "properties": {"card": {"type": "string"}}},
-    {"$ref": "#/$defs/Transfer"}
+    {"$ref": "#/$defs/Transfer"},
+    {"anyOf": [{"oneOf": [{"properties": {"cheque": {"type": "string"}}}]}]}
   ],
   "anyOf": [
     {"allOf": [{"properties": {"memo": {"type": "string"}}}]},

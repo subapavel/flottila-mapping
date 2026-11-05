@@ -1,0 +1,632 @@
+package io.flottila.mapping.structure.importer.internal;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import com.github.erosb.jsonsKema.AggregateSchemaLoadingException;
+import com.github.erosb.jsonsKema.AllOfSchema;
+import com.github.erosb.jsonsKema.AnyOfSchema;
+import com.github.erosb.jsonsKema.CompositeSchema;
+import com.github.erosb.jsonsKema.FormatSchema;
+import com.github.erosb.jsonsKema.IJsonArray;
+import com.github.erosb.jsonsKema.IJsonObject;
+import com.github.erosb.jsonsKema.IJsonString;
+import com.github.erosb.jsonsKema.IJsonValue;
+import com.github.erosb.jsonsKema.ItemsSchema;
+import com.github.erosb.jsonsKema.JsonParseException;
+import com.github.erosb.jsonsKema.JsonParser;
+import com.github.erosb.jsonsKema.JsonTypeMismatchException;
+import com.github.erosb.jsonsKema.MaxItemsSchema;
+import com.github.erosb.jsonsKema.MinItemsSchema;
+import com.github.erosb.jsonsKema.MultiTypeSchema;
+import com.github.erosb.jsonsKema.OneOfSchema;
+import com.github.erosb.jsonsKema.PrepopulatedSchemaClient;
+import com.github.erosb.jsonsKema.RefResolutionException;
+import com.github.erosb.jsonsKema.ReferenceSchema;
+import com.github.erosb.jsonsKema.RequiredSchema;
+import com.github.erosb.jsonsKema.Schema;
+import com.github.erosb.jsonsKema.SchemaClient;
+import com.github.erosb.jsonsKema.SchemaLoader;
+import com.github.erosb.jsonsKema.SchemaLoaderConfig;
+import com.github.erosb.jsonsKema.SchemaLoadingException;
+import com.github.erosb.jsonsKema.SourceLocation;
+import com.github.erosb.jsonsKema.TextLocation;
+import com.github.erosb.jsonsKema.TypeSchema;
+import io.flottila.mapping.structure.Field;
+import io.flottila.mapping.structure.FieldKind;
+import io.flottila.mapping.structure.FieldPath;
+import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.StructureType;
+import io.flottila.mapping.structure.ValueType;
+import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
+import io.flottila.mapping.structure.importer.StructureLoadException;
+import java.io.Serial;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * Reads a JSON Schema 2020-12 bundle into a structure, with json-sKema 0.32.0 (ADR-0008 "JSON
+ * Schema and WSDL", #97). The first bundle file is the root schema.
+ *
+ * <p>Each file is read through the host's resolver and parsed with its positions. A {@code $ref} to
+ * another file is mapped to a bundle file by text, relative to the referring file, before that file
+ * is read (ADR-0008, the closed bundle). json-sKema then loads the files from memory: it reads no
+ * file and no URL, only its own copy of the 2020-12 meta-schema. The loaded schema is walked into
+ * fields:
+ *
+ * <ul>
+ *   <li>an object's properties keep their declared order: its own {@code properties} first, then
+ *       those of its {@code $ref}, {@code allOf}, {@code oneOf} and {@code anyOf} in keyword order;
+ *       a property is mandatory when it is {@code required} and declared outside {@code oneOf} and
+ *       {@code anyOf};
+ *   <li>a property declared twice is one field, refused when the two declarations give two shapes;
+ *   <li>an object reached by {@code $ref} is a named structure type, whose id is its file and JSON
+ *       pointer, so it is shared and a recursive one is never expanded;
+ *   <li>an array property is one repeated field with {@code minItems} and {@code maxItems};
+ *   <li>the value type comes from {@code type} and {@code format}, and is otherwise {@code
+ *       xs:string}; a type list with {@code "null"} marks the field nillable.
+ * </ul>
+ */
+public final class JsonSchemaReader {
+
+  /** Reads a file the bundle lists, through the host's resolver. */
+  @FunctionalInterface
+  public interface BundleFiles {
+
+    /**
+     * @throws StructureLoadException when the resolver refuses the file
+     */
+    byte[] content(String reference) throws StructureLoadException;
+  }
+
+  /** The {@code $schema} of draft 2020-12, the one draft read (ADR-0008). */
+  private static final String DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
+
+  /**
+   * The formats that give a value type: {@code date}, {@code time} and the date-time one. Their
+   * names are the value types' names in lower case with a hyphen, which keeps a code-shaped literal
+   * out of the class ({@code DiagnosticCatalogueTest}).
+   */
+  private static final Map<String, ValueType> FORMATS =
+      Stream.of(ValueType.DATE, ValueType.TIME, ValueType.DATE_TIME)
+          .collect(
+              Collectors.toMap(t -> t.name().toLowerCase(Locale.ROOT).replace('_', '-'), t -> t));
+
+  private final SchemaBundle bundle;
+  private final BundleFiles files;
+
+  /** The bundle's references by their normalised text. */
+  private final Map<String, String> listed = new HashMap<>();
+
+  /** How many {@code ..} segments the bundle's references start with, at most. */
+  private final int up;
+
+  /** The text of each file read, by the URI json-sKema knows it by. */
+  private final Map<URI, String> documents = new LinkedHashMap<>();
+
+  /** The bundle reference of each file read, by its URI. */
+  private final Map<URI, String> references = new HashMap<>();
+
+  /** The {@code $anchor} names of each file read. */
+  private final Map<String, Set<String>> anchors = new HashMap<>();
+
+  /** Every {@code $ref} to an anchor, checked once every file is read. */
+  private final List<AnchorRef> anchorRefs = new ArrayList<>();
+
+  private final Map<String, StructureType> types = new HashMap<>();
+
+  /** The ids of the structure types begun, so that a recursive type ends. */
+  private final Set<String> begun = new HashSet<>();
+
+  private JsonSchemaReader(SchemaBundle bundle, BundleFiles files) {
+    this.bundle = bundle;
+    this.files = files;
+    int most = 0;
+    for (String file : bundle.files()) {
+      String text = normalised(file);
+      listed.put(text, file);
+      most = Math.max(most, leadingUps(text));
+    }
+    this.up = most;
+  }
+
+  /**
+   * @throws StructureLoadException when a file cannot be read, is not well-formed, is not valid, or
+   *     uses a construct ADR-0008 refuses
+   */
+  public static Structure read(SchemaBundle bundle, BundleFiles files)
+      throws StructureLoadException {
+    if (bundle.files().isEmpty()) {
+      throw new StructureLoadException(
+          StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+          "",
+          1,
+          1,
+          "a JSON Schema bundle lists its root schema first, and this one lists no file");
+    }
+    return new JsonSchemaReader(bundle, files).read();
+  }
+
+  private Structure read() throws StructureLoadException {
+    String rootFile = bundle.files().getFirst();
+    Deque<String> pending = new ArrayDeque<>();
+    IJsonValue rootJson = readFile(rootFile, pending);
+    while (!pending.isEmpty()) {
+      String next = pending.removeFirst();
+      if (!references.containsValue(next)) {
+        readFile(next, pending);
+      }
+    }
+    for (AnchorRef ref : anchorRefs) {
+      if (!anchors.getOrDefault(ref.target(), Set.of()).contains(ref.anchor())) {
+        throw refusal(
+            StructureImportDiagnostics.SCHEMA_INVALID,
+            ref.at(),
+            "the $ref names the anchor \"" + ref.anchor() + "\", which no $anchor declares");
+      }
+    }
+
+    Schema root = load(rootFile, rootJson);
+    Shape shape = shape(root);
+    if (shape.items().isPresent() || shape.type().isEmpty()) {
+      throw refusal(
+          StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+          root.getLocation(),
+          "the root schema is not an object; a JSON root is an object (ADR-0008)");
+    }
+    FieldPath.Step dollar = new FieldPath.Step(FieldKind.JSON_PROPERTY, "", "$");
+    return new Structure(
+        new Field(dollar, new Occurrence(1, 1), Optional.empty(), false, shape.type()), types);
+  }
+
+  /**
+   * Reads, parses and scans one bundle file, adding the files its {@code $ref}s name to {@code
+   * pending}.
+   */
+  private IJsonValue readFile(String reference, Deque<String> pending)
+      throws StructureLoadException {
+    String text;
+    try {
+      text =
+          UTF_8
+              .newDecoder()
+              .onMalformedInput(CodingErrorAction.REPORT)
+              .onUnmappableCharacter(CodingErrorAction.REPORT)
+              .decode(ByteBuffer.wrap(files.content(reference)))
+              .toString();
+    } catch (CharacterCodingException e) {
+      throw new StructureLoadException(
+          StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
+          reference,
+          1,
+          1,
+          "the schema file is not UTF-8");
+    }
+    URI uri = uri(reference);
+    IJsonValue json;
+    try {
+      json = new JsonParser(text, uri).parse();
+    } catch (JsonParseException e) {
+      // json-sKema's message names its URI for the file, so the engine words its own
+      TextLocation at = e.getLocation();
+      throw new StructureLoadException(
+          StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
+          reference,
+          at.getLineNumber(),
+          at.getPosition(),
+          "the schema file is not well-formed JSON here");
+    }
+    documents.put(uri, text);
+    references.put(uri, reference);
+    if (!(json instanceof IJsonObject)) {
+      throw refusal(
+          StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+          json.getLocation(),
+          "the schema file does not hold a JSON object; a JSON root is an object (ADR-0008)");
+    }
+    scan(reference, json, pending);
+    return json;
+  }
+
+  /**
+   * Checks the keywords of a file in document order: {@code $schema} names draft 2020-12, there is
+   * no {@code $dynamicRef}, and a {@code $ref} to another file names a bundle file. Records the
+   * {@code $anchor}s and the {@code $ref}s to anchors.
+   */
+  private void scan(String reference, IJsonValue value, Deque<String> pending)
+      throws StructureLoadException {
+    if (value instanceof IJsonObject object) {
+      for (Map.Entry<IJsonString, IJsonValue> member : object.getProperties().entrySet()) {
+        IJsonString key = member.getKey();
+        // a keyword's value is a string; a property of that name holds a schema, which is scanned
+        if (member.getValue() instanceof IJsonString text) {
+          keyword(reference, key, text.getValue(), pending);
+        } else {
+          scan(reference, member.getValue(), pending);
+        }
+      }
+    } else if (value instanceof IJsonArray array) {
+      for (IJsonValue element : array.getElements()) {
+        scan(reference, element, pending);
+      }
+    }
+  }
+
+  private void keyword(String reference, IJsonString key, String value, Deque<String> pending)
+      throws StructureLoadException {
+    switch (key.getValue()) {
+      case "$schema" -> {
+        if (!value.equals(DRAFT_2020_12)) {
+          throw refusal(
+              StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+              key.getLocation(),
+              "the schema is not JSON Schema draft 2020-12, the one draft read (ADR-0008): "
+                  + value);
+        }
+      }
+      case "$dynamicRef" ->
+          throw refusal(
+              StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+              key.getLocation(),
+              "$dynamicRef is not read (ADR-0008)");
+      case "$anchor" -> anchors.computeIfAbsent(reference, r -> new HashSet<>()).add(value);
+      case "$ref" -> ref(reference, key.getLocation(), value, pending);
+      default -> {}
+    }
+  }
+
+  /**
+   * Maps a {@code $ref} to the bundle file it names, by text and before any read (ADR-0008, the
+   * closed bundle), and records a reference to an anchor.
+   */
+  private void ref(String reference, SourceLocation at, String ref, Deque<String> pending)
+      throws StructureLoadException {
+    int hash = ref.indexOf('#');
+    String path = hash < 0 ? ref : ref.substring(0, hash);
+    String fragment = hash < 0 ? "" : ref.substring(hash + 1);
+    String target = reference;
+    if (!path.isEmpty()) {
+      String named = normalised(reference.substring(0, reference.lastIndexOf('/') + 1) + path);
+      target = listed.get(named);
+      if (target == null) {
+        throw refusal(
+            StructureImportDiagnostics.SCHEMA_REFERENCE_OUTSIDE_BUNDLE,
+            at,
+            "the $ref \""
+                + ref
+                + "\" names \""
+                + named
+                + "\", which the schema bundle does not list");
+      }
+      pending.addLast(target);
+    }
+    // a fragment that is no JSON pointer names an anchor
+    if (!fragment.isEmpty() && !fragment.startsWith("/")) {
+      anchorRefs.add(new AnchorRef(at, target, fragment));
+    }
+  }
+
+  /** Loads the root schema with json-sKema, from the files read. */
+  private Schema load(String rootFile, IJsonValue rootJson) throws StructureLoadException {
+    // the 2020-12 meta-schema comes from json-sKema's own copy; anything else is not in the bundle
+    SchemaClient outside =
+        requested -> {
+          throw new OutsideBundle(requested);
+        };
+    try {
+      return new SchemaLoader(
+              rootJson,
+              new SchemaLoaderConfig(
+                  new PrepopulatedSchemaClient(outside, documents), uri(rootFile)))
+          .load();
+    } catch (OutsideBundle e) {
+      // a $ref resolved against a base an $id sets: no bundle file has that URI
+      throw new StructureLoadException(
+          StructureImportDiagnostics.SCHEMA_REFERENCE_OUTSIDE_BUNDLE,
+          rootFile,
+          1,
+          1,
+          "a $ref resolves to \"" + e.requested + "\", which names no file of the schema bundle");
+    } catch (SchemaLoadingException e) {
+      throw refusal(
+          StructureImportDiagnostics.SCHEMA_INVALID,
+          where(e),
+          "the schema is not valid JSON Schema 2020-12 here");
+    }
+  }
+
+  /** Where json-sKema found a schema invalid: its first problem in document order. */
+  private static SourceLocation where(SchemaLoadingException e) {
+    return switch (e) {
+      case AggregateSchemaLoadingException all -> where(all.getCauses().getFirst());
+      case RefResolutionException ref -> ref.getRef().getLocation();
+      case JsonTypeMismatchException type -> type.getLocation();
+      // a file that does not load: every file is in memory and parsed already
+      default -> throw new IllegalStateException("json-sKema did not load a bundle file", e);
+    };
+  }
+
+  /** What a property's schema gives, as its field before the property's own occurrence. */
+  private Shape shape(Schema schema) throws StructureLoadException {
+    Facts facts = new Facts();
+    gather(schema, facts);
+    boolean nillable = facts.types.remove("null");
+    if (facts.types.equals(Set.of("array")) || facts.types.isEmpty() && facts.items != null) {
+      Shape item =
+          facts.items == null
+              ? new Shape(Optional.of(ValueType.STRING), Optional.empty(), Optional.empty(), false)
+              : shape(facts.items.getItemsSchema());
+      if (item.items().isPresent()) {
+        throw refusal(
+            StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+            facts.items.getLocation(),
+            "an array of arrays is not read (ADR-0008)");
+      }
+      return new Shape(
+          item.valueType(),
+          item.type(),
+          Optional.of(new Occurrence(facts.minItems, facts.maxItems)),
+          nillable);
+    }
+    if (facts.types.equals(Set.of("object"))
+        || facts.types.isEmpty() && !facts.declarations.isEmpty()) {
+      return new Shape(Optional.empty(), Optional.of(type(schema)), Optional.empty(), nillable);
+    }
+    // a union of types, or none, is a string; a format applies to a string
+    String type = facts.types.size() == 1 ? facts.types.getFirst() : "string";
+    ValueType valueType =
+        switch (type) {
+          case "integer" -> ValueType.INTEGER;
+          case "number" -> ValueType.DECIMAL;
+          case "boolean" -> ValueType.BOOLEAN;
+          default -> FORMATS.getOrDefault(facts.format, ValueType.STRING);
+        };
+    return new Shape(Optional.of(valueType), Optional.empty(), Optional.empty(), nillable);
+  }
+
+  /**
+   * The id of the structure type of an object schema, its fields added to {@link #types} the first
+   * time. A schema that is a {@code $ref} and nothing else has the type of the schema it names.
+   */
+  private String type(Schema schema) throws StructureLoadException {
+    Schema named = schema;
+    while (named instanceof CompositeSchema composite
+        && composite.getPropertySchemas().isEmpty()
+        && composite.getSubschemas().size() == 1
+        && composite.getSubschemas().iterator().next() instanceof ReferenceSchema ref) {
+      named = ref.getReferredSchema();
+    }
+    SourceLocation at = named.getLocation();
+    StringBuilder id = new StringBuilder(references.get(at.getDocumentSource())).append('#');
+    for (String segment : at.getPointer().getSegments()) {
+      id.append('/').append(segment.replace("~", "~0").replace("/", "~1"));
+    }
+    String typeId = id.toString();
+    if (begun.add(typeId)) {
+      Facts facts = new Facts();
+      gather(named, facts);
+      List<Field> fields = new ArrayList<>();
+      for (Map.Entry<String, List<Declaration>> property : facts.declarations.entrySet()) {
+        fields.add(field(property.getKey(), property.getValue(), facts.required));
+      }
+      types.put(typeId, new StructureType(typeId, fields));
+    }
+    return typeId;
+  }
+
+  /** One field for every declaration of a property, which must all give one shape. */
+  private Field field(String name, List<Declaration> declarations, Set<String> required)
+      throws StructureLoadException {
+    Shape shape = shape(declarations.getFirst().schema());
+    for (Declaration declaration : declarations.subList(1, declarations.size())) {
+      if (!shape(declaration.schema()).equals(shape)) {
+        throw refusal(
+            StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+            declaration.schema().getLocation(),
+            "the property \"" + name + "\" is declared again with another shape (ADR-0008)");
+      }
+    }
+    boolean mandatory =
+        required.contains(name) && declarations.stream().anyMatch(d -> !d.optional());
+    long min = mandatory ? 1 : 0;
+    Occurrence occurrence =
+        shape
+            .items()
+            .map(items -> new Occurrence(min * items.min(), items.max()))
+            .orElse(new Occurrence(min, 1));
+    return new Field(
+        new FieldPath.Step(FieldKind.JSON_PROPERTY, "", name),
+        occurrence,
+        shape.valueType(),
+        shape.nillable(),
+        shape.type());
+  }
+
+  /**
+   * Gathers what a schema says of an instance: its own keywords and those of its {@code $ref} and
+   * {@code allOf}; of {@code oneOf} and {@code anyOf}, the properties only, each optional. Every
+   * other keyword is ignored, {@code additionalProperties}, {@code patternProperties}, {@code
+   * if}/{@code then}/{@code else} and {@code not} among them (ADR-0008).
+   */
+  private void gather(Schema schema, Facts facts) throws StructureLoadException {
+    if (!facts.seen.add(schema)) {
+      return;
+    }
+    switch (schema) {
+      case CompositeSchema composite -> {
+        facts.declare(composite, false);
+        for (Schema keyword : composite.getSubschemas()) {
+          gather(keyword, facts);
+        }
+      }
+      case ReferenceSchema ref -> gather(ref.getReferredSchema(), facts);
+      case AllOfSchema allOf -> {
+        for (Schema branch : allOf.getSubschemas()) {
+          gather(branch, facts);
+        }
+      }
+      case OneOfSchema oneOf -> optional(oneOf.getSubschemas(), facts);
+      case AnyOfSchema anyOf -> optional(anyOf.getSubschemas(), facts);
+      case TypeSchema type -> facts.types.add(type.getType().getValue());
+      case MultiTypeSchema list -> {
+        for (IJsonValue type : list.getTypes().getElements()) {
+          if (!(type instanceof IJsonString name)) {
+            throw refusal(
+                StructureImportDiagnostics.SCHEMA_INVALID,
+                type.getLocation(),
+                "a type list holds type names, and this is no string");
+          }
+          facts.types.add(name.getValue());
+        }
+      }
+      case FormatSchema format -> facts.format = format.getFormat();
+      case ItemsSchema items -> facts.items = items;
+      case MinItemsSchema min -> facts.minItems = min.getMinItems().longValue();
+      case MaxItemsSchema max -> facts.maxItems = max.getMaxItems().longValue();
+      case RequiredSchema required -> facts.required.addAll(required.getRequiredProperties());
+      default -> {}
+    }
+  }
+
+  /** Gathers the properties of the branches of a {@code oneOf} or {@code anyOf}, each optional. */
+  private static void optional(List<Schema> branches, Facts facts) {
+    for (Schema branch : branches) {
+      if (!facts.seen.add(branch)) {
+        continue;
+      }
+      switch (branch) {
+        case CompositeSchema composite -> {
+          facts.declare(composite, true);
+          optional(List.copyOf(composite.getSubschemas()), facts);
+        }
+        case ReferenceSchema ref -> optional(List.of(ref.getReferredSchema()), facts);
+        case AllOfSchema allOf -> optional(allOf.getSubschemas(), facts);
+        case OneOfSchema oneOf -> optional(oneOf.getSubschemas(), facts);
+        case AnyOfSchema anyOf -> optional(anyOf.getSubschemas(), facts);
+        default -> {}
+      }
+    }
+  }
+
+  private StructureLoadException refusal(String code, SourceLocation at, String message) {
+    return new StructureLoadException(
+        code,
+        references.get(at.getDocumentSource()),
+        at.getLineNumber(),
+        at.getPosition(),
+        message);
+  }
+
+  /**
+   * The URI json-sKema knows a bundle file by: its normalised reference under as many padding
+   * segments as the bundle's references climb, so that a relative {@code $ref} resolves to the URI
+   * of the file its text names, and percent-encoded where a URI needs it.
+   */
+  private URI uri(String reference) {
+    String text = normalised(reference);
+    int climbs = leadingUps(text);
+    String path = "_/".repeat(up - climbs) + text.substring(3 * climbs);
+    StringBuilder uri = new StringBuilder("mem:/");
+    for (byte b : path.getBytes(UTF_8)) {
+      if (b > ' ' && b < 0x7F && "\"%<>\\^`{|}#?[]".indexOf(b) < 0) {
+        uri.append((char) b);
+      } else {
+        uri.append('%').append(String.format(Locale.ROOT, "%02X", b & 0xFF));
+      }
+    }
+    return URI.create(uri.toString());
+  }
+
+  /** A reference with its {@code .} segments dropped and each {@code ..} folded into its parent. */
+  private static String normalised(String reference) {
+    Deque<String> segments = new ArrayDeque<>();
+    for (String segment : reference.split("/", -1)) {
+      if (segment.equals("..") && !segments.isEmpty() && !segments.getLast().equals("..")) {
+        segments.removeLast();
+      } else if (!segment.equals(".")) {
+        segments.addLast(segment);
+      }
+    }
+    return String.join("/", segments);
+  }
+
+  private static int leadingUps(String normalised) {
+    int climbs = 0;
+    while (normalised.startsWith("../", 3 * climbs)) {
+      climbs++;
+    }
+    return climbs;
+  }
+
+  /**
+   * A property schema's field, before the property's own occurrence: an array property's {@code
+   * items} carries {@code minItems} and {@code maxItems}.
+   */
+  private record Shape(
+      Optional<ValueType> valueType,
+      Optional<String> type,
+      Optional<Occurrence> items,
+      boolean nillable) {}
+
+  /** One declaration of a property: in a {@code oneOf} or {@code anyOf} branch, it is optional. */
+  private record Declaration(Schema schema, boolean optional) {}
+
+  /** A {@code $ref} to an anchor of a file. */
+  private record AnchorRef(SourceLocation at, String target, String anchor) {}
+
+  /** What one schema says of an instance, gathered over its keywords. */
+  private static final class Facts {
+    final LinkedHashSet<String> types = new LinkedHashSet<>();
+    String format;
+    ItemsSchema items;
+    long minItems;
+    long maxItems = Occurrence.UNBOUNDED;
+    final Set<String> required = new HashSet<>();
+    final Map<String, List<Declaration>> declarations = new LinkedHashMap<>();
+
+    /** The schemas gathered, by identity: json-sKema's schemas compare by value, and recurse. */
+    final Set<Schema> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    void declare(CompositeSchema schema, boolean optional) {
+      schema
+          .getPropertySchemas()
+          .forEach(
+              (name, property) ->
+                  declarations
+                      .computeIfAbsent(name, n -> new ArrayList<>())
+                      .add(new Declaration(property, optional)));
+    }
+  }
+
+  /** A file json-sKema asks for that is not in the bundle. */
+  private static final class OutsideBundle extends RuntimeException {
+
+    @Serial private static final long serialVersionUID = 1L;
+
+    private final transient URI requested;
+
+    OutsideBundle(URI requested) {
+      super(null, null, false, false);
+      this.requested = requested;
+    }
+  }
+}
