@@ -38,17 +38,20 @@ queues see fields, not groups.
 - An `xs:attribute ref` is an attribute field named by the referenced QName, with the global
   attribute's type and its own `use` (`xml:lang` through the `xml.xsd` fallback). An anonymous
   simple type, under an element or an attribute, takes its value type from its built-in
-  ancestry like a named one; a root of an anonymous simple type stays refused. Two attributes of
+  ancestry like a named one; a root of an anonymous simple type stays refused. `nillable` on an
+  element of an anonymous type marks the field nillable, as on a typed element. Two attributes of
   one name in one complex type, also through extension, attribute groups or references, are
   `schema-invalid` at the second declaration (ct-props-correct.4) (spec #89 review).
 - Accepted with no effect:
   - `any`/`anyAttribute`: projection skips them, and they are never written;
   - mixed text: `mixed` on a complex type or on `xs:complexContent`;
   - `default` and `fixed`, because PO ignores XSD defaults (#2 §2), also on an element of an
-    anonymous type, as is `nillable`;
+    anonymous type;
   - `id`, `version`, `block` and `final` on schema components, and `blockDefault` and
     `finalDefault` on `xs:schema`;
-  - attributes in other namespaces, and `vc:minVersion` below 1.1;
+  - attributes in namespaces other than the XSD and the versioning (`vc:`) namespace, and
+    `vc:minVersion` below 1.1. Every other `vc:` attribute, and a `vc:minVersion` that is not a
+    decimal below 1.1, stays refused.
   - an instance `xsi:type`: only the fields of the declared type are read;
   - facets: they are shown, never validated;
   - identity constraints.
