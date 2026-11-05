@@ -242,6 +242,51 @@ class EngineFacadeRefusedFieldTest {
     assertAmbiguous(model, base, at(mapping), targetField, position);
   }
 
+  // --- B stands only under the second Part, yet its path goes through the refused step Part: it is
+  // ambiguous-field-path with the refusal nearest the root, never orphaned-reference (ADR-0008
+  // Shape (#92), the architect's ruling on #92)
+
+  private static final String ONLY_UNDER_THE_SECOND = "/Doc/Body/Part/B";
+
+  @Test
+  void a_source_box_on_a_path_only_the_second_sibling_holds_is_refused_not_orphaned(
+      @TempDir Path base) throws Exception {
+    byte[] source = sameStep(base, mappings(link("/Doc/Id", "t1", "s1", ONLY_UNDER_THE_SECOND)));
+
+    assertAmbiguous(source, base, at("s1"), "/Doc/Body/Part", "same-step.xsd 28:53");
+  }
+
+  /**
+   * {@code Body} is mapped, so the walk also meets the two unmapped {@code Part}s, 1..1 and 1..2,
+   * which no mapping writes: they are reported once at their pointer.
+   */
+  @Test
+  void a_target_field_mapping_on_a_path_only_the_second_sibling_holds_is_refused_not_orphaned(
+      @TempDir Path base) throws Exception {
+    byte[] target =
+        sameStep(
+            base,
+            mappings(
+                link("/Doc/Body", "t1", "s1", "/Doc/Body"),
+                link(ONLY_UNDER_THE_SECOND, "t2", "s2", "/Doc/Id")));
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(target, base, options));
+
+      assertThat(described(diagnostics))
+          .as("%s", options)
+          .isEqualTo(
+              described(
+                  List.of(
+                      new Diagnostic(Severity.ERROR, CODE, pointer("/Doc/Body/Part"), "ignored"),
+                      new Diagnostic(Severity.ERROR, CODE, at("t2"), "ignored"))));
+      assertThat(diagnostics)
+          .as("%s: the messages", options)
+          .extracting(Diagnostic::message)
+          .allSatisfy(
+              m -> assertThat(m).contains("/Doc/Body/Part").contains("same-step.xsd 28:53"));
+    }
+  }
+
   static Stream<Arguments> unmappedMandatorySiblings() {
     return Stream.of(
         // the first Ref is 0..1, the other two 1..1: each sibling counts with its own occurrence
