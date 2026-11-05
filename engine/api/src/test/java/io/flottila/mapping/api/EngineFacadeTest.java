@@ -594,6 +594,35 @@ class EngineFacadeTest {
                     error("schema-unreadable", new AtFilePosition("z-source.xsd", 1, 1)))));
   }
 
+  /**
+   * #90 (ADR-0014 "Reference resolver shape"): a package reference on each side is a load error of
+   * each, at line 1, column 1 of the reference as the model spells it; both structures are read
+   * before the refusal. The source's reference sorts after the target's.
+   */
+  @Test
+  void compileReportsPackageReferenceUnsupportedForBothSides() throws Exception {
+    String source = "shared@1.2.0:/xsd/z-source.xsd";
+    String target = "shared@1.2.0:/xsd/a-target.xsd";
+    RecordingResolver resolver =
+        new RecordingResolver().packageReference(source).packageReference(target);
+    byte[] model = between(source, target, FIELD_LINK_MAPPINGS);
+
+    List<Diagnostic> diagnostics =
+        refusal(new EngineFacade().compile(model, resolver, CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("package-reference-unsupported", new AtFilePosition(target, 1, 1)),
+                    error("package-reference-unsupported", new AtFilePosition(source, 1, 1)))));
+    assertThat(diagnostics)
+        .extracting(Diagnostic::message)
+        .containsExactly(
+            "package references need a host resolver: \"shared@1.2.0:/xsd/a-target.xsd\"",
+            "package references need a host resolver: \"shared@1.2.0:/xsd/z-source.xsd\"");
+  }
+
   @Test
   void malformedJsonIsATransportError() {
     assertThatThrownBy(
