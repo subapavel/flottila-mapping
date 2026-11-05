@@ -94,7 +94,7 @@ class JsonSchemaReaderTest {
                 "/$/home 0..1 structure",
                 "/$/home/street 0..1 xs:string")),
         argumentSet(
-            "allOf merges its subschemas, and a $ref beside properties merges too",
+            "allOf merges its subschemas, even a lone one, and a $ref beside properties merges too",
             "all-of.schema.json",
             List.of(
                 "/$ 1..1 structure",
@@ -102,6 +102,8 @@ class JsonSchemaReaderTest {
                 "/$/audit 0..1 structure",
                 "/$/audit/by 0..1 xs:string",
                 "/$/audit/createdAt 0..1 xs:dateTime",
+                "/$/meta 0..1 structure",
+                "/$/meta/createdAt 0..1 xs:dateTime",
                 "/$/createdAt 0..1 xs:dateTime",
                 "/$/note 1..1 xs:string")),
         argumentSet(
@@ -234,7 +236,10 @@ class JsonSchemaReaderTest {
     assertThat(resolver.calls()).containsExactly("order.schema.json", "defs/address.schema.json");
   }
 
-  /** The bundle's own spelling, {@code ../} and all, is what the resolver is asked for. */
+  /**
+   * The bundle's own spelling, {@code ../} and all, is what the resolver is asked for; a $ref that
+   * climbs above the referring file's directory and further still names its file.
+   */
   @Test
   void bundleReferencesAboveTheBaseAndWithASpaceAreReadAsSpelled() throws Exception {
     MemoryResolver resolver =
@@ -242,10 +247,11 @@ class JsonSchemaReaderTest {
             .file(
                 "../json/my order.schema.json",
                 """
-                {"type": "object", "properties": {"line": {"$ref": "defs/line.schema.json"}}}
+                {"type": "object",
+                 "properties": {"line": {"$ref": "../../shared/line.schema.json"}}}
                 """)
             .file(
-                "../json/defs/line.schema.json",
+                "../../shared/line.schema.json",
                 """
                 {"type": "object", "properties": {"sku": {"type": "string"}}}
                 """);
@@ -254,14 +260,14 @@ class JsonSchemaReaderTest {
         new StructureReader(resolver)
             .read(
                 new SchemaBundle(
-                    List.of("../json/my order.schema.json", "../json/defs/line.schema.json")),
+                    List.of("../json/my order.schema.json", "../../shared/line.schema.json")),
                 new JsonRoot());
 
     assertThat(tree(structure))
         .containsExactly(
             "/$ 1..1 structure", "/$/line 0..1 structure", "/$/line/sku 0..1 xs:string");
     assertThat(resolver.calls())
-        .containsExactly("../json/my order.schema.json", "../json/defs/line.schema.json");
+        .containsExactly("../json/my order.schema.json", "../../shared/line.schema.json");
   }
 
   /**
@@ -337,7 +343,8 @@ class JsonSchemaReaderTest {
 
     assertThat(tree(structure)).containsExactlyElementsOf(fields);
     assertThat(type(structure, address)).isEqualTo("defs/address.schema.json#/$defs/Address");
-    assertThat(type(structure, address + "/home")).isEqualTo("defs/address.schema.json#/$defs/Home");
+    assertThat(type(structure, address + "/home"))
+        .isEqualTo("defs/address.schema.json#/$defs/Home");
     assertThat(resolver.calls()).containsExactlyElementsOf(bundle);
   }
 
