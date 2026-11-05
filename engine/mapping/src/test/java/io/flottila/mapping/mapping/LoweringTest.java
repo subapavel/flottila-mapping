@@ -1016,8 +1016,9 @@ class LoweringTest {
   /**
    * The target walk never enters a refused field. One a target field mapping names is reported at
    * that mapping only, and an unmapped one with {@code minOccurs > 0} under a created parent once
-   * per path at its pointer, each sibling with its own occurrence: the Refs 0..1, 1..1, 1..1 and
-   * the Parts 1..1 and 1..2. No unmapped-mandatory-leaf or unsupported-field stands beside them.
+   * per path at its pointer, each sibling with its own occurrence: the Refs 0..1, 1..1, 1..1 (two
+   * mandatory, one report) and the Parts 1..1 and 0..2 (the first alone mandatory, still reported).
+   * No unmapped-mandatory-leaf or unsupported-field stands beside them.
    */
   @Test
   void theTargetWalkReportsAnUnmappedMandatoryRefusedFieldOnceAtItsPointer() {
@@ -1097,7 +1098,8 @@ class LoweringTest {
                 3,
                 false,
                 id("st2")));
-    assertThat(Lowering.occurrences(model, structure)).containsEntry(id("t2"), new Occurrence(0, 1));
+    assertThat(Lowering.occurrences(model, structure))
+        .containsEntry(id("t2"), new Occurrence(0, 1));
     assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
 
     MappingModel orphaned =

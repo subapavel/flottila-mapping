@@ -124,8 +124,34 @@ public final class Lowering {
   /** A target field mapping that lowers: its field, and the queue or single value it gives. */
   private record Link(Field field, AuthoringId mapping, Expr value) {}
 
-  /** The field path a mapping names, and the refused field nearest the root on it, if any. */
-  private record Named(FieldPath path, Optional<RefusedField> refused) {}
+  /**
+   * The fields a field path names, from the root down: at each step the first same-step sibling
+   * below which the rest of the path stands (#92).
+   */
+  private record Named(List<Field> chain) {
+
+    /** The path of the field at {@code depth} on the chain, the root's at 1. */
+    FieldPath path(int depth) {
+      return new FieldPath(chain.subList(0, depth).stream().map(Field::step).toList());
+    }
+
+    FieldPath path() {
+      return path(chain.size());
+    }
+
+    Field field() {
+      return chain.getLast();
+    }
+
+    /** The refused field on the chain nearest the root, if any (ADR-0008 Shape (#92)). */
+    Optional<RefusedField> refused() {
+      return IntStream.rangeClosed(1, chain.size())
+          .filter(depth -> chain.get(depth - 1).refusal().isPresent())
+          .mapToObj(
+              depth -> new RefusedField(path(depth), chain.get(depth - 1).refusal().orElseThrow()))
+          .findFirst();
+    }
+  }
 
   /** A refused field on a named path: its path and its refusal. */
   private record RefusedField(FieldPath path, Refusal refusal) {}
@@ -172,11 +198,7 @@ public final class Lowering {
         .forEach(
             (path, mapping) ->
                 resolve(target, path)
-                    .ifPresent(
-                        named ->
-                            occurrences.put(
-                                mapping.id(),
-                                target.field(named.path()).orElseThrow().occurrence())));
+                    .ifPresent(named -> occurrences.put(mapping.id(), named.field().occurrence())));
     return Map.copyOf(occurrences);
   }
 
@@ -192,7 +214,7 @@ public final class Lowering {
     String rootPrefix = prefix(root.namespace());
     // the walk goes on past a target field mapping that did not lower, so that one compile reports
     // every stage-3 diagnostic (#91)
-    List<Expr> content = children(target.rootPath(), links);
+    List<Expr> content = children(target.rootPath(), List.of(target.root()), links);
     if (!found.isEmpty()) {
       // a target field mapping that does not lower, an unmapped mandatory leaf, an unmapped
       // structure field that needs a mapping or an unmapped field beyond the recursion cap
@@ -213,26 +235,26 @@ public final class Lowering {
   private void link(String path, TargetFieldMapping mapping, Map<FieldPath, Link> links) {
     targetField(path, mapping.id())
         .ifPresent(
-            field ->
+            named ->
                 queue(mapping)
                     .ifPresent(
                         queue ->
-                            links.put(
-                                field,
-                                new Link(target.field(field).orElseThrow(), mapping.id(), queue))));
+                            links.put(named.path(), new Link(named.field(), mapping.id(), queue))));
   }
 
   /**
-   * The path of the target element below the root that {@code text} names, or empty once the reason
-   * it names none is reported at the target field mapping {@code at}. Its parents are walked from
-   * the root down: a mapped parent and an unmapped {@code n..n} one ({@code n > 0}) are created, an
-   * unmapped optional one is left out with the field in its subtree, which is accepted, and an
-   * unmapped one with {@code 0 < min < max} is refused, because PO requires its mapping (#2 §2).
+   * The target element below the root that {@code text} names, or empty once the reason it names
+   * none is reported at the target field mapping {@code at}. Its parents on the named chain are
+   * walked from the root down: a mapped parent and an unmapped {@code n..n} one ({@code n > 0}) are
+   * created, an unmapped optional one is left out with the field in its subtree, which is accepted,
+   * and an unmapped one with {@code 0 < min < max} is refused, because PO requires its mapping (#2
+   * §2).
    */
-  private Optional<FieldPath> targetField(String text, AuthoringId at) {
+  private Optional<Named> targetField(String text, AuthoringId at) {
     return named(target, text, at)
         .flatMap(
-            path -> {
+            named -> {
+              FieldPath path = named.path();
               List<FieldPath.Step> steps = path.steps();
               if (steps.size() < UNDER_ROOT || steps.getLast().kind() != FieldKind.ELEMENT) {
                 report(
@@ -244,7 +266,7 @@ public final class Lowering {
                 return Optional.empty();
               }
               for (FieldPath parent : parents(path)) {
-                Occurrence occurrence = target.field(parent).orElseThrow().occurrence();
+                Occurrence occurrence = named.chain().get(parent.steps().size() - 1).occurrence();
                 if (mapped.contains(parent) || repeated(occurrence)) {
                   continue;
                 }
@@ -263,7 +285,7 @@ public final class Lowering {
                         + "), which needs a target field mapping of its own");
                 return Optional.empty();
               }
-              return Optional.of(path);
+              return Optional.of(named);
             });
   }
 
@@ -284,12 +306,12 @@ public final class Lowering {
    * The source element below the root that {@code text} names, a leaf or a structure field, at any
    * depth (#62, #63), or empty once the reason it names none is reported at the box {@code at}.
    */
-  private Optional<FieldPath> sourceField(String text, AuthoringId at) {
+  private Optional<Named> sourceField(String text, AuthoringId at) {
     return named(source, text, at)
         .flatMap(
-            path -> {
-              Field field = source.field(path).orElseThrow();
-              if (path.steps().size() < UNDER_ROOT || field.step().kind() != FieldKind.ELEMENT) {
+            named -> {
+              if (named.chain().size() < UNDER_ROOT
+                  || named.field().step().kind() != FieldKind.ELEMENT) {
                 report(
                     MappingDiagnostics.UNSUPPORTED_FIELD,
                     at,
@@ -297,17 +319,17 @@ public final class Lowering {
                         + " is not a source field this engine maps yet: an element below the root");
                 return Optional.empty();
               }
-              return Optional.of(path);
+              return Optional.of(named);
             });
   }
 
   /**
-   * The field path {@code text} names in {@code structure}, or empty once the reason it names none
-   * is reported at {@code at}: one check for target fields and source fields. A path the structure
+   * The fields {@code text} names in {@code structure}, or empty once the reason it names none is
+   * reported at {@code at}: one check for target fields and source fields. A path the structure
    * lacks is {@code orphaned-reference}, and a path through a refused field is refused with the
    * refusal nearest the root (ADR-0008 Shape (#92)).
    */
-  private Optional<FieldPath> named(Structure structure, String text, AuthoringId at) {
+  private Optional<Named> named(Structure structure, String text, AuthoringId at) {
     Optional<Named> named = resolve(structure, text);
     if (named.isEmpty()) {
       report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
@@ -318,45 +340,51 @@ public final class Lowering {
       found.add(refusal(refused.get().path(), refused.get().refusal(), new AtAuthoringId(at)));
       return Optional.empty();
     }
-    return Optional.of(named.get().path());
+    return named;
   }
 
   /**
-   * The field path {@code text} names, matched step by step against the steps of {@code structure},
-   * which spell each step one way (ADR-0007), and the refused field nearest the root on it; empty
-   * when there is no such field. Same-step siblings share one path, and each carries a refusal
-   * (ADR-0008 Shape (#92)), so a step is matched below every one of them: a path that only the
-   * second holds is refused, not missing.
+   * The fields {@code text} names, matched step by step against the steps of {@code structure},
+   * which spell each step one way (ADR-0007); empty when there is no such field. Same-step siblings
+   * share one path, so a step is matched below each of them in turn: a path that only the second
+   * holds resolves through it, and through its refusal if it carries one (ADR-0008 Shape (#92)).
    */
   private static Optional<Named> resolve(Structure structure, String text) {
     List<String> steps = FieldPathText.steps(text);
-    FieldPath path = structure.rootPath();
-    if (!steps.get(1).equals(path.steps().getFirst().toString())) {
+    if (!steps.get(1).equals(structure.root().step().toString())) {
       return Optional.empty();
     }
-    List<Field> fields = List.of(structure.root());
-    Optional<RefusedField> refused = Optional.empty();
-    for (String step : steps.subList(2, steps.size())) {
-      List<Field> next =
-          fields.stream()
-              .flatMap(field -> childFields(structure, field).stream())
-              .filter(child -> child.step().toString().equals(step))
-              .toList();
-      if (next.isEmpty()) {
-        return Optional.empty();
-      }
-      path = path.child(next.getFirst().step());
-      if (refused.isEmpty()) {
-        FieldPath at = path;
-        refused =
-            next.stream()
-                .flatMap(field -> field.refusal().stream())
-                .findFirst()
-                .map(refusal -> new RefusedField(at, refusal));
-      }
-      fields = next;
+    return held(structure, List.of(structure.root()), steps.subList(2, steps.size()))
+        .map(Named::new);
+  }
+
+  /**
+   * {@code chain} continued by the fields of {@code steps} below its last field, the first
+   * same-step sibling below which the rest of the steps stand at each step; empty when no sibling
+   * holds them.
+   */
+  private static Optional<List<Field>> held(
+      Structure structure, List<Field> chain, List<String> steps) {
+    if (steps.isEmpty()) {
+      return Optional.of(chain);
     }
-    return Optional.of(new Named(path, refused));
+    for (Field child : childFields(structure, chain.getLast())) {
+      if (child.step().toString().equals(steps.getFirst())) {
+        Optional<List<Field>> below =
+            held(structure, append(chain, child), steps.subList(1, steps.size()));
+        if (below.isPresent()) {
+          return below;
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+  /** {@code chain} with {@code field} after its last field. */
+  private static List<Field> append(List<Field> chain, Field field) {
+    List<Field> longer = new ArrayList<>(chain);
+    longer.add(field);
+    return longer;
   }
 
   /**
@@ -408,11 +436,11 @@ public final class Lowering {
       case SourceFieldBox box ->
           sourceField(box.field(), id)
               .map(
-                  field ->
+                  named ->
                       new SourceQueue(
-                          names(field),
-                          contextDepth(box, field),
-                          source.field(field).orElseThrow().valueType().isEmpty(),
+                          names(named.path()),
+                          contextDepth(box, named.path()),
+                          named.field().valueType().isEmpty(),
                           id));
       case StandardFunctionBox box -> call(mapping, id, box);
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
@@ -644,16 +672,21 @@ public final class Lowering {
    * its absent target field mapping with its reason's code, instead of {@code
    * unmapped-mandatory-leaf} or {@code unsupported-field}, and an unmapped optional one is left
    * out.
+   *
+   * <p>{@code chain} holds the fields from the root down to {@code parent}, the last one the field
+   * whose own child fields the walk reads, so it goes below each same-step sibling it creates
+   * (#92).
    */
-  private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
+  private List<Expr> children(FieldPath parent, List<Field> chain, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();
     // the refused paths reported at their pointer under this parent
     Set<FieldPath> refused = new HashSet<>();
-    for (Field field : childFields(target, target.field(parent).orElseThrow())) {
+    for (Field field : childFields(target, chain.getLast())) {
       if (endless) {
         break;
       }
       FieldPath child = parent.child(field.step());
+      List<Field> below = append(chain, field);
       Link link = links.get(child);
       if (field.refusal().isPresent()) {
         // never entered: a mapping that names it is refused at the mapping, and an optional one
@@ -667,10 +700,12 @@ public final class Lowering {
         }
       } else if (link != null) {
         content.add(
-            single(link.value()) ? generated(child, link, links) : slots(child, link, links));
+            single(link.value())
+                ? generated(child, below, link, links)
+                : slots(child, below, link, links));
       } else if (mapped.contains(child)) {
         // its target field mapping is refused already; a leaf has no children
-        children(child, links);
+        children(child, below, links);
       } else if (field.valueType().isPresent()) {
         if (field.occurrence().min() > 0) {
           found.add(
@@ -686,7 +721,7 @@ public final class Lowering {
         }
       } else if (repeated(field.occurrence())) {
         // an attribute is a leaf (ADR-0008), so only an element gets here
-        if (repeats(child, field) > RECURSION_CAP) {
+        if (repeats(below) > RECURSION_CAP) {
           endless = true;
           found.add(
               new Diagnostic(
@@ -701,7 +736,7 @@ public final class Lowering {
                       + RECURSION_CAP
                       + " times on its path, so it would be created without end"));
         } else {
-          content.add(repeat(child, field, links));
+          content.add(repeat(child, below, links));
         }
       } else if (field.occurrence().min() > 0) {
         // 0 < min < max: a mapped field below is refused at its own mapping too (targetField)
@@ -725,22 +760,20 @@ public final class Lowering {
     return path.toString().replace("~", "~0").replace("/", "~1");
   }
 
-  /** How many fields of {@code path}, the root and {@code field} included, have its type. */
-  private long repeats(FieldPath path, Field field) {
-    List<FieldPath.Step> steps = path.steps();
-    return IntStream.rangeClosed(1, steps.size())
-        .mapToObj(depth -> target.field(new FieldPath(steps.subList(0, depth))).orElseThrow())
-        .filter(f -> f.type().equals(field.type()))
-        .count();
+  /** How many fields of {@code chain}, the root and its last field included, have its type. */
+  private static long repeats(List<Field> chain) {
+    Field field = chain.getLast();
+    return chain.stream().filter(f -> f.type().equals(field.type())).count();
   }
 
   /**
-   * The {@code TargetRepeat} of the unmapped structure field {@code field} at {@code path}, {@code
-   * n..n}: n copies of its element, which holds its children. No authoring element creates it, so
-   * its nodes carry its field path as their origin, which no authoring id can spell (ADR-0010). Its
-   * prefix is taken before its children's (ADR-0022).
+   * The {@code TargetRepeat} of the unmapped structure field at {@code path}, the last of {@code
+   * chain}, {@code n..n}: n copies of its element, which holds its children. No authoring element
+   * creates it, so its nodes carry its field path as their origin, which no authoring id can spell
+   * (ADR-0010). Its prefix is taken before its children's (ADR-0022).
    */
-  private TargetRepeat repeat(FieldPath path, Field field, Map<FieldPath, Link> links) {
+  private TargetRepeat repeat(FieldPath path, List<Field> chain, Map<FieldPath, Link> links) {
+    Field field = chain.getLast();
     int depth = path.steps().size();
     AuthoringId origin = new AuthoringId(path.toString());
     FieldPath.Step step = field.step();
@@ -750,7 +783,10 @@ public final class Lowering {
         new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
         SLOT + depth,
         new ElementConstructor(
-            prefix, new Name(step.namespace(), step.localName()), children(path, links), origin),
+            prefix,
+            new Name(step.namespace(), step.localName()),
+            children(path, chain, links),
+            origin),
         origin);
   }
 
@@ -764,7 +800,8 @@ public final class Lowering {
    * queue: its variables by its depth, its parent's slot number, its effective occurrence, and its
    * element, which holds the slot's value for a leaf.
    */
-  private TargetSlots slots(FieldPath path, Link link, Map<FieldPath, Link> links) {
+  private TargetSlots slots(
+      FieldPath path, List<Field> chain, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
     String valueVar = VALUE + depth;
     AuthoringId origin = link.mapping();
@@ -776,7 +813,7 @@ public final class Lowering {
         occurrence.max(),
         SLOT + depth,
         valueVar,
-        element(path, link, new VarRef(valueVar, AtomicType.STRING, origin), links),
+        element(path, chain, link, new VarRef(valueVar, AtomicType.STRING, origin), links),
         origin);
   }
 
@@ -789,7 +826,8 @@ public final class Lowering {
    * none, keeps it as the {@code TargetRepeat}'s value, its element holding its children only
    * (ADR-0006 as amended by #83).
    */
-  private TargetRepeat generated(FieldPath path, Link link, Map<FieldPath, Link> links) {
+  private TargetRepeat generated(
+      FieldPath path, List<Field> chain, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
     AuthoringId origin = link.mapping();
     Optional<Expr> value =
@@ -799,17 +837,17 @@ public final class Lowering {
         new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
         SLOT + depth,
         value,
-        element(path, link, link.value(), links),
+        element(path, chain, link, link.value(), links),
         origin);
   }
 
   /**
-   * The element of the mapped field at {@code path}: for a leaf its text, {@code leafValue}, and
-   * for a structure field its children. Its prefix is taken before its children's, so prefixes
-   * follow document order (ADR-0022).
+   * The element of the mapped field at {@code path}, the last of {@code chain}: for a leaf its
+   * text, {@code leafValue}, and for a structure field its children. Its prefix is taken before its
+   * children's, so prefixes follow document order (ADR-0022).
    */
   private ElementConstructor element(
-      FieldPath path, Link link, Expr leafValue, Map<FieldPath, Link> links) {
+      FieldPath path, List<Field> chain, Link link, Expr leafValue, Map<FieldPath, Link> links) {
     Field field = link.field();
     FieldPath.Step step = field.step();
     AuthoringId origin = link.mapping();
@@ -817,7 +855,7 @@ public final class Lowering {
     List<Expr> content =
         field.valueType().isPresent()
             ? List.of(new TextConstructor(leafValue, origin))
-            : children(path, links);
+            : children(path, chain, links);
     return new ElementConstructor(
         prefix, new Name(step.namespace(), step.localName()), content, origin);
   }

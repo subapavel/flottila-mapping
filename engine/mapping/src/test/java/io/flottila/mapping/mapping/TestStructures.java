@@ -221,7 +221,7 @@ final class TestStructures {
    * ambiguous-field-path at its step's second declaration. Under {@code Doc}, the optional leaves
    * {@code Id}, {@code Note} (refused at 8:65), {@code Code} and {@code Note} again; {@code Head}
    * 0..1 holds the leaves {@code Ref} 0..1, 1..1 and 1..1 (refused at 13:56); {@code Body} 0..1
-   * holds {@code Part} 1..1 with the leaf {@code A} 0..1, and {@code Part} 1..2 (both refused at
+   * holds {@code Part} 1..1 with the leaf {@code A} 0..1, and {@code Part} 0..2 (both refused at
    * 28:53) with the leaf {@code B} 0..1 twice (refused at 30:60). No namespace.
    */
   static Structure sameStep() {
@@ -241,7 +241,7 @@ final class TestStructures {
                 "/Doc/Body",
                 List.of(
                     refused(structureField("Part", 1, 1, "/Doc/Body/Part"), 28, 53),
-                    refused(structureField("Part", 1, 2, "/Doc/Body/Part#2"), 28, 53))),
+                    refused(structureField("Part", 0, 2, "/Doc/Body/Part#2"), 28, 53))),
             "/Doc/Body/Part",
             new StructureType("/Doc/Body/Part", List.of(leaf("", "A", 0, 1, ValueType.STRING))),
             "/Doc/Body/Part#2",
@@ -277,8 +277,7 @@ final class TestStructures {
             "/Doc/Body/Part",
             new StructureType("/Doc/Body/Part", List.of(leaf("", "A", 0, 1, ValueType.STRING))),
             "/Doc/Body/Part#2",
-            new StructureType(
-                "/Doc/Body/Part#2", List.of(leaf("", "B", 0, 1, ValueType.STRING)))),
+            new StructureType("/Doc/Body/Part#2", List.of(leaf("", "B", 0, 1, ValueType.STRING)))),
         structureField("Body", 0, 1, "/Doc/Body"));
   }
 
