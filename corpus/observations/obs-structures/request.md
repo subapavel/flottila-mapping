@@ -45,10 +45,10 @@ Only X1 and its chain (C1, E1) are drawn; `Choice/Pick/B` stays unmapped. Target
 
 Target wires: `Nil/Item` -> `Out/Item` (node to node); K1 -> `Out/Item/V`; E1 -> `Out/Item/W`.
 
-| Input | Question it decides | Tests |
-| --- | --- | --- |
-| `nil.xml` | Four items: `<Val>x</Val>`, `<Val xsi:nil="true"/>`, `<Val/>`, no `Val`. Does a nil element read as the empty string? Assumed: item 2 behaves like item 3, `V` = `!` (an empty string value), not like item 4 (no `V`). Assumed output `V`: `x!`, `!`, `!`, none; `W`: `true`, `true`, `true`, `false` (the `exists` result for item 2 is the open part; record it). | ADR-0008 bullet 2 |
-| `nil.json` | The same four items as JSON (`"x"`, `null`, `""`, missing key), validated against `nil.schema.json`. Convert with the CPI JSON to XML converter (root element name `Nil`, no namespace) and, on PO 7.5, the REST adapter's JSON to XML conversion (root `Nil`). Run the same mapping on the converted XML. Return the converted XML (before the mapping) and the output. Assumed: `null` reads as the empty string, so `V` = `x!`, `!`, `!`, none. If the converted XML does not use the root `Nil` and the elements `Item` / `Val`, return it unchanged and stop; do not adapt the mapping. | ADR-0008 bullet 2 |
+| Case | Input | Question it decides | Tests |
+| --- | --- | --- | --- |
+| none yet | `nil.xml` | Four items: `<Val>x</Val>`, `<Val xsi:nil="true"/>`, `<Val/>`, no `Val`. Does a nil element read as the empty string? Assumed: item 2 behaves like item 3, `V` = `!` (an empty string value), not like item 4 (no `V`). Assumed output `V`: `x!`, `!`, `!`, none; `W`: `true`, `true`, `true`, `false` (the `exists` result for item 2 is the open part; record it). | ADR-0008 bullet 2 |
+| `structure/jsonNull/001` | `nil.json` | The same four items as JSON (`"x"`, `null`, `""`, missing key), validated against `nil.schema.json`. Convert with the CPI JSON to XML converter (root element name `Nil`, no namespace) and, on PO 7.5, the REST adapter's JSON to XML conversion (root `Nil`). Run the same mapping on the converted XML. Return the converted XML (before the mapping) and the output. Assumed: `null` reads as the empty string, so `V` = `x!`, `!`, `!`, none. If the converted XML does not use the root `Nil` and the elements `Item` / `Val`, return it unchanged and stop; do not adapt the mapping. | ADR-0008 bullet 2 |
 
 ## Mapping str-required-attr (source `src-orders.xsd`, root `Orders`; target `tgt-required-attr.xsd`, root `Coded`)
 

@@ -9,6 +9,7 @@ import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.MappingModelFormat;
 import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,6 +31,12 @@ class FingerprintPinTest {
   /** By the bundle file under {@code corpus/structures/} and the root element, a space between. */
   private static final Map<String, String> PINNED =
       Map.ofEntries(
+          entry(
+              "json-schema/run-input.schema.json $",
+              "sha256:3489768361f8b16d79fcca7f687e5f669511108cb743826bfa741a2b643830c7"),
+          entry(
+              "observations/nil.schema.json $",
+              "sha256:c4c151c16fe989cda60ff2ef006d0cac0768d05331ec0158e4ca6ab3ec5ad5a8"),
           entry(
               "observations/src-orders.xsd Orders",
               "sha256:5e9bdd3db3b284fc086f0233797ede5e4f3fb874bd696ba3f496dd30bffef9a7"),
@@ -61,6 +68,9 @@ class FingerprintPinTest {
               "skeleton/order.xsd Q{urn:flottila:corpus:skeleton}Order",
               "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d"));
 
+  /** The root of a key whose structure is a JSON root (#98). */
+  private static final String JSON_ROOT = "$";
+
   /** The prefix of a corpus mapping's bundle reference: mappings sit beside structures. */
   private static final String STRUCTURES = "../structures/";
 
@@ -74,7 +84,7 @@ class FingerprintPinTest {
           Structures.load(
               DirectoryResolver.over(CorpusStructures.directory(file.getParent().toString())),
               new SchemaBundle(List.of(file.getFileName().toString())),
-              new ElementRoot(fileAndRoot[1]));
+              fileAndRoot[1].equals(JSON_ROOT) ? new JsonRoot() : new ElementRoot(fileAndRoot[1]));
       assertThat(result).as(key).isInstanceOf(StructureResult.Loaded.class);
       loaded.put(key, ((StructureResult.Loaded) result).structure().fingerprint());
     }
@@ -115,7 +125,9 @@ class FingerprintPinTest {
     List<String> files = side.bundle().files();
     assertThat(files).as("a corpus bundle of the spec-2 subset").hasSize(1);
     assertThat(files.getFirst()).startsWith(STRUCTURES);
-    String root = ((ElementRoot) side.root()).element();
+    // a JSON source's root is $ (#98); a WSDL root is no corpus mapping's yet
+    String root =
+        side.root() instanceof JsonRoot ? JSON_ROOT : ((ElementRoot) side.root()).element();
     return files.getFirst().substring(STRUCTURES.length()) + " " + root;
   }
 
