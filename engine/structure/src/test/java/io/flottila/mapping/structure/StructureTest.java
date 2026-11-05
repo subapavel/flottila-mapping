@@ -10,7 +10,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** The structure model (ADR-0007, ADR-0008, ADR-0009) at its exported API. */
 class StructureTest {
@@ -347,33 +350,37 @@ class StructureTest {
    * Seeded JSON structures (ADR-0018: seeded loops, no jqwik): toggling one field's marker changes
    * the fingerprint, whatever the field's occurrence and refusal; toggling it back restores it, so
    * an unmarked field keeps its line; toggling another field gives another fingerprint, because the
-   * marker sits on the field's own line.
+   * marker sits on the field's own line. One case per seed, named by it.
    */
-  @Test
-  void an_array_marker_enters_the_fingerprint_and_an_unmarked_field_keeps_its_line() {
-    for (long seed = 1; seed <= 200; seed++) {
-      Random random = new Random(seed);
-      Structure structure = randomJsonStructure(random);
-      List<Map.Entry<String, Integer>> fields = fieldsOf(structure);
-      Map.Entry<String, Integer> toggled = fields.get(random.nextInt(fields.size()));
-      List<Map.Entry<String, Integer>> others = new ArrayList<>(fields);
-      others.remove(toggled);
-      Map.Entry<String, Integer> other = others.get(random.nextInt(others.size()));
-      boolean was = marked(structure, toggled);
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("markerSeeds")
+  void an_array_marker_enters_the_fingerprint_and_an_unmarked_field_keeps_its_line(long seed) {
+    Random random = new Random(seed);
+    Structure structure = randomJsonStructure(random);
+    List<Map.Entry<String, Integer>> fields = fieldsOf(structure);
+    Map.Entry<String, Integer> toggled = fields.get(random.nextInt(fields.size()));
+    List<Map.Entry<String, Integer>> others = new ArrayList<>(fields);
+    others.remove(toggled);
+    Map.Entry<String, Integer> other = others.get(random.nextInt(others.size()));
+    boolean was = marked(structure, toggled);
 
-      Structure flipped = marking(structure, toggled, !was);
+    Structure flipped = marking(structure, toggled, !was);
 
-      assertThat(flipped.fingerprint())
-          .as("seed %d: %s marked %s", seed, toggled, !was)
-          .matches("sha256:[0-9a-f]{64}")
-          .isNotEqualTo(structure.fingerprint());
-      assertThat(marking(flipped, toggled, was).fingerprint())
-          .as("seed %d: %s toggled back", seed, toggled)
-          .isEqualTo(structure.fingerprint());
-      assertThat(marking(structure, other, !marked(structure, other)).fingerprint())
-          .as("seed %d: %s toggled instead of %s", seed, other, toggled)
-          .isNotEqualTo(flipped.fingerprint());
-    }
+    assertThat(flipped.fingerprint())
+        .as("seed %d: %s marked %s", seed, toggled, !was)
+        .matches("sha256:[0-9a-f]{64}")
+        .isNotEqualTo(structure.fingerprint());
+    assertThat(marking(flipped, toggled, was).fingerprint())
+        .as("seed %d: %s toggled back", seed, toggled)
+        .isEqualTo(structure.fingerprint());
+    assertThat(marking(structure, other, !marked(structure, other)).fingerprint())
+        .as("seed %d: %s toggled instead of %s", seed, other, toggled)
+        .isNotEqualTo(flipped.fingerprint());
+  }
+
+  /** The seeds of the array-marker property test: 1 to 200. */
+  static LongStream markerSeeds() {
+    return LongStream.rangeClosed(1, 200);
   }
 
   /**
