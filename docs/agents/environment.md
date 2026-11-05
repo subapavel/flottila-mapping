@@ -12,7 +12,8 @@ Read this before your first build or commit in a worktree.
 - **Property tests**: seeded loops in JUnit (jqwik is rejected, ADR-0018).
 - **Paths**: run commands from the repo root or with absolute paths. A `cd` into another
   worktree carries into later shell calls.
-- **Fetch**: `git fetch origin <branch>` sometimes creates no remote-tracking ref; then take the
+- **Fetch**: name the branches (`git fetch origin <branch>…`); a bare `git fetch origin` can stall
+  here. `git fetch origin <branch>` sometimes creates no remote-tracking ref; then take the
   sha from `git ls-remote origin <branch>`.
 - **Commits**: write the message to a file and `git commit -F <file>` with the trailer block of
   `docs/WORKFLOW.md` §11. The block already carries `Signed-off-by`, so `-s` would add a second.
