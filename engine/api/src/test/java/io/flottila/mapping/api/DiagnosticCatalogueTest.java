@@ -168,7 +168,9 @@ class DiagnosticCatalogueTest {
             "schema-invalid",
             "schema-root-not-found",
             "schema-unreadable",
-            "root-selector-unsupported");
+            "root-selector-unsupported",
+            // a package reference the host's resolver does not read (#90, ADR-0014)
+            "package-reference-unsupported");
     assertThat(all).filteredOn(KEBAB.negate()).as("codes that are not kebab-case").isEmpty();
     assertThat(all).as("codes across all modules").doesNotHaveDuplicates();
     // witness: the kebab check refuses what is not kebab-case

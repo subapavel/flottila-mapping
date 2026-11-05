@@ -14,6 +14,7 @@ import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -130,8 +131,8 @@ class EveryInputDataErrorTest {
     return ("<Orders><Order><Id>" + filler + "</Id></Order></Orders>").getBytes(UTF_8);
   }
 
-  private static Path structures() {
-    return CaseFiles.corpus().resolve("structures/observations");
+  private static ReferenceResolver structures() {
+    return DirectoryResolver.over(CaseFiles.corpus().resolve("structures/observations"));
   }
 
   /** The fingerprint the engine derives for {@code file} of the kit under {@code root}. */

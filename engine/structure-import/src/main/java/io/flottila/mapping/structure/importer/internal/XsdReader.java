@@ -36,12 +36,21 @@ public final class XsdReader {
 
   private XsdReader() {}
 
+  /**
+   * @param file the file as the schema bundle spells it: load errors name it, and XmlSchema takes
+   *     it as the file's system id
+   */
   public static Structure read(String file, byte[] content, QName root)
       throws StructureLoadException {
     XsdSubsetCheck.Positions positions = XsdSubsetCheck.check(file, content);
     XsdSubsetCheck.Position schemaTag = positions.schema();
-    XmlSchema schema =
-        new XmlSchemaCollection().read(new InputSource(new ByteArrayInputStream(content)));
+    XmlSchemaCollection collection = new XmlSchemaCollection();
+    // XmlSchema opens no file: its resolver declines every schemaLocation (ADR-0014 "Reference
+    // resolver shape"); a declined one is looked up among the schemas already read
+    collection.setSchemaResolver((namespace, schemaLocation, baseUri) -> null);
+    InputSource source = new InputSource(new ByteArrayInputStream(content));
+    source.setSystemId(file);
+    XmlSchema schema = collection.read(source);
     XmlSchemaElement rootElement = schema.getElementByName(root);
     if (rootElement == null) {
       throw new StructureLoadException(

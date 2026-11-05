@@ -276,7 +276,7 @@ The boundary between two contexts of a queue.
 **Slot**:
 One position of a queue: a value or SUPPRESS. Target occurrences and child contexts are counted
 in slots.
-_Avoid_: entry, element, item (reserved for XDM)
+_Avoid_: entry, element, item (reserved for XDM); empty slot (say empty context, or a slot holding `""`)
 
 **Empty context**:
 A context with no slots, as under a parent occurrence without children. A source queue whose

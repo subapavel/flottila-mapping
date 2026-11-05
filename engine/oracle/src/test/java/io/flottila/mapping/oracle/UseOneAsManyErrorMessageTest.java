@@ -45,11 +45,12 @@ class UseOneAsManyErrorMessageTest {
     byte[] model = Files.readAllBytes(mapping);
     byte[] input = Files.readAllBytes(c.input());
     EngineFacade facade = new EngineFacade();
-    CompileResult result = facade.compile(model, mapping.getParent(), CompileOptions.DEPLOY);
+    CompileResult result =
+        facade.compile(model, DirectoryResolver.over(mapping.getParent()), CompileOptions.DEPLOY);
     assertThat(result).as(id).isInstanceOf(CompileResult.Compiled.class);
     CompiledMapping compiled = ((CompileResult.Compiled) result).mapping();
     ExportResult.Exported exported =
-        SaxonRunner.exported(facade.export(model, mapping.getParent()), id);
+        SaxonRunner.exported(facade.export(model, DirectoryResolver.over(mapping.getParent())), id);
 
     Throwable ours = catchThrowable(() -> facade.run(compiled, input));
     SaxonApiException saxon =

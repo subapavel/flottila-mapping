@@ -10,6 +10,7 @@ import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.ExportResult;
 import io.flottila.mapping.runtime.MappingRunException;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 import net.sf.saxon.s9api.SaxonApiException;
@@ -83,8 +84,8 @@ class UntakenBranchDataErrorTest {
         .getBytes(UTF_8);
   }
 
-  private static Path structures() {
-    return CaseFiles.corpus().resolve("structures/observations");
+  private static ReferenceResolver structures() {
+    return DirectoryResolver.over(CaseFiles.corpus().resolve("structures/observations"));
   }
 
   private CompiledMapping compiled(byte[] model, CompileOptions options, String what)
