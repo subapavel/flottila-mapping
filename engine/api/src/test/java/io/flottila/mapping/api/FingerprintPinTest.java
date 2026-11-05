@@ -56,7 +56,12 @@ class FingerprintPinTest {
               "sha256:bb054118c01ca0072e0e8be95386b7c8fb4c8ab366cbd7f92bff8debbded1706"),
           entry(
               "skeleton/order.xsd Q{urn:flottila:corpus:skeleton}Order",
-              "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d"));
+              "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d"),
+          // #92: its two Notes and two Refs are refused fields, whose canonical lines end in
+          // " refused:ambiguous-field-path" (ADR-0009 as refined by #92)
+          entry(
+              "refused/same-step.xsd Doc",
+              "sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e"));
 
   /** The prefix of a corpus mapping's bundle reference: mappings sit beside structures. */
   private static final String STRUCTURES = "../structures/";

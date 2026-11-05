@@ -157,7 +157,10 @@ class DiagnosticCatalogueTest {
             // stage 3, an unmapped mandatory target leaf (#65)
             "unmapped-mandatory-leaf",
             // stage 3, a stored fingerprint that is not its bundle's (#91, ADR-0009)
-            "fingerprint-mismatch");
+            "fingerprint-mismatch",
+            // stage 3, a field a mapping uses or must create that has no unique field path (#92,
+            // ADR-0008 "Refused when a mapping uses the field")
+            "ambiguous-field-path");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",
