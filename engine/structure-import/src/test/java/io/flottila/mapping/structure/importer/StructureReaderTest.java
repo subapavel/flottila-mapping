@@ -425,12 +425,32 @@ class StructureReaderTest {
             });
   }
 
+  /**
+   * #96 reads WSDL: a WSDL root over a bundle of no WSDL names an interface the bundle does not
+   * declare, at the first file's xs:schema (6:59).
+   */
   @Test
-  void WSDL_and_JSON_roots_are_refused_until_their_readers_exist() {
+  void a_WSDL_root_over_a_bundle_of_no_WSDL_is_schema_root_not_found() {
     RootSelector wsdl =
         new WsdlRoot(
             new WsdlOperation("OrderService", "submit", WsdlDirection.INPUT, Optional.empty()));
-    for (RootSelector root : List.of(wsdl, new JsonRoot())) {
+    assertThatThrownBy(
+            () ->
+                new StructureReader(DirectoryResolver.over(SKELETON))
+                    .read(new SchemaBundle(List.of("order.xsd")), wsdl))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("schema-root-not-found");
+              assertThat(e.file()).isEqualTo("order.xsd");
+              assertThat(e.line()).isEqualTo(6);
+              assertThat(e.column()).isEqualTo(59);
+            });
+  }
+
+  @Test
+  void a_JSON_root_is_refused_until_its_reader_exists() {
+    for (RootSelector root : List.of(new JsonRoot())) {
       assertThatThrownBy(
               () ->
                   new StructureReader(DirectoryResolver.over(SKELETON))
