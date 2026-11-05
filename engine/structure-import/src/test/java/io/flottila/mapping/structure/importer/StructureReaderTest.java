@@ -25,9 +25,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** The flat XSD structure import (spec #21, ticket #25) at the reader's exported API. */
@@ -373,6 +376,70 @@ class StructureReaderTest {
     assertThat(line.refusal()).isEmpty();
     assertThat(fields.getFirst().refusal().orElseThrow().reason().code())
         .isEqualTo("ambiguous-field-path");
+  }
+
+  private static final Path REFUSED =
+      Path.of(System.getProperty("flottila.corpus"), "structures", "refused");
+
+  private static final String PAIR = "Q{urn:flottila:corpus:refused:b}Pair";
+
+  /**
+   * Bundles whose same-step siblings are declared in another file than the root (ADR-0008: a
+   * refusal carries the file, line and column of the declaration that causes it, wherever that
+   * declaration is written): {row, fixture directory under corpus/structures/refused, bundle, root,
+   * each refused field as "type id, index, step, file line:column" with the types in id order}.
+   */
+  static Stream<Arguments> refusalsWhereDeclared() {
+    return Stream.of(
+        // Part twice in Pair (6 spaces, 24 characters: 10:31), Leaf twice in the second Part's
+        // anonymous type (12 spaces, 43 characters: 14:56)
+        Arguments.of(
+            "same-step siblings in a named complex type of the second bundle file",
+            "two-file",
+            List.of("a.xsd", "b.xsd"),
+            "Q{urn:flottila:corpus:refused:a}Doc",
+            List.of(
+                PAIR + " 0 Part b.xsd 10:31",
+                PAIR + " 1 Part b.xsd 10:31",
+                PAIR + "/Part 0 Leaf b.xsd 14:56",
+                PAIR + "/Part 1 Leaf b.xsd 14:56")));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("refusalsWhereDeclared")
+  void a_refusal_names_the_file_line_and_column_of_the_second_declaration(
+      String row, String fixture, List<String> bundle, String root, List<String> refused)
+      throws Exception {
+    Structure structure =
+        new StructureReader(DirectoryResolver.over(REFUSED.resolve(fixture)))
+            .read(new SchemaBundle(bundle), new ElementRoot(root));
+    List<String> refusals = new ArrayList<>();
+    for (StructureType type : new TreeMap<>(structure.types()).values()) {
+      for (int i = 0; i < type.fields().size(); i++) {
+        Field field = type.fields().get(i);
+        if (field.refusal().isPresent()) {
+          Refusal refusal = field.refusal().get();
+          refusals.add(
+              type.id()
+                  + " "
+                  + i
+                  + " "
+                  + field.step()
+                  + " "
+                  + refusal.file()
+                  + " "
+                  + refusal.line()
+                  + ":"
+                  + refusal.column());
+        }
+      }
+    }
+
+    assertThat(refusals).containsExactlyElementsOf(refused);
+    // First and Second share the one type: both paths carry its refusals at one position
+    assertThat(structure.types().get(structure.root().type().orElseThrow()).fields())
+        .extracting(f -> f.type().orElseThrow())
+        .containsExactly(PAIR, PAIR);
   }
 
   /**
