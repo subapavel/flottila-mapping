@@ -8,9 +8,11 @@ import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.JsonRoot;
+import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.StructureType;
 import io.flottila.mapping.structure.ValueType;
 import io.flottila.mapping.structure.WsdlDirection;
 import io.flottila.mapping.structure.WsdlOperation;
@@ -21,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -280,6 +283,111 @@ class StructureReaderTest {
     }
     assertThat(children).containsExactly("A xs:string", "B xs:integer");
     assertThat(structure.types()).hasSize(3);
+  }
+
+  // --- refused fields (ADR-0008 "Refused when a mapping uses the field", Shape (#92)): same-step
+  // siblings load and each carries ambiguous-field-path at the step's second declaration, the
+  // end of its start tag as in StructureLoadException
+
+  @Test
+  void same_step_siblings_load_each_refused_at_the_second_declaration() throws Exception {
+    String file = "test-fixtures/nested-same-name-siblings.xsd";
+    Structure structure = readSkeleton(file);
+    List<Field> parts = structure.types().get(structure.root().type().orElseThrow()).fields();
+    // the second <xs:element name="Part"> (8 spaces, 24 characters) ends at line 16, column 33
+    Refusal second = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, file, 16, 33);
+
+    assertThat(parts)
+        .extracting(Field::refusal)
+        .containsExactly(Optional.of(second), Optional.of(second));
+    // A and B are each the one field of their type: the path through Part is refused, not they
+    for (Field part : parts) {
+      assertThat(structure.types().get(part.type().orElseThrow()).fields())
+          .extracting(Field::refusal)
+          .containsExactly(Optional.empty());
+    }
+    assertThat(structure.root().refusal()).isEmpty();
+  }
+
+  @Test
+  void same_step_leaf_siblings_are_refused_and_their_neighbour_is_not() throws Exception {
+    String file = "test-fixtures/nested-same-name-leaves.xsd";
+    Structure structure = readSkeleton(file);
+    Field line = structure.types().get(structure.root().type().orElseThrow()).fields().getFirst();
+    List<Field> fields = structure.types().get(line.type().orElseThrow()).fields();
+    List<Map.Entry<String, Optional<Refusal>>> refusals = new ArrayList<>();
+    for (Field field : fields) {
+      refusals.add(
+          entry(
+              field.step().localName() + " " + field.valueType().orElseThrow().typeName(),
+              field.refusal()));
+    }
+    // A B A A: the second A (14 spaces, 51 characters) ends its start tag at line 15, column 66;
+    // the first and the last A carry that position too
+    Refusal second = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, file, 15, 66);
+
+    assertThat(refusals)
+        .containsExactly(
+            entry("A xs:string", Optional.of(second)),
+            entry("B xs:integer", Optional.empty()),
+            entry("A xs:date", Optional.of(second)),
+            entry("A xs:boolean", Optional.of(second)));
+    assertThat(line.refusal()).isEmpty();
+    assertThat(fields.getFirst().refusal().orElseThrow().reason().code())
+        .isEqualTo("ambiguous-field-path");
+  }
+
+  /**
+   * The structures {@code FingerprintPinTest} (engine/api) pinned before #92, as {directory under
+   * corpus/structures, file, root}: none has same-step siblings, so no canonical line gains a
+   * reason and none of those literals moves (ADR-0009 as refined by #92).
+   */
+  private static final List<List<String>> PINNED_BEFORE_92 =
+      List.of(
+          List.of("observations", "src-orders.xsd", "Orders"),
+          List.of("observations", "tgt-create.xsd", "Create"),
+          List.of("observations", "tgt-gen.xsd", "Gens"),
+          List.of("observations", "tgt-list.xsd", "Out"),
+          List.of("observations", "tgt-nested.xsd", "Doc"),
+          List.of("observations", "tgt-parents.xsd", "Parents"),
+          List.of("observations", "tgt-required-attr.xsd", "Coded"),
+          List.of("observations", "tgt-unmapped.xsd", "Unmapped"),
+          List.of("skeleton", "order.xsd", "Q{urn:flottila:corpus:skeleton}Order"));
+
+  /** Every refused field of {@code structure}: the root, then each type in id order. */
+  private static List<String> refusedFields(Structure structure) {
+    List<String> refused = new ArrayList<>();
+    structure.root().refusal().ifPresent(r -> refused.add("root " + structure.root().step()));
+    for (StructureType type : new TreeMap<>(structure.types()).values()) {
+      for (int i = 0; i < type.fields().size(); i++) {
+        Field field = type.fields().get(i);
+        if (field.refusal().isPresent()) {
+          refused.add(type.id() + " " + i + " " + field.step());
+        }
+      }
+    }
+    return refused;
+  }
+
+  @Test
+  void no_field_of_a_pinned_corpus_structure_is_refused() throws Exception {
+    Map<String, List<String>> refused = new LinkedHashMap<>();
+    Map<String, List<String>> none = new LinkedHashMap<>();
+    for (List<String> pinned : PINNED_BEFORE_92) {
+      Path directory =
+          Path.of(System.getProperty("flottila.corpus"), "structures", pinned.getFirst());
+      Structure structure =
+          new StructureReader(directory)
+              .read(new SchemaBundle(List.of(pinned.get(1))), new ElementRoot(pinned.get(2)));
+      String key = pinned.getFirst() + "/" + pinned.get(1) + " " + pinned.get(2);
+      refused.put(key, refusedFields(structure));
+      none.put(key, List.of());
+    }
+
+    // witness: the walk finds the two refused Parts of a same-step fixture, in its root's type
+    assertThat(refusedFields(readSkeleton("test-fixtures/nested-same-name-siblings.xsd")))
+        .containsExactly(ORDER_PATH + " 0 Part", ORDER_PATH + " 1 Part");
+    assertThat(refused).hasSize(9).isEqualTo(none);
   }
 
   /**

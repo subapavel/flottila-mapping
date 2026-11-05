@@ -17,4 +17,16 @@ public record Field(
     Occurrence occurrence,
     Optional<ValueType> valueType,
     boolean nillable,
-    Optional<String> type) {}
+    Optional<String> type,
+    Optional<Refusal> refusal /* stub: #92 test-author */) {
+
+  // stub: #92 test-author. The 5-arg constructor the design keeps for the existing calls.
+  public Field(
+      FieldPath.Step step,
+      Occurrence occurrence,
+      Optional<ValueType> valueType,
+      boolean nillable,
+      Optional<String> type) {
+    this(step, occurrence, valueType, nillable, type, Optional.empty());
+  }
+}
