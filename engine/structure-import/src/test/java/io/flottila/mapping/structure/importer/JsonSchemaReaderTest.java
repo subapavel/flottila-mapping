@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -24,8 +25,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * JSON Schema 2020-12 as a structure (#97, ADR-0008 "JSON Schema and WSDL", ADR-0007), at the
  * reader's exported API: one row per rule and per load-time refusal, over the fixtures in {@code
- * corpus/structures/json-schema/}. Every file is read through a test-scope resolver.
+ * corpus/structures/json-schema/}. Every file is read through a test-scope resolver. A $ref cycle
+ * between files or types must end, so a read that loops fails on the timeout, in its own thread
+ * because a loop does not see the interrupt.
  */
+@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class JsonSchemaReaderTest {
 
   private static final Path FIXTURES =
