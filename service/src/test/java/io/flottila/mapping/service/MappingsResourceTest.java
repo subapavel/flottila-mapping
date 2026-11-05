@@ -2,6 +2,7 @@ package io.flottila.mapping.service;
 
 import static io.flottila.mapping.service.Fixtures.CORPUS_MAPPING_ETAG;
 import static io.flottila.mapping.service.Fixtures.FINGERPRINT;
+import static io.flottila.mapping.service.Fixtures.INPUT;
 import static io.flottila.mapping.service.Fixtures.NEW_MAPPING;
 import static io.flottila.mapping.service.Fixtures.NEW_MAPPING_ETAG;
 import static io.flottila.mapping.service.Fixtures.ORDER;
@@ -14,6 +15,7 @@ import static io.flottila.mapping.service.Fixtures.workingCopy;
 import static io.flottila.mapping.service.Wire.assertProblem;
 import static io.flottila.mapping.service.Wire.createRequest;
 import static io.flottila.mapping.service.Wire.described;
+import static io.flottila.mapping.service.Wire.testRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -165,6 +167,65 @@ class MappingsResourceTest {
         .isNotEmpty()
         .containsOnly("error schema-unreadable at file ../structures/skeleton/missing.xsd 1:1");
     assertThat(TempWorkspace.exists("creating-unreadable/order.mapping.json")).isFalse();
+  }
+
+  /** A package reference of the ADR-0024 form, which only a host's resolver could read. */
+  private static final String PACKAGE_REFERENCE = "shared@1.2.0:/xsd/o.xsd";
+
+  /**
+   * A create whose bundle is a package reference gets the engine's load error, as a missing file
+   * does ({@link #createWithUnreadableSchemaIs422}): 422 {@code model-refused}, never 400 (#90,
+   * ADR-0014 "Reference resolver shape").
+   */
+  @Test
+  void createWithAPackageReferenceIs422ModelRefused() {
+    TempWorkspace.mkdirs("creating-package");
+    String request = createRequest("creating-package/order", PACKAGE_REFERENCE, ORDER);
+
+    JsonNode problem =
+        assertProblem(
+            http().post("api/mappings", "application/json", bytes(request)), 422, "model-refused");
+
+    assertThat(described(problem.path("diagnostics")))
+        .isNotEmpty()
+        .containsOnly("error package-reference-unsupported at file " + PACKAGE_REFERENCE + " 1:1");
+    assertThat(TempWorkspace.exists("creating-package/order.mapping.json")).isFalse();
+  }
+
+  /**
+   * A test run whose working copy names a package reference as its source bundle is refused with
+   * the engine's load error: a 200 {@code refused} with no output and no trace, never a 4xx (#90).
+   * The target is the skeleton's {@code order.xsd}, which loads, so the one diagnostic is the
+   * source's.
+   */
+  @Test
+  void packageReferenceRefusesTheTestRun() {
+    String model =
+        """
+        {"formatVersion": 1,
+         "source": {"bundle": ["%1$s"], "fingerprint": "%2$s", "root": {"element": "%3$s"}},
+         "target": {"bundle": ["../structures/skeleton/order.xsd"], "fingerprint": "%2$s",
+                    "root": {"element": "%3$s"}},
+         "targetFieldMappings": {"/%3$s/OrderId": {"id": "t1", "result": "a1",
+           "boxes": {"a1": {"kind": "source", "field": "/%3$s/OrderId"}}}}}
+        """
+            .formatted(PACKAGE_REFERENCE, FINGERPRINT, ORDER);
+
+    Http.Reply reply =
+        http()
+            .post(
+                "api/mappings/" + CORPUS_ID + "/test",
+                "application/json",
+                bytes(testRequest(model, INPUT)));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", reply).isEqualTo("refused");
+    assertThat(described(result.path("diagnostics")))
+        .containsExactly(
+            "error package-reference-unsupported at file " + PACKAGE_REFERENCE + " 1:1");
+    assertThat(result.has("output")).isFalse();
+    assertThat(result.has("trace")).isFalse();
   }
 
   @Test

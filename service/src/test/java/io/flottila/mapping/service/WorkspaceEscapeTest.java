@@ -180,7 +180,50 @@ class WorkspaceEscapeTest {
             "test run through id ..%2Foutside%2Fevil",
             "POST",
             "api/mappings/..%2Foutside%2Fevil/test",
-            testRequest(exfilModel("evil.xsd"), EXFIL_INPUT)));
+            testRequest(exfilModel("evil.xsd"), EXFIL_INPUT)),
+        // #90: the resources no longer check bundle references; every escape below is refused
+        // inside the service's reference resolver, so each kind is sent to each endpoint that
+        // loads a structure. A missing file outside is an escape, never a schema-unreadable.
+        attack(
+            "structures: a ../ bundle ref",
+            "POST",
+            "api/structures",
+            structureRequest("", "../outside/evil.xsd", EXFIL)),
+        attack(
+            "structures: a bundle ref to a missing file outside",
+            "POST",
+            "api/structures",
+            structureRequest("", "../outside/missing.xsd", EXFIL)),
+        attack(
+            "create with an escaping bundle",
+            "POST",
+            "api/mappings",
+            createRequest("mappings/escaping", "../../outside/evil.xsd", EXFIL)),
+        attack(
+            "create with an absolute bundle",
+            "POST",
+            "api/mappings",
+            createRequest("mappings/escaping", OUTSIDE + "/evil.xsd", EXFIL)),
+        attack(
+            "create with a symlinked bundle",
+            "POST",
+            "api/mappings",
+            createRequest("mappings/escaping", "../links/out.xsd", EXFIL)),
+        attack(
+            "create with a bundle ref to a link loop",
+            "POST",
+            "api/mappings",
+            createRequest("mappings/escaping", "../links/loop.xsd", EXFIL)),
+        attack(
+            "create with a bundle ref to a missing file outside",
+            "POST",
+            "api/mappings",
+            createRequest("mappings/escaping", "../../outside/missing.xsd", EXFIL)),
+        attack(
+            "test run with a bundle ref to a missing file outside",
+            "POST",
+            "api/mappings/mappings/order-id-copy/test",
+            testRequest(exfilModel("../../outside/missing.xsd"), EXFIL_INPUT)));
   }
 
   @ParameterizedTest(name = "{0}")

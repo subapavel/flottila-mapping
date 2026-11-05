@@ -4,6 +4,7 @@ import static io.flottila.mapping.service.Fixtures.FINGERPRINT;
 import static io.flottila.mapping.service.Fixtures.NS;
 import static io.flottila.mapping.service.Fixtures.ORDER;
 import static io.flottila.mapping.service.Fixtures.bytes;
+import static io.flottila.mapping.service.Wire.assertProblem;
 import static io.flottila.mapping.service.Wire.described;
 import static io.flottila.mapping.service.Wire.structureRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +20,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * {@code POST /api/structures}: the structure graph and its fingerprint, or a load error as a 200
@@ -101,6 +103,58 @@ class StructuresResourceTest {
     assertThat(malformed.json().path("kind").textValue()).isEqualTo("refused");
     assertThat(described(malformed.json().path("diagnostics")))
         .containsExactly("error schema-not-well-formed at file malformed.xsd 7:7");
+  }
+
+  /**
+   * A package reference (ADR-0024, since the spec-4 grilling) passes the pattern and reaches the
+   * engine, whose refusal is a load error at line 1, column 1 of the reference: a 200 {@code
+   * refused}, never a 4xx (#90, ADR-0014 "Reference resolver shape").
+   */
+  @Test
+  void packageReferenceIs200Refused() {
+    Http.Reply reply = structure("", "shared@1.2.0:/xsd/o.xsd", ORDER);
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.json().path("kind").textValue()).as("%s", reply).isEqualTo("refused");
+    assertThat(described(reply.json().path("diagnostics")))
+        .containsExactly("error package-reference-unsupported at file shared@1.2.0:/xsd/o.xsd 1:1");
+  }
+
+  /**
+   * Text with the {@code @} and {@code :} of a package reference that is not of its ADR-0024 form
+   * passes neither pattern: 400 {@code invalid-workspace-path}, named as the request spelled it.
+   * {@link #packageReferenceIs200Refused} is the witness that the form itself reaches the engine.
+   */
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"p@1:x.xsd", "p@:/x.xsd", "@1:/x.xsd", "p@1:/../x.xsd", "p@1:/a//b.xsd"})
+  void malformedPackageReferenceIsInvalidWorkspacePath(String reference) {
+    JsonNode problem =
+        assertProblem(structure("", reference, ORDER), 400, "invalid-workspace-path");
+
+    assertThat(problem.path("detail").textValue())
+        .isEqualTo("not a workspace path: \"" + reference + "\"");
+  }
+
+  /**
+   * A missing bundle file's message names the file as the bundle spells it, never where the service
+   * looked: it contains neither the workspace's directory nor any token that starts with {@code /}
+   * (#90, F-12).
+   */
+  @Test
+  void schemaUnreadableShowsNoAbsolutePath() throws IOException {
+    Http.Reply missing = structure("structures/skeleton", "missing.xsd", ORDER);
+
+    assertThat(missing.status()).as("%s", missing).isEqualTo(200);
+    JsonNode diagnostics = missing.json().path("diagnostics");
+    assertThat(described(diagnostics))
+        .containsExactly("error schema-unreadable at file missing.xsd 1:1");
+    String message = diagnostics.path(0).path("message").textValue();
+    assertThat(message)
+        .doesNotContain(TempWorkspace.root().toString())
+        .doesNotContain(TempWorkspace.root().toRealPath().toString());
+    assertThat(message.split("[\\s\"'`:;,=()<>\\[\\]{}]+"))
+        .as("the tokens of %s", message)
+        .noneMatch(token -> token.startsWith("/"));
   }
 
   /**
