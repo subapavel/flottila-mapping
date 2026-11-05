@@ -258,6 +258,27 @@ final class TestStructures {
         structureField("Body", 0, 1, "/Doc/Body"));
   }
 
+  /** The schema file {@link #interleaved()}'s refusals name. */
+  static final String INTERLEAVED_FILE = "interleaved.xsd";
+
+  /**
+   * A repeated sequence of two leaves as the reader gives it (#94, ADR-0008 "in a target"): under
+   * {@code Doc}, the leaf {@code Id} 0..1, then {@code A} 1..unbounded and {@code B} 0..unbounded,
+   * both refused with interleaved-target-group at {@link #INTERLEAVED_FILE} 20:44, the repeated
+   * sequence's declaration. No namespace.
+   */
+  static Structure interleaved() {
+    Refusal refusal =
+        new Refusal(Refusal.Reason.INTERLEAVED_TARGET_GROUP, INTERLEAVED_FILE, 20, 44);
+    return structure(
+        "",
+        "Doc",
+        Map.of(),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        refused(leaf("", "A", 1, Occurrence.UNBOUNDED, ValueType.STRING), refusal),
+        refused(leaf("", "B", 0, Occurrence.UNBOUNDED, ValueType.STRING), refusal));
+  }
+
   /**
    * Same-step siblings that carry no refusal, which the reader never gives (#92): {@code Doc/Body}
    * 0..1 holds {@code Part} 0..1 with the leaf {@code A} 0..1, then {@code Part} 1..1 with the leaf
@@ -360,14 +381,19 @@ final class TestStructures {
 
   /** {@code field} refused with ambiguous-field-path at {@link #SAME_STEP_FILE} line:column. */
   private static Field refused(Field field, int line, int column) {
+    return refused(
+        field, new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, SAME_STEP_FILE, line, column));
+  }
+
+  /** {@code field} with {@code refusal}. */
+  private static Field refused(Field field, Refusal refusal) {
     return new Field(
         field.step(),
         field.occurrence(),
         field.valueType(),
         field.nillable(),
         field.type(),
-        Optional.of(
-            new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, SAME_STEP_FILE, line, column)));
+        Optional.of(refusal));
   }
 
   private static Field attribute(String name, long min, long max) {

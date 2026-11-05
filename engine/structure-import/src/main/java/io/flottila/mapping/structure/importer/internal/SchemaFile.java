@@ -14,7 +14,7 @@ import javax.xml.namespace.QName;
  * WSDL file, for the checks across the bundle: its target namespace, its references to other files,
  * the global names it declares and the names it uses, each with its position. A WSDL file is one
  * WSDL part and one schema per inline schema, all with the file's name. For {@link XsdReader} a
- * schema also keeps where each element particle of a complex type is declared (#92).
+ * schema also keeps where each particle of a complex type or a group is declared (#92, #94).
  */
 final class SchemaFile {
 
@@ -51,14 +51,24 @@ final class SchemaFile {
   record NameUse(QName name, Position at) {}
 
   /**
-   * An element particle of a complex type's {@code xs:sequence}, a local element or an element
-   * reference (#92).
+   * A particle of a complex type or a group (#92, #94): a local element or an element reference, a
+   * model group ({@code xs:sequence}, {@code xs:choice}, {@code xs:all}), or a group reference. An
+   * {@code xs:any} is no particle here.
    *
    * @param at where its start tag ends
-   * @param type the particles of its anonymous complex type, for a local element with one; none
-   *     otherwise
+   * @param content the particles it holds, in document order: a model group's members, or the one
+   *     content particle of a local element's anonymous complex type, if it has one; none for an
+   *     element reference, a typed element or a group reference
    */
-  record Particle(Position at, List<Particle> type) {}
+  record Particle(Position at, List<Particle> content) {}
+
+  /**
+   * A named group or attribute group (#94).
+   *
+   * @param at its start tag's end
+   * @param uses the groups, or attribute groups, it refers to other than through an element
+   */
+  record Definition(Position at, Set<QName> uses) {}
 
   /** The file as the schema bundle spells it. */
   final String name;
@@ -104,11 +114,26 @@ final class SchemaFile {
   /** WSDL 1.1 message references of operations. */
   final List<NameUse> messageRefs = new ArrayList<>();
 
-  /** The element particles of each global element's anonymous complex type, in document order. */
+  /** Named groups (#94). */
+  final Map<QName, Definition> groups = new HashMap<>();
+
+  /** Named attribute groups (#94). */
+  final Map<QName, Definition> attributeGroups = new HashMap<>();
+
+  /** Group references (#94). */
+  final List<NameUse> groupRefs = new ArrayList<>();
+
+  /** Attribute group references (#94). */
+  final List<NameUse> attributeGroupRefs = new ArrayList<>();
+
+  /** The content particle of each global element's anonymous complex type, if it has one. */
   final Map<QName, List<Particle>> elementParticles = new HashMap<>();
 
-  /** The element particles of each named complex type, in document order. */
+  /** The content particle of each named complex type, if it has one. */
   final Map<QName, List<Particle>> complexTypeParticles = new HashMap<>();
+
+  /** The model group of each named group (#94). */
+  final Map<QName, List<Particle>> groupParticles = new HashMap<>();
 
   SchemaFile(String name) {
     this(name, false);
