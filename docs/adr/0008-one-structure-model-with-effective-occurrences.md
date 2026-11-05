@@ -35,10 +35,20 @@ queues see fields, not groups.
   members are found transitively and across namespaces, head first and then ordered by QName.
   A member declared without a type takes the head's type (#95).
 - A recursive path may repeat one type at most 16 times.
+- An `xs:attribute ref` is an attribute field named by the referenced QName, with the global
+  attribute's type and its own `use` (`xml:lang` through the `xml.xsd` fallback). An anonymous
+  simple type, under an element or an attribute, takes its value type from its built-in
+  ancestry like a named one; a root of an anonymous simple type stays refused. Two attributes of
+  one name in one complex type, also through extension, attribute groups or references, are
+  `schema-invalid` at the second declaration (ct-props-correct.4) (spec #89 review).
 - Accepted with no effect:
   - `any`/`anyAttribute`: projection skips them, and they are never written;
-  - mixed text;
-  - `default` and `fixed`, because PO ignores XSD defaults (#2 §2);
+  - mixed text: `mixed` on a complex type or on `xs:complexContent`;
+  - `default` and `fixed`, because PO ignores XSD defaults (#2 §2), also on an element of an
+    anonymous type, as is `nillable`;
+  - `id`, `version`, `block` and `final` on schema components, and `blockDefault` and
+    `finalDefault` on `xs:schema`;
+  - attributes in other namespaces, and `vc:minVersion` below 1.1;
   - an instance `xsi:type`: only the fields of the declared type are read;
   - facets: they are shown, never validated;
   - identity constraints.
