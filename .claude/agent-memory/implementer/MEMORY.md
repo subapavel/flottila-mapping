@@ -113,3 +113,12 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - FamilyLocalityTest fails on an XSL variable named like a catalogue function (`$count`): rename it.
 - Merging the integration tip: `git merge --no-ff -F <file>` with the §11 trailers; a plain merge
   fails gate row 2c (six such commits reached #84).
+
+## Spec 4
+
+- JUnit 6.1.3 quotes String arguments in a `{0}` display name; for plain names use
+  `Arguments.argumentSet(name, …)` with `name = "{argumentSetName}"` (#86).
+- A Saxon compile of an export costs about 40 ms, dominated by the helper module; a shared
+  Processor does not help. Compile once, run per input (#86).
+- The worktree guard refuses a Bash call mixing heredocs, `python3 - <<EOF`, loops or pipes: write
+  a helper script with Write and run it as plain `bash <file>` (#87).
