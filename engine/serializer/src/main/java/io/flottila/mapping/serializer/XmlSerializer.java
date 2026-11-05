@@ -11,9 +11,11 @@ import java.util.List;
 /**
  * Writes one XML document as UTF-8 bytes (ADR-0022): the declaration {@code <?xml version="1.0"
  * encoding="UTF-8"?>}, then the elements without indentation and without a trailing newline. A
- * prefix is bound on the first element that needs it, where it is not already bound to the same
- * namespace; a default namespace is never declared. In text, {@code &}, {@code <} and {@code >} are
- * escaped and CR is written {@code &#13;}. An element without text is self-closing.
+ * prefix is bound on the first element that needs it, for its own name or an attribute's, where it
+ * is not already bound to the same namespace; a default namespace is never declared. In text,
+ * {@code &}, {@code <} and {@code >} are escaped and CR is written {@code &#13;}; in an attribute
+ * value {@code "} is escaped too, and LF and TAB are written {@code &#10;} and {@code &#9;} (#102).
+ * An element without content is self-closing.
  *
  * <p>The serializer writes what it is told and never invents a prefix; the prefixes come from
  * lowering. It holds the state of one document and is not thread-safe.
@@ -25,10 +27,19 @@ public final class XmlSerializer {
   private final Writer out;
 
   /**
-   * Per open element, outermost first: its prefix, local name and namespace. An element's prefix is
-   * bound to its namespace there, whether it declared the binding or inherited it.
+   * An open element: its prefix and local name, and the number of {@link #bindings} in scope at its
+   * start, which its end restores.
    */
-  private final List<String> open = new ArrayList<>();
+  private record Open(String prefix, String localName, int bindings) {}
+
+  /** The open elements, outermost first. */
+  private final List<Open> open = new ArrayList<>();
+
+  /**
+   * The prefix bindings the open elements declared, outermost first: per binding its prefix, then
+   * its namespace. An element's own and its attributes' bindings go on the element (#102).
+   */
+  private final List<String> bindings = new ArrayList<>();
 
   /** Whether the last start tag still waits for its {@code >} or {@code />}. */
   private boolean startTagOpen;
@@ -63,24 +74,52 @@ public final class XmlSerializer {
     closeStartTag();
     out.write('<');
     writeName(prefix, localName);
+    open.add(new Open(prefix, localName, bindings.size()));
+    startTagOpen = true;
+    declare(prefix, namespace);
+  }
+
+  /**
+   * Writes an attribute of the element whose start tag is open (#102), after the declaration of its
+   * prefix when the prefix is not bound to its namespace there. The binding then holds for the
+   * element's content.
+   *
+   * @param prefix the prefix of {@code namespace}; {@code ""} for a name without a namespace
+   * @param namespace the attribute's namespace, or {@code ""}
+   * @param localName the attribute's local name
+   * @param value the attribute's value, written with {@code &}, {@code <}, {@code >}, {@code "},
+   *     CR, LF and TAB escaped
+   * @throws IllegalStateException when no start tag is open: before the first element, after the
+   *     open element's content has begun, or after it ended
+   */
+  public void attribute(String prefix, String namespace, String localName, String value)
+      throws IOException {
+    if (!startTagOpen) {
+      throw new IllegalStateException(
+          "the attribute " + localName + " comes where no element's start tag is open");
+    }
+    declare(prefix, namespace);
+    out.write(' ');
+    writeName(prefix, localName);
+    out.write("=\"");
+    escape(value, true);
+    out.write('"');
+  }
+
+  /**
+   * Writes the declaration of {@code prefix} into the open start tag, and records its binding
+   * there, unless it is {@code ""} or already bound to {@code namespace}.
+   */
+  private void declare(String prefix, String namespace) throws IOException {
     if (!prefix.isEmpty() && !bound(prefix, namespace)) {
       out.write(" xmlns:");
       out.write(prefix);
       out.write("=\"");
       escape(namespace, true);
       out.write('"');
+      bindings.add(prefix);
+      bindings.add(namespace);
     }
-    open.add(prefix);
-    open.add(localName);
-    open.add(namespace);
-    startTagOpen = true;
-  }
-
-  /** Writes an attribute of the element whose start tag is open (#102). */
-  // stub: #102 test-author
-  public void attribute(String prefix, String namespace, String localName, String value)
-      throws IOException {
-    throw new UnsupportedOperationException("stub: #102");
   }
 
   /** Writes {@code text} as content of the open element; {@code ""} writes nothing. */
@@ -94,16 +133,16 @@ public final class XmlSerializer {
 
   /** Ends the element started last: {@code />} if it has no content, else its end tag. */
   public void endElement() throws IOException {
-    int top = open.size() - 3;
+    Open top = open.removeLast();
     if (startTagOpen) {
       startTagOpen = false;
       out.write("/>");
     } else {
       out.write("</");
-      writeName(open.get(top), open.get(top + 1));
+      writeName(top.prefix(), top.localName());
       out.write('>');
     }
-    open.subList(top, top + 3).clear();
+    bindings.subList(top.bindings(), bindings.size()).clear();
   }
 
   /** Ends the document and flushes its bytes to the output stream. */
@@ -128,12 +167,12 @@ public final class XmlSerializer {
 
   /**
    * Whether {@code prefix} is bound to {@code namespace} at the innermost open element: the binding
-   * of the innermost open element with that prefix.
+   * declared last for that prefix.
    */
   private boolean bound(String prefix, String namespace) {
-    for (int k = open.size() - 3; k >= 0; k -= 3) {
-      if (open.get(k).equals(prefix)) {
-        return open.get(k + 2).equals(namespace);
+    for (int k = bindings.size() - 2; k >= 0; k -= 2) {
+      if (bindings.get(k).equals(prefix)) {
+        return bindings.get(k + 1).equals(namespace);
       }
     }
     return false;
@@ -141,7 +180,8 @@ public final class XmlSerializer {
 
   /**
    * Writes {@code text} with {@code &}, {@code <}, {@code >} and CR escaped, and in an attribute
-   * value {@code "} as well. The runs between them are written as they are.
+   * value {@code "}, LF and TAB as well, which a parser would otherwise normalise (XML 1.0 §3.3.3).
+   * The runs between them are written as they are.
    */
   private void escape(String text, boolean attribute) throws IOException {
     int run = 0;
@@ -153,6 +193,8 @@ public final class XmlSerializer {
             case '>' -> "&gt;";
             case '\r' -> "&#13;";
             case '"' -> attribute ? "&quot;" : null;
+            case '\n' -> attribute ? "&#10;" : null;
+            case '\t' -> attribute ? "&#9;" : null;
             default -> null;
           };
       if (reference != null) {
