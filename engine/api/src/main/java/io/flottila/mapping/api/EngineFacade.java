@@ -333,7 +333,8 @@ public final class EngineFacade {
    * Runs one input message through a compiled mapping and returns the target message's bytes. A
    * test-run compile's trace is recorded and dropped; {@link #testRun} returns it.
    *
-   * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws MalformedInputException when the input is not well-formed in the mapping's input format
+   *     (ADR-0008, #98): XML, without a DOCTYPE, or JSON, without a duplicate key
    * @throws MappingRunException when the run meets a runtime error in its data, with its code and
    *     authoring id (ADR-0015 since #52)
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
@@ -378,7 +379,7 @@ public final class EngineFacade {
    *     entry keeps, at least 1
    * @return the target message, or the runtime error that stopped the run
    * @throws IllegalArgumentException when {@code traceLimit} is less than 1; nothing runs
-   * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws MalformedInputException when the input is not well-formed in the mapping's input format
    * @throws CancellationException when the calling thread is interrupted while it waits; its
    *     interrupt status is kept, and the run is interrupted too
    * @throws IllegalStateException when the run fails with an unchecked throwable, its cause
