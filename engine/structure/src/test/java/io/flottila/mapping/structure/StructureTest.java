@@ -224,4 +224,25 @@ class StructureTest {
           .isNotEqualTo(withRefusal);
     }
   }
+
+  /**
+   * #94: interleaved-target-group is a reason of its own, so the same field refused for it gives
+   * another fingerprint than for ambiguous-field-path; it holds in a target only, and
+   * ambiguous-field-path in a source too (ADR-0008 "Refused when a mapping uses the field").
+   */
+  @Test
+  void each_reason_gives_its_own_canonical_line_and_says_where_it_holds() {
+    Structure plain = randomStructure(new Random(7));
+    String typeId = new TreeMap<>(plain.types()).firstKey();
+    Refusal ambiguous = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, "a.xsd", 3, 4);
+    Refusal interleaved = new Refusal(Refusal.Reason.INTERLEAVED_TARGET_GROUP, "a.xsd", 3, 4);
+
+    assertThat(refusing(plain, typeId, 1, interleaved).fingerprint())
+        .isNotEqualTo(refusing(plain, typeId, 1, ambiguous).fingerprint())
+        .isNotEqualTo(plain.fingerprint());
+    assertThat(Refusal.Reason.INTERLEAVED_TARGET_GROUP.code())
+        .isEqualTo("interleaved-target-group");
+    assertThat(Refusal.Reason.INTERLEAVED_TARGET_GROUP.targetOnly()).isTrue();
+    assertThat(Refusal.Reason.AMBIGUOUS_FIELD_PATH.targetOnly()).isFalse();
+  }
 }
