@@ -72,14 +72,13 @@ import java.util.stream.IntStream;
  *       unmapped parent which is neither {@code n..n} with {@code n > 0} nor optional, so that PO
  *       requires it to be mapped (#63): {@code unsupported-field}; at {@code /target}, an unmapped
  *       field that would be created beyond the recursion cap (ADR-0008): {@code unsupported-field};
- *       once every target field mapping lowers, at {@code /targetFieldMappings/<field path>}, an
- *       unmapped structure field with {@code 0 < minOccurs < maxOccurs} under a parent that is
- *       created, as PO requires its mapping: {@code unsupported-field};
+ *       at {@code /targetFieldMappings/<field path>}, an unmapped structure field with {@code 0 <
+ *       minOccurs < maxOccurs} under a parent that is created, as PO requires its mapping: {@code
+ *       unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
- *   <li>once every target field mapping lowers, at {@code /targetFieldMappings/<field path>}, a
- *       target leaf with {@code minOccurs > 0} that has no target field mapping and stands under a
- *       parent that is created, the root, a mapped field or an unmapped {@code n..n} one (ADR-0006,
- *       #65): {@code unmapped-mandatory-leaf};
+ *   <li>at {@code /targetFieldMappings/<field path>}, a target leaf with {@code minOccurs > 0} that
+ *       has no target field mapping and stands under a parent that is created, the root, a mapped
+ *       field or an unmapped {@code n..n} one (ADR-0006, #65): {@code unmapped-mandatory-leaf};
  *   <li>a UDF box, or a function box whose function the catalogue does not hold yet: {@code
  *       unsupported-box-kind}; an unresolved box: {@code unresolved-function};
  *   <li>a function box against its catalogue entry: more inputs than the entry has, {@code
@@ -92,7 +91,10 @@ import java.util.stream.IntStream;
  *
  * <p>Only the boxes {@code result} reaches are checked: a box it does not reach is not, and the
  * inputs of a function box refused at the box are not either. A refused target field's boxes are
- * not checked, and after a function box's first refused input its later inputs are not.
+ * not checked, and after a function box's first refused input its later inputs are not. One pass
+ * reports all of these (#91): the target walk, which applies the unmapped rules, runs whether or
+ * not every target field mapping lowers, and a mapped field whose mapping does not lower counts as
+ * mapped in it.
  */
 public final class Lowering {
 
@@ -120,6 +122,9 @@ public final class Lowering {
   private final Structure source;
   private final Structure target;
   private final List<Diagnostic> found = new ArrayList<>();
+
+  /** The target fields that have a target field mapping, whether or not it lowers. */
+  private final Set<FieldPath> mapped = new HashSet<>();
 
   /** Whether the target walk met an unmapped field beyond the recursion cap, which stops it. */
   private boolean endless;
@@ -163,23 +168,21 @@ public final class Lowering {
   }
 
   private LowerResult lower() {
-    // the fields that are mapped, whether or not their mappings lower, for the parent check
-    Set<FieldPath> mapped = new HashSet<>();
+    // the fields that are mapped, for the parent check and the target walk
     for (String path : model.targetFieldMappings().keySet()) {
       resolve(target, path).ifPresent(mapped::add);
     }
     Map<FieldPath, Link> links = new HashMap<>();
-    model.targetFieldMappings().forEach((path, mapping) -> link(path, mapping, mapped, links));
-    if (!found.isEmpty()) {
-      return new Refused(found);
-    }
+    model.targetFieldMappings().forEach((path, mapping) -> link(path, mapping, links));
     FieldPath.Step root = target.root().step();
     // the root's namespace is met first, so it is ns0
     String rootPrefix = prefix(root.namespace());
+    // the walk goes on past a target field mapping that did not lower, so that one compile reports
+    // every stage-3 diagnostic (#91)
     List<Expr> content = children(target.rootPath(), links);
     if (!found.isEmpty()) {
-      // the walk met an unmapped mandatory leaf, an unmapped structure field that needs a mapping
-      // or an unmapped field beyond the recursion cap
+      // a target field mapping that does not lower, an unmapped mandatory leaf, an unmapped
+      // structure field that needs a mapping or an unmapped field beyond the recursion cap
       return new Refused(found);
     }
     TargetDocument document =
@@ -193,12 +196,9 @@ public final class Lowering {
   /**
    * Adds the link of the target field at {@code path} to {@code links}, or reports why it does not
    * lower: its field first, then its {@code result}.
-   *
-   * @param mapped the target fields that have a target field mapping
    */
-  private void link(
-      String path, TargetFieldMapping mapping, Set<FieldPath> mapped, Map<FieldPath, Link> links) {
-    targetField(path, mapping.id(), mapped)
+  private void link(String path, TargetFieldMapping mapping, Map<FieldPath, Link> links) {
+    targetField(path, mapping.id())
         .ifPresent(
             field ->
                 queue(mapping)
@@ -215,10 +215,8 @@ public final class Lowering {
    * the root down: a mapped parent and an unmapped {@code n..n} one ({@code n > 0}) are created, an
    * unmapped optional one is left out with the field in its subtree, which is accepted, and an
    * unmapped one with {@code 0 < min < max} is refused, because PO requires its mapping (#2 §2).
-   *
-   * @param mapped the target fields that have a target field mapping
    */
-  private Optional<FieldPath> targetField(String text, AuthoringId at, Set<FieldPath> mapped) {
+  private Optional<FieldPath> targetField(String text, AuthoringId at) {
     return named(target, text, at)
         .flatMap(
             path -> {
@@ -561,15 +559,17 @@ public final class Lowering {
   /**
    * The content of {@code parent}, in target field order: the {@code TargetSlots} of each mapped
    * child field, and the {@code TargetRepeat} of each unmapped child structure field that is {@code
-   * n..n} with {@code n > 0}. An unmapped optional child is left out with its subtree. An unmapped
-   * child leaf with {@code minOccurs > 0} would be missing from every occurrence of {@code parent},
-   * so it is refused at its absent target field mapping with {@code unmapped-mandatory-leaf}
-   * (ADR-0006), and the walk goes on. An unmapped child structure field with {@code 0 < min < max}
-   * needs a mapping in PO, so it is refused there with {@code unsupported-field}, and the walk goes
-   * on without entering it. An unmapped {@code n..n} structure field whose type its path already
-   * repeats {@link #RECURSION_CAP} times would be created without end, so it is refused at the
-   * model's {@code /target} with {@code unsupported-field} (ADR-0008), and that refusal stops the
-   * walk.
+   * n..n} with {@code n > 0}. A mapped child whose target field mapping does not lower, which is
+   * refused at that mapping, gives nothing, and the walk goes on below it as below a mapped child,
+   * so that one compile reports every stage-3 diagnostic (#91). An unmapped optional child is left
+   * out with its subtree. An unmapped child leaf with {@code minOccurs > 0} would be missing from
+   * every occurrence of {@code parent}, so it is refused at its absent target field mapping with
+   * {@code unmapped-mandatory-leaf} (ADR-0006), and the walk goes on. An unmapped child structure
+   * field with {@code 0 < min < max} needs a mapping in PO, so it is refused there with {@code
+   * unsupported-field}, and the walk goes on without entering it. An unmapped {@code n..n}
+   * structure field whose type its path already repeats {@link #RECURSION_CAP} times would be
+   * created without end, so it is refused at the model's {@code /target} with {@code
+   * unsupported-field} (ADR-0008), and that refusal stops the walk.
    */
   private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();
@@ -582,6 +582,9 @@ public final class Lowering {
       if (link != null) {
         content.add(
             single(link.value()) ? generated(child, link, links) : slots(child, link, links));
+      } else if (mapped.contains(child)) {
+        // its target field mapping is refused already; a leaf has no children
+        children(child, links);
       } else if (field.valueType().isPresent()) {
         if (field.occurrence().min() > 0) {
           found.add(
@@ -615,7 +618,7 @@ public final class Lowering {
           content.add(repeat(child, field, links));
         }
       } else if (field.occurrence().min() > 0) {
-        // 0 < min < max: a mapped field below would have been refused at its own mapping already
+        // 0 < min < max: a mapped field below is refused at its own mapping too (targetField)
         found.add(
             new Diagnostic(
                 Severity.ERROR,

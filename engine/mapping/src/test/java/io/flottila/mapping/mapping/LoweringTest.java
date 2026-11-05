@@ -569,9 +569,10 @@ class LoweringTest {
   /**
    * O1 of the #52 design refused a mapped field under any unmapped parent until #63. Since #63 Val
    * under the unmapped Row (1..2) is still unsupported-field at its target field mapping, because
-   * PO requires a mapping for {@code 0 < minOccurs < maxOccurs} (#2 §2). With Grp unmapped too, Grp
-   * (0..unbounded) is optional and left out with Row and Val, so the mapping compiles and creates
-   * nothing below the root.
+   * PO requires a mapping for {@code 0 < minOccurs < maxOccurs} (#2 §2). Since #91 the same compile
+   * goes on to the target walk, which refuses the unmapped Row itself at its absent target field
+   * mapping. With Grp unmapped too, Grp (0..unbounded) is optional and left out with Row and Val,
+   * so the mapping compiles and creates nothing below the root.
    */
   @Test
   void aMappedFieldUnderAnUnmappedParentNeedingAMappingIsUnsupportedField() {
@@ -579,7 +580,9 @@ class LoweringTest {
     assertThat(lowerNested(nestedMappings(true, true))).isInstanceOf(Lowered.class);
 
     assertThat(refused(lowerNested(nestedMappings(true, false))))
-        .containsExactly(errorAtId("unsupported-field", "t3"));
+        .containsExactly(
+            errorAtPointer("unsupported-field", unmapped(ROW)),
+            errorAtId("unsupported-field", "t3"));
     // until #63 this was unsupported-field at t3 too
     assertThat(lowered(lowerNested(nestedMappings(false, false))).content()).isEmpty();
   }
@@ -851,6 +854,70 @@ class LoweringTest {
                 .content())
         .extracting(Expr::origin)
         .containsExactly(new AuthoringId("/Doc/Head"), id("t1"), id("t3"));
+  }
+
+  // --- one-pass compile (#91, spec #89): lowering goes on past a target field mapping that fails,
+  // emits nothing for it, and still applies the unmapped rules
+
+  /** A target field mapping {@code id} whose box {@code s<id>} reads a field the source lacks. */
+  private static TargetFieldMapping orphaned(String id) {
+    return targetFieldMapping(
+        id, "s" + id, boxes("s" + id, source("/Orders/Order/Missing", "/Orders")));
+  }
+
+  /**
+   * The failing mapping of Free does not stop the walk: the unmapped mandatory Req under the
+   * created Head and Tilde under the root are reported in the same compile.
+   */
+  @Test
+  void aFailingTargetFieldMappingDoesNotHideTheUnmappedMandatoryLeaves() {
+    // witness: with Free lowering, the same two leaves are reported
+    assertThat(refused(lowerMandatory("/Doc/Free", orderId("t1"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Head/Req")),
+            errorAtPointer("unmapped-mandatory-leaf", unmapped(TILDE_LEAF)));
+
+    assertThat(refused(lowerMandatory("/Doc/Free", orphaned("t1"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Head/Req")),
+            errorAtPointer("unmapped-mandatory-leaf", unmapped(TILDE_LEAF)),
+            errorAtId("orphaned-reference", "st1"));
+  }
+
+  /** A mandatory leaf whose target field mapping fails is mapped: only the failure is reported. */
+  @Test
+  void aMandatoryLeafWhoseMappingFailsIsNotUnmapped() {
+    assertThat(refused(lowerMandatory("/Doc/Head/Req", orphaned("t2"), TILDE_LEAF, orderId("t3"))))
+        .containsExactly(errorAtId("orphaned-reference", "st2"));
+  }
+
+  /**
+   * The walk goes on below a structure field whose target field mapping fails, as below a mapped
+   * one: the unmapped mandatory Need under the failing Item is reported beside Item's failure.
+   */
+  @Test
+  void theWalkGoesOnBelowAStructureFieldWhoseMappingFails() {
+    // witness: with Item lowering, Need is reported alone
+    TargetFieldMapping item =
+        targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order", "/Orders")));
+    assertThat(
+            refused(
+                lowerMandatory(
+                    "/Doc/Head/Req", orderId("t2"), "/Doc/Item", item, TILDE_LEAF, orderId("t3"))))
+        .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Item/Need")));
+
+    assertThat(
+            refused(
+                lowerMandatory(
+                    "/Doc/Head/Req",
+                    orderId("t2"),
+                    "/Doc/Item",
+                    orphaned("t1"),
+                    TILDE_LEAF,
+                    orderId("t3"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Item/Need")),
+            errorAtId("orphaned-reference", "st1"));
   }
 
   @Test
