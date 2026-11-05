@@ -11,17 +11,16 @@ import java.util.List;
 import org.junit.jupiter.api.Named;
 
 /**
- * The wsdl root shapes as {@code contract/mapping-model.schema.json} defines them ({@code
- * $defs/wsdlRoot} and {@code wsdlOperation}). The schema is read and checked first, so a change to
- * it fails here before a root test passes on a stale shape. The json root has its reader since #97
- * and its own tests ({@code StructuresResourceTest.aJsonRootReadsAJsonSchemaBundle}).
+ * The wsdl and json root shapes as {@code contract/mapping-model.schema.json} defines them ({@code
+ * $defs/wsdlRoot}, {@code wsdlOperation} and {@code jsonRoot}). The schema is read and checked
+ * first, so a change to it fails here before a root test passes on a stale shape.
  */
 final class RootShapes {
 
   private RootShapes() {}
 
-  /** Every direction of the schema's enum, with and without a fault. */
-  static List<Named<String>> wsdl() {
+  /** Every direction of the schema's enum, with and without a fault, then the JSON root. */
+  static List<Named<String>> wsdlAndJson() {
     JsonNode defs = schema().path("$defs");
     JsonNode operation = defs.path("wsdlOperation");
     assertThat(names(operation.path("properties")))
@@ -39,6 +38,8 @@ final class RootShapes {
         .as("wsdlOperation directions")
         .containsExactly("input", "output", "fault");
     assertThat(names(defs.path("wsdlRoot").path("properties"))).containsExactly("wsdl");
+    assertThat(defs.path("jsonRoot").path("properties").path("json").path("const").textValue())
+        .isEqualTo("$");
 
     List<Named<String>> shapes = new ArrayList<>();
     for (String direction : directions) {

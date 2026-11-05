@@ -194,16 +194,15 @@ class StructuresResourceTest {
   }
 
   /**
-   * The service's root translator takes every wsdl shape of the model schema and hands it to the
-   * engine, which in milestone 1 refuses it with {@code root-selector-unsupported} at line 1,
-   * column 1 of the bundle's file ({@code
-   * StructureReaderTest.a_WSDL_root_is_refused_until_its_reader_exists}). A 400 would mean the
-   * translator refused a shape the schema defines. The json shape has its reader since #97 ({@link
-   * #aJsonRootReadsAJsonSchemaBundle}).
+   * The service's root translator takes every wsdl and json shape of the model schema and hands it
+   * to the engine, which in milestone 1 refuses it with {@code root-selector-unsupported} at line
+   * 1, column 1 of the bundle's file ({@code
+   * StructureReaderTest.WSDL_and_JSON_roots_are_refused_until_their_readers_exist}). A 400 would
+   * mean the translator refused a shape the schema defines.
    */
   @ParameterizedTest(name = "{0}")
-  @MethodSource("io.flottila.mapping.service.RootShapes#wsdl")
-  void wsdlRootsReachTheEngineAsTheModelSchemaDefinesThem(String rootShape) {
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAndJson")
+  void wsdlAndJsonRootsReachTheEngineAsTheModelSchemaDefinesThem(String rootShape) {
     String request =
         "{\"base\": \"structures/skeleton\", \"bundle\": [\"order.xsd\"], \"root\": "
             + rootShape
@@ -286,7 +285,9 @@ class StructuresResourceTest {
     assertThat(reply.status()).as("%s", reply).isEqualTo(200);
     assertThat(reply.json().path("kind").textValue()).as("%s", reply).isEqualTo("refused");
     assertThat(described(reply.json().path("diagnostics")))
-        .containsExactly("error schema-reference-outside-bundle at file order.schema.json 7:16");
+        .containsExactly(
+            "error schema-reference-outside-bundle at file order.schema.json 7:16",
+            "error schema-reference-outside-bundle at file order.schema.json 8:17");
   }
 
   /**

@@ -405,7 +405,30 @@ class JsonSchemaReaderTest {
             List.of("errors/second.schema.json", "errors/first.schema.json"),
             List.of(
                 "schema-reference-outside-bundle errors/second.schema.json 5:14",
-                "schema-reference-outside-bundle errors/first.schema.json 6:15")));
+                "schema-reference-outside-bundle errors/first.schema.json 6:15")),
+        argumentSet(
+            "a root schema the resolver cannot read, then the errors of the next file",
+            List.of("errors/missing.schema.json", "errors/two-outside.schema.json"),
+            List.of(
+                "schema-unreadable errors/missing.schema.json 1:1",
+                "schema-reference-outside-bundle errors/two-outside.schema.json 5:15",
+                "schema-reference-outside-bundle errors/two-outside.schema.json 6:14")),
+        argumentSet(
+            "json-sKema's problems beside a $ref outside the bundle and a $dynamicRef, which are"
+                + " dropped for the load",
+            List.of("errors/mixed.schema.json"),
+            List.of(
+                "schema-reference-outside-bundle errors/mixed.schema.json 5:15",
+                "schema-invalid errors/mixed.schema.json 6:15",
+                "schema-construct-unsupported errors/mixed.schema.json 7:14",
+                "schema-invalid errors/mixed.schema.json 8:15")),
+        argumentSet(
+            "the walk's refusals, a shared one once",
+            List.of("errors/walk.schema.json"),
+            List.of(
+                "schema-invalid errors/walk.schema.json 7:30",
+                "schema-construct-unsupported errors/walk.schema.json 10:34",
+                "schema-construct-unsupported errors/walk.schema.json 12:33")));
   }
 
   /**

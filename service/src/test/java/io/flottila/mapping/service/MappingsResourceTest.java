@@ -420,15 +420,14 @@ class MappingsResourceTest {
   }
 
   /**
-   * A create whose root is a wsdl shape of the model schema reaches the engine, which in milestone
-   * 1 refuses it at line 1, column 1 of the bundle's file ({@code
-   * StructureReaderTest.a_WSDL_root_is_refused_until_its_reader_exists}): 422 {@code
-   * model-refused}, never 400 {@code invalid-request}. Only the source has the shape. The json
-   * shape has its reader since #97.
+   * A create whose root is a wsdl or json shape of the model schema reaches the engine, which in
+   * milestone 1 refuses it at line 1, column 1 of the bundle's file ({@code
+   * StructureReaderTest.WSDL_and_JSON_roots_are_refused_until_their_readers_exist}): 422 {@code
+   * model-refused}, never 400 {@code invalid-request}. Only the source has the shape.
    */
   @ParameterizedTest(name = "{0}")
-  @MethodSource("io.flottila.mapping.service.RootShapes#wsdl")
-  void createWithAWsdlRootIsTheEnginesRefusal(String rootShape) {
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAndJson")
+  void createWithAWsdlOrJsonRootIsTheEnginesRefusal(String rootShape) {
     TempWorkspace.mkdirs("creating-root");
     String target = createRequest("creating-root/order", "../structures/skeleton/order.xsd", ORDER);
     String request =

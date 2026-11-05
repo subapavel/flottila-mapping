@@ -267,6 +267,7 @@ class StructuresTest {
     assertThat(resolver.calls()).containsExactly("order.schema.json", "defs/address.schema.json");
   }
 
+  /** Each $ref outside the bundle is a load error at that $ref, in document order (ADR-0008). */
   @Test
   void aJsonRefOutsideTheBundleIsALoadErrorAtTheRef() throws Exception {
     RecordingResolver resolver =
@@ -274,12 +275,18 @@ class StructuresTest {
             .file(
                 "order.schema.json", Files.readAllBytes(JSON_BUNDLE.resolve("order.schema.json")));
 
-    Diagnostic diagnostic =
-        refused(Structures.load(resolver, bundle("order.schema.json"), new JsonRoot()));
+    List<Diagnostic> diagnostics =
+        refusedAll(Structures.load(resolver, bundle("order.schema.json"), new JsonRoot()));
 
-    assertThat(diagnostic.code()).isEqualTo("schema-reference-outside-bundle");
-    assertThat(diagnostic.location()).isEqualTo(new AtFilePosition("order.schema.json", 7, 16));
-    assertThat(diagnostic.message()).contains("\"defs/address.schema.json\"");
+    assertThat(diagnostics)
+        .extracting(Diagnostic::code)
+        .containsOnly("schema-reference-outside-bundle");
+    assertThat(diagnostics)
+        .extracting(Diagnostic::location)
+        .containsExactly(
+            new AtFilePosition("order.schema.json", 7, 16),
+            new AtFilePosition("order.schema.json", 8, 17));
+    assertThat(diagnostics.getFirst().message()).contains("\"defs/address.schema.json\"");
     assertThat(resolver.calls()).containsExactly("order.schema.json");
   }
 

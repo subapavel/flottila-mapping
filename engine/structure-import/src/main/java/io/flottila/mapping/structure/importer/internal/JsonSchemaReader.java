@@ -30,6 +30,7 @@ import com.github.erosb.jsonsKema.Schema;
 import com.github.erosb.jsonsKema.SchemaClient;
 import com.github.erosb.jsonsKema.SchemaLoader;
 import com.github.erosb.jsonsKema.SchemaLoaderConfig;
+import com.github.erosb.jsonsKema.SchemaLoadingException;
 import com.github.erosb.jsonsKema.SourceLocation;
 import com.github.erosb.jsonsKema.TextLocation;
 import com.github.erosb.jsonsKema.TypeSchema;
@@ -37,7 +38,6 @@ import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
-import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.StructureType;
 import io.flottila.mapping.structure.ValueType;
@@ -51,6 +51,7 @@ import java.nio.charset.CodingErrorAction;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,8 +76,9 @@ import java.util.stream.Stream;
  * reference and whatever an {@code $id} says, before that file is read; an absolute one names the
  * bundle file whose root {@code $id} it is (ADR-0008, the closed bundle). Every {@code $ref} is
  * then rewritten to its file's URI and a JSON pointer, and json-sKema loads the files from memory:
- * it reads no file and no URL, only its own copy of the 2020-12 meta-schema. The loaded schema is
- * walked into fields:
+ * it reads no file and no URL, only its own copy of the 2020-12 meta-schema. One read reports every
+ * load error, files in bundle order and each file in document order (ADR-0008); a keyword refused
+ * before the load is dropped for it. The loaded schema is walked into fields:
  *
  * <ul>
  *   <li>an object's properties keep their declared order: its own {@code properties} first, then
@@ -92,16 +94,6 @@ import java.util.stream.Stream;
  * </ul>
  */
 public final class JsonSchemaReader {
-
-  /** Reads a file the bundle lists, through the host's resolver. */
-  @FunctionalInterface
-  public interface BundleFiles {
-
-    /**
-     * @throws StructureLoadException when the resolver refuses the file
-     */
-    byte[] content(String reference) throws StructureLoadException;
-  }
 
   /** The {@code $schema} of draft 2020-12, the one draft read (ADR-0008). */
   private static final String DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
@@ -123,8 +115,14 @@ public final class JsonSchemaReader {
           .collect(
               Collectors.toMap(t -> t.name().toLowerCase(Locale.ROOT).replace('_', '-'), t -> t));
 
-  private final SchemaBundle bundle;
-  private final BundleFiles files;
+  /** The bundle's files, in bundle order. */
+  private final List<String> files;
+
+  /** Every load error so far, in the order found. */
+  private final List<StructureLoadException> errors;
+
+  /** The code and position of each load error so far, so that each is reported once. */
+  private final Set<String> reported = new HashSet<>();
 
   /** The bundle's references by their normalised text. */
   private final Map<String, String> listed = new HashMap<>();
@@ -132,11 +130,23 @@ public final class JsonSchemaReader {
   /** How many {@code ..} segments the bundle's references start with, at most. */
   private final int up;
 
-  /** Each file read, parsed, by the URI json-sKema knows it by. */
+  /**
+   * Each file json-sKema loads, parsed, by the URI it knows it by: a file that is not well-formed,
+   * holds no object or is of another draft stops there (ADR-0008) and is not loaded.
+   */
   private final Map<URI, IJsonValue> documents = new LinkedHashMap<>();
 
-  /** The bundle reference of each file read, by its URI. */
+  /** The files of another draft, which stop after their scan. */
+  private final Set<String> stopped = new HashSet<>();
+
+  /** The bundle reference of each file parsed, by its URI. */
   private final Map<URI, String> references = new HashMap<>();
+
+  /**
+   * What json-sKema gets instead of a keyword's value: a {@code $ref}'s file URI and pointer, or
+   * nothing for a keyword that is dropped because its error is reported already.
+   */
+  private final Map<IJsonValue, Optional<String>> rewrites = new IdentityHashMap<>();
 
   /** The bundle reference of each file read that has a root {@code $id}, by that {@code $id}. */
   private final Map<String, String> rootIds = new HashMap<>();
@@ -152,11 +162,11 @@ public final class JsonSchemaReader {
   /** The ids of the structure types begun, so that a recursive type ends. */
   private final Set<String> begun = new HashSet<>();
 
-  private JsonSchemaReader(SchemaBundle bundle, BundleFiles files) {
-    this.bundle = bundle;
+  private JsonSchemaReader(List<String> files, List<StructureLoadException> errors) {
     this.files = files;
+    this.errors = new ArrayList<>(errors);
     int most = 0;
-    for (String file : bundle.files()) {
+    for (String file : files) {
       String text = normalised(file);
       listed.put(text, file);
       most = Math.max(most, leadingUps(text));
@@ -165,50 +175,65 @@ public final class JsonSchemaReader {
   }
 
   /**
-   * @throws StructureLoadException when a file cannot be read, is not well-formed, is not valid, or
-   *     uses a construct ADR-0008 refuses
+   * @param files the bundle's files, in bundle order; the first is the root schema
+   * @param contents the bytes of each file the host's resolver read, by its name in {@code files}
+   * @param errors the load errors so far, of files the resolver did not read; the read adds its own
+   * @throws StructureLoadException with every load error, files in bundle order and each file in
+   *     document order (ADR-0008)
    */
   public static Structure read(
       List<String> files, Map<String, byte[]> contents, List<StructureLoadException> errors)
       throws StructureLoadException {
-    if (!errors.isEmpty()) {
-      throw new StructureLoadException(errors);
-    }
-    return new JsonSchemaReader(new SchemaBundle(files), contents::get).read();
-  }
-
-  private Structure read() throws StructureLoadException {
-    String rootFile = bundle.files().getFirst();
-    Deque<String> pending = new ArrayDeque<>(List.of(rootFile));
-    while (!pending.isEmpty()) {
-      String next = pending.removeFirst();
-      if (!references.containsValue(next)) {
-        readFile(next, pending);
-      }
-    }
-    Map<IJsonValue, String> rewrites = new IdentityHashMap<>();
-    for (Ref ref : refs) {
-      rewrites.put(ref.value(), target(ref));
-    }
-
-    Schema root = load(rootFile, rewrites);
-    Shape shape = shape(root);
-    if (shape.items().isPresent() || shape.type().isEmpty()) {
-      throw refusal(
-          StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
-          root.getLocation(),
-          "the root schema is not an object; a JSON root is an object (ADR-0008)");
-    }
-    FieldPath.Step dollar = new FieldPath.Step(FieldKind.JSON_PROPERTY, "", "$");
-    return new Structure(
-        new Field(dollar, new Occurrence(1, 1), Optional.empty(), false, shape.type()), types);
+    return new JsonSchemaReader(files, errors).read(contents);
   }
 
   /**
-   * Reads, parses and scans one bundle file, adding the files its {@code $ref}s name to {@code
-   * pending}.
+   * Every file is read and checked, then json-sKema loads the files that do not stop with their
+   * refused keywords dropped, then the loaded schema is walked into fields. json-sKema loads a
+   * whole schema or none, so the walk's refusals are found only when nothing before it failed.
    */
-  private void readFile(String reference, Deque<String> pending) throws StructureLoadException {
+  private Structure read(Map<String, byte[]> contents) throws StructureLoadException {
+    for (String file : files) {
+      byte[] content = contents.get(file);
+      // a file the resolver did not read has its error already
+      if (content != null) {
+        readFile(file, content);
+      }
+    }
+    for (Ref ref : refs) {
+      rewrites.put(ref.value(), target(ref));
+    }
+    URI rootUri = uri(files.getFirst());
+    Optional<Schema> loaded =
+        documents.containsKey(rootUri) ? load(rootUri) : Optional.<Schema>empty();
+    if (loaded.isPresent() && errors.isEmpty()) {
+      Schema root = loaded.get();
+      Shape shape = shape(root);
+      if (shape.items().isPresent() || shape.type().isEmpty()) {
+        report(
+            StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+            root.getLocation(),
+            "the root schema is not an object; a JSON root is an object (ADR-0008)");
+      }
+      if (errors.isEmpty()) {
+        FieldPath.Step dollar = new FieldPath.Step(FieldKind.JSON_PROPERTY, "", "$");
+        return new Structure(
+            new Field(dollar, new Occurrence(1, 1), Optional.empty(), false, shape.type()), types);
+      }
+    }
+    List<StructureLoadException> ordered = new ArrayList<>(errors);
+    ordered.sort(
+        Comparator.comparingInt((StructureLoadException e) -> files.indexOf(e.file()))
+            .thenComparingInt(StructureLoadException::line)
+            .thenComparingInt(StructureLoadException::column));
+    throw new StructureLoadException(ordered);
+  }
+
+  /**
+   * Reads, parses and scans one bundle file. A file that is not UTF-8, not well-formed or holds no
+   * object stops at that error.
+   */
+  private void readFile(String reference, byte[] content) {
     String text;
     try {
       text =
@@ -216,15 +241,17 @@ public final class JsonSchemaReader {
               .newDecoder()
               .onMalformedInput(CodingErrorAction.REPORT)
               .onUnmappableCharacter(CodingErrorAction.REPORT)
-              .decode(ByteBuffer.wrap(files.content(reference)))
+              .decode(ByteBuffer.wrap(content))
               .toString();
     } catch (CharacterCodingException e) {
-      throw new StructureLoadException(
-          StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
-          reference,
-          1,
-          1,
-          "the schema file is not UTF-8");
+      errors.add(
+          new StructureLoadException(
+              StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
+              reference,
+              1,
+              1,
+              "the schema file is not UTF-8"));
+      return;
     }
     URI uri = uri(reference);
     IJsonValue json;
@@ -233,25 +260,30 @@ public final class JsonSchemaReader {
     } catch (JsonParseException e) {
       // json-sKema's message names its URI for the file, so the engine words its own
       TextLocation at = e.getLocation();
-      throw new StructureLoadException(
-          StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
-          reference,
-          at.getLineNumber(),
-          at.getPosition(),
-          "the schema file is not well-formed JSON here");
+      errors.add(
+          new StructureLoadException(
+              StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
+              reference,
+              at.getLineNumber(),
+              at.getPosition(),
+              "the schema file is not well-formed JSON here"));
+      return;
     }
-    documents.put(uri, json);
     references.put(uri, reference);
     if (!(json instanceof IJsonObject object)) {
-      throw refusal(
+      report(
           StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
           json.getLocation(),
           "the schema file does not hold a JSON object; a JSON root is an object (ADR-0008)");
+      return;
     }
     if (object.get("$id") instanceof IJsonString id) {
       rootIds.putIfAbsent(id.getValue(), reference);
     }
-    scan(reference, json, pending);
+    scan(reference, json);
+    if (!stopped.contains(reference)) {
+      documents.put(uri, json);
+    }
   }
 
   /**
@@ -259,69 +291,63 @@ public final class JsonSchemaReader {
    * no {@code $dynamicRef}, and a relative {@code $ref} to another file names a bundle file.
    * Records the {@code $anchor}s and the {@code $ref}s.
    */
-  private void scan(String reference, IJsonValue value, Deque<String> pending)
-      throws StructureLoadException {
+  private void scan(String reference, IJsonValue value) {
     if (value instanceof IJsonObject object) {
       for (Map.Entry<IJsonString, IJsonValue> member : object.getProperties().entrySet()) {
         IJsonString key = member.getKey();
         // a keyword's value is a string; a property of that name holds a schema, which is scanned
         if (member.getValue() instanceof IJsonString text) {
-          keyword(reference, object, key, text, pending);
+          keyword(reference, object, key, text);
         } else {
-          scan(reference, member.getValue(), pending);
+          scan(reference, member.getValue());
         }
       }
     } else if (value instanceof IJsonArray array) {
       for (IJsonValue element : array.getElements()) {
-        scan(reference, element, pending);
+        scan(reference, element);
       }
     }
   }
 
-  private void keyword(
-      String reference,
-      IJsonObject schema,
-      IJsonString key,
-      IJsonString value,
-      Deque<String> pending)
-      throws StructureLoadException {
+  private void keyword(String reference, IJsonObject schema, IJsonString key, IJsonString value) {
     switch (key.getValue()) {
       case "$schema" -> {
         if (!value.getValue().equals(DRAFT_2020_12)) {
-          throw refusal(
+          report(
               StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
               key.getLocation(),
               "the schema is not JSON Schema draft 2020-12, the one draft read (ADR-0008): "
                   + value.getValue());
+          stopped.add(reference);
         }
       }
-      case "$dynamicRef" ->
-          throw refusal(
-              StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
-              key.getLocation(),
-              "$dynamicRef is not read (ADR-0008)");
+      case "$dynamicRef" -> {
+        report(
+            StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
+            key.getLocation(),
+            "$dynamicRef is not read (ADR-0008)");
+        rewrites.put(value, Optional.empty());
+      }
       case "$anchor" ->
           anchors
               .computeIfAbsent(reference, r -> new HashMap<>())
               .put(value.getValue(), encoded(pointer(schema.getLocation())));
-      case "$ref" -> ref(reference, key, value, pending);
+      case "$ref" -> ref(reference, key, value);
       default -> {}
     }
   }
 
   /**
    * Maps a relative {@code $ref} to the bundle file it names, by text against the referring file's
-   * bundle reference and before any read, whatever an {@code $id} says (ADR-0008, the closed
-   * bundle). An absolute one names a file by its root {@code $id}, so every bundle file is read.
+   * bundle reference, whatever an {@code $id} says (ADR-0008, the closed bundle). An absolute one
+   * names a file by its root {@code $id}, known once every file is read.
    */
-  private void ref(String reference, IJsonString key, IJsonString value, Deque<String> pending)
-      throws StructureLoadException {
+  private void ref(String reference, IJsonString key, IJsonString value) {
     String ref = value.getValue();
     int hash = ref.indexOf('#');
     String path = hash < 0 ? ref : ref.substring(0, hash);
     String fragment = hash < 0 ? "" : ref.substring(hash + 1);
     if (ABSOLUTE.matcher(path).lookingAt()) {
-      pending.addAll(bundle.files());
       refs.add(new Ref(key.getLocation(), value, path, Optional.empty(), fragment));
       return;
     }
@@ -330,7 +356,7 @@ public final class JsonSchemaReader {
       String named = normalised(reference.substring(0, reference.lastIndexOf('/') + 1) + path);
       target = listed.get(named);
       if (target == null) {
-        throw refusal(
+        report(
             StructureImportDiagnostics.SCHEMA_REFERENCE_OUTSIDE_BUNDLE,
             key.getLocation(),
             "the $ref \""
@@ -338,8 +364,9 @@ public final class JsonSchemaReader {
                 + "\" names \""
                 + named
                 + "\", which the schema bundle does not list");
+        rewrites.put(value, Optional.empty());
+        return;
       }
-      pending.addLast(target);
     }
     refs.add(new Ref(key.getLocation(), value, path, Optional.of(target), fragment));
   }
@@ -347,12 +374,13 @@ public final class JsonSchemaReader {
   /**
    * The URI a {@code $ref} is rewritten to before json-sKema loads it: its bundle file's URI and a
    * JSON pointer from that file's root, so that no {@code $id} changes what it names. An anchor is
-   * replaced by its pointer.
+   * replaced by its pointer. Empty when the {@code $ref} is dropped: it names no bundle file, a
+   * file that stopped at its own error, or no anchor.
    */
-  private String target(Ref ref) throws StructureLoadException {
+  private Optional<String> target(Ref ref) {
     String file = ref.file().orElse(rootIds.get(ref.path()));
     if (file == null) {
-      throw refusal(
+      report(
           StructureImportDiagnostics.SCHEMA_REFERENCE_OUTSIDE_BUNDLE,
           ref.at(),
           "the $ref \""
@@ -360,71 +388,96 @@ public final class JsonSchemaReader {
               + "\" names \""
               + ref.path()
               + "\", which no file of the schema bundle has as its root $id");
+      return Optional.empty();
+    }
+    if (!documents.containsKey(uri(file))) {
+      return Optional.empty();
     }
     String pointer = ref.fragment();
     // a fragment that is no JSON pointer names an anchor
     if (!pointer.isEmpty() && !pointer.startsWith("/")) {
       pointer = anchors.getOrDefault(file, Map.of()).get(pointer);
       if (pointer == null) {
-        throw refusal(
+        report(
             StructureImportDiagnostics.SCHEMA_INVALID,
             ref.at(),
             "the $ref names the anchor \"" + ref.fragment() + "\", which no $anchor declares");
+        return Optional.empty();
       }
     }
-    return uri(file) + "#" + pointer;
+    return Optional.of(uri(file) + "#" + pointer);
   }
 
   /**
-   * Loads the root schema with json-sKema, from the files read with their {@code $ref}s rewritten.
+   * Loads the root schema with json-sKema, from the files that do not stop, with their {@code
+   * $ref}s rewritten and their refused keywords dropped. Empty when json-sKema finds the schema
+   * invalid: each of its problems is reported.
    */
-  private Schema load(String rootFile, Map<IJsonValue, String> rewrites)
-      throws StructureLoadException {
-    Map<URI, IJsonValue> files = new HashMap<>();
-    documents.forEach((uri, json) -> files.put(uri, rewritten(json, rewrites)));
-    URI root = uri(rootFile);
+  private Optional<Schema> load(URI root) {
+    Map<URI, IJsonValue> loaded = new HashMap<>();
+    documents.forEach((uri, json) -> loaded.put(uri, rewritten(json)));
+    List<SchemaLoadingException> problems;
     try {
-      try {
-        return new SchemaLoader(
-                files.get(root), new SchemaLoaderConfig(new BundleClient(files), root))
-            .load();
-      } catch (AggregateSchemaLoadingException all) {
-        // json-sKema gathers a schema's problems in document order; the first is reported
-        throw all.getCauses().getFirst();
-      }
-    } catch (RefResolutionException e) {
-      throw invalid(e.getRef().getLocation());
-    } catch (JsonTypeMismatchException e) {
-      throw invalid(e.getLocation());
+      return Optional.of(
+          new SchemaLoader(loaded.get(root), new SchemaLoaderConfig(new BundleClient(loaded), root))
+              .load());
+    } catch (AggregateSchemaLoadingException all) {
+      problems = all.getCauses();
+    } catch (RefResolutionException | JsonTypeMismatchException one) {
+      // one problem is thrown alone, two or more together
+      problems = List.of(one);
     }
+    for (SchemaLoadingException problem : problems) {
+      // the two problems json-sKema reports for a schema read from memory; another passes through
+      try {
+        throw problem;
+      } catch (RefResolutionException e) {
+        invalid(e.getRef().getLocation());
+      } catch (JsonTypeMismatchException e) {
+        invalid(e.getLocation());
+      }
+    }
+    return Optional.empty();
   }
 
-  private StructureLoadException invalid(SourceLocation at) {
-    return refusal(
+  private void invalid(SourceLocation at) {
+    report(
         StructureImportDiagnostics.SCHEMA_INVALID,
         at,
         "the schema is not valid JSON Schema 2020-12 here");
   }
 
-  /** A parsed file with each {@code $ref} value in {@code rewrites} replaced, at its position. */
-  private static IJsonValue rewritten(IJsonValue value, Map<IJsonValue, String> rewrites) {
-    String ref = rewrites.get(value);
-    if (ref != null) {
-      return new JsonString(ref, value.getLocation());
-    }
+  /**
+   * A parsed file with each keyword value in {@link #rewrites} replaced at its position, or dropped
+   * with its key.
+   */
+  private IJsonValue rewritten(IJsonValue value) {
     if (value instanceof IJsonObject object) {
       Map<IJsonString, IJsonValue> members = new LinkedHashMap<>();
-      object
-          .getProperties()
-          .forEach((key, member) -> members.put(key, rewritten(member, rewrites)));
+      for (Map.Entry<IJsonString, IJsonValue> member : object.getProperties().entrySet()) {
+        Optional<String> rewrite = rewrites.get(member.getValue());
+        if (rewrite == null) {
+          members.put(member.getKey(), rewritten(member.getValue()));
+        } else if (rewrite.isPresent()) {
+          members.put(
+              member.getKey(), new JsonString(rewrite.get(), member.getValue().getLocation()));
+        }
+      }
       return new JsonObject(members, object.getLocation());
     }
     if (value instanceof IJsonArray array) {
       return new JsonArray(
-          array.getElements().stream().map(element -> rewritten(element, rewrites)).toList(),
-          array.getLocation());
+          array.getElements().stream().map(this::rewritten).toList(), array.getLocation());
     }
     return value;
+  }
+
+  /** Adds a load error, unless one of that code is reported at that position already. */
+  private void report(String code, SourceLocation at, String message) {
+    StructureLoadException error = refusal(code, at, message);
+    if (reported.add(code + " " + error.file() + " " + error.line() + ":" + error.column())) {
+      errors.add(error);
+    }
   }
 
   /** The JSON pointer of a location, from its file's root. */
@@ -437,7 +490,7 @@ public final class JsonSchemaReader {
   }
 
   /** What a property's schema gives, as its field before the property's own occurrence. */
-  private Shape shape(Schema schema) throws StructureLoadException {
+  private Shape shape(Schema schema) {
     Facts facts = new Facts();
     gather(schema, facts);
     boolean nillable = facts.types.remove("null");
@@ -447,7 +500,7 @@ public final class JsonSchemaReader {
               ? new Shape(Optional.of(ValueType.STRING), Optional.empty(), Optional.empty(), false)
               : shape(facts.items.getItemsSchema());
       if (item.items().isPresent()) {
-        throw refusal(
+        report(
             StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
             facts.items.getLocation(),
             "an array of arrays is not read (ADR-0008)");
@@ -484,7 +537,7 @@ public final class JsonSchemaReader {
    * The id of the structure type of an object schema, its fields added to {@link #types} the first
    * time. A schema that is a {@code $ref} and nothing else has the type of the schema it names.
    */
-  private String type(CompositeSchema schema) throws StructureLoadException {
+  private String type(CompositeSchema schema) {
     CompositeSchema named = schema;
     while (named.getPropertySchemas().isEmpty()
         && named.getSubschemas().size() == 1
@@ -507,12 +560,11 @@ public final class JsonSchemaReader {
   }
 
   /** One field for every declaration of a property, which must all give one shape. */
-  private Field field(String name, List<Declaration> declarations, Set<String> required)
-      throws StructureLoadException {
+  private Field field(String name, List<Declaration> declarations, Set<String> required) {
     Shape shape = shape(declarations.getFirst().schema());
     for (Declaration declaration : declarations.subList(1, declarations.size())) {
       if (!shape(declaration.schema()).equals(shape)) {
-        throw refusal(
+        report(
             StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
             declaration.schema().getLocation(),
             "the property \"" + name + "\" is declared again with another shape (ADR-0008)");
@@ -540,7 +592,7 @@ public final class JsonSchemaReader {
    * other keyword is ignored, {@code additionalProperties}, {@code patternProperties}, {@code
    * if}/{@code then}/{@code else} and {@code not} among them (ADR-0008).
    */
-  private void gather(Schema schema, Facts facts) throws StructureLoadException {
+  private void gather(Schema schema, Facts facts) {
     if (!facts.seen.add(schema)) {
       return;
     }
@@ -562,13 +614,14 @@ public final class JsonSchemaReader {
       case TypeSchema type -> facts.types.add(type.getType().getValue());
       case MultiTypeSchema list -> {
         for (IJsonValue type : list.getTypes().getElements()) {
-          if (!(type instanceof IJsonString name)) {
-            throw refusal(
+          if (type instanceof IJsonString name) {
+            facts.types.add(name.getValue());
+          } else {
+            report(
                 StructureImportDiagnostics.SCHEMA_INVALID,
                 type.getLocation(),
                 "a type list holds type names, and this is no string");
           }
-          facts.types.add(name.getValue());
         }
       }
       case FormatSchema format -> facts.format = format.getFormat();

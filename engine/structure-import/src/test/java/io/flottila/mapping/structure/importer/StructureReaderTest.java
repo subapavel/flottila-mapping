@@ -424,27 +424,25 @@ class StructureReaderTest {
             });
   }
 
-  /**
-   * The JSON root has its reader since #97 ({@code JsonSchemaReaderTest}, which also reads this
-   * bundle under the JSON root).
-   */
   @Test
-  void a_WSDL_root_is_refused_until_its_reader_exists() {
+  void WSDL_and_JSON_roots_are_refused_until_their_readers_exist() {
     RootSelector wsdl =
         new WsdlRoot(
             new WsdlOperation("OrderService", "submit", WsdlDirection.INPUT, Optional.empty()));
-    assertThatThrownBy(
-            () ->
-                new StructureReader(DirectoryResolver.over(SKELETON))
-                    .read(new SchemaBundle(List.of("order.xsd")), wsdl))
-        .isInstanceOfSatisfying(
-            StructureLoadException.class,
-            e -> {
-              assertThat(e.code()).isEqualTo("root-selector-unsupported");
-              assertThat(e.file()).isEqualTo("order.xsd");
-              assertThat(e.line()).isEqualTo(1);
-              assertThat(e.column()).isEqualTo(1);
-            });
+    for (RootSelector root : List.of(wsdl)) {
+      assertThatThrownBy(
+              () ->
+                  new StructureReader(DirectoryResolver.over(SKELETON))
+                      .read(new SchemaBundle(List.of("order.xsd")), root))
+          .isInstanceOfSatisfying(
+              StructureLoadException.class,
+              e -> {
+                assertThat(e.code()).isEqualTo("root-selector-unsupported");
+                assertThat(e.file()).isEqualTo("order.xsd");
+                assertThat(e.line()).isEqualTo(1);
+                assertThat(e.column()).isEqualTo(1);
+              });
+    }
   }
 
   /**
