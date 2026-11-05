@@ -258,6 +258,26 @@ final class TestStructures {
         structureField("Body", 0, 1, "/Doc/Body"));
   }
 
+  /**
+   * Same-step siblings of their own type (#89): under {@code Doc}, the leaf {@code Id} 0..1 and
+   * {@code a} 0..1 of the type {@code /A}, which holds {@code a} 0..1 twice of the type {@code /A}
+   * (both refused at 5:40). A path of n {@code a} steps is held by 2^n chains. No namespace.
+   */
+  static Structure twinSelf() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/A",
+            new StructureType(
+                "/A",
+                List.of(
+                    refused(structureField("a", 0, 1, "/A"), 5, 40),
+                    refused(structureField("a", 0, 1, "/A"), 5, 40)))),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        structureField("a", 0, 1, "/A"));
+  }
+
   /** The schema file {@link #abstractTarget()}'s refusals name. */
   static final String SHAPES_FILE = "shapes.xsd";
 

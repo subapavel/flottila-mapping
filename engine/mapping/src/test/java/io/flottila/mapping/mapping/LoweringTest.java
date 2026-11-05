@@ -1241,6 +1241,52 @@ class LoweringTest {
         structure);
   }
 
+  /**
+   * Resolution matches a step below each same-step sibling in turn, and remembers the type and step
+   * below which a path's rest failed (#89): a 40-step path through the twin {@code a} of {@link
+   * TestStructures#twinSelf()}, ending in a step the structure lacks, is orphaned-reference within
+   * the timeout, where trying every chain of siblings takes 2^38 tries. 2 s stays below PIT's own
+   * timeout, so a mutant without the memo is killed here rather than timed out.
+   */
+  @Test
+  void aLongPathThroughSameStepSiblingsOfOneTypeResolvesInPolynomialTime() {
+    Structure structure = TestStructures.twinSelf();
+    String missing = "/Doc" + "/a".repeat(38) + "/Missing";
+
+    LowerResult result =
+        assertTimeoutPreemptively(
+            Duration.ofSeconds(2),
+            () ->
+                Lowering.lower(
+                    model(
+                        ref(structure),
+                        ref(structure),
+                        targetFieldMappings("/Doc/Id", copy("t1", missing)),
+                        Map.of()),
+                    structure,
+                    structure));
+
+    assertThat(refused(result)).containsExactly(errorAtId("orphaned-reference", "st1"));
+  }
+
+  /** A leaf holds no field: a path with a step below it is orphaned-reference. */
+  @Test
+  void aPathBelowALeafIsAnOrphanedReference() {
+    Structure structure = TestStructures.twinSelf();
+
+    LowerResult result =
+        Lowering.lower(
+            model(
+                ref(structure),
+                ref(structure),
+                targetFieldMappings("/Doc/Id", copy("t1", "/Doc/Id/Below")),
+                Map.of()),
+            structure,
+            structure);
+
+    assertThat(refused(result)).containsExactly(errorAtId("orphaned-reference", "st1"));
+  }
+
   /** A target field mapping {@code id} whose result is the source-field box {@code s<id>}. */
   private static TargetFieldMapping copy(String id, String sourceField) {
     return targetFieldMapping(id, "s" + id, boxes("s" + id, source(sourceField)));
