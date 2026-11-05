@@ -9,7 +9,11 @@ import io.flottila.mapping.api.CompileResult;
 import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.ExportResult;
+import io.flottila.mapping.api.StructureResult;
+import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.runtime.MappingRunException;
+import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -47,7 +51,10 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class EveryInputDataErrorTest {
 
-  private static final String FINGERPRINT = "sha256:" + "0".repeat(64);
+  /** The fingerprints of the kit's structures, as compile checks them (#91). */
+  private static final String SOURCE_FINGERPRINT = fingerprint("src-orders.xsd", "Orders");
+
+  private static final String TARGET_FINGERPRINT = fingerprint("tgt-list.xsd", "Out");
   private static final String CODE = "err:FOAR0001";
 
   /** The values the other inputs take, one at a time. */
@@ -109,13 +116,13 @@ class EveryInputDataErrorTest {
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
-         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%5$s",
                     "root": {"element": "Out"}},
          "targetFieldMappings": {
            "/Out/All": {"id": "T1", "result": "F1", "boxes": {
              "F1": {"kind": "function", "fn": "%2$s", "inputs": [%3$s]}%4$s}}}}
         """
-        .formatted(FINGERPRINT, fn, String.join(", ", inputs), boxes)
+        .formatted(SOURCE_FINGERPRINT, fn, String.join(", ", inputs), boxes, TARGET_FINGERPRINT)
         .getBytes(UTF_8);
   }
 
@@ -126,6 +133,13 @@ class EveryInputDataErrorTest {
 
   private static ReferenceResolver structures() {
     return DirectoryResolver.over(CaseFiles.corpus().resolve("structures/observations"));
+  }
+
+  /** The fingerprint the engine derives for {@code file} of the kit under {@code root}. */
+  private static String fingerprint(String file, String root) {
+    StructureResult result =
+        Structures.load(structures(), new SchemaBundle(List.of(file)), new ElementRoot(root));
+    return ((StructureResult.Loaded) result).structure().fingerprint();
   }
 
   private CompiledMapping compiled(byte[] model, CompileOptions options, String what)

@@ -49,3 +49,17 @@ Target wires: `Nil/Item` -> `Out/Item` (node to node); K1 -> `Out/Item/V`; E1 ->
 | --- | --- | --- |
 | `nil.xml` | Four items: `<Val>x</Val>`, `<Val xsi:nil="true"/>`, `<Val/>`, no `Val`. Does a nil element read as the empty string? Assumed: item 2 behaves like item 3, `V` = `!` (an empty string value), not like item 4 (no `V`). Assumed output `V`: `x!`, `!`, `!`, none; `W`: `true`, `true`, `true`, `false` (the `exists` result for item 2 is the open part; record it). | ADR-0008 bullet 2 |
 | `nil.json` | The same four items as JSON (`"x"`, `null`, `""`, missing key), validated against `nil.schema.json`. Convert with the CPI JSON to XML converter (root element name `Nil`, no namespace) and, on PO 7.5, the REST adapter's JSON to XML conversion (root `Nil`). Run the same mapping on the converted XML. Return the converted XML (before the mapping) and the output. Assumed: `null` reads as the empty string, so `V` = `x!`, `!`, `!`, none. If the converted XML does not use the root `Nil` and the elements `Item` / `Val`, return it unchanged and stop; do not adapt the mapping. | ADR-0008 bullet 2 |
+
+## Mapping str-required-attr (source `src-orders.xsd`, root `Orders`; target `tgt-required-attr.xsd`, root `Coded`)
+
+`Coded` carries the attribute `code`, declared `use="required"`; `Coded/V` is 0..unbounded.
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Id` with context `Orders` |
+
+Target wires: S1 -> `Coded/V`. The attribute `Coded/@code` stays unmapped. Nothing else is mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `target/requiredAttribute/001` | `attr1.xml` | Two orders, Id `X1` and `X2`. Is an unmapped `use="required"` attribute a design-time error, as an unmapped leaf element with `minOccurs` 1 is (obs-target-creation create-c)? Record the editor message and where it shows (save, activation, test), and what a run produces: `<Coded><V>X1</V><V>X2</V></Coded>` without `code`, an empty `code`, or an error. Assumed: design-time error, `unmapped-mandatory-leaf` at the absent target field mapping of `Coded/@code`; the run never starts. |

@@ -84,6 +84,12 @@ public final class MappingDiagnostics {
    */
   public static final String UNMAPPED_MANDATORY_LEAF = "unmapped-mandatory-leaf";
 
+  /**
+   * A side whose stored fingerprint is not the one its re-read schema bundle gives (ADR-0009 as
+   * amended on 2026-11-05, #91), at {@code /source/fingerprint} or {@code /target/fingerprint}.
+   */
+  public static final String FINGERPRINT_MISMATCH = "fingerprint-mismatch";
+
   // stage 3, a reached standard function box against its catalogue entry (ADR-0025)
 
   /** A function box with more inputs than its catalogue entry has, at the box. */
