@@ -9,3 +9,6 @@ Durable facts only (AGENTS.md, Memory).
   Seen: #83 put fixValues in `constant`; #70 said `conversions`.
 - A corpus case built with a stand-in for a function that did not exist yet keeps it after that
   function lands. Seen: target/max/004 used replaceValue for constant until the spec-3 review.
+- A general "accepted" clause in an ADR ("attributes in other namespaces") can hide exceptions the
+  code keeps: grep the code for them. Seen: spec #89 review, `vc:` attributes other than
+  `minVersion` stay refused.

@@ -125,3 +125,18 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - Tests in `engine/api` and `engine/oracle` once stored fake fingerprints (`"sha256:"+"0".repeat(64)`);
   compile now checks them (#91). Compute them with `Structures.load(...).structure().fingerprint()`
   (`Fingerprints.refreshed(model, base)` in api tests).
+- `engine/structure-import` has a 100 % branch ratchet and no PIT (spec 4).
+- Named modules need surefire `--add-opens` for test reflection. `-Dtest=… verify` trips JaCoCo's
+  check: use `test` for a single class (spec 4).
+- Refresh corpus mapping fingerprints through `EngineFacade.refresh` from a scratch launcher
+  (classpath via `dependency:build-classpath`). `ss` is missing; read `/proc/net/tcp` (spec 4).
+- json-sKema 0.32.0 `minItems`/`maxItems` is `requireNumber().getValue()`: Integer, BigInteger,
+  Double or BigDecimal. Never `longValue()` it (javap `MaxItemsKt`, spec #89 review).
+- A json-sKema keyword key's position comes from `getProperties().keySet()` filtered by name;
+  `get(name)` returns only the value (spec #89 review).
+- Saxon-HE 12.5 `unparsed-text` raises FOUT1190 for a raw U+FFFE/U+FFFF and drops a leading BOM
+  (observed, spec #89 review).
+- JaCoCo: an arrow `switch` statement over an enum leaves the implicit default edge uncovered;
+  share an empty, reachable case (spec #89 review).
+- The worktree guard also refuses `-Dtest=Class#method*`, `git -C … | …`, `sed -n` with a variable
+  file and multi-`sed -i` chains: put them in a scratch script and run `bash <script>`.
