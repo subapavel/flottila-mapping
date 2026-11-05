@@ -104,7 +104,33 @@ class FingerprintPinTest {
               "sha256:f3ba6b25507a1013629b1aa81257e12ce4fc903aa0fac19f5a59fb3c66612ae2"),
           entry(
               "model-groups/pairs.xsd Pairs",
-              "sha256:aa69e5c99ad5d331ec99c143eb35502c33870cb818b29b4c974c97c11d37fdc2"));
+              "sha256:aa69e5c99ad5d331ec99c143eb35502c33870cb818b29b4c974c97c11d37fdc2"),
+          // #100 (GATE check 1): $defs/$ref, allOf, oneOf, an array of objects and a nullable type
+          // list; SHA-256 over the canonical text written by hand, the method that reproduces
+          // 105d98… (run-input) and 7fa870… (derivation/order.xsd Order) above
+          entry(
+              "gate/order.schema.json $",
+              "sha256:ee54dcfa5f2ce0e42c2cbae54b270f17d2a89877141513ca5a9b8a3944df7f5d"));
+
+  /**
+   * Multi-file element roots (#100): by the bundle files under {@code corpus/structures/}, a space
+   * between, then {@code |} and the root element. The values are SHA-256 over the canonical text
+   * written by hand, as for {@link #PINNED}.
+   */
+  private static final Map<String, String> PINNED_BUNDLES =
+      Map.ofEntries(
+          // an include, an import of a second namespace, named and anonymous types, an
+          // extension, a choice, a substitution group and a simple-content leaf with attributes
+          entry(
+              "gate/purchase-order/order.xsd gate/purchase-order/types.xsd"
+                  + " gate/purchase-order/common/common.xsd"
+                  + " | Q{urn:flottila:corpus:gate:po}PurchaseOrder",
+              "sha256:c7a83f28ce9966a4cb158317dc7a29a6e89c59ec6ed129bbd3317aa50a7293f3"),
+          // a second namespace, an element reference across files and a recursive type
+          entry(
+              "gate/invoice/invoice.xsd gate/invoice/party.xsd"
+                  + " | Q{urn:flottila:corpus:gate:invoice}Invoice",
+              "sha256:58de05eec9c995263cd630786bcdecf224806c5e23cdecad4681bea25648ea4a"));
 
   /** The root of a key whose structure is a JSON root (#98). */
   private static final String JSON_ROOT = "$";
@@ -171,6 +197,24 @@ class FingerprintPinTest {
     assertThat(loaded).isEqualTo(new TreeMap<>(PINNED_WSDL));
   }
 
+  @Test
+  void every_pinned_multi_file_structure_loads_with_its_literal_fingerprint() {
+    Path structures = CorpusStructures.directory("wsdl").getParent();
+    Map<String, String> loaded = new TreeMap<>();
+    for (String key : PINNED_BUNDLES.keySet()) {
+      String[] filesAndRoot = key.split(" \\| ", 2);
+      StructureResult result =
+          Structures.load(
+              DirectoryResolver.over(structures),
+              new SchemaBundle(List.of(filesAndRoot[0].split(" "))),
+              new ElementRoot(filesAndRoot[1]));
+      assertThat(result).as(key).isInstanceOf(StructureResult.Loaded.class);
+      loaded.put(key, ((StructureResult.Loaded) result).structure().fingerprint());
+    }
+
+    assertThat(loaded).isEqualTo(new TreeMap<>(PINNED_BUNDLES));
+  }
+
   /**
    * Every side of every corpus mapping names a pinned structure and stores its pinned fingerprint,
    * so a corpus mapping over a structure this test does not pin fails here.
@@ -185,7 +229,7 @@ class FingerprintPinTest {
       MappingModel model = model(mapping);
       for (StructureRef side : List.of(model.source(), model.target())) {
         String key = key(side);
-        if (!side.fingerprint().equals(PINNED.getOrDefault(key, PINNED_WSDL.get(key)))) {
+        if (!side.fingerprint().equals(pinned(key))) {
           stale.put(mapping.getFileName() + " " + key, side.fingerprint());
         }
       }
@@ -200,17 +244,26 @@ class FingerprintPinTest {
                 + " Q{urn:flottila:corpus:skeleton}Order");
   }
 
+  /** The pinned fingerprint of a key of any of the three maps, or null when none pins it. */
+  private static String pinned(String key) {
+    return PINNED.getOrDefault(key, PINNED_WSDL.getOrDefault(key, PINNED_BUNDLES.get(key)));
+  }
+
   private static String key(StructureRef side) {
     List<String> files = side.bundle().files();
     if (side.root() instanceof WsdlRoot(WsdlOperation operation)) {
       return wsdlKey(files, operation);
     }
-    assertThat(files).as("a corpus bundle of the spec-2 subset").hasSize(1);
-    assertThat(files.getFirst()).startsWith(STRUCTURES);
     // a JSON source's root is $ (#98)
     String root =
         side.root() instanceof JsonRoot ? JSON_ROOT : ((ElementRoot) side.root()).element();
-    return files.getFirst().substring(STRUCTURES.length()) + " " + root;
+    assertThat(files)
+        .as("a corpus bundle under corpus/structures")
+        .allMatch(f -> f.startsWith(STRUCTURES));
+    String bundle =
+        String.join(" ", files.stream().map(f -> f.substring(STRUCTURES.length())).toList());
+    // a key of PINNED_BUNDLES (#100), or of PINNED
+    return files.size() > 1 ? bundle + " | " + root : bundle + " " + root;
   }
 
   /** A key of {@link #PINNED_WSDL}. */
