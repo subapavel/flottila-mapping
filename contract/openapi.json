@@ -55,7 +55,7 @@
         "properties" : {
           "kind" : {
             "type" : "string",
-            "enum" : [ "element", "attribute" ]
+            "enum" : [ "element", "attribute", "json-property" ]
           },
           "step" : {
             "type" : "string"

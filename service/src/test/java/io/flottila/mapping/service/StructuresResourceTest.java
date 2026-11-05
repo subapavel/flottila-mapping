@@ -15,6 +15,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -213,6 +214,80 @@ class StructuresResourceTest {
     assertThat(reply.json().path("kind").textValue()).as("%s", reply).isEqualTo("refused");
     assertThat(described(reply.json().path("diagnostics")))
         .containsExactly("error root-selector-unsupported at file order.xsd 1:1");
+  }
+
+  /** The JSON Schema bundle of {@code corpus/structures/json-schema/bundle}, in the workspace. */
+  private static void jsonBundle() throws IOException {
+    Path bundle = Fixtures.repositoryRoot().resolve("corpus/structures/json-schema/bundle");
+    for (String file : List.of("order.schema.json", "defs/address.schema.json")) {
+      TempWorkspace.write("structures/json/" + file, Files.readAllBytes(bundle.resolve(file)));
+    }
+  }
+
+  private Http.Reply jsonStructure(String bundle) {
+    return new Http(root)
+        .post(
+            "api/structures",
+            "application/json",
+            bytes(
+                "{\"base\": \"structures/json\", \"bundle\": "
+                    + bundle
+                    + ", \"root\": {\"json\": \"$\"}}"));
+  }
+
+  /**
+   * #97 (ADR-0008): the json root of the model schema reads a JSON Schema, a $ref to a second
+   * bundle file and all. Its fields are JSON properties under the root {@code $}, and a named type
+   * is one structure type with its file and pointer as id.
+   */
+  @Test
+  void aJsonRootReadsAJsonSchemaBundle() throws IOException {
+    jsonBundle();
+
+    Http.Reply reply = jsonStructure("[\"order.schema.json\", \"defs/address.schema.json\"]");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode loaded = reply.json();
+    assertThat(loaded.path("kind").textValue()).as("%s", reply).isEqualTo("loaded");
+    assertThat(loaded.path("fingerprint").textValue()).matches("sha256:[0-9a-f]{64}");
+    JsonNode rootField = loaded.path("root");
+    assertThat(field(rootField)).isEqualTo("$ 1..1");
+    assertThat(rootField.path("kind").textValue()).isEqualTo("json-property");
+    assertThat(rootField.path("step").textValue()).isEqualTo("$");
+    assertThat(rootField.path("type").textValue()).isEqualTo("order.schema.json#");
+    JsonNode types = loaded.path("types");
+    assertThat(types.properties())
+        .extracting(e -> e.getKey())
+        .containsExactlyInAnyOrder("order.schema.json#", "defs/address.schema.json#/$defs/Address");
+    List<String> fields = new ArrayList<>();
+    for (JsonNode f : types.path("order.schema.json#")) {
+      fields.add(f.path("kind").textValue() + " " + field(f) + " " + f.path("valueType").asText());
+    }
+    assertThat(fields)
+        .containsExactly(
+            "json-property id 0..1 xs:string",
+            "json-property shipTo 0..1 ",
+            "json-property country 0..1 xs:string");
+    assertThat(types.path("order.schema.json#").path(1).path("type").textValue())
+        .isEqualTo("defs/address.schema.json#/$defs/Address");
+  }
+
+  /**
+   * A $ref to a file the bundle does not list is a load error at the $ref (ADR-0008): a 200 {@code
+   * refused} with its file position, and the unlisted file is never read.
+   */
+  @Test
+  void aJsonRefOutsideTheBundleIs200RefusedAtTheRef() throws IOException {
+    jsonBundle();
+
+    Http.Reply reply = jsonStructure("[\"order.schema.json\"]");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.json().path("kind").textValue()).as("%s", reply).isEqualTo("refused");
+    assertThat(described(reply.json().path("diagnostics")))
+        .containsExactly(
+            "error schema-reference-outside-bundle at file order.schema.json 7:16",
+            "error schema-reference-outside-bundle at file order.schema.json 8:17");
   }
 
   /**

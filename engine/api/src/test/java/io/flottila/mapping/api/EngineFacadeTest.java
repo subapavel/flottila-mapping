@@ -22,6 +22,7 @@ import io.flottila.mapping.runtime.ExecutableMapping;
 import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.xslt.export.XsltExporter;
@@ -656,6 +657,58 @@ class EngineFacadeTest {
                 List.of(
                     error("fingerprint-mismatch", new AtPointer("/source/fingerprint")),
                     error("unconnected-target-field", new AtAuthoringId(new AuthoringId("t1"))))));
+  }
+
+  /**
+   * #97, ADR-0008 "JSON as a target": a JSON Schema loads as a target, and a mapping with it does
+   * not compile or export: {@code json-target-unsupported} at {@code /target}, beside a stage-3
+   * error of the source side. The target's fingerprint is its bundle's, so nothing else refuses it.
+   */
+  @Test
+  void aJsonTargetIsJsonTargetUnsupportedAtTarget() throws Exception {
+    RecordingResolver resolver =
+        new RecordingResolver()
+            .file(
+                "order.xsd",
+                Files.readAllBytes(CorpusStructures.directory("skeleton").resolve("order.xsd")))
+            .file(
+                "order.schema.json",
+                """
+                {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}}
+                """);
+    StructureResult target =
+        Structures.load(resolver, new SchemaBundle(List.of("order.schema.json")), new JsonRoot());
+    if (!(target instanceof StructureResult.Loaded(var structure))) {
+      throw new AssertionError("expected the JSON target to load, got " + target);
+    }
+    String model =
+        """
+        {"formatVersion": 1,
+         "source": {"bundle": ["order.xsd"], "fingerprint": "%s",
+                    "root": {"element": "Q{urn:flottila:corpus:skeleton}Order"}},
+         "target": {"bundle": ["order.schema.json"], "fingerprint": "%s", "root": {"json": "$"}}}
+        """;
+    EngineFacade facade = new EngineFacade();
+    List<String> jsonTarget =
+        described(List.of(error("json-target-unsupported", new AtPointer("/target"))));
+    byte[] matching = model.formatted(FINGERPRINT, structure.fingerprint()).getBytes(UTF_8);
+    byte[] staleSource = model.formatted(STALE, structure.fingerprint()).getBytes(UTF_8);
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      assertThat(described(refusal(facade.compile(matching, resolver, options))))
+          .as("%s", options)
+          .containsExactlyElementsOf(jsonTarget);
+    }
+    assertThat(facade.export(matching, resolver))
+        .isInstanceOfSatisfying(
+            ExportResult.Refused.class,
+            r -> assertThat(described(r.diagnostics())).containsExactlyElementsOf(jsonTarget));
+    assertThat(described(refusal(facade.compile(staleSource, resolver, DEPLOY))))
+        .containsExactlyInAnyOrderElementsOf(
+            described(
+                List.of(
+                    error("fingerprint-mismatch", new AtPointer("/source/fingerprint")),
+                    error("json-target-unsupported", new AtPointer("/target")))));
   }
 
   @Test

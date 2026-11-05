@@ -14,9 +14,12 @@ import java.util.List;
  *       schema-reference-outside-bundle}): just after its start tag, or the end of refused text;
  *   <li>{@code schema-root-not-found}: just after the first bundle file's {@code xs:schema} start
  *       tag;
+ *   <li>in a JSON Schema (#97): where the JSON parser stops; a refused or invalid keyword, the
+ *       {@code $ref} of {@code schema-reference-outside-bundle} among them, at its key; a refused
+ *       schema (the root, the second declaration of a property) at its first character;
  *   <li>an error about a whole file ({@code schema-unreadable}, {@code
- *       package-reference-unsupported}, {@code root-selector-unsupported}, an empty bundle): line
- *       1, column 1.
+ *       package-reference-unsupported}, {@code root-selector-unsupported}, an empty bundle, a JSON
+ *       Schema file that is not UTF-8): line 1, column 1.
  * </ul>
  *
  * <p>One load reports every load error (ADR-0008): {@link #errors} holds them, files in bundle

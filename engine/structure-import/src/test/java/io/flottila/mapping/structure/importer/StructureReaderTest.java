@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.entry;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldPath;
-import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
@@ -430,7 +429,7 @@ class StructureReaderTest {
     RootSelector wsdl =
         new WsdlRoot(
             new WsdlOperation("OrderService", "submit", WsdlDirection.INPUT, Optional.empty()));
-    for (RootSelector root : List.of(wsdl, new JsonRoot())) {
+    for (RootSelector root : List.of(wsdl)) {
       assertThatThrownBy(
               () ->
                   new StructureReader(DirectoryResolver.over(SKELETON))
