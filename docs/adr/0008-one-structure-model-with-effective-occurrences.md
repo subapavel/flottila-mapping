@@ -58,7 +58,9 @@ queues see fields, not groups.
   - The root is the element of the chosen operation's input, output or fault.
   - Refused: RPC `part@type` and messages with several parts.
   - Also refused (spec-4 grilling, 2026-11-05): a WSDL 2.0 message declared `#any`, `#none` or
-    `#other`.
+    `#other`. Also a WSDL 2.0 `interface` with `extends` (#96).
+  - Under a WSDL root selector, a bundle file whose document element is `wsdl:definitions` or
+    `wsdl:description` is read as WSDL, and every other file as XSD (#96).
   - The selector's `interface` is the portType (1.1) or interface (2.0) EQName. `operation` and
     `fault` are NCNames. `fault` is required exactly when the direction is `fault`.
 
@@ -159,8 +161,9 @@ Shape (#92):
 - in a target:
   - an abstract element type;
   - a repeated group of two or more particles, unless it is a choice of single elements,
-    because streamed output cannot interleave it;
-  - a path beyond the recursion cap.
+    because streamed output cannot interleave it.
+
+A path beyond the recursion cap is not a refusal: it stays `unsupported-field` (spec #89).
 
 ## Considered options
 

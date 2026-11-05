@@ -5,8 +5,10 @@ import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.WsdlOperation;
 import io.flottila.mapping.structure.WsdlRoot;
 import io.flottila.mapping.structure.importer.internal.JsonSchemaReader;
+import io.flottila.mapping.structure.importer.internal.WsdlReader;
 import io.flottila.mapping.structure.importer.internal.XsdReader;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,10 +19,11 @@ import javax.xml.namespace.QName;
 /**
  * Reads a schema bundle into a structure (ADR-0008). An element root reads XSD bundles of one or
  * more files, linked by {@code xs:import} and {@code xs:include}, with global elements, element
- * references and named types (#93). The JSON root reads JSON Schema 2020-12 (#97). Model groups
- * beyond a sequence, derivation and WSDL are later tickets of spec 4. It reads every file the
- * bundle lists through the host's {@link ReferenceResolver}, and no other file, and opens no file
- * itself (ADR-0014 "Reference resolver shape").
+ * references and named types (#93). A WSDL root reads WSDL 1.1 and 2.0 bundles under an operation's
+ * message (#96). The JSON root reads JSON Schema 2020-12 (#97). Model groups beyond a sequence and
+ * derivation are later tickets of spec 4. It reads every file the bundle lists through the host's
+ * {@link ReferenceResolver}, and no other file, and opens no file itself (ADR-0014 "Reference
+ * resolver shape").
  */
 public final class StructureReader {
 
@@ -56,15 +59,11 @@ public final class StructureReader {
         switch (root) {
           case ElementRoot(String name) ->
               (all, contents, errors) -> XsdReader.read(all, contents, errors, eqName(name));
+          case WsdlRoot(WsdlOperation operation) ->
+              (all, contents, errors) ->
+                  WsdlReader.read(
+                      all, contents, errors, eqName(operation.interfaceName()), operation);
           case JsonRoot json -> JsonSchemaReader::read;
-          case WsdlRoot wsdl ->
-              throw new StructureLoadException(
-                  StructureImportDiagnostics.ROOT_SELECTOR_UNSUPPORTED,
-                  files.getFirst(),
-                  1,
-                  1,
-                  "the root selector names a WSDL operation; milestone 1 reads XSD root elements"
-                      + " and the JSON root");
         };
     // each file the bundle lists is read once, in bundle order, and no other file (ADR-0008)
     List<StructureLoadException> errors = new ArrayList<>();

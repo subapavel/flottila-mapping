@@ -120,21 +120,44 @@
     },
     "wsdlOperation": {
       "title": "WsdlOperation",
+      "description": "A WSDL operation's input, output or fault (ADR-0008). fault is present exactly when direction is fault. Names outside ASCII are not checked character by character.",
       "type": "object",
       "required": ["interface", "operation", "direction"],
       "additionalProperties": false,
       "properties": {
         "interface": {
-          "type": "string"
+          "description": "The portType (WSDL 1.1) or interface (WSDL 2.0), an EQName: Q{namespace}local, or a bare NCName when it has no namespace.",
+          "type": "string",
+          "pattern": "^(Q\\{[^{}]*\\})?[^\\x00-\\x40\\x5B-\\x5E\\x60\\x7B-\\x7F][^\\x00-\\x2C/\\x3A-\\x40\\x5B-\\x5E\\x60\\x7B-\\x7F]*$"
         },
         "operation": {
-          "type": "string"
+          "description": "The operation's NCName.",
+          "type": "string",
+          "pattern": "^[^\\x00-\\x40\\x5B-\\x5E\\x60\\x7B-\\x7F][^\\x00-\\x2C/\\x3A-\\x40\\x5B-\\x5E\\x60\\x7B-\\x7F]*$"
         },
         "direction": {
           "enum": ["input", "output", "fault"]
         },
         "fault": {
-          "type": "string"
+          "description": "The fault's NCName.",
+          "type": "string",
+          "pattern": "^[^\\x00-\\x40\\x5B-\\x5E\\x60\\x7B-\\x7F][^\\x00-\\x2C/\\x3A-\\x40\\x5B-\\x5E\\x60\\x7B-\\x7F]*$"
+        }
+      },
+      "if": {
+        "required": ["direction"],
+        "properties": {
+          "direction": {
+            "const": "fault"
+          }
+        }
+      },
+      "then": {
+        "required": ["fault"]
+      },
+      "else": {
+        "not": {
+          "required": ["fault"]
         }
       }
     },

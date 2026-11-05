@@ -28,34 +28,46 @@ import javax.xml.namespace.QName;
  *       location names no bundle file, an absolute path or a URL among them, or that has no
  *       location, falls back to a bundle file with its namespace, or one whose namespace is unknown
  *       because it was not read as far as its {@code xs:schema}. Otherwise the reference is {@code
- *       schema-reference-outside-bundle}.
+ *       schema-reference-outside-bundle}. A {@code wsdl:import} or {@code wsdl:include} follows the
+ *       same rule, and an import may also fall back to a WSDL of its namespace (#96).
  *   <li>Names are checked in every file, whatever load errors other files have: every name a file
- *       uses must be declared by a bundle file, and a simple type must not derive from itself. A
- *       name that may be declared where nothing was read is not reported, so one load error gives
- *       no second: the name of a refused global declaration, any name in the namespace of a file
- *       that stopped being well-formed or of a reference outside the bundle, and any name at all
- *       once a file was not read as far as its {@code xs:schema}.
- *   <li>The root must be a global element of a complex type. A missing root is reported only when
- *       the bundle has no other load error.
+ *       uses, a WSDL 1.1 message among them, must be declared by a bundle file, and a simple type
+ *       must not derive from itself. A name that may be declared where nothing was read is not
+ *       reported, so one load error gives no second: the name of a refused global declaration, any
+ *       name in the namespace of a file that stopped being well-formed or of a reference outside
+ *       the bundle, and any name at all once a file was not read as far as its {@code xs:schema}.
+ *   <li>The root must be a global element of a complex type. A missing root, or a WSDL operation's
+ *       message that leads to none, is reported only when the bundle has no other load error.
  * </ul>
  */
 final class BundleCheck {
 
   private BundleCheck() {}
 
+  /**
+   * @param root the root element; null when none is found, for a WSDL operation (#96)
+   * @param missing the message of {@code schema-root-not-found} when the bundle declares no root
+   */
   static void check(
       List<String> bundle,
       List<SchemaFile> files,
       QName root,
+      String missing,
       List<StructureLoadException> errors) {
-    // a file not read as far as its xs:schema adds null: its namespace is unknown
+    // a file not read as far as its xs:schema adds null: its namespace is unknown. An xs:import
+    // falls back to a schema's namespace, a wsdl:import also to a WSDL's (#96).
     Set<String> namespaces = new HashSet<>();
+    Set<String> withWsdl = new HashSet<>();
     for (SchemaFile file : files) {
-      namespaces.add(file.targetNamespace);
+      withWsdl.add(file.targetNamespace);
+      if (!file.wsdl) {
+        namespaces.add(file.targetNamespace);
+      }
     }
     // the namespaces of the files the references outside the bundle stand for
     Set<String> unreachable = new HashSet<>();
     for (SchemaFile file : files) {
+      Set<String> candidates = file.wsdl ? withWsdl : namespaces;
       for (FileReference reference : file.references) {
         boolean listed =
             reference.location() != null
@@ -64,7 +76,7 @@ final class BundleCheck {
         // namespace, or to one whose namespace is unknown
         boolean fallback =
             reference.namespace() != null
-                && (namespaces.contains(reference.namespace()) || namespaces.contains(null));
+                && (candidates.contains(reference.namespace()) || candidates.contains(null));
         if (!listed && !fallback) {
           errors.add(outside(file.name, reference));
           // an included file has the including file's namespace
@@ -73,7 +85,7 @@ final class BundleCheck {
         }
       }
     }
-    names(files, root, unreachable, errors);
+    names(files, root, missing, unreachable, errors);
   }
 
   /**
@@ -101,20 +113,21 @@ final class BundleCheck {
       message =
           "no file of the schema bundle has the namespace \""
               + reference.namespace()
-              + "\" this xs:import names";
-    } else if (reference.namespace() == null) {
-      message =
-          "the schemaLocation \""
-              + reference.location()
-              + "\" of this xs:include names no file of the schema bundle";
+              + "\" this "
+              + reference.element()
+              + " names";
     } else {
       message =
-          "the schemaLocation \""
+          "the "
+              + reference.attribute()
+              + " \""
               + reference.location()
-              + "\" of this xs:import names no file of the schema bundle, and no bundle file has"
-              + " its namespace \""
-              + reference.namespace()
-              + "\"";
+              + "\" of this "
+              + reference.element()
+              + " names no file of the schema bundle";
+      if (reference.namespace() != null) {
+        message += ", and no bundle file has its namespace \"" + reference.namespace() + "\"";
+      }
     }
     return error(
         StructureImportDiagnostics.SCHEMA_REFERENCE_OUTSIDE_BUNDLE, file, reference.at(), message);
@@ -123,11 +136,13 @@ final class BundleCheck {
   private static void names(
       List<SchemaFile> files,
       QName root,
+      String missing,
       Set<String> unreachable,
       List<StructureLoadException> errors) {
     Map<QName, GlobalElement> elements = new HashMap<>();
     Set<QName> complexTypes = new HashSet<>();
     Map<QName, SimpleType> simpleTypes = new HashMap<>();
+    Set<QName> messages = new HashSet<>();
     Set<QName> refused = new HashSet<>();
     // the namespaces of files that stopped, were never read or are outside the bundle, null for
     // one never read as far as its xs:schema: what they declare is unknown
@@ -136,6 +151,7 @@ final class BundleCheck {
       elements.putAll(file.elements);
       complexTypes.addAll(file.complexTypes);
       simpleTypes.putAll(file.simpleTypes);
+      messages.addAll(file.messages);
       refused.addAll(file.refused);
       if (file.stopped || file.targetNamespace == null) {
         unknown.add(file.targetNamespace);
@@ -152,6 +168,11 @@ final class BundleCheck {
       for (NameUse use : file.elementRefs) {
         if (!elements.containsKey(use.name()) && undeclared.test(use.name())) {
           errors.add(invalid(file, use, "the element " + eqName(use.name()) + " is declared"));
+        }
+      }
+      for (NameUse use : file.messageRefs) {
+        if (!messages.contains(use.name()) && undeclared.test(use.name())) {
+          errors.add(invalid(file, use, "the message " + eqName(use.name()) + " is declared"));
         }
       }
       for (NameUse use : file.elementTypes) {
@@ -191,10 +212,11 @@ final class BundleCheck {
         }
       }
     }
+    // a null root, a WSDL operation's that is not found, is no key
     GlobalElement rootElement = elements.get(root);
     if (rootElement == null) {
       // the root selector picks among the global elements of a bundle that loads: beside another
-      // load error it is not looked up (and then every file has its xs:schema tag)
+      // load error it is not looked up (and then every file has its xs:schema or WSDL tag)
       if (!errors.isEmpty()) {
         return;
       }
@@ -204,7 +226,7 @@ final class BundleCheck {
               StructureImportDiagnostics.SCHEMA_ROOT_NOT_FOUND,
               first.name,
               first.schemaTag,
-              "the schema bundle declares no global element " + eqName(root)));
+              missing));
     } else if (rootElement.type() != null
         && (XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(rootElement.type().getNamespaceURI())
             || simpleTypes.containsKey(rootElement.type()))) {

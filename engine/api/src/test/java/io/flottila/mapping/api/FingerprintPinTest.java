@@ -11,11 +11,16 @@ import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.WsdlDirection;
+import io.flottila.mapping.structure.WsdlOperation;
+import io.flottila.mapping.structure.WsdlRoot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -71,6 +76,23 @@ class FingerprintPinTest {
   /** The root of a key whose structure is a JSON root (#98). */
   private static final String JSON_ROOT = "$";
 
+  /**
+   * WSDL roots (#96): by the bundle files under {@code corpus/structures/}, a space between, then
+   * {@code |} and the selector ({@code <interface> <operation> <direction> [<fault>]}).
+   */
+  private static final Map<String, String> PINNED_WSDL =
+      Map.ofEntries(
+          entry(
+              "files-and-names/import-location/common/types.xsd"
+                  + " files-and-names/import-location/po/order.xsd wsdl/order-11.wsdl"
+                  + " | Q{urn:flottila:corpus:wsdl11}OrderPort Submit input",
+              "sha256:510d96ec830e4ad8aa2e477a6fe73640f58587cc84ce10ec68ce666ca65edd16"),
+          entry(
+              "files-and-names/import-location/common/types.xsd"
+                  + " files-and-names/import-location/po/order.xsd wsdl/order-11.wsdl"
+                  + " | Q{urn:flottila:corpus:wsdl11}OrderPort Submit output",
+              "sha256:facdda4e20e0833ad276202aa9f4c563264b3b071e5c12825ba01082ba1cbc85"));
+
   /** The prefix of a corpus mapping's bundle reference: mappings sit beside structures. */
   private static final String STRUCTURES = "../structures/";
 
@@ -92,6 +114,27 @@ class FingerprintPinTest {
     assertThat(loaded).isEqualTo(new TreeMap<>(PINNED));
   }
 
+  @Test
+  void every_pinned_WSDL_structure_loads_with_its_literal_fingerprint() {
+    Path structures = CorpusStructures.directory("wsdl").getParent();
+    Map<String, String> loaded = new TreeMap<>();
+    for (String key : PINNED_WSDL.keySet()) {
+      String[] filesAndSelector = key.split(" \\| ", 2);
+      String[] selector = filesAndSelector[1].split(" ");
+      WsdlDirection direction = WsdlDirection.valueOf(selector[2].toUpperCase(Locale.ROOT));
+      Optional<String> fault = selector.length > 3 ? Optional.of(selector[3]) : Optional.empty();
+      StructureResult result =
+          Structures.load(
+              DirectoryResolver.over(structures),
+              new SchemaBundle(List.of(filesAndSelector[0].split(" "))),
+              new WsdlRoot(new WsdlOperation(selector[0], selector[1], direction, fault)));
+      assertThat(result).as(key).isInstanceOf(StructureResult.Loaded.class);
+      loaded.put(key, ((StructureResult.Loaded) result).structure().fingerprint());
+    }
+
+    assertThat(loaded).isEqualTo(new TreeMap<>(PINNED_WSDL));
+  }
+
   /**
    * Every side of every corpus mapping names a pinned structure and stores its pinned fingerprint,
    * so a corpus mapping over a structure this test does not pin fails here.
@@ -106,7 +149,7 @@ class FingerprintPinTest {
       MappingModel model = model(mapping);
       for (StructureRef side : List.of(model.source(), model.target())) {
         String key = key(side);
-        if (!side.fingerprint().equals(PINNED.get(key))) {
+        if (!side.fingerprint().equals(PINNED.getOrDefault(key, PINNED_WSDL.get(key)))) {
           stale.put(mapping.getFileName() + " " + key, side.fingerprint());
         }
       }
@@ -123,12 +166,30 @@ class FingerprintPinTest {
 
   private static String key(StructureRef side) {
     List<String> files = side.bundle().files();
+    if (side.root() instanceof WsdlRoot(WsdlOperation operation)) {
+      return wsdlKey(files, operation);
+    }
     assertThat(files).as("a corpus bundle of the spec-2 subset").hasSize(1);
     assertThat(files.getFirst()).startsWith(STRUCTURES);
-    // a JSON source's root is $ (#98); a WSDL root is no corpus mapping's yet
+    // a JSON source's root is $ (#98)
     String root =
         side.root() instanceof JsonRoot ? JSON_ROOT : ((ElementRoot) side.root()).element();
     return files.getFirst().substring(STRUCTURES.length()) + " " + root;
+  }
+
+  /** A key of {@link #PINNED_WSDL}. */
+  private static String wsdlKey(List<String> files, WsdlOperation operation) {
+    assertThat(files)
+        .as("a WSDL bundle under corpus/structures")
+        .allMatch(f -> f.startsWith(STRUCTURES));
+    return String.join(" ", files.stream().map(f -> f.substring(STRUCTURES.length())).toList())
+        + " | "
+        + operation.interfaceName()
+        + " "
+        + operation.operation()
+        + " "
+        + operation.direction().name().toLowerCase(Locale.ROOT)
+        + operation.fault().map(f -> " " + f).orElse("");
   }
 
   private static MappingModel model(Path mapping) throws Exception {
