@@ -386,6 +386,54 @@ class JsonSchemaReaderTest {
     return resolver;
   }
 
+  static Stream<Arguments> everyError() {
+    return Stream.of(
+        argumentSet(
+            "two $refs outside the bundle in one file, in document order",
+            List.of("errors/two-outside.schema.json"),
+            List.of(
+                "schema-reference-outside-bundle errors/two-outside.schema.json 5:15",
+                "schema-reference-outside-bundle errors/two-outside.schema.json 6:14")),
+        argumentSet(
+            "a $ref outside the bundle in each of two files, in bundle order",
+            List.of("errors/first.schema.json", "errors/second.schema.json"),
+            List.of(
+                "schema-reference-outside-bundle errors/first.schema.json 6:15",
+                "schema-reference-outside-bundle errors/second.schema.json 5:14")),
+        argumentSet(
+            "the same two files listed the other way round",
+            List.of("errors/second.schema.json", "errors/first.schema.json"),
+            List.of(
+                "schema-reference-outside-bundle errors/second.schema.json 5:14",
+                "schema-reference-outside-bundle errors/first.schema.json 6:15")));
+  }
+
+  /**
+   * ADR-0008: one load reports every load-time error of the bundle, files in bundle order and each
+   * file in document order.
+   */
+  @ParameterizedTest(name = "{argumentSetName}")
+  @MethodSource("everyError")
+  void oneLoadReportsEveryLoadError(List<String> bundle, List<String> errors) {
+    assertThatThrownBy(() -> read(FIXTURES, bundle.toArray(String[]::new)))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e ->
+                assertThat(
+                        e.errors().stream()
+                            .map(
+                                error ->
+                                    error.code()
+                                        + " "
+                                        + error.file()
+                                        + " "
+                                        + error.line()
+                                        + ":"
+                                        + error.column())
+                            .toList())
+                    .containsExactlyElementsOf(errors));
+  }
+
   /** ADR-0008's load-time refusals, and schemas that are not well-formed or not valid. */
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
