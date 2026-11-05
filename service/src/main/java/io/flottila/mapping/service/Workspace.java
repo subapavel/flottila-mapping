@@ -1,5 +1,9 @@
 package io.flottila.mapping.service;
 
+import io.flottila.mapping.structure.importer.ReferenceResolver;
+import io.flottila.mapping.structure.importer.ResolvedFile;
+import io.flottila.mapping.structure.importer.UnresolvedReferenceException;
+import io.flottila.mapping.structure.importer.UnresolvedReferenceException.Reason;
 import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -27,7 +31,8 @@ import org.eclipse.microprofile.config.Config;
 
 /**
  * The workspace: the only class that resolves paths (ADR-0024). Ids, base directories and bundle
- * references pass the pattern, the normalised prefix and the real-path prefix, in that order.
+ * references pass the pattern, the normalised prefix and the real-path prefix, in that order. The
+ * engine reads bundle files through its {@link #resolver} (ADR-0014).
  */
 @ApplicationScoped
 @Startup
@@ -44,6 +49,12 @@ public class Workspace {
   private static final Pattern BUNDLE =
       Pattern.compile(
           "(\\.\\./){0,16}[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*");
+
+  /** A package reference, {@code name@version:/path} (ADR-0024 since the spec-4 grilling). */
+  private static final Pattern PACKAGE =
+      Pattern.compile(
+          "[A-Za-z0-9_-][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.+-]*:/[A-Za-z0-9_-][A-Za-z0-9._-]*"
+              + "(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*");
 
   /** Last segments of the action paths, so routing never depends on the router. */
   private static final Set<String> RESERVED = Set.of("test", "compile", "refresh", "udfs");
@@ -187,26 +198,58 @@ public class Workspace {
   }
 
   /**
-   * Refuses a bundle reference that leaves the workspace from {@code directory}. A file inside the
-   * workspace that is missing passes: the engine reports it. Its nearest existing ancestor must lie
-   * inside the workspace by its real path. An ancestor whose real path does not resolve, a dangling
-   * link or a link loop, is refused as well: the check fails closed, because the link's target
-   * might appear outside later (ADR-0024).
+   * The reference resolver of the bundle references relative to {@code directory} (ADR-0014
+   * "Reference resolver shape", ADR-0024). It decides each reference on its own, in this order:
+   *
+   * <ol>
+   *   <li>a package reference is refused as {@code PACKAGE_REFERENCE_UNSUPPORTED} from its text
+   *       alone, before any file system call;
+   *   <li>any other reference passes steps 1 to 3 as a bundle reference, or it is refused with a
+   *       {@link WorkspaceEscapeException} before any file is opened;
+   *   <li>the checked file is read; any I/O error, a missing file or a directory among them, is
+   *       {@code UNREADABLE}.
+   * </ol>
    *
    * @param directory a real directory of the workspace, as {@link #directory} or {@link
    *     #mappingDirectory} return it
    */
-  public void checkBundle(Path directory, List<String> bundle) throws WorkspacePathException {
-    for (String reference : bundle) {
-      Path existing = inside(directory, matching(reference, BUNDLE));
-      while (Files.notExists(existing, LinkOption.NOFOLLOW_LINKS)) {
-        existing = existing.getParent();
+  public ReferenceResolver resolver(Path directory) {
+    return reference -> {
+      if (PACKAGE.matcher(reference).matches()) {
+        throw new UnresolvedReferenceException(Reason.PACKAGE_REFERENCE_UNSUPPORTED, reference);
       }
+      Path file;
       try {
-        real(existing, reference);
-      } catch (IOException noRealPath) {
-        throw new WorkspacePathException(reference);
+        file = bundleFile(directory, reference);
+      } catch (WorkspacePathException escape) {
+        throw new WorkspaceEscapeException(escape);
       }
+      try (InputStream in = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS)) {
+        return new ResolvedFile(reference, in.readAllBytes());
+      } catch (IOException unreadable) {
+        throw new UnresolvedReferenceException(Reason.UNREADABLE, reference);
+      }
+    };
+  }
+
+  /**
+   * Steps 1 to 3 for a bundle reference from {@code directory}: the real path of its file. A file
+   * inside the workspace that is missing passes: the path is its nearest existing ancestor's real
+   * path with the missing names after it, and reading it fails. That ancestor must lie inside the
+   * workspace by its real path. An ancestor whose real path does not resolve, a dangling link or a
+   * link loop, is refused as well: the check fails closed, because the link's target might appear
+   * outside later (ADR-0024).
+   */
+  private Path bundleFile(Path directory, String reference) throws WorkspacePathException {
+    Path file = inside(directory, matching(reference, BUNDLE));
+    Path existing = file;
+    while (Files.notExists(existing, LinkOption.NOFOLLOW_LINKS)) {
+      existing = existing.getParent();
+    }
+    try {
+      return real(existing, reference).resolve(existing.relativize(file));
+    } catch (IOException noRealPath) {
+      throw new WorkspacePathException(reference);
     }
   }
 

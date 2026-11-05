@@ -62,9 +62,10 @@ public class StructuresResource {
       throws IOException, WorkspacePathException, InvalidRequestException {
     InvalidRequestException.present(request);
     Path base = workspace.directory(request.base());
-    workspace.checkBundle(base, request.bundle());
     SchemaBundle bundle = new SchemaBundle(request.bundle());
-    return switch (Structures.load(base, bundle, RootSelectorJson.read(request.root()))) {
+    // a bundle reference that escapes is refused inside the resolver (#90)
+    return switch (Structures.load(
+        workspace.resolver(base), bundle, RootSelectorJson.read(request.root()))) {
       case StructureResult.Loaded(Structure structure) -> StructureLoaded.of(structure);
       case StructureResult.Refused(Diagnostic diagnostic) ->
           new StructureRefused(List.of(DiagnosticDto.of(diagnostic)));

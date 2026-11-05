@@ -67,7 +67,9 @@ class ExportAgreementTest {
     EngineFacade facade = new EngineFacade();
     CompileResult result =
         facade.compile(
-            Files.readAllBytes(fieldLink()), fieldLink().getParent(), CompileOptions.DEPLOY);
+            Files.readAllBytes(fieldLink()),
+            DirectoryResolver.over(fieldLink().getParent()),
+            CompileOptions.DEPLOY);
     if (!(result instanceof CompileResult.Compiled(CompiledMapping compiled))) {
       throw new AssertionError("order-id-copy: expected Compiled, got " + result);
     }
@@ -78,7 +80,10 @@ class ExportAgreementTest {
   private byte[] saxon(byte[] input) throws Exception {
     ExportResult.Exported exported =
         SaxonRunner.exported(
-            new EngineFacade().export(Files.readAllBytes(fieldLink()), fieldLink().getParent()),
+            new EngineFacade()
+                .export(
+                    Files.readAllBytes(fieldLink()),
+                    DirectoryResolver.over(fieldLink().getParent())),
             "order-id-copy");
     return SaxonRunner.run(exported.stylesheet(), exported.helperModule(), input, dir);
   }
@@ -124,7 +129,10 @@ class ExportAgreementTest {
             });
     ExportResult.Exported exported =
         SaxonRunner.exported(
-            new EngineFacade().export(Files.readAllBytes(fieldLink()), fieldLink().getParent()),
+            new EngineFacade()
+                .export(
+                    Files.readAllBytes(fieldLink()),
+                    DirectoryResolver.over(fieldLink().getParent())),
             "order-id-copy");
 
     SaxonRunner.assertSameError(
