@@ -21,7 +21,7 @@
       <xs:element name="Name" type="xs:string"/>
     </xs:sequence>
   </xs:complexType>
-  <xs:complexType name="Odd" block="extension"/>
+  <xs:complexType name="Odd" fixed="extension"/>
   <xs:complexType name="FromMoney">
     <xs:complexContent>
       <xs:extension base="b:Money"/>

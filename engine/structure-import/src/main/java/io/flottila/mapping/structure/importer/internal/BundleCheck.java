@@ -2,6 +2,7 @@ package io.flottila.mapping.structure.importer.internal;
 
 import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import io.flottila.mapping.structure.importer.StructureLoadException;
+import io.flottila.mapping.structure.importer.internal.SchemaFile.AttributeOwner;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.Definition;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.FileReference;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.GlobalElement;
@@ -34,17 +35,19 @@ import javax.xml.namespace.QName;
  *       schema-reference-outside-bundle}. A {@code wsdl:import} or {@code wsdl:include} follows the
  *       same rule, and an import may also fall back to a WSDL of its namespace (#96).
  *   <li>Names are checked in every file, whatever load errors other files have: every name a file
- *       uses, a WSDL 1.1 message among them, must be declared by a bundle file, and a type must not
- *       derive from itself. The base of {@code xs:complexContent} is a complex type with element
- *       content, that of {@code xs:simpleContent} a simple type or a complex type with simple
- *       content, and no element is in its own substitution group (#95). A name that may be declared
- *       where nothing was read is not reported, so one load error gives no second: the name of a
- *       refused global declaration, any name in the namespace of a file that stopped being
- *       well-formed or of a reference outside the bundle, and any name at all once a file was not
- *       read as far as its {@code xs:schema}. A named group or attribute group must not refer to
- *       itself other than through an element (#94).
- *   <li>The root must be a global element of a complex type. A missing root, or a WSDL operation's
- *       message that leads to none, is reported only when the bundle has no other load error.
+ *       uses, a WSDL 1.1 message and an attribute reference's global attribute (#89 review) among
+ *       them, must be declared by a bundle file, and a type must not derive from itself. The base
+ *       of {@code xs:complexContent} is a complex type with element content, that of {@code
+ *       xs:simpleContent} a simple type or a complex type with simple content, and no element is in
+ *       its own substitution group (#95). A name that may be declared where nothing was read is not
+ *       reported, so one load error gives no second: the name of a refused global declaration, any
+ *       name in the namespace of a file that stopped being well-formed or of a reference outside
+ *       the bundle, and any name at all once a file was not read as far as its {@code xs:schema}. A
+ *       named group or attribute group must not refer to itself other than through an element
+ *       (#94). No complex type has two attributes of one name ({@link AttributeCheck}, #89 review).
+ *   <li>The root must be a global element of a complex type, never of an anonymous simple type. A
+ *       missing root, or a WSDL operation's message that leads to none, is reported only when the
+ *       bundle has no other load error.
  * </ul>
  */
 final class BundleCheck {
@@ -154,6 +157,9 @@ final class BundleCheck {
     Map<QName, Definition> attributeGroups = new HashMap<>();
     Set<QName> refused = new HashSet<>();
     Set<QName> simpleContent = new HashSet<>();
+    Set<QName> attributes = new HashSet<>();
+    Map<QName, AttributeOwner> typeAttributes = new HashMap<>();
+    Map<QName, AttributeOwner> groupAttributes = new HashMap<>();
     // the base of every type that derives, simple or complex, and the head of every element in a
     // substitution group (#95)
     Map<QName, QName> bases = new HashMap<>();
@@ -170,6 +176,9 @@ final class BundleCheck {
       attributeGroups.putAll(file.attributeGroups);
       refused.addAll(file.refused);
       simpleContent.addAll(file.simpleContentTypes);
+      attributes.addAll(file.attributes);
+      typeAttributes.putAll(file.typeAttributes);
+      groupAttributes.putAll(file.groupAttributes);
       file.simpleTypes.forEach((name, type) -> bases.put(name, type.base()));
       file.derivations.forEach((name, base) -> bases.put(name, base.name()));
       file.substitutions.forEach((name, head) -> heads.put(name, head.name()));
@@ -192,6 +201,11 @@ final class BundleCheck {
       for (NameUse use : file.elementRefs) {
         if (!elements.containsKey(use.name()) && undeclared.test(use.name())) {
           errors.add(invalid(file, use, "the element " + eqName(use.name()) + " is declared"));
+        }
+      }
+      for (NameUse use : file.attributeRefs) {
+        if (!attributes.contains(use.name()) && undeclared.test(use.name())) {
+          errors.add(invalid(file, use, "the attribute " + eqName(use.name()) + " is declared"));
         }
       }
       for (NameUse use : file.messageRefs) {
@@ -280,6 +294,7 @@ final class BundleCheck {
           undeclared,
           errors);
     }
+    AttributeCheck.check(files, typeAttributes, groupAttributes, errors);
     // a null root, a WSDL operation's that is not found, is no key
     GlobalElement rootElement = elements.get(root);
     if (rootElement == null) {
@@ -295,9 +310,10 @@ final class BundleCheck {
               first.name,
               first.schemaTag,
               missing));
-    } else if (rootElement.type() != null
-        && (XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(rootElement.type().getNamespaceURI())
-            || simpleTypes.containsKey(rootElement.type()))) {
+    } else if (rootElement.simple()
+        || rootElement.type() != null
+            && (XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(rootElement.type().getNamespaceURI())
+                || simpleTypes.containsKey(rootElement.type()))) {
       errors.add(
           error(
               StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,

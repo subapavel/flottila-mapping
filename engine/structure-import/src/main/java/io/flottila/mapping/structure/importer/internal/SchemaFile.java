@@ -35,9 +35,19 @@ final class SchemaFile {
   /**
    * A global element.
    *
-   * @param type its {@code type}, or null for an anonymous complex type
+   * @param type its {@code type}, or null for an anonymous type
+   * @param simple whether its anonymous type is a simple type (#89 review)
    */
-  record GlobalElement(String file, QName type, Position at) {}
+  record GlobalElement(String file, QName type, boolean simple, Position at) {
+
+    GlobalElement(String file, QName type, Position at) {
+      this(file, type, false, at);
+    }
+
+    GlobalElement withAnonymousSimpleType() {
+      return new GlobalElement(file, type, true, at);
+    }
+  }
 
   /**
    * A named simple type.
@@ -69,6 +79,39 @@ final class SchemaFile {
    * @param uses the groups, or attribute groups, it refers to other than through an element
    */
   record Definition(Position at, Set<QName> uses) {}
+
+  /**
+   * An attribute declaration or reference, or an attribute group reference, of a complex type or an
+   * attribute group, in document order (#89 review).
+   *
+   * @param name the attribute's name, as its field's step names it, or the attribute group's
+   * @param group whether it is an attribute group reference
+   * @param prohibited whether it has {@code use="prohibited"}
+   */
+  record AttributeUse(QName name, Position at, boolean group, boolean prohibited) {}
+
+  /**
+   * The attribute uses a complex type, named or anonymous, or an attribute group declares, for the
+   * check that no complex type has two attributes of one name (#89 review; XSD 1.1 Part 1, 3.4.6.1
+   * ct-props-correct.4).
+   */
+  static final class AttributeOwner {
+
+    /** The file that declares it, where its uses stand. */
+    final String file;
+
+    final List<AttributeUse> uses = new ArrayList<>();
+
+    /** The base of a complex type's derivation; null when it does not derive. */
+    QName base;
+
+    /** Whether the derivation is a restriction, whose own attributes replace its base's. */
+    boolean restriction;
+
+    AttributeOwner(String file) {
+      this.file = file;
+    }
+  }
 
   /** The file as the schema bundle spells it. */
   final String name;
@@ -158,6 +201,24 @@ final class SchemaFile {
 
   /** Where each abstract named complex type is declared (#95). */
   final Map<QName, Position> abstractTypes = new HashMap<>();
+
+  /** Whether its {@code attributeFormDefault} is {@code qualified} (#89 review). */
+  boolean attributesQualified;
+
+  /** Global attributes (#89 review). */
+  final Set<QName> attributes = new HashSet<>();
+
+  /** Attribute references (#89 review). */
+  final List<NameUse> attributeRefs = new ArrayList<>();
+
+  /** The attribute uses of each named complex type (#89 review). */
+  final Map<QName, AttributeOwner> typeAttributes = new HashMap<>();
+
+  /** The attribute uses of each anonymous complex type (#89 review). */
+  final List<AttributeOwner> anonymousTypeAttributes = new ArrayList<>();
+
+  /** The attribute uses of each named attribute group (#89 review). */
+  final Map<QName, AttributeOwner> groupAttributes = new HashMap<>();
 
   SchemaFile(String name) {
     this(name, false);

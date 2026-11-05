@@ -248,16 +248,13 @@ class XsdDerivationTest {
                     + "refused/min-version.xsd 6:78 vc:minVersion=\"1.1\" asks for XSD 1.1,"
                     + " which is refused when a schema loads (ADR-0008)")),
         Arguments.of(
-            "vc:minVersion 1.1 or above anywhere; other versioning attributes stay foreign",
+            "vc:minVersion 1.1 or above anywhere; below 1.1 it has no effect (#89 review); one that"
+                + " is no decimal and other versioning attributes stay refused",
             List.of("refused/version-attributes.xsd"),
             List.of(
                 unsupported
                     + "refused/version-attributes.xsd 11:66 vc:minVersion=\"2\" asks for XSD 1.1,"
                     + " which is refused when a schema loads (ADR-0008)",
-                unsupported
-                    + "refused/version-attributes.xsd 12:68 the attribute vc:minVersion of"
-                    + " <xs:element>"
-                    + outside,
                 unsupported
                     + "refused/version-attributes.xsd 13:69 the attribute vc:minVersion of"
                     + " <xs:element>"
@@ -313,7 +310,7 @@ class XsdDerivationTest {
             List.of("invalid/bases.xsd"),
             List.of(
                 unsupported
-                    + "invalid/bases.xsd 24:49 the attribute block of <xs:complexType>"
+                    + "invalid/bases.xsd 24:49 the attribute fixed of <xs:complexType>"
                     + outside,
                 invalid
                     + "invalid/bases.xsd 27:37 the complex type {bases}Money with element content"
@@ -346,7 +343,28 @@ class XsdDerivationTest {
                     + " substitution group",
                 invalid
                     + "invalid/cycles.xsd 30:72 the element {cycles}Pong is in its own"
-                    + " substitution group")));
+                    + " substitution group")),
+        Arguments.of(
+            "two attributes of one name in one complex type, once each at the second declaration:"
+                + " in the type, through an extension, a reference and an attribute group of"
+                + " another file (ct-props-correct.4)",
+            List.of("invalid/duplicates.xsd", "invalid/duplicate-group.xsd"),
+            List.of(
+                invalid
+                    + "invalid/duplicates.xsd 14:43 the attribute Q{}a is declared a second time"
+                    + " in one complex type",
+                invalid
+                    + "invalid/duplicates.xsd 30:50 the attribute Q{}b is declared a second time"
+                    + " in one complex type",
+                invalid
+                    + "invalid/duplicates.xsd 48:68 the attribute {duplicates}code is declared a"
+                    + " second time in one complex type",
+                invalid
+                    + "invalid/duplicates.xsd 52:34 the attribute group {duplicates}Loop refers to"
+                    + " itself",
+                invalid
+                    + "invalid/duplicate-group.xsd 8:49 the attribute {duplicates}code is declared"
+                    + " a second time in one complex type")));
   }
 
   /**
