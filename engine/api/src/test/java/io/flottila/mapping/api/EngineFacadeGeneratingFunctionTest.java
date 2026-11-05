@@ -159,7 +159,7 @@ class EngineFacadeGeneratingFunctionTest {
 
   private CompiledMapping compiled(byte[] model, Path base, CompileOptions options)
       throws Exception {
-    CompileResult result = facade.compile(model, base, options);
+    CompileResult result = facade.compile(Fingerprints.refreshed(model, base), base, options);
     if (result instanceof CompileResult.Compiled(CompiledMapping mapping)) {
       return mapping;
     }

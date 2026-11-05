@@ -31,7 +31,15 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class UntakenBranchDataErrorTest {
 
-  private static final String FINGERPRINT = "sha256:" + "0".repeat(64);
+  /**
+   * The fingerprints of {@code src-orders.xsd} and {@code tgt-list.xsd}, which compile checks
+   * (#91); {@code FingerprintPinTest} in {@code engine/api} pins them.
+   */
+  private static final String SOURCE_FINGERPRINT =
+      "sha256:5e9bdd3db3b284fc086f0233797ede5e4f3fb874bd696ba3f496dd30bffef9a7";
+
+  private static final String TARGET_FINGERPRINT =
+      "sha256:626cbacff639a86b480bb3c20cc032d8aa47ad341d9111e31882ad30ca6eca70";
 
   @TempDir Path dir;
 
@@ -47,7 +55,7 @@ class UntakenBranchDataErrorTest {
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
-         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%1$s",
+         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%5$s",
                     "root": {"element": "Out"}},
          "targetFieldMappings": {
            "/Out/All": {"id": "T1", "result": "F1", "boxes": {
@@ -58,7 +66,7 @@ class UntakenBranchDataErrorTest {
              "S1": {"kind": "source", "field": "/Orders/Order/Line/Sku", "context": "/Orders"},
              "S2": {"kind": "source", "field": "/Orders/Order/Line/Qty", "context": "/Orders"}}}}}
         """
-        .formatted(FINGERPRINT, divisor, fn, inputs)
+        .formatted(SOURCE_FINGERPRINT, divisor, fn, inputs, TARGET_FINGERPRINT)
         .getBytes(UTF_8);
   }
 

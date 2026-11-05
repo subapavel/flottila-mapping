@@ -123,9 +123,18 @@ final class ContextFamily {
                 value.eval(frame), occurrences.eval(frame), contexts.eval(frame)));
   }
 
-  /** {@code replaceValue(value, replacement)}: the replacement, whatever the value. */
+  /**
+   * {@code replaceValue(value, replacement)}: the replacement, whatever the value. The value is
+   * evaluated first, as every input of a single-value call is (F-22, ADR-0006), so a data error in
+   * it is raised at its box.
+   */
   static Node.OfString replaceValue(AuthoringId box, List<Node.OfString> args) {
-    return args.get(1);
+    Node.OfString value = args.get(0);
+    Node.OfString replacement = args.get(1);
+    return frame -> {
+      value.eval(frame);
+      return replacement.eval(frame);
+    };
   }
 
   /** The {@code comparison} param of {@code function}, a sort. */
