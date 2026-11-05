@@ -7,6 +7,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -35,8 +36,11 @@ final class Projection {
    */
   record Queue(List<Name> field, int contextDepth, boolean structureField, boolean attribute) {}
 
-  /** An attribute's queue on its element's step: the attribute's name and the queue's index. */
-  private record AttributeQueue(Name name, int queue) {}
+  /**
+   * An attribute's queue on its element's step: the attribute's name, whose namespace is {@code ""}
+   * for none, as the reader's names have it, and the queue's index.
+   */
+  private record AttributeQueue(QName name, int queue) {}
 
   /** A node of the trie of element steps. */
   private static final class Step {
@@ -115,7 +119,9 @@ final class Projection {
       }
       if (queue.attribute()) {
         step.attributes = Arrays.copyOf(step.attributes, step.attributes.length + 1);
-        step.attributes[step.attributes.length - 1] = new AttributeQueue(field.getLast(), k);
+        Name name = field.getLast();
+        step.attributes[step.attributes.length - 1] =
+            new AttributeQueue(new QName(name.namespace(), name.localName()), k);
       } else if (queue.structureField()) {
         step.occurrences = append(step.occurrences, k);
       } else {
@@ -177,7 +183,7 @@ final class Projection {
       }
       switch (reader.next()) {
         case XMLStreamConstants.START_ELEMENT -> {
-          Step step = open.peek().child(namespace(reader.getNamespaceURI()), reader.getLocalName());
+          Step step = open.peek().child(namespace(reader), reader.getLocalName());
           if (step == null) {
             open.push(skipped);
           } else {
@@ -219,21 +225,18 @@ final class Projection {
    */
   private static void attribute(
       XMLStreamReader reader, AttributeQueue attribute, QueueBlock.Builder queue) {
-    Name name = attribute.name();
-    // well-formed input holds an attribute once per start tag, so at most one index matches
+    // QName equality is local name and namespace, a null namespace read as "" (javap); well-formed
+    // input holds an attribute once per start tag, so at most one index matches
     for (int i = 0; i < reader.getAttributeCount(); i++) {
-      if (reader.getAttributeLocalName(i).equals(name.localName())
-          && namespace(reader.getAttributeNamespace(i)).equals(name.namespace())) {
+      if (reader.getAttributeName(i).equals(attribute.name())) {
         queue.append(reader.getAttributeValue(i));
       }
     }
   }
 
-  /**
-   * An element's or attribute's namespace, {@code ""} for none, which the reader gives as {@code
-   * null} (observed for an element).
-   */
-  private static String namespace(String namespace) {
+  /** The element's namespace; the reader gives {@code null} for none (observed). */
+  private static String namespace(XMLStreamReader reader) {
+    String namespace = reader.getNamespaceURI();
     return namespace == null ? "" : namespace;
   }
 }

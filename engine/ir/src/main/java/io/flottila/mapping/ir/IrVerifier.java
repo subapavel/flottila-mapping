@@ -173,21 +173,26 @@ public final class IrVerifier {
    * body's scope. Empty for any other {@code expr}, which is not checked here.
    */
   private static Optional<Name> attributeItem(Expr expr, Map<String, AtomicType> scope) {
+    AttributeConstructor attribute;
+    Map<String, AtomicType> body;
     if (expr instanceof TargetSlots s && s.body() instanceof AttributeConstructor a) {
       if (s.max() > 1) {
         throw refused(s, "an attribute item has max " + s.max() + ", not at most 1");
       }
-      value(a, a.value(), AtomicType.STRING, body(s, scope), "its value");
-      return Optional.of(a.name());
-    }
-    if (expr instanceof TargetRepeat r && r.body() instanceof AttributeConstructor a) {
+      attribute = a;
+      body = body(s, scope);
+    } else if (expr instanceof TargetRepeat r && r.body() instanceof AttributeConstructor a) {
       if (r.copies() > 1) {
         throw refused(r, "an attribute item has " + r.copies() + " copies, not 1");
       }
-      value(a, a.value(), AtomicType.STRING, body(r, scope), "its value");
-      return Optional.of(a.name());
+      attribute = a;
+      body = body(r, scope);
+    } else {
+      return Optional.empty();
     }
-    return Optional.empty();
+    // one check for both kinds of item
+    value(attribute, attribute.value(), AtomicType.STRING, body, "its value");
+    return Optional.of(attribute.name());
   }
 
   /** Checks {@code expr}, which stands where content stands. */
