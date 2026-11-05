@@ -5,6 +5,7 @@ import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.StructureType;
@@ -212,6 +213,74 @@ final class TestStructures {
         leaf("", "Free", 0, 1, ValueType.STRING));
   }
 
+  /** The schema file {@link #sameStep()}'s refusals name. */
+  static final String SAME_STEP_FILE = "same-step.xsd";
+
+  /**
+   * Same-step siblings as the reader gives them (ADR-0008 Shape (#92)): each carries
+   * ambiguous-field-path at its step's second declaration. Under {@code Doc}, the optional leaves
+   * {@code Id}, {@code Note} (refused at 8:65), {@code Code} and {@code Note} again; {@code Head}
+   * 0..1 holds the leaves {@code Ref} 0..1, 1..1 and 1..1 (refused at 13:56); {@code Body} 0..1
+   * holds {@code Part} 1..1 with the leaf {@code A} 0..1, and {@code Part} 0..2 (both refused at
+   * 28:53) with the leaf {@code B} 0..1 twice (refused at 30:60). No namespace.
+   */
+  static Structure sameStep() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Head",
+            new StructureType(
+                "/Doc/Head",
+                List.of(
+                    refused(leaf("", "Ref", 0, 1, ValueType.STRING), 13, 56),
+                    refused(leaf("", "Ref", 1, 1, ValueType.STRING), 13, 56),
+                    refused(leaf("", "Ref", 1, 1, ValueType.STRING), 13, 56))),
+            "/Doc/Body",
+            new StructureType(
+                "/Doc/Body",
+                List.of(
+                    refused(structureField("Part", 1, 1, "/Doc/Body/Part"), 28, 53),
+                    refused(structureField("Part", 0, 2, "/Doc/Body/Part#2"), 28, 53))),
+            "/Doc/Body/Part",
+            new StructureType("/Doc/Body/Part", List.of(leaf("", "A", 0, 1, ValueType.STRING))),
+            "/Doc/Body/Part#2",
+            new StructureType(
+                "/Doc/Body/Part#2",
+                List.of(
+                    refused(leaf("", "B", 0, 1, ValueType.STRING), 30, 60),
+                    refused(leaf("", "B", 0, 1, ValueType.STRING), 30, 60)))),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        refused(leaf("", "Note", 0, 1, ValueType.STRING), 8, 65),
+        leaf("", "Code", 0, 1, ValueType.STRING),
+        refused(leaf("", "Note", 0, 1, ValueType.STRING), 8, 65),
+        structureField("Head", 0, 1, "/Doc/Head"),
+        structureField("Body", 0, 1, "/Doc/Body"));
+  }
+
+  /**
+   * Same-step siblings that carry no refusal, which the reader never gives (#92): {@code Doc/Body}
+   * 0..1 holds {@code Part} 0..1 with the leaf {@code A} 0..1, then {@code Part} 1..1 with the leaf
+   * {@code B} 0..1. No namespace.
+   */
+  static Structure unrefusedSiblings() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Body",
+            new StructureType(
+                "/Doc/Body",
+                List.of(
+                    structureField("Part", 0, 1, "/Doc/Body/Part"),
+                    structureField("Part", 1, 1, "/Doc/Body/Part#2"))),
+            "/Doc/Body/Part",
+            new StructureType("/Doc/Body/Part", List.of(leaf("", "A", 0, 1, ValueType.STRING))),
+            "/Doc/Body/Part#2",
+            new StructureType("/Doc/Body/Part#2", List.of(leaf("", "B", 0, 1, ValueType.STRING)))),
+        structureField("Body", 0, 1, "/Doc/Body"));
+  }
+
   /**
    * A structure with attributes wherever #102 lowers one, built by hand because the import subset
    * puts attributes on the root's type only: the root {@code Doc} carries {@code code} 0..1 and
@@ -287,6 +356,18 @@ final class TestStructures {
         Optional.of(valueType),
         false,
         Optional.empty());
+  }
+
+  /** {@code field} refused with ambiguous-field-path at {@link #SAME_STEP_FILE} line:column. */
+  private static Field refused(Field field, int line, int column) {
+    return new Field(
+        field.step(),
+        field.occurrence(),
+        field.valueType(),
+        field.nillable(),
+        field.type(),
+        Optional.of(
+            new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, SAME_STEP_FILE, line, column)));
   }
 
   private static Field attribute(String name, long min, long max) {

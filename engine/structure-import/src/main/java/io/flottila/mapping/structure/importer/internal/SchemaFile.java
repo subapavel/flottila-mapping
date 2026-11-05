@@ -1,6 +1,7 @@
 package io.flottila.mapping.structure.importer.internal;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +13,8 @@ import javax.xml.namespace.QName;
  * What {@link XsdSubsetCheck} reads from one schema, or {@link WsdlCheck} from the WSDL parts of a
  * WSDL file, for the checks across the bundle: its target namespace, its references to other files,
  * the global names it declares and the names it uses, each with its position. A WSDL file is one
- * WSDL part and one schema per inline schema, all with the file's name.
+ * WSDL part and one schema per inline schema, all with the file's name. For {@link XsdReader} a
+ * schema also keeps where each element particle of a complex type is declared (#92).
  */
 final class SchemaFile {
 
@@ -47,6 +49,16 @@ final class SchemaFile {
 
   /** A name the file uses, other than a built-in type. */
   record NameUse(QName name, Position at) {}
+
+  /**
+   * An element particle of a complex type's {@code xs:sequence}, a local element or an element
+   * reference (#92).
+   *
+   * @param at where its start tag ends
+   * @param type the particles of its anonymous complex type, for a local element with one; none
+   *     otherwise
+   */
+  record Particle(Position at, List<Particle> type) {}
 
   /** The file as the schema bundle spells it. */
   final String name;
@@ -91,6 +103,12 @@ final class SchemaFile {
 
   /** WSDL 1.1 message references of operations. */
   final List<NameUse> messageRefs = new ArrayList<>();
+
+  /** The element particles of each global element's anonymous complex type, in document order. */
+  final Map<QName, List<Particle>> elementParticles = new HashMap<>();
+
+  /** The element particles of each named complex type, in document order. */
+  final Map<QName, List<Particle>> complexTypeParticles = new HashMap<>();
 
   SchemaFile(String name) {
     this(name, false);
