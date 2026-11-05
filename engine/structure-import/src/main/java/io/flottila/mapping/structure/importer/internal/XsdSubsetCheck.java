@@ -196,7 +196,7 @@ final class XsdSubsetCheck extends DefaultHandler {
   }
 
   /** A refused construct, at the parser's position or at a start tag read before. */
-  private static final class Refusal extends Exception {
+  static final class Refusal extends Exception {
     @Serial private static final long serialVersionUID = 1L;
 
     final String code;
@@ -259,6 +259,19 @@ final class XsdSubsetCheck extends DefaultHandler {
       throw new IllegalStateException(e);
     }
     return schema;
+  }
+
+  /**
+   * A check of one {@code xs:schema} whose events another handler forwards, from the schema's start
+   * tag to its end tag, with the prefixes in scope there declared first (#96: a WSDL's inline
+   * schema, or a whole XSD file in a WSDL bundle). Its load errors are at {@code locator}'s
+   * positions, in the file {@code schema} names.
+   */
+  static XsdSubsetCheck delegate(
+      SchemaFile schema, List<StructureLoadException> errors, Locator locator) {
+    XsdSubsetCheck handler = new XsdSubsetCheck(schema, errors);
+    handler.setDocumentLocator(locator);
+    return handler;
   }
 
   @Override
@@ -384,11 +397,18 @@ final class XsdSubsetCheck extends DefaultHandler {
             new FileReference(
                 namespace == null ? "" : namespace,
                 attributes.getValue("", "schemaLocation"),
-                start));
+                start,
+                "xs:import",
+                "schemaLocation"));
       }
       case INCLUDE ->
           schema.references.add(
-              new FileReference(null, attributes.getValue("", "schemaLocation"), start));
+              new FileReference(
+                  null,
+                  attributes.getValue("", "schemaLocation"),
+                  start,
+                  "xs:include",
+                  "schemaLocation"));
       case GLOBAL -> {
         schema.elements.put(global(name), new GlobalElement(schema.name, null, start));
         frame.particles = new ArrayList<>();

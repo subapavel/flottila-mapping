@@ -864,12 +864,18 @@ export interface components {
             /** @description The root element's EQName. */
             element: string;
         };
-        /** WsdlOperation */
+        /**
+         * WsdlOperation
+         * @description A WSDL operation's input, output or fault (ADR-0008). fault is present exactly when direction is fault. Names outside ASCII are not checked character by character.
+         */
         wsdlOperation: {
+            /** @description The portType (WSDL 1.1) or interface (WSDL 2.0), an EQName: Q{namespace}local, or a bare NCName when it has no namespace. */
             interface: string;
+            /** @description The operation's NCName. */
             operation: string;
             /** @enum {unknown} */
             direction: "input" | "output" | "fault";
+            /** @description The fault's NCName. */
             fault?: string;
         };
         /** WsdlRoot */
@@ -1024,12 +1030,18 @@ export interface components {
                 wsdlRoot: {
                     wsdl: components["schemas"]["wsdlOperation"];
                 };
-                /** WsdlOperation */
+                /**
+                 * WsdlOperation
+                 * @description A WSDL operation's input, output or fault (ADR-0008). fault is present exactly when direction is fault. Names outside ASCII are not checked character by character.
+                 */
                 wsdlOperation: {
+                    /** @description The portType (WSDL 1.1) or interface (WSDL 2.0), an EQName: Q{namespace}local, or a bare NCName when it has no namespace. */
                     interface: string;
+                    /** @description The operation's NCName. */
                     operation: string;
                     /** @enum {unknown} */
                     direction: "input" | "output" | "fault";
+                    /** @description The fault's NCName. */
                     fault?: string;
                 };
                 /** JsonRoot */

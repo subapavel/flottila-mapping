@@ -36,7 +36,10 @@ public final class StructureImportDiagnostics {
   /** A package reference ({@code name@version:/path}) that the host's resolver does not read. */
   public static final String PACKAGE_REFERENCE_UNSUPPORTED = "package-reference-unsupported";
 
-  /** A root selector of a kind milestone 1 does not read yet: a WSDL operation. */
+  /**
+   * A root selector of a kind the reader does not read. Since #96 and #97 every kind is read and no
+   * load reports it; it stays in the catalogue until the catalogue drops it.
+   */
   public static final String ROOT_SELECTOR_UNSUPPORTED = "root-selector-unsupported";
 
   private StructureImportDiagnostics() {}

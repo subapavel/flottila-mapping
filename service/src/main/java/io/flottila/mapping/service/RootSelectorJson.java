@@ -37,10 +37,14 @@ final class RootSelectorJson {
     }
     throw new InvalidRequestException(
         "a root selector is {\"element\": <EQName>}, {\"wsdl\": {\"interface\", \"operation\","
-            + " \"direction\", \"fault\"?}} or {\"json\": \"$\"}");
+            + " \"direction\", \"fault\" exactly when direction is fault}} or {\"json\": \"$\"}");
   }
 
-  /** The operation of {@code {"interface", "operation", "direction", "fault"?}}, all strings. */
+  /**
+   * The operation of {@code {"interface", "operation", "direction", "fault"?}}, all strings, with a
+   * fault exactly when the direction is {@code fault} (ADR-0008, #96). Whether the names are an
+   * EQName and NCNames is the engine's: one that is not names no interface or operation.
+   */
   private static Optional<WsdlOperation> wsdl(JsonNode wsdl) {
     JsonNode fault = wsdl.path("fault");
     int members = fault.isTextual() ? 4 : 3;
@@ -48,7 +52,8 @@ final class RootSelectorJson {
       if (wsdl.size() == members
           && wsdl.path("interface").isTextual()
           && wsdl.path("operation").isTextual()
-          && direction.name().toLowerCase(Locale.ROOT).equals(wsdl.path("direction").textValue())) {
+          && direction.name().toLowerCase(Locale.ROOT).equals(wsdl.path("direction").textValue())
+          && fault.isTextual() == (direction == WsdlDirection.FAULT)) {
         return Optional.of(
             new WsdlOperation(
                 wsdl.path("interface").textValue(),

@@ -65,10 +65,22 @@ export interface ElementRoot {
 export interface WsdlRoot {
   wsdl: WsdlOperation;
 }
+/**
+ * A WSDL operation's input, output or fault (ADR-0008). fault is present exactly when direction is fault. Names outside ASCII are not checked character by character.
+ */
 export interface WsdlOperation {
+  /**
+   * The portType (WSDL 1.1) or interface (WSDL 2.0), an EQName: Q{namespace}local, or a bare NCName when it has no namespace.
+   */
   interface: string;
+  /**
+   * The operation's NCName.
+   */
   operation: string;
   direction: "input" | "output" | "fault";
+  /**
+   * The fault's NCName.
+   */
   fault?: string;
 }
 export interface JsonRoot {
