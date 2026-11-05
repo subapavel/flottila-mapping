@@ -62,7 +62,8 @@ application on the class path. So the engine stays JPMS and the service does not
   - Every read goes through it: the bundle files and every `schemaLocation`, `wsdl:import`/`include`
     and JSON `$ref` to another file (ADR-0008).
   - The service's resolver is `Workspace` with its three checks (ADR-0024). The engine ships no
-    file-system resolver in production code. Engine tests use an in-memory one.
+    file-system resolver in production code. Engine tests use a test-scope resolver, in memory or
+    over a test directory such as `corpus/` (amended by F-24, #90). It is never a production class.
   - The mandatory workspace-escape test moves to the resolver. It also covers an escape written
     inside a schema (`schemaLocation="../../../etc/passwd"`).
   - A package reference passes stages 1 and 2 (ADR-0024). Loading it gives the design-time error
