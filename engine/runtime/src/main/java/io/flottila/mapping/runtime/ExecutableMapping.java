@@ -43,7 +43,7 @@ public final class ExecutableMapping {
    * @param tracer receives the reports of a traced compile; an untraced compile never calls it
    * @param now the time the run starts at, fixed for the whole run: its offset is the run's time
    *     zone, in which a date without an offset is read and every date is written (#80)
-   * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws MalformedInputException when the input is not well-formed in the mapping's input format
    * @throws IOException when {@code out} cannot be written
    * @throws MappingRunException when the run meets a runtime error in its data (ADR-0015)
    * @throws java.util.concurrent.CancellationException when the thread is interrupted

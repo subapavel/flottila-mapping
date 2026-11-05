@@ -8,6 +8,7 @@ import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.InputFormat;
 import io.flottila.mapping.ir.IrType;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Lift;
@@ -22,7 +23,6 @@ import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import io.flottila.mapping.mapping.internal.FieldPathText;
 import io.flottila.mapping.structure.Field;
-import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.Occurrence;
@@ -58,7 +58,9 @@ import java.util.stream.IntStream;
  *
  * <p>A box lowers to a queue or a single value (ADR-0006 since #83). A source-field box gives its
  * {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63), or of an attribute, in
- * its element's context by default (ADR-0007, #102). A standard function box whose function the
+ * its element's context by default (ADR-0007, #102), or of a JSON property, with the depths of the
+ * array properties on its path; a JSON root makes the document's input JSON, any other root XML
+ * (ADR-0008 "JSON as a source at run time", #98). A standard function box whose function the
  * catalogue holds gives, by its execution kind, a {@code FunCall} over its inputs' queues, a single
  * value as {@code AtomicToQueue}, and then its params as {@code Literal}s for a context or queue
  * function. For a single-value function it gives the atomic {@code FunCall} over its inputs and
@@ -245,9 +247,12 @@ public final class Lowering {
       // structure field that needs a mapping or an unmapped field beyond the recursion cap
       return new Refused(found);
     }
+    // the input format follows the source's root selector, never the input (ADR-0008, #98)
+    InputFormat input =
+        model.source().root() instanceof JsonRoot ? InputFormat.JSON : InputFormat.XML;
     TargetDocument document =
         new TargetDocument(
-            rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content);
+            rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content, input);
     // the IR is re-checked after lowering (ADR-0006); a refusal here is a bug of this class
     IrVerifier.verify(document);
     return new Lowered(document);
@@ -482,7 +487,8 @@ public final class Lowering {
                           names(named.path()),
                           contextDepth(box, named.path()),
                           named.field().valueType().isEmpty(),
-                          attribute(named.path()),
+                          attribute(named.path().steps().getLast()),
+                          arrays(named),
                           id));
       case StandardFunctionBox box -> call(mapping, id, box);
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
@@ -686,9 +692,33 @@ public final class Lowering {
     return names;
   }
 
-  /** Whether the field at {@code path} is an attribute (ADR-0007: its last step's kind). */
-  private static boolean attribute(FieldPath path) {
-    return path.steps().getLast().kind() == FieldKind.ATTRIBUTE;
+  /** Whether {@code step} is an attribute's (ADR-0007: its kind); a JSON property is none. */
+  private static boolean attribute(FieldPath.Step step) {
+    return switch (step.kind()) {
+      case ATTRIBUTE -> true;
+      case ELEMENT, JSON_PROPERTY -> false;
+    };
+  }
+
+  /**
+   * The depths of the fields on {@code named}'s chain that are JSON array properties, the root
+   * being 1 (#98): a JSON property whose max is above 1, as the JSON Schema reader makes an array
+   * property one repeated field (ADR-0008). An element or attribute is none.
+   */
+  private static List<Integer> arrays(Named named) {
+    List<Integer> arrays = new ArrayList<>();
+    for (int depth = 1; depth <= named.chain().size(); depth++) {
+      Field field = named.chain().get(depth - 1);
+      boolean array =
+          switch (field.step().kind()) {
+            case JSON_PROPERTY -> field.occurrence().max() > 1;
+            case ELEMENT, ATTRIBUTE -> false;
+          };
+      if (array) {
+        arrays.add(depth);
+      }
+    }
+    return arrays;
   }
 
   /**
@@ -906,7 +936,7 @@ public final class Lowering {
     AuthoringId origin = link.mapping();
     String prefix = prefix(step.namespace());
     Name name = new Name(step.namespace(), step.localName());
-    if (step.kind() == FieldKind.ATTRIBUTE) {
+    if (attribute(step)) {
       return new AttributeConstructor(prefix, name, leafValue, origin);
     }
     List<Expr> content = children(path, chain, links);

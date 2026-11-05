@@ -9,6 +9,7 @@ import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.MappingModelFormat;
 import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.WsdlDirection;
 import io.flottila.mapping.structure.WsdlOperation;
@@ -35,6 +36,12 @@ class FingerprintPinTest {
   /** By the bundle file under {@code corpus/structures/} and the root element, a space between. */
   private static final Map<String, String> PINNED =
       Map.ofEntries(
+          entry(
+              "json-schema/run-input.schema.json $",
+              "sha256:3489768361f8b16d79fcca7f687e5f669511108cb743826bfa741a2b643830c7"),
+          entry(
+              "observations/nil.schema.json $",
+              "sha256:c4c151c16fe989cda60ff2ef006d0cac0768d05331ec0158e4ca6ab3ec5ad5a8"),
           entry(
               "observations/src-orders.xsd Orders",
               "sha256:5e9bdd3db3b284fc086f0233797ede5e4f3fb874bd696ba3f496dd30bffef9a7"),
@@ -82,6 +89,9 @@ class FingerprintPinTest {
               "model-groups/pairs.xsd Pairs",
               "sha256:aa69e5c99ad5d331ec99c143eb35502c33870cb818b29b4c974c97c11d37fdc2"));
 
+  /** The root of a key whose structure is a JSON root (#98). */
+  private static final String JSON_ROOT = "$";
+
   /**
    * WSDL roots (#96): by the bundle files under {@code corpus/structures/}, a space between, then
    * {@code |} and the selector ({@code <interface> <operation> <direction> [<fault>]}).
@@ -104,15 +114,18 @@ class FingerprintPinTest {
 
   @Test
   void every_pinned_structure_loads_with_its_literal_fingerprint() {
+    // loaded as a corpus mapping names it, from corpus/mappings: a JSON structure's type ids hold
+    // its file as the bundle spells it (#97), so its fingerprint does too
+    Path mappings =
+        CorpusStructures.directory("json-schema").getParent().resolveSibling("mappings");
     Map<String, String> loaded = new TreeMap<>();
     for (String key : PINNED.keySet()) {
       String[] fileAndRoot = key.split(" ", 2);
-      Path file = Path.of(fileAndRoot[0]);
       StructureResult result =
           Structures.load(
-              DirectoryResolver.over(CorpusStructures.directory(file.getParent().toString())),
-              new SchemaBundle(List.of(file.getFileName().toString())),
-              new ElementRoot(fileAndRoot[1]));
+              DirectoryResolver.over(mappings),
+              new SchemaBundle(List.of(STRUCTURES + fileAndRoot[0])),
+              fileAndRoot[1].equals(JSON_ROOT) ? new JsonRoot() : new ElementRoot(fileAndRoot[1]));
       assertThat(result).as(key).isInstanceOf(StructureResult.Loaded.class);
       loaded.put(key, ((StructureResult.Loaded) result).structure().fingerprint());
     }
@@ -177,7 +190,9 @@ class FingerprintPinTest {
     }
     assertThat(files).as("a corpus bundle of the spec-2 subset").hasSize(1);
     assertThat(files.getFirst()).startsWith(STRUCTURES);
-    String root = ((ElementRoot) side.root()).element();
+    // a JSON source's root is $ (#98)
+    String root =
+        side.root() instanceof JsonRoot ? JSON_ROOT : ((ElementRoot) side.root()).element();
     return files.getFirst().substring(STRUCTURES.length()) + " " + root;
   }
 

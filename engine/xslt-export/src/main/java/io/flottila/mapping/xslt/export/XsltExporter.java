@@ -7,6 +7,7 @@ import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
+import io.flottila.mapping.ir.InputFormat;
 import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
@@ -72,6 +73,14 @@ import java.util.stream.Collectors;
  *       Literal} is an XPath string literal in apostrophes, a table param's text included
  *       (ADR-0026). An {@code AtomicToQueue} is {@code [(value)]}, one context that holds its value
  *       (ADR-0006 since #83).
+ *   <li>The export of a JSON input (ADR-0008 "JSON as a source at run time", #98) also declares
+ *       {@code fn}, the namespace of the XML representation of JSON, after {@code po}. It is
+ *       started at its initial template with the param {@code po:input}, the URI of the JSON text,
+ *       and applies its templates to {@code json-to-xml(unparsed-text($po:input), map{'duplicates':
+ *       'reject'})}, so the source document is that representation. Its {@code $} step is the
+ *       representation's top item, each further step the item whose {@code @key} is its property
+ *       name: a leaf any scalar, any other field an object, and an array property each item of its
+ *       {@code fn:array}.
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -101,7 +110,7 @@ public final class XsltExporter {
       <xsl:stylesheet version="3.0"%1$s exclude-result-prefixes="#all">
         <xsl:import href="%2$s"/>
         <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="no" \
-      omit-xml-declaration="no"/>
+      omit-xml-declaration="no"/>%7$s
         <xsl:template match="/">
           <xsl:variable name="%3$s" as="xs:integer" select="1"/>%4$s
           <%5$s>%6$s
@@ -109,6 +118,29 @@ public final class XsltExporter {
         </xsl:template>
       </xsl:stylesheet>
       """;
+
+  /**
+   * The entry of a JSON input's export (ADR-0008 "JSON as a source at run time", #98): the param
+   * {@code po:input}, the URI of the JSON text, and the initial template, which applies the
+   * templates to its XML representation; an object with a key twice is the error FOJS0003.
+   */
+  private static final String JSON_ENTRY =
+      """
+
+        <xsl:param name="po:input" as="xs:string" required="yes"/>
+        <xsl:template name="xsl:initial-template">
+          <xsl:apply-templates select="json-to-xml(unparsed-text($po:input), \
+      map{'duplicates': 'reject'})"/>
+        </xsl:template>""";
+
+  /** The namespace of the XML representation of JSON, which {@code json-to-xml} gives. */
+  private static final String JSON_NAMESPACE = "http://www.w3.org/2005/xpath-functions";
+
+  /** A JSON leaf's item in the XML representation: any scalar, {@code null} included. */
+  private static final String JSON_SCALAR = "(fn:string|fn:number|fn:boolean|fn:null)";
+
+  /** A JSON object's item in the XML representation. */
+  private static final String JSON_OBJECT = "fn:map";
 
   /** A namespace declaration on {@code xsl:stylesheet}, with the space before it. */
   private static final String DECLARATION = " xmlns:%s=\"%s\"";
@@ -251,12 +283,27 @@ public final class XsltExporter {
   /** The number of queue variables so far. */
   private int queueCount;
 
-  private XsltExporter() {
+  /** The input format, which a {@code SourceQueue}'s path follows. */
+  private final InputFormat input;
+
+  /** What the stylesheet holds between its output and its template: a JSON input's entry. */
+  private final String entry;
+
+  private XsltExporter(InputFormat input) {
+    this.input = input;
     String stylesheet = "xsl:stylesheet";
     bind("xsl", "http://www.w3.org/1999/XSL/Transform", declarations, stylesheet);
     bind("xs", "http://www.w3.org/2001/XMLSchema", declarations, stylesheet);
     bind("array", "http://www.w3.org/2005/xpath-functions/array", declarations, stylesheet);
     bind("po", "urn:flottila:mapping:po", declarations, stylesheet);
+    entry =
+        switch (input) {
+          case XML -> "";
+          case JSON -> {
+            bind("fn", JSON_NAMESPACE, declarations, stylesheet);
+            yield JSON_ENTRY;
+          }
+        };
   }
 
   /**
@@ -265,7 +312,7 @@ public final class XsltExporter {
    * @throws IllegalArgumentException if the exporter cannot write {@code document}
    */
   public static String export(TargetDocument document) {
-    XsltExporter exporter = new XsltExporter();
+    XsltExporter exporter = new XsltExporter(document.input());
     String root = exporter.outputName(document.prefix(), document.root(), "the root");
     StringBuilder content = new StringBuilder();
     for (Expr expr : document.content()) {
@@ -277,7 +324,8 @@ public final class XsltExporter {
         document.rootSlot(),
         exporter.queueVariables,
         root,
-        content);
+        content,
+        exporter.entry);
   }
 
   /** The text of the helper module, the resource {@link #HELPER_MODULE} of this package. */
@@ -403,8 +451,8 @@ public final class XsltExporter {
       case SourceQueue q -> {
         String where = "SourceQueue of " + q.origin().value();
         yield QUEUE.formatted(
-            path(q.field().subList(0, q.contextDepth()), false, where),
-            path(q.field().subList(q.contextDepth(), q.field().size()), q.attribute(), where),
+            path(q, 0, q.contextDepth(), where),
+            path(q, q.contextDepth(), q.field().size(), where),
             q.structureField() ? STRUCTURE_VALUE : LEAF_VALUE);
       }
       case VarRef v -> "$" + v.name();
@@ -464,18 +512,36 @@ public final class XsltExporter {
   }
 
   /**
-   * The relative path of source {@code steps}, each under its source prefix: element steps, and the
-   * last an attribute step {@code @name} when {@code attribute} (#102).
+   * The relative path of the steps of {@code q} after depth {@code from} up to depth {@code to}.
+   *
+   * <p>Over XML each is an element step under its source prefix, and the field's last is an
+   * attribute step when {@code q} reads an attribute (#102). Over JSON each is a JSON step.
    */
-  private String path(List<Name> steps, boolean attribute, String where) {
+  private String path(SourceQueue q, int from, int to, String where) {
     List<String> names = new ArrayList<>();
-    for (Name step : steps) {
-      names.add(sourceName(step, where));
-    }
-    if (attribute) {
-      names.set(names.size() - 1, "@" + names.getLast());
+    for (int depth = from + 1; depth <= to; depth++) {
+      Name step = q.field().get(depth - 1);
+      boolean last = depth == q.field().size();
+      names.add(
+          switch (input) {
+            case XML -> (last && q.attribute() ? "@" : "") + sourceName(step, where);
+            case JSON ->
+                jsonStep(step, depth, last && !q.structureField(), q.arrays().contains(depth));
+          });
     }
     return String.join("/", names);
+  }
+
+  /**
+   * A JSON step at {@code depth} in the XML representation of JSON (ADR-0008, #98): the root's item
+   * has no key, any other its property name as {@code @key}; a leaf's item is any scalar, any
+   * other's an object, and an array property's are the items of its array. A value of another kind
+   * matches nothing, so it reads as absent, as in the runtime.
+   */
+  private static String jsonStep(Name step, int depth, boolean leaf, boolean array) {
+    String key = depth == 1 ? "" : "[@key=" + literal(step.localName()) + "]";
+    String item = leaf ? JSON_SCALAR : JSON_OBJECT;
+    return array ? "fn:array" + key + "/" + item : item + key;
   }
 
   /** The name test of a source step: bare without a namespace, else {@code s0}, {@code s1} … */

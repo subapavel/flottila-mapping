@@ -14,6 +14,7 @@ import javax.xml.transform.stream.StreamSource;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.QName;
 import net.sf.saxon.s9api.SaxonApiException;
+import net.sf.saxon.s9api.XdmAtomicValue;
 import net.sf.saxon.s9api.Xslt30Transformer;
 import net.sf.saxon.s9api.XsltExecutable;
 import net.sf.saxon.value.DateTimeValue;
@@ -72,16 +73,37 @@ final class SaxonRunner {
   }
 
   /**
+   * The stylesheet parameter of a JSON source's export (ADR-0008 "JSON as a source at run time",
+   * #98): the URI its initial template reads the input from with {@code unparsed-text}.
+   */
+  static final QName JSON_INPUT = new QName("po", "urn:flottila:mapping:po", "input");
+
+  /**
    * Runs {@code executable} on {@code input} with {@code now} as its current dateTime, whose offset
    * Saxon takes as the implicit time zone, as {@link #run(String, String, byte[], Path,
-   * OffsetDateTime)} does.
+   * OffsetDateTime)} does. An export that declares {@link #JSON_INPUT} reads a JSON source: the
+   * input is written to a file of its own, whose URI the parameter gets, and the run calls the
+   * initial template ({@code callTemplate(null, …)}); any other export transforms the input as an
+   * XML document.
    */
   static byte[] run(XsltExecutable executable, byte[] input, OffsetDateTime now) throws Exception {
     Xslt30Transformer transformer = executable.load30();
     transformer.getUnderlyingController().setCurrentDateTime(DateTimeValue.fromOffsetDateTime(now));
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    transformer.transform(
-        new StreamSource(new ByteArrayInputStream(input)), transformer.newSerializer(out));
+    if (!executable.getGlobalParameters().containsKey(JSON_INPUT)) {
+      transformer.transform(
+          new StreamSource(new ByteArrayInputStream(input)), transformer.newSerializer(out));
+      return out.toByteArray();
+    }
+    Path file = Files.createTempFile("flottila-input", ".json");
+    try {
+      Files.write(file, input);
+      transformer.setStylesheetParameters(
+          Map.of(JSON_INPUT, new XdmAtomicValue(file.toUri().toString())));
+      transformer.callTemplate(null, transformer.newSerializer(out));
+    } finally {
+      Files.delete(file);
+    }
     return out.toByteArray();
   }
 
