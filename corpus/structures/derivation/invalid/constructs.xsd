@@ -55,4 +55,21 @@
     </xs:simpleContent>
   </xs:complexType>
   <xs:element name="Flag" type="xs:string" abstract="1"/>
+  <xs:complexType name="EarlySimple">
+    <xs:attribute name="early" type="xs:string"/>
+    <xs:simpleContent>
+      <xs:extension base="xs:string"/>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="TwiceSimple">
+    <xs:simpleContent>
+      <xs:extension base="xs:string"/>
+      <xs:extension base="xs:string"/>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="Wrong">
+    <xs:complexContent>
+      <xs:sequence/>
+    </xs:complexContent>
+  </xs:complexType>
 </xs:schema>

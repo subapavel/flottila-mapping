@@ -11,10 +11,13 @@ import io.flottila.mapping.structure.importer.internal.SchemaFile.SimpleType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.Serial;
+import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
@@ -45,12 +48,19 @@ import org.xml.sax.helpers.NamespaceSupport;
  * <ul>
  *   <li>A complex type, named or anonymous, holds an optional {@code xs:sequence} first and then
  *       {@code xs:attribute}s ({@code name}, {@code type}, {@code use}, {@code form}, {@code
- *       default}, {@code fixed}). An anonymous one below the root holds at least one of them.
+ *       default}, {@code fixed}). An anonymous one below the root holds at least one of them. A
+ *       named one may be {@code abstract} (#95).
+ *   <li>Instead, a complex type may hold only an {@code xs:complexContent} with one {@code
+ *       xs:extension} or {@code xs:restriction} of a named complex type ({@code base}), which holds
+ *       what a complex type holds; or only an {@code xs:simpleContent} with one {@code
+ *       xs:extension} of a simple type or of a complex type with simple content ({@code base}),
+ *       which holds {@code xs:attribute}s (#95).
  *   <li>A sequence holds local {@code xs:element}s, element references ({@code ref}, {@code
  *       minOccurs}, {@code maxOccurs}) and {@code xs:any}.
  *   <li>A global or local element has a {@code type} or one anonymous {@code xs:complexType}. A
  *       local one is a leaf or structure field ({@code name}, {@code minOccurs}, {@code maxOccurs},
- *       {@code form}; with a type also {@code nillable}, {@code default}, {@code fixed}).
+ *       {@code form}; with a type also {@code nillable}, {@code default}, {@code fixed}). A global
+ *       one may be {@code abstract} and name the head of its {@code substitutionGroup} (#95).
  *   <li>A named simple type is an {@code xs:restriction} of a {@code base}, an {@code xs:list} or
  *       an {@code xs:union}.
  * </ul>
@@ -58,6 +68,10 @@ import org.xml.sax.helpers.NamespaceSupport;
  * <p>Accepted with no effect, their content unread (ADR-0008): {@code xs:annotation} anywhere,
  * {@code xs:any}, {@code xs:anyAttribute}, facets, identity constraints, and the content of a list
  * or union.
+ *
+ * <p>Refused when a schema loads, wherever they stand (ADR-0008, #95): {@code xs:redefine} and
+ * {@code xs:override}, each named as such; {@code vc:minVersion} 1.1 or above on any element, named
+ * as XSD 1.1; and the elements only XSD 1.1 has, as elements outside the subset.
  */
 final class XsdSubsetCheck extends DefaultHandler {
 
@@ -66,6 +80,7 @@ final class XsdSubsetCheck extends DefaultHandler {
 
   private static final Pattern COUNT = Pattern.compile("[0-9]{1,18}");
   private static final Pattern BOOLEAN = Pattern.compile("true|false");
+  private static final String TRUE = "true";
   private static final Pattern USE = Pattern.compile("optional|required");
   private static final Pattern FORM = Pattern.compile("qualified|unqualified");
 
@@ -79,6 +94,35 @@ final class XsdSubsetCheck extends DefaultHandler {
 
   private static final Set<String> IDENTITY_CONSTRAINTS = Set.of("unique", "key", "keyref");
 
+  /** The roles of an element that is its parent's first child other than an annotation. */
+  private static final Set<Role> FIRST =
+      EnumSet.of(
+          Role.COMPLEX_TYPE,
+          Role.STRUCTURE_TYPE,
+          Role.SEQUENCE,
+          Role.COMPLEX_CONTENT,
+          Role.SIMPLE_CONTENT,
+          Role.COMPLEX_DERIVATION,
+          Role.SIMPLE_EXTENSION);
+
+  /**
+   * Why each XSD element ADR-0008 names as refused when a schema loads is refused, by its local
+   * name. An element only XSD 1.1 has is refused as any element outside the subset, which names it.
+   */
+  private static final Map<String, String> REFUSED_AT_LOAD =
+      Map.of(
+          "redefine",
+          "xs:redefine is refused when a schema loads (ADR-0008)",
+          "override",
+          "xs:override is refused when a schema loads (ADR-0008)");
+
+  /** The namespace of {@code vc:minVersion} (XSD 1.1 Part 1, 4.2.1). */
+  private static final String VERSIONING = "http://www.w3.org/2007/XMLSchema-versioning";
+
+  private static final Pattern DECIMAL = Pattern.compile("[0-9]+(\\.[0-9]+)?");
+
+  private static final BigDecimal XSD_11 = new BigDecimal("1.1");
+
   /** Where an XSD element may stand, and the attributes it may carry. */
   private enum Role {
     DOCUMENT(Set.of(), Set.of()),
@@ -86,11 +130,19 @@ final class XsdSubsetCheck extends DefaultHandler {
     IMPORT(Set.of("namespace", "schemaLocation"), Set.of()),
     INCLUDE(Set.of("schemaLocation"), Set.of("schemaLocation")),
     // a global element with an anonymous complex type, and one with a type
-    GLOBAL(Set.of("name"), Set.of("name")),
-    GLOBAL_TYPED(Set.of("name", "type", "nillable", "default", "fixed"), Set.of("name")),
+    GLOBAL(Set.of("name", "abstract", "substitutionGroup"), Set.of("name")),
+    GLOBAL_TYPED(
+        Set.of("name", "type", "nillable", "default", "fixed", "abstract", "substitutionGroup"),
+        Set.of("name")),
     GLOBAL_ATTRIBUTE(Set.of("name", "type", "default", "fixed"), Set.of("name", "type")),
-    NAMED_COMPLEX_TYPE(Set.of("name"), Set.of("name")),
+    NAMED_COMPLEX_TYPE(Set.of("name", "abstract"), Set.of("name")),
     COMPLEX_TYPE(Set.of(), Set.of()),
+    // a complex type's xs:complexContent or xs:simpleContent, and its derivation (#95)
+    COMPLEX_CONTENT(Set.of(), Set.of()),
+    SIMPLE_CONTENT(Set.of(), Set.of()),
+    // an xs:extension or xs:restriction of complex content
+    COMPLEX_DERIVATION(Set.of("base"), Set.of("base")),
+    SIMPLE_EXTENSION(Set.of("base"), Set.of("base")),
     SEQUENCE(Set.of(), Set.of()),
     // a local element is a leaf only when it has a type (child), so a leaf never lacks one
     LEAF(
@@ -141,11 +193,15 @@ final class XsdSubsetCheck extends DefaultHandler {
         case GLOBAL_TYPED, LEAF -> identityConstraint(name);
         case NAMED_COMPLEX_TYPE, COMPLEX_TYPE, STRUCTURE_TYPE ->
             switch (name) {
-              case "sequence" -> SEQUENCE;
-              case "attribute" -> ATTRIBUTE;
-              case "anyAttribute" -> NO_EFFECT;
-              default -> null;
+              case "complexContent" -> COMPLEX_CONTENT;
+              case "simpleContent" -> SIMPLE_CONTENT;
+              default -> content(name);
             };
+        case COMPLEX_CONTENT ->
+            name.equals("extension") || name.equals("restriction") ? COMPLEX_DERIVATION : null;
+        case SIMPLE_CONTENT -> name.equals("extension") ? SIMPLE_EXTENSION : null;
+        case COMPLEX_DERIVATION -> content(name);
+        case SIMPLE_EXTENSION -> attribute(name);
         case SEQUENCE ->
             switch (name) {
               case "element" ->
@@ -168,6 +224,19 @@ final class XsdSubsetCheck extends DefaultHandler {
     private static Role identityConstraint(String name) {
       return IDENTITY_CONSTRAINTS.contains(name) ? NO_EFFECT : null;
     }
+
+    /** The role of a complex type's content: an optional sequence first, then attributes. */
+    private static Role content(String name) {
+      return name.equals("sequence") ? SEQUENCE : attribute(name);
+    }
+
+    private static Role attribute(String name) {
+      return switch (name) {
+        case "attribute" -> ATTRIBUTE;
+        case "anyAttribute" -> NO_EFFECT;
+        default -> null;
+      };
+    }
   }
 
   /** An open XSD element, where its start tag ends, and its children so far. */
@@ -187,6 +256,18 @@ final class XsdSubsetCheck extends DefaultHandler {
      * otherwise.
      */
     List<Particle> particles;
+
+    /**
+     * The named complex type it is or whose content it derives (#95); null in an anonymous complex
+     * type and elsewhere.
+     */
+    QName complexType;
+
+    /**
+     * Whether it holds an {@code xs:complexContent} or {@code xs:simpleContent} that stands where
+     * it may; a refused one sets nothing.
+     */
+    boolean derived;
 
     Frame(Role role, Position start, List<Particle> particles) {
       this.role = role;
@@ -324,24 +405,47 @@ final class XsdSubsetCheck extends DefaultHandler {
       throws Refusal {
     Position start = position();
     Frame parent = open.element();
-    Role role =
-        XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(uri)
-            ? parent.role.child(localName, attributes)
-            : null;
+    // XSD 1.1 wherever it is asked for, even on an element whose content is not read (ADR-0008)
+    String minVersion = attributes.getValue(VERSIONING, "minVersion");
+    if (minVersion != null
+        && DECIMAL.matcher(minVersion).matches()
+        && new BigDecimal(minVersion).compareTo(XSD_11) >= 0) {
+      throw refusal(
+          UNSUPPORTED,
+          "vc:minVersion=\""
+              + minVersion
+              + "\" asks for XSD 1.1, which is refused when a schema loads (ADR-0008)");
+    }
+    boolean xsd = XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(uri);
+    Role role = xsd ? parent.role.child(localName, attributes) : null;
     // a refused child counts as well, so that its parent is not refused for lacking it; an
     // annotation may come first anywhere
     int earlier = parent.children;
     parent.children += localName.equals("annotation") ? 0 : 1;
     parent.anonymousType |= localName.equals("complexType") || localName.equals("simpleType");
     if (role == null) {
-      throw refusal(UNSUPPORTED, "<" + qName + "> here is outside the XSD the reader reads");
+      // xs:redefine and xs:override are named as ADR-0008 refuses them, wherever they stand; any
+      // other element, one only XSD 1.1 has among them, as one outside the subset
+      String refused = xsd ? REFUSED_AT_LOAD.get(localName) : null;
+      throw refusal(
+          UNSUPPORTED,
+          refused != null ? refused : "<" + qName + "> here is outside the XSD the reader reads");
     }
     if (role == Role.NO_EFFECT) {
       return new Frame(role, start, parent.particles);
     }
-    // an element has one xs:complexType; a complex type's xs:sequence comes once, first
-    if (earlier > 0
-        && (role == Role.COMPLEX_TYPE || role == Role.STRUCTURE_TYPE || role == Role.SEQUENCE)) {
+    // nothing follows a complex type's xs:complexContent or xs:simpleContent (#95)
+    if (parent.derived) {
+      throw refusal(
+          UNSUPPORTED,
+          "<"
+              + qName
+              + "> after xs:complexContent or xs:simpleContent is outside the XSD the reader"
+              + " reads");
+    }
+    // an element has one xs:complexType; a complex type's xs:sequence, xs:complexContent or
+    // xs:simpleContent comes once, first, and so does the one derivation of the latter two
+    if (earlier > 0 && FIRST.contains(role)) {
       throw refusal(
           UNSUPPORTED, "<" + qName + "> after another child is outside the XSD the reader reads");
     }
@@ -368,6 +472,7 @@ final class XsdSubsetCheck extends DefaultHandler {
       checkOccurrence(attributes.getValue("", "minOccurs"), attributes.getValue("", "maxOccurs"));
     }
     checkValue(attributes, "nillable", BOOLEAN);
+    checkValue(attributes, "abstract", BOOLEAN);
     checkValue(attributes, "use", USE);
     checkValue(attributes, "elementFormDefault", FORM);
     checkValue(attributes, "attributeFormDefault", FORM);
@@ -413,11 +518,14 @@ final class XsdSubsetCheck extends DefaultHandler {
         schema.elements.put(global(name), new GlobalElement(schema.name, null, start));
         frame.particles = new ArrayList<>();
         schema.elementParticles.put(global(name), frame.particles);
+        member(name, attributes, start);
       }
-      case GLOBAL_TYPED ->
-          schema.elements.put(
-              global(name),
-              new GlobalElement(schema.name, typeName(type, schema.elementTypes, start), start));
+      case GLOBAL_TYPED -> {
+        schema.elements.put(
+            global(name),
+            new GlobalElement(schema.name, typeName(type, schema.elementTypes, start), start));
+        member(name, attributes, start);
+      }
       case LEAF -> {
         typeName(type, schema.elementTypes, start);
         parent.particles.add(new Particle(start, List.of()));
@@ -435,7 +543,39 @@ final class XsdSubsetCheck extends DefaultHandler {
         schema.complexTypes.add(global(name));
         frame.particles = new ArrayList<>();
         schema.complexTypeParticles.put(global(name), frame.particles);
+        frame.complexType = global(name);
+        if (TRUE.equals(attributes.getValue("", "abstract"))) {
+          schema.abstractTypes.put(global(name), start);
+        }
       }
+      case COMPLEX_CONTENT -> derive(frame, parent);
+      case SIMPLE_CONTENT -> {
+        derive(frame, parent);
+        if (parent.complexType != null) {
+          schema.simpleContentTypes.add(parent.complexType);
+        }
+      }
+      case COMPLEX_DERIVATION -> {
+        String value = attributes.getValue("", "base");
+        QName base = qualified(value);
+        // xs:anyType is the one complex built-in type, and a simple one has no element content
+        if (XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(base.getNamespaceURI())) {
+          throw refusal(
+              UNSUPPORTED,
+              "a derivation from the built-in type "
+                  + value
+                  + " is outside the XSD the reader reads");
+        }
+        NameUse use = new NameUse(base, start);
+        schema.elementContentBases.add(use);
+        derives(parent, use);
+      }
+      case SIMPLE_EXTENSION ->
+          derives(
+              parent,
+              new NameUse(
+                  typeName(attributes.getValue("", "base"), schema.simpleContentBases, start),
+                  start));
       case NAMED_SIMPLE_TYPE -> {
         simpleType = global(name);
         schema.simpleTypes.put(simpleType, new SimpleType(null, start));
@@ -447,6 +587,38 @@ final class XsdSubsetCheck extends DefaultHandler {
       case DOCUMENT, COMPLEX_TYPE, SEQUENCE, STRUCTURE_TYPE, NO_EFFECT -> {
         // nothing to record
       }
+    }
+  }
+
+  /**
+   * Records that the type {@code parent} stands in holds the content {@code frame} derives: nothing
+   * may follow it, and its derivation names the type when that is a named one.
+   */
+  private static void derive(Frame frame, Frame parent) {
+    parent.derived = true;
+    frame.complexType = parent.complexType;
+  }
+
+  /**
+   * Records the base of the named complex type whose content {@code content} is, if it is named.
+   */
+  private void derives(Frame content, NameUse base) {
+    if (content.complexType != null) {
+      schema.derivations.put(content.complexType, base);
+    }
+  }
+
+  /** Records whether the global element {@code name} is abstract, and its substitution group. */
+  private void member(String name, Attributes attributes, Position at) throws Refusal {
+    if (TRUE.equals(attributes.getValue("", "abstract"))) {
+      schema.abstractElements.put(global(name), at);
+    }
+    String head = attributes.getValue("", "substitutionGroup");
+    if (head != null) {
+      NameUse use = new NameUse(qualified(head), at);
+      // the head is an element some bundle file declares, as an element reference's is
+      schema.elementRefs.add(use);
+      schema.substitutions.put(global(name), use);
     }
   }
 
@@ -465,6 +637,23 @@ final class XsdSubsetCheck extends DefaultHandler {
               "<"
                   + qName
                   + "> without type or xs:complexType is outside the XSD the reader reads"));
+    }
+    // a content without its derivation is refused at its own start tag (#95)
+    if (closed.role == Role.COMPLEX_CONTENT && closed.children == 0) {
+      refuse(
+          new Refusal(
+              UNSUPPORTED,
+              "<"
+                  + qName
+                  + "> without xs:extension or xs:restriction is outside the XSD the reader reads",
+              closed.start));
+    }
+    if (closed.role == Role.SIMPLE_CONTENT && closed.children == 0) {
+      refuse(
+          new Refusal(
+              UNSUPPORTED,
+              "<" + qName + "> without xs:extension is outside the XSD the reader reads",
+              closed.start));
     }
     // a local element without type is refused at its own start tag
     if (closed.role == Role.STRUCTURE && !closed.anonymousType) {

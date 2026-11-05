@@ -196,8 +196,8 @@ class XsdDerivationTest {
     String unsupported = "schema-construct-unsupported ";
     String invalid = "schema-invalid ";
     String atLoad = " is refused when a schema loads (ADR-0008)";
-    String xsd11 = " is XSD 1.1, which is refused when a schema loads (ADR-0008)";
     String outside = " is outside the XSD the reader reads";
+    String here = "> here" + outside;
     return Stream.of(
         Arguments.of(
             "xs:redefine",
@@ -208,14 +208,14 @@ class XsdDerivationTest {
             List.of("refused/override.xsd"),
             List.of(unsupported + "refused/override.xsd 12:48 xs:override" + atLoad)),
         Arguments.of(
-            "the elements only XSD 1.1 has, wherever they stand",
+            "the elements only XSD 1.1 has, wherever they stand, named as outside the subset",
             List.of("refused/xsd11-elements.xsd"),
             List.of(
-                unsupported + "refused/xsd11-elements.xsd 6:26 xs:defaultOpenContent" + xsd11,
-                unsupported + "refused/xsd11-elements.xsd 13:59 xs:alternative" + xsd11,
-                unsupported + "refused/xsd11-elements.xsd 16:29 xs:assert" + xsd11,
-                unsupported + "refused/xsd11-elements.xsd 20:21 xs:openContent" + xsd11,
-                unsupported + "refused/xsd11-elements.xsd 26:36 xs:assertion" + xsd11)),
+                unsupported + "refused/xsd11-elements.xsd 6:26 <xs:defaultOpenContent" + here,
+                unsupported + "refused/xsd11-elements.xsd 13:59 <xs:alternative" + here,
+                unsupported + "refused/xsd11-elements.xsd 16:29 <xs:assert" + here,
+                unsupported + "refused/xsd11-elements.xsd 20:21 <xs:openContent" + here,
+                unsupported + "refused/xsd11-elements.xsd 26:36 <xs:assertion" + here)),
         Arguments.of(
             "vc:minVersion 1.1 on the schema",
             List.of("refused/min-version.xsd"),
@@ -271,7 +271,14 @@ class XsdDerivationTest {
                     + " xs:anyType"
                     + outside,
                 unsupported + "invalid/constructs.xsd 49:39 <xs:restriction> here" + outside,
-                unsupported + "invalid/constructs.xsd 57:58 abstract=\"1\"" + outside)),
+                unsupported + "invalid/constructs.xsd 57:58 abstract=\"1\"" + outside,
+                unsupported
+                    + "invalid/constructs.xsd 60:23 <xs:simpleContent> after another child"
+                    + outside,
+                unsupported
+                    + "invalid/constructs.xsd 67:39 <xs:extension> after another child"
+                    + outside,
+                unsupported + "invalid/constructs.xsd 72:21 <xs:sequence> here" + outside)),
         Arguments.of(
             "bases of the wrong kind or declared nowhere, and a head declared nowhere",
             List.of("invalid/bases.xsd"),
@@ -299,8 +306,10 @@ class XsdDerivationTest {
                 + " group",
             List.of("invalid/cycles.xsd"),
             List.of(
-                invalid + "invalid/cycles.xsd 16:35 the complex type {cycles}Egg derives from itself",
-                invalid + "invalid/cycles.xsd 21:37 the complex type {cycles}Hen derives from itself",
+                invalid
+                    + "invalid/cycles.xsd 16:35 the complex type {cycles}Egg derives from itself",
+                invalid
+                    + "invalid/cycles.xsd 21:37 the complex type {cycles}Hen derives from itself",
                 invalid
                     + "invalid/cycles.xsd 26:36 the complex type {cycles}Self derives from itself",
                 invalid
@@ -364,8 +373,7 @@ class XsdDerivationTest {
     return rows;
   }
 
-  private static void addTree(
-      Structure structure, FieldPath path, Field field, List<String> rows) {
+  private static void addTree(Structure structure, FieldPath path, Field field, List<String> rows) {
     rows.add(
         path
             + " "
@@ -388,7 +396,10 @@ class XsdDerivationTest {
                 .orElse(""));
     if (path.steps().size() < DEPTH) {
       List<Field> children =
-          field.type().map(id -> structure.types().get(id).fields()).orElse(Collections.emptyList());
+          field
+              .type()
+              .map(id -> structure.types().get(id).fields())
+              .orElse(Collections.emptyList());
       for (Field child : children) {
         addTree(structure, path.child(child.step()), child, rows);
       }

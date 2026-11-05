@@ -110,6 +110,30 @@ final class SchemaFile {
   /** The element particles of each named complex type, in document order. */
   final Map<QName, List<Particle>> complexTypeParticles = new HashMap<>();
 
+  /** The bases of {@code xs:complexContent} derivations: a complex type with element content. */
+  final List<NameUse> elementContentBases = new ArrayList<>();
+
+  /**
+   * The bases of {@code xs:simpleContent} extensions other than built-in types: a simple type or a
+   * complex type with simple content.
+   */
+  final List<NameUse> simpleContentBases = new ArrayList<>();
+
+  /** The named complex types with simple content. */
+  final Set<QName> simpleContentTypes = new HashSet<>();
+
+  /** The base of each named complex type that derives, at its derivation (#95). */
+  final Map<QName, NameUse> derivations = new HashMap<>();
+
+  /** The head of each global element in a substitution group, at the element (#95). */
+  final Map<QName, NameUse> substitutions = new HashMap<>();
+
+  /** Where each abstract global element is declared (#95). */
+  final Map<QName, Position> abstractElements = new HashMap<>();
+
+  /** Where each abstract named complex type is declared (#95). */
+  final Map<QName, Position> abstractTypes = new HashMap<>();
+
   SchemaFile(String name) {
     this(name, false);
   }

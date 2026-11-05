@@ -31,11 +31,14 @@ import javax.xml.namespace.QName;
  *       schema-reference-outside-bundle}. A {@code wsdl:import} or {@code wsdl:include} follows the
  *       same rule, and an import may also fall back to a WSDL of its namespace (#96).
  *   <li>Names are checked in every file, whatever load errors other files have: every name a file
- *       uses, a WSDL 1.1 message among them, must be declared by a bundle file, and a simple type
- *       must not derive from itself. A name that may be declared where nothing was read is not
- *       reported, so one load error gives no second: the name of a refused global declaration, any
- *       name in the namespace of a file that stopped being well-formed or of a reference outside
- *       the bundle, and any name at all once a file was not read as far as its {@code xs:schema}.
+ *       uses, a WSDL 1.1 message among them, must be declared by a bundle file, and a type must not
+ *       derive from itself. The base of {@code xs:complexContent} is a complex type with element
+ *       content, that of {@code xs:simpleContent} a simple type or a complex type with simple
+ *       content, and no element is in its own substitution group (#95). A name that may be declared
+ *       where nothing was read is not reported, so one load error gives no second: the name of a
+ *       refused global declaration, any name in the namespace of a file that stopped being
+ *       well-formed or of a reference outside the bundle, and any name at all once a file was not
+ *       read as far as its {@code xs:schema}.
  *   <li>The root must be a global element of a complex type. A missing root, or a WSDL operation's
  *       message that leads to none, is reported only when the bundle has no other load error.
  * </ul>
@@ -144,6 +147,11 @@ final class BundleCheck {
     Map<QName, SimpleType> simpleTypes = new HashMap<>();
     Set<QName> messages = new HashSet<>();
     Set<QName> refused = new HashSet<>();
+    Set<QName> simpleContent = new HashSet<>();
+    // the base of every type that derives, simple or complex, and the head of every element in a
+    // substitution group (#95)
+    Map<QName, QName> bases = new HashMap<>();
+    Map<QName, QName> heads = new HashMap<>();
     // the namespaces of files that stopped, were never read or are outside the bundle, null for
     // one never read as far as its xs:schema: what they declare is unknown
     Set<String> unknown = new HashSet<>(unreachable);
@@ -153,10 +161,18 @@ final class BundleCheck {
       simpleTypes.putAll(file.simpleTypes);
       messages.addAll(file.messages);
       refused.addAll(file.refused);
+      simpleContent.addAll(file.simpleContentTypes);
+      file.simpleTypes.forEach((name, type) -> bases.put(name, type.base()));
+      file.derivations.forEach((name, base) -> bases.put(name, base.name()));
+      file.substitutions.forEach((name, head) -> heads.put(name, head.name()));
       if (file.stopped || file.targetNamespace == null) {
         unknown.add(file.targetNamespace);
       }
     }
+    Set<QName> elementContent = new HashSet<>(complexTypes);
+    elementContent.removeAll(simpleContent);
+    Set<QName> simpleValued = new HashSet<>(simpleTypes.keySet());
+    simpleValued.addAll(simpleContent);
     // a name that a refused declaration, or a file whose declarations are unknown, may declare is
     // never a second error
     Predicate<QName> undeclared =
@@ -196,19 +212,54 @@ final class BundleCheck {
                   : invalid(file, use, "the simple type " + eqName(use.name()) + " is declared"));
         }
       }
-      for (Map.Entry<QName, SimpleType> type : file.simpleTypes.entrySet()) {
-        Set<QName> seen = new HashSet<>();
-        QName base = type.getValue().base();
-        while (simpleTypes.containsKey(base) && seen.add(base)) {
-          base = simpleTypes.get(base).base();
+      for (NameUse use : file.elementContentBases) {
+        if (!elementContent.contains(use.name()) && undeclared.test(use.name())) {
+          errors.add(
+              invalid(
+                  file,
+                  use,
+                  "the complex type " + eqName(use.name()) + " with element content is declared"));
         }
-        if (seen.contains(type.getKey())) {
+      }
+      for (NameUse use : file.simpleContentBases) {
+        if (!simpleValued.contains(use.name()) && undeclared.test(use.name())) {
+          errors.add(
+              invalid(
+                  file,
+                  use,
+                  "the simple type or complex type with simple content "
+                      + eqName(use.name())
+                      + " is declared"));
+        }
+      }
+      for (Map.Entry<QName, SimpleType> type : file.simpleTypes.entrySet()) {
+        if (cyclic(type.getKey(), bases)) {
           errors.add(
               error(
                   StructureImportDiagnostics.SCHEMA_INVALID,
                   file.name,
                   type.getValue().at(),
                   "the simple type " + eqName(type.getKey()) + " derives from itself"));
+        }
+      }
+      for (Map.Entry<QName, NameUse> type : file.derivations.entrySet()) {
+        if (cyclic(type.getKey(), bases)) {
+          errors.add(
+              error(
+                  StructureImportDiagnostics.SCHEMA_INVALID,
+                  file.name,
+                  type.getValue().at(),
+                  "the complex type " + eqName(type.getKey()) + " derives from itself"));
+        }
+      }
+      for (Map.Entry<QName, NameUse> element : file.substitutions.entrySet()) {
+        if (cyclic(element.getKey(), heads)) {
+          errors.add(
+              error(
+                  StructureImportDiagnostics.SCHEMA_INVALID,
+                  file.name,
+                  element.getValue().at(),
+                  "the element " + eqName(element.getKey()) + " is in its own substitution group"));
         }
       }
     }
@@ -239,6 +290,19 @@ final class BundleCheck {
                   + eqName(root)
                   + " has a simple type; a root element has a complex type"));
     }
+  }
+
+  /**
+   * Whether following {@code bases} from {@code name} comes back to it: a type that derives from
+   * itself, or an element in its own substitution group.
+   */
+  private static boolean cyclic(QName name, Map<QName, QName> bases) {
+    Set<QName> seen = new HashSet<>();
+    QName base = bases.get(name);
+    while (bases.containsKey(base) && seen.add(base)) {
+      base = bases.get(base);
+    }
+    return seen.contains(name);
   }
 
   private static StructureLoadException invalid(SchemaFile file, NameUse use, String what) {

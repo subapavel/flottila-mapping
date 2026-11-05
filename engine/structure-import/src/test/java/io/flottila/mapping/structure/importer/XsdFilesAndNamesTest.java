@@ -225,9 +225,9 @@ class XsdFilesAndNamesTest {
             "all-at-once",
             List.of("refused-z.xsd", "broken.xsd", "refused-a.xsd"),
             "Doc",
+            // refused-z.xsd's abstract="true" on Other loads since #95 (ADR-0008)
             List.of(
                 unsupported + "refused-z.xsd 6:18",
-                unsupported + "refused-z.xsd 11:62",
                 unsupported + "broken.xsd 4:23",
                 "schema-not-well-formed broken.xsd 6:3",
                 unsupported + "refused-a.xsd 5:40")),
