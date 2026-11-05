@@ -328,6 +328,18 @@ class GoldenCorpusTest {
     for (String[] step : steps.subList(1, steps.size())) {
       List<Node> next = new ArrayList<>();
       for (Node parent : level) {
+        if (step[1].startsWith("@")) {
+          // an attribute step (#102), the last: the parent's attribute of that name, if any
+          String[] attribute = step(step[1].substring(1));
+          Node found =
+              parent
+                  .getAttributes()
+                  .getNamedItemNS(attribute[0].isEmpty() ? null : attribute[0], attribute[1]);
+          if (found != null) {
+            next.add(found);
+          }
+          continue;
+        }
         for (Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
           if (named(child, step)) {
             next.add(child);

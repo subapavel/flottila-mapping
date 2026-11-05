@@ -5,15 +5,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -355,6 +359,125 @@ class InterpreterTest {
             DECLARATION
                 + ROOT_OPEN
                 + "<OrderId>  PO\t4711 \n x&amp;y &lt;z&gt; &#13; </OrderId>"
+                + ROOT_CLOSE);
+  }
+
+  // --- source attributes (#102): an attribute's queue is its own, beside an element of its name
+
+  /** The queue of an attribute, by its element's steps and then its name. */
+  private static SourceQueue attributeQueue(List<Name> field, int contextDepth, String box) {
+    return new SourceQueue(field, contextDepth, false, true, id(box));
+  }
+
+  /**
+   * {@code /Order/code} and {@code /Order/@code} are two fields with two queues (ADR-0007): the
+   * element's text per occurrence, and the attribute's value in its element's context. The same
+   * local name in another namespace is a third field, and the attribute of a leaf element is read
+   * with the element's text.
+   */
+  @Test
+  void elementAndAttributeOfOneNameAreTwoQueues() throws Exception {
+    TargetDocument document =
+        document(
+            leaf("Elem", rootLeaf("code", "a1"), 0, UNBOUNDED, "t1"),
+            leaf(
+                "Attr", attributeQueue(List.of(ORDER, local("code")), 1, "a2"), 0, UNBOUNDED, "t2"),
+            leaf(
+                "Lang",
+                attributeQueue(List.of(ORDER, local("code"), local("lang")), 1, "a3"),
+                0,
+                UNBOUNDED,
+                "t3"));
+    String input =
+        "<s:Order xmlns:s=\""
+            + NS
+            + "\" xmlns:o=\"urn:other\" code=\"A\" o:code=\"other\">"
+            + "<code lang=\"en\">E1</code><code>E2</code><code lang=\"de\">E3</code>"
+            + "</s:Order>";
+    Tracer tracer = new Tracer();
+
+    byte[] out = run(document, true, utf8(input), tracer);
+
+    assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of("E1", "E2", "E3"));
+    assertThat(tracedOnce(tracer, "a2")).containsExactly(List.of("A"));
+    // lang in the root's context: one context, the second code adds nothing
+    assertThat(tracedOnce(tracer, "a3")).containsExactly(List.of("en", "de"));
+    assertThat(new String(out, UTF_8))
+        .isEqualTo(
+            DECLARATION
+                + ROOT_OPEN
+                + "<Elem>E1</Elem><Elem>E2</Elem><Elem>E3</Elem>"
+                + "<Attr>A</Attr>"
+                + "<Lang>en</Lang><Lang>de</Lang>"
+                + ROOT_CLOSE);
+  }
+
+  /**
+   * An attribute's default context is its element (ADR-0007, #2 §1): one context per occurrence of
+   * the element, and an element without the attribute gives an empty context, not a skipped one and
+   * not {@code ""}. A present empty attribute is the value {@code ""}.
+   */
+  @Test
+  void absentAttributeGivesEmptyContext() throws Exception {
+    SourceQueue ids = attributeQueue(List.of(ORDER, local("Item"), local("id")), 2, "a1");
+    TargetDocument document = document(leaf("Id", ids, 0, UNBOUNDED, "t1"));
+    String input =
+        sourceOrder("<Item id=\"1\"/><Item/><Item id=\"\"><id>no</id></Item><Item id=\"4\"/>");
+    Tracer tracer = new Tracer();
+
+    byte[] out = run(document, true, utf8(input), tracer);
+
+    assertThat(tracedOnce(tracer, "a1"))
+        .containsExactly(List.of("1"), List.of(), List.of(""), List.of("4"));
+    // the root's slot 1 reads context 1
+    assertThat(new String(out, UTF_8))
+        .isEqualTo(DECLARATION + ROOT_OPEN + "<Id>1</Id>" + ROOT_CLOSE);
+  }
+
+  // --- target attributes (ADR-0006 since #102)
+
+  /**
+   * Two attribute items on the root, as lowering gives them: {@code code} per slot of OrderId's
+   * queue through {@code TargetSlots} (0..1), and the qualified {@code ns1:lang} through a 1-copy
+   * {@code TargetRepeat} with a constant value. Both stand before the child Note, and both are
+   * written on the root's start tag, before its content; {@code ns1} is declared where {@code lang}
+   * needs it (ADR-0022).
+   */
+  @Test
+  void targetAttributesAreWrittenOnTheirElementBeforeItsContent() throws Exception {
+    AuthoringId t1 = id("t1");
+    AuthoringId t2 = id("t2");
+    TargetDocument document =
+        document(
+            new TargetSlots(
+                rootLeaf("OrderId", "a1"),
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t1),
+                0,
+                1,
+                "slot",
+                "v",
+                new AttributeConstructor(
+                    "", local("code"), new VarRef("v", AtomicType.STRING, t1), t1),
+                t1),
+            new TargetRepeat(
+                1,
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t2),
+                "copy",
+                new AttributeConstructor(
+                    "ns1", new Name("urn:b", "lang"), new Literal("en", t2), t2),
+                t2),
+            leaf("Note", rootLeaf("Note", "a3"), 0, UNBOUNDED, "t3"));
+    IrVerifier.verify(document);
+
+    String out = run(document, sourceOrder("<OrderId>4711</OrderId><Note>x</Note>"));
+
+    assertThat(out)
+        .isEqualTo(
+            DECLARATION
+                + "<ns0:Order xmlns:ns0=\""
+                + NS
+                + "\" code=\"4711\" xmlns:ns1=\"urn:b\" ns1:lang=\"en\">"
+                + "<Note>x</Note>"
                 + ROOT_CLOSE);
   }
 
