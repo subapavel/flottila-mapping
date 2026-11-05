@@ -4,7 +4,8 @@ package io.flottila.mapping.structure;
  * Why a mapping may not use a field that loads and shows (ADR-0008 "Refused when a mapping uses the
  * field", GLOSSARY "Refused field"), and where the declaration that causes it stands. The reason
  * enters the fingerprint; the position does not (ADR-0009, #92). The position of {@link
- * Reason#INTERLEAVED_TARGET_GROUP} is the repeated group's declaration in its declaring file (#94).
+ * Reason#INTERLEAVED_TARGET_GROUP} is the repeated group's declaration in its declaring file (#94);
+ * that of {@link Reason#ABSTRACT_TARGET_ELEMENT} the abstract declaration in its (#95).
  *
  * @param reason why the field is refused
  * @param file the schema file, as the bundle names it
@@ -22,7 +23,13 @@ public record Refusal(Refusal.Reason reason, String file, int line, int column) 
      * A field of a repeated group of two or more particles that is not a choice of single elements:
      * streamed output cannot interleave its fields, so it is refused in a target only (#94).
      */
-    INTERLEAVED_TARGET_GROUP("interleaved-target-group", true);
+    INTERLEAVED_TARGET_GROUP("interleaved-target-group", true),
+
+    /**
+     * An abstract element, or an element of an abstract type, which a target cannot write; a source
+     * reads it (#95). The position is the abstract declaration in its declaring file.
+     */
+    ABSTRACT_TARGET_ELEMENT("abstract-target-element", true);
 
     private final String code;
     private final boolean targetOnly;

@@ -407,11 +407,11 @@ class StructuresTest {
                 new SchemaBundle(List.of("refused-z.xsd", "broken.xsd", "refused-a.xsd")),
                 new ElementRoot("Doc")));
 
+    // refused-z.xsd's abstract="true" on Other (11:62) loads since #95
     assertThat(diagnostics)
         .extracting(StructuresTest::described)
         .containsExactly(
             "schema-construct-unsupported refused-z.xsd 6:18",
-            "schema-construct-unsupported refused-z.xsd 11:62",
             "schema-construct-unsupported broken.xsd 4:23",
             "schema-not-well-formed broken.xsd 6:3",
             "schema-construct-unsupported refused-a.xsd 5:40");

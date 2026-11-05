@@ -258,6 +258,50 @@ final class TestStructures {
         structureField("Body", 0, 1, "/Doc/Body"));
   }
 
+  /** The schema file {@link #abstractTarget()}'s refusals name. */
+  static final String SHAPES_FILE = "shapes.xsd";
+
+  /**
+   * Abstract declarations as the reader gives them (ADR-0008, #95): under {@code Doc}, the leaf
+   * {@code Id} 0..1; {@code Shape} 0..1 of an abstract type (abstract-target-element at 7:48),
+   * holding the leaf {@code Size} 0..1 and the same-step leaves {@code Colour} 0..1 twice
+   * (ambiguous-field-path at 9:51); {@code Box} 0..1 holding the leaf {@code Need} 1..1, a
+   * reference to an abstract element (abstract-target-element at 21:61). No namespace.
+   */
+  static Structure abstractTarget() {
+    Refusal.Reason colour = Refusal.Reason.AMBIGUOUS_FIELD_PATH;
+    Refusal.Reason isAbstract = Refusal.Reason.ABSTRACT_TARGET_ELEMENT;
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Shape",
+            new StructureType(
+                "/Doc/Shape",
+                List.of(
+                    leaf("", "Size", 0, 1, ValueType.STRING),
+                    refused(leaf("", "Colour", 0, 1, ValueType.STRING), colour, 9, 51),
+                    refused(leaf("", "Colour", 0, 1, ValueType.STRING), colour, 9, 51))),
+            "/Doc/Box",
+            new StructureType(
+                "/Doc/Box",
+                List.of(refused(leaf("", "Need", 1, 1, ValueType.STRING), isAbstract, 21, 61)))),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        refused(structureField("Shape", 0, 1, "/Doc/Shape"), isAbstract, 7, 48),
+        structureField("Box", 0, 1, "/Doc/Box"));
+  }
+
+  /** {@code field} refused for {@code reason} at {@link #SHAPES_FILE} line:column. */
+  private static Field refused(Field field, Refusal.Reason reason, int line, int column) {
+    return new Field(
+        field.step(),
+        field.occurrence(),
+        field.valueType(),
+        field.nillable(),
+        field.type(),
+        Optional.of(new Refusal(reason, SHAPES_FILE, line, column)));
+  }
+
   /** The schema file {@link #interleaved()}'s refusals name. */
   static final String INTERLEAVED_FILE = "interleaved.xsd";
 

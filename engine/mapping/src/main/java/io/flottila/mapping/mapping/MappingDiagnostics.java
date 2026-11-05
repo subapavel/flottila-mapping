@@ -110,6 +110,15 @@ public final class MappingDiagnostics {
   public static final String INTERLEAVED_TARGET_GROUP = "interleaved-target-group";
 
   /**
+   * A target field mapping that writes an abstract element, an element of an abstract type, or a
+   * field below one (ADR-0008 "Refused when a mapping uses the field", #95), at its authoring id;
+   * or such an element with {@code minOccurs > 0} that the target walk would create and no mapping
+   * writes, at its absent member {@code /targetFieldMappings/<field path>}. The message names the
+   * schema file, line and column of the abstract declaration. A source-field box reads one.
+   */
+  public static final String ABSTRACT_TARGET_ELEMENT = "abstract-target-element";
+
+  /**
    * A mapping whose target is a JSON root, at {@code /target} (ADR-0008 "JSON as a target", #97): a
    * JSON Schema loads and shows as a target, and JSON output comes after milestone 1.
    */

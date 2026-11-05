@@ -34,7 +34,7 @@ public record Field(
     }
   }
 
-  /** This field with {@code refusal}, every other component kept. */
+  /** This field with {@code refusal}, which replaces any it had; every other component is kept. */
   public Field withRefusal(Refusal refusal) {
     return new Field(step, occurrence, valueType, nillable, type, Optional.of(refusal), array);
   }

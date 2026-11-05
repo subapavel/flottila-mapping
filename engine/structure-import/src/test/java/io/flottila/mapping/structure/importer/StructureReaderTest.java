@@ -149,7 +149,6 @@ class StructureReaderTest {
     "type-unbound-prefix,        schema-construct-unsupported,  9, 53",
     "missing-type,               schema-construct-unsupported,  9, 34",
     "nillable-not-true-or-false, schema-construct-unsupported,  9, 64",
-    "attribute-prohibited,       schema-construct-unsupported, 10, 71",
     "foreign-element,            schema-construct-unsupported,  9, 56",
     "redefine,                   schema-construct-unsupported,  5, 44",
     "not-a-schema,               schema-construct-unsupported,  3, 71",

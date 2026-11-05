@@ -86,6 +86,14 @@ class FingerprintPinTest {
           entry(
               "refused/same-step.xsd Doc",
               "sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e"),
+          // #95: derivation, substitution and an abstract element; the abstract Remark's
+          // canonical line ends in " refused:abstract-target-element"
+          entry(
+              "derivation/order.xsd Q{urn:flottila:corpus:order}Order",
+              "sha256:7fa870df17665f949da9986b2036fc81a4299fe38c920afdd24b20ac29b17284"),
+          entry(
+              "derivation/order.xsd Q{urn:flottila:corpus:order}Receipt",
+              "sha256:f7b3d1697015e4f93e73caa19b269e7cbd44f8b19146ba6b50c49bdb7bfa5c84"),
           // #94: a choice (str-choice-1, -2), a repeated choice of elements, and a repeated
           // sequence whose A and B are refused fields ending in " refused:interleaved-target-group"
           entry(
