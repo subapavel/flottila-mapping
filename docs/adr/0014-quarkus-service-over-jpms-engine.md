@@ -58,7 +58,7 @@ application on the class path. So the engine stays JPMS and the service does not
   `schema-unreadable` wait for the port in spec 4.
 - **Decided for spec 4 (spec-4 grilling, 2026-11-05), closing F-12:**
   - The engine never opens a file. `Structures.load` takes a `ReferenceResolver`. The resolver
-    turns (the referring file, a reference) into bytes and a display name.
+    turns a reference the bundle lists into bytes and a display name (shape: below, #90).
   - Every read goes through it: the bundle files and every `schemaLocation`, `wsdl:import`/`include`
     and JSON `$ref` to another file (ADR-0008).
   - The service's resolver is `Workspace` with its three checks (ADR-0024). The engine ships no
@@ -68,6 +68,32 @@ application on the class path. So the engine stays JPMS and the service does not
   - A package reference passes stages 1 and 2 (ADR-0024). Loading it gives the design-time error
     `package-reference-unsupported`.
   - Messages name a file by its reference relative to the bundle, never by an absolute path.
+
+## Reference resolver shape (#90, 2026-11-05)
+
+- The port is `ReferenceResolver` in `structure-import`'s exported package:
+  `ResolvedFile resolve(String reference) throws UnresolvedReferenceException`.
+  - `ResolvedFile(name, content)` names the file as the bundle spells it.
+  - The refusal's `Reason` is `UNREADABLE` or `PACKAGE_REFERENCE_UNSUPPORTED`. It carries no host
+    text, and every message is the engine's.
+  - A whole-file refusal sits at `{file: the bundle reference, line 1, column 1}`.
+- The resolver only ever receives a reference the schema bundle lists. A reference written inside
+  a schema (`schemaLocation`, `wsdl:import`, a file `$ref`) is mapped to a bundle-listed reference
+  by the engine, by text and with no file-system call, before any read (ADR-0008). A file the
+  bundle does not list is therefore never read. This narrows the "(the referring file, a
+  reference)" form drafted above.
+- The host binds the resolver to the bundle's base. `Structures.load`, `EngineFacade.compile` and
+  `export` take it per call: one facade serves many mappings. `Path` leaves `api`, which requires
+  `structure-import` transitively.
+- An unchecked exception from a resolver passes through unchanged. The service uses this for its
+  400 `invalid-workspace-path` on a bundle file that escapes; the resources no longer check bundle
+  paths before the call. Create still answers a load error with 422 `model-refused`.
+- Considered:
+  - a sealed result instead of the exception: no gain;
+  - a host message in the diagnostic: it can leak a path;
+  - the port in `structure` (records only) or in `api` (structure-import cannot see it);
+  - the engine parsing `name@version:/path`: Flottila would then need an engine change;
+  - a referring-file argument: the engine already maps by text, so the resolver would never use it.
 
 ## Running
 
