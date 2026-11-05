@@ -45,7 +45,8 @@ public final class XsdReader {
   private final Map<String, StructureType> types = new HashMap<>();
 
   /**
-   * The element particles of a complex type and the file a refusal among them names (#92).
+   * The element particles of a complex type and the file that declares it, which a refusal among
+   * them names (#92).
    *
    * @param particles the particles of its sequence, in document order
    */
@@ -57,16 +58,15 @@ public final class XsdReader {
   /** The particles of each named complex type, across the bundle. */
   private final Map<QName, Declared> complexTypeParticles = new HashMap<>();
 
-  private XsdReader(XmlSchemaCollection collection, List<SchemaFile> schemas, QName root) {
+  private XsdReader(XmlSchemaCollection collection, List<SchemaFile> schemas) {
     this.collection = collection;
-    // as #92's one-file reader: every refusal names the file that declares the root
-    String file =
-        schemas.stream().filter(s -> s.elements.containsKey(root)).findFirst().orElseThrow().name;
+    // a refusal names the file that declares the type, whichever file declares the root (ADR-0008)
     for (SchemaFile schema : schemas) {
       schema.elementParticles.forEach(
-          (name, particles) -> elementParticles.put(name, new Declared(file, particles)));
+          (name, particles) -> elementParticles.put(name, new Declared(schema.name, particles)));
       schema.complexTypeParticles.forEach(
-          (name, particles) -> complexTypeParticles.put(name, new Declared(file, particles)));
+          (name, particles) ->
+              complexTypeParticles.put(name, new Declared(schema.name, particles)));
     }
   }
 
@@ -115,7 +115,7 @@ public final class XsdReader {
     // a global element is always qualified; XmlSchema's getWireName() drops its namespace
     // (observed)
     FieldPath.Step rootStep = step(FieldKind.ELEMENT, element.getQName());
-    XsdReader reader = new XsdReader(collection, schemas, root);
+    XsdReader reader = new XsdReader(collection, schemas);
     Field rootField =
         reader.field(rootStep, new Occurrence(1, 1), element, "/" + rootStep, Optional.empty());
     return new Structure(rootField, reader.types);
