@@ -68,7 +68,8 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015; amende
 - The service bypasses Jackson for model bytes on GET, PUT and create, so the strict reader and byte
   identity hold.
 - It calls only:
-  - `EngineFacade.load`, `save`, `compile`, `run`, `newMapping` and `testRun` (#54);
+  - `EngineFacade.load`, `save`, `compile`, `run`, `newMapping` and `testRun` (#54), and `refresh`
+    (#99);
   - since #90, `Workspace.resolver` implements `ReferenceResolver` and builds `ResolvedFile` and
     `UnresolvedReferenceException`; `Structures.load`, `compile` and `export` take it;
   - `Structures.load`;
