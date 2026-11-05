@@ -98,14 +98,17 @@ class FingerprintPinTest {
 
   @Test
   void every_pinned_structure_loads_with_its_literal_fingerprint() {
+    // loaded as a corpus mapping names it, from corpus/mappings: a JSON structure's type ids hold
+    // its file as the bundle spells it (#97), so its fingerprint does too
+    Path mappings =
+        CorpusStructures.directory("json-schema").getParent().resolveSibling("mappings");
     Map<String, String> loaded = new TreeMap<>();
     for (String key : PINNED.keySet()) {
       String[] fileAndRoot = key.split(" ", 2);
-      Path file = Path.of(fileAndRoot[0]);
       StructureResult result =
           Structures.load(
-              DirectoryResolver.over(CorpusStructures.directory(file.getParent().toString())),
-              new SchemaBundle(List.of(file.getFileName().toString())),
+              DirectoryResolver.over(mappings),
+              new SchemaBundle(List.of(STRUCTURES + fileAndRoot[0])),
               fileAndRoot[1].equals(JSON_ROOT) ? new JsonRoot() : new ElementRoot(fileAndRoot[1]));
       assertThat(result).as(key).isInstanceOf(StructureResult.Loaded.class);
       loaded.put(key, ((StructureResult.Loaded) result).structure().fingerprint());
