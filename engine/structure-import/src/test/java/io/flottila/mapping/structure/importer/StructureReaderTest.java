@@ -382,16 +382,20 @@ class StructureReaderTest {
 
   private static final String PAIR = "Q{urn:flottila:corpus:refused:b}Pair";
 
+  private static final String ITEM = "/Q{urn:flottila:corpus:refused:ref-b}Item";
+
   /**
    * Bundles whose same-step siblings are declared in another file than the root (ADR-0008: a
    * refusal carries the file, line and column of the declaration that causes it, wherever that
    * declaration is written): {row, fixture directory under corpus/structures/refused, bundle, root,
-   * each refused field as "type id, index, step, file line:column" with the types in id order}.
+   * each refused field as "type id, index, step, file line:column" with the types in id order, the
+   * type ids the root's fields name}.
    */
   static Stream<Arguments> refusalsWhereDeclared() {
     return Stream.of(
         // Part twice in Pair (6 spaces, 24 characters: 10:31), Leaf twice in the second Part's
-        // anonymous type (12 spaces, 43 characters: 14:56)
+        // anonymous type (12 spaces, 43 characters: 14:56); First and Second share Pair, so both
+        // paths carry its refusals at one position
         Arguments.of(
             "same-step siblings in a named complex type of the second bundle file",
             "two-file",
@@ -401,13 +405,28 @@ class StructureReaderTest {
                 PAIR + " 0 Part b.xsd 10:31",
                 PAIR + " 1 Part b.xsd 10:31",
                 PAIR + "/Part 0 Leaf b.xsd 14:56",
-                PAIR + "/Part 1 Leaf b.xsd 14:56")));
+                PAIR + "/Part 1 Leaf b.xsd 14:56"),
+            List.of(PAIR, PAIR)),
+        // Code twice in Item's anonymous type (8 spaces, 43 characters: 11:52)
+        Arguments.of(
+            "same-step siblings in the anonymous type of a global element of the second bundle"
+                + " file, reached by reference",
+            "element-ref",
+            List.of("a.xsd", "b.xsd"),
+            "Q{urn:flottila:corpus:refused:ref-a}Doc",
+            List.of(ITEM + " 0 Code b.xsd 11:52", ITEM + " 1 Code b.xsd 11:52"),
+            List.of(ITEM)));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("refusalsWhereDeclared")
   void a_refusal_names_the_file_line_and_column_of_the_second_declaration(
-      String row, String fixture, List<String> bundle, String root, List<String> refused)
+      String row,
+      String fixture,
+      List<String> bundle,
+      String root,
+      List<String> refused,
+      List<String> rootTypes)
       throws Exception {
     Structure structure =
         new StructureReader(DirectoryResolver.over(REFUSED.resolve(fixture)))
@@ -435,10 +454,9 @@ class StructureReaderTest {
     }
 
     assertThat(refusals).containsExactlyElementsOf(refused);
-    // First and Second share the one type: both paths carry its refusals at one position
     assertThat(structure.types().get(structure.root().type().orElseThrow()).fields())
         .extracting(f -> f.type().orElseThrow())
-        .containsExactly(PAIR, PAIR);
+        .containsExactlyElementsOf(rootTypes);
   }
 
   /**
