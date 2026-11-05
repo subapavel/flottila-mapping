@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -472,41 +473,47 @@ class EngineFacadeRefusedFieldTest {
     }
   }
 
+  /** The seeds of the generated schemas. */
+  static LongStream seeds() {
+    return LongStream.rangeClosed(1, 30);
+  }
+
   /**
-   * Seeded schemas (ADR-0018: seeded loops, no jqwik): a leaf below a same-step sibling, read by a
-   * source-field box onto {@code /Root/Id} and written by a target field mapping from {@code
-   * /Root/Id}, is refused at the box and at the mapping, and the message names the second
-   * declaration of the step nearest the root, also when a step nearer the leaf has same-step
-   * siblings too.
+   * Seeded schemas (ADR-0018: parameterised over seeds, the seed in the case name): a leaf below a
+   * same-step sibling, read by a source-field box onto {@code /Root/Id} and written by a target
+   * field mapping from {@code /Root/Id}, is refused at the box and at the mapping, and the message
+   * names the second declaration of the step nearest the root, also when a step nearer the leaf has
+   * same-step siblings too.
    */
-  @Test
-  void a_field_below_a_same_step_sibling_is_refused(@TempDir Path dir) throws Exception {
-    int nested = 0;
-    for (long seed = 1; seed <= 30; seed++) {
-      Random random = new Random(seed);
-      Generated generated = generate(random);
-      Path base = Files.createDirectories(dir.resolve("seed-" + seed));
-      Files.writeString(base.resolve("gen.xsd"), generated.xsd());
-      String position = "gen.xsd " + generated.line() + ":" + generated.column();
-      byte[] source =
-          model(base, "gen.xsd", "Root", mappings(link("/Root/Id", "t1", "s1", generated.leaf())));
-      byte[] target =
-          model(base, "gen.xsd", "Root", mappings(link(generated.leaf(), "t1", "s1", "/Root/Id")));
-      String what = "seed " + seed + ", " + generated.leaf() + " in\n" + generated.xsd();
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("seeds")
+  void a_field_below_a_same_step_sibling_is_refused(long seed, @TempDir Path dir) throws Exception {
+    Random random = new Random(seed);
+    Generated generated = generate(random);
+    Files.writeString(dir.resolve("gen.xsd"), generated.xsd());
+    String position = "gen.xsd " + generated.line() + ":" + generated.column();
+    byte[] source =
+        model(dir, "gen.xsd", "Root", mappings(link("/Root/Id", "t1", "s1", generated.leaf())));
+    byte[] target =
+        model(dir, "gen.xsd", "Root", mappings(link(generated.leaf(), "t1", "s1", "/Root/Id")));
+    String what = "seed " + seed + ", " + generated.leaf() + " in\n" + generated.xsd();
 
-      for (Side side : List.of(new Side(source, at("s1")), new Side(target, at("t1")))) {
-        List<Diagnostic> diagnostics =
-            refusal(
-                new EngineFacade()
-                    .compile(side.model(), DirectoryResolver.over(base), CompileOptions.DEPLOY));
+    for (Side side : List.of(new Side(source, at("s1")), new Side(target, at("t1")))) {
+      List<Diagnostic> diagnostics =
+          refusal(
+              new EngineFacade()
+                  .compile(side.model(), DirectoryResolver.over(dir), CompileOptions.DEPLOY));
 
-        assertThat(described(diagnostics)).as(what).isEqualTo(ambiguousAt(side.at()));
-        assertThat(diagnostics.getFirst().message()).as(what).contains(position);
-      }
-      nested += generated.nested() ? 1 : 0;
+      assertThat(described(diagnostics)).as(what).isEqualTo(ambiguousAt(side.at()));
+      assertThat(diagnostics.getFirst().message()).as(what).contains(position);
     }
+  }
 
-    // witness: some schemas have a further same-step step nearer the leaf, some do not
-    assertThat(nested).isBetween(1, 29);
+  /** The witness of the seeds: some schemas have a further same-step step nearer the leaf. */
+  @Test
+  void some_seeded_schemas_have_a_further_same_step_sibling_nearer_the_leaf_and_some_not() {
+    long nested = seeds().filter(seed -> generate(new Random(seed)).nested()).count();
+
+    assertThat(nested).isBetween(1L, 29L);
   }
 }
