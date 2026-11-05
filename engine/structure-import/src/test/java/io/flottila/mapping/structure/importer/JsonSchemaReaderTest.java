@@ -293,37 +293,90 @@ class JsonSchemaReaderTest {
     assertThat(resolver.calls()).containsExactly(file);
   }
 
+  static Stream<Arguments> ids() {
+    return Stream.of(
+        argumentSet(
+            "a relative $ref resolves against the bundle reference, whatever $id says",
+            List.of("relative.schema.json", "defs/address.schema.json"),
+            "/$/shipTo",
+            List.of(
+                "/$ 1..1 structure",
+                "/$/shipTo 0..1 structure",
+                "/$/shipTo/city 1..1 xs:string",
+                "/$/shipTo/country 0..1 xs:string",
+                "/$/shipTo/home 0..1 structure",
+                "/$/shipTo/home/street 0..1 xs:string")),
+        argumentSet(
+            "an absolute $ref names the bundle file whose root $id it is",
+            List.of("absolute.schema.json", "defs/address.schema.json"),
+            "/$/billTo",
+            List.of(
+                "/$ 1..1 structure",
+                "/$/billTo 0..1 structure",
+                "/$/billTo/city 1..1 xs:string",
+                "/$/billTo/country 0..1 xs:string",
+                "/$/billTo/home 0..1 structure",
+                "/$/billTo/home/street 0..1 xs:string",
+                "/$/home 0..1 structure",
+                "/$/home/street 0..1 xs:string")));
+  }
+
   /**
-   * A schema's {@code $id} sets another base: a reference resolved against it names no bundle file,
-   * so it is outside the bundle. It is found while the schema loads, at the root file.
+   * ADR-0008 (#97): the file part of a relative $ref resolves against the referring file's bundle
+   * reference, whatever its $id says; an absolute $ref names the one bundle file whose root $id it
+   * is. A named type's id is its bundle file and pointer, an anchor's too.
    */
+  @ParameterizedTest(name = "{argumentSetName}")
+  @MethodSource("ids")
+  void aRefNamesItsBundleFileByReferenceOrByRootId(
+      List<String> bundle, String address, List<String> fields) throws Exception {
+    MemoryResolver resolver = idsResolver();
+
+    Structure structure =
+        new StructureReader(resolver).read(new SchemaBundle(bundle), new JsonRoot());
+
+    assertThat(tree(structure)).containsExactlyElementsOf(fields);
+    assertThat(type(structure, address)).isEqualTo("defs/address.schema.json#/$defs/Address");
+    assertThat(type(structure, address + "/home")).isEqualTo("defs/address.schema.json#/$defs/Home");
+    assertThat(resolver.calls()).containsExactlyElementsOf(bundle);
+  }
+
+  /** ADR-0008 (#97): an absolute $ref that no bundle file's root $id matches is outside it. */
   @Test
-  void aRefResolvedAgainstAnIdOutsideTheBundleIsRefused() {
-    MemoryResolver resolver =
-        new MemoryResolver()
-            .file(
-                "order.schema.json",
-                """
-                {"$id": "https://example.com/order.schema.json",
-                 "type": "object", "properties": {"a": {"$ref": "a.schema.json"}}}
-                """)
-            .file("a.schema.json", "{\"type\": \"string\"}");
+  void anAbsoluteRefNoRootIdMatchesIsRefusedAtTheRef() throws Exception {
+    MemoryResolver resolver = idsResolver();
 
     assertThatThrownBy(
             () ->
                 new StructureReader(resolver)
                     .read(
-                        new SchemaBundle(List.of("order.schema.json", "a.schema.json")),
+                        new SchemaBundle(
+                            List.of("unknown.schema.json", "defs/address.schema.json")),
                         new JsonRoot()))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
             e -> {
               assertThat(e.code()).isEqualTo("schema-reference-outside-bundle");
-              assertThat(e.file()).isEqualTo("order.schema.json");
-              assertThat(e.line()).isEqualTo(1);
-              assertThat(e.column()).isEqualTo(1);
-              assertThat(e.getMessage()).contains("https://example.com/a.schema.json");
+              assertThat(e.file()).isEqualTo("unknown.schema.json");
+              assertThat(e.line()).isEqualTo(6);
+              assertThat(e.column()).isEqualTo(15);
+              assertThat(e.getMessage()).contains("\"https://example.com/shared/party.json\"");
             });
+  }
+
+  /** The files of {@code ids/}, by their reference under it. */
+  private static MemoryResolver idsResolver() throws Exception {
+    Path ids = FIXTURES.resolve("ids");
+    MemoryResolver resolver = new MemoryResolver();
+    for (String file :
+        List.of(
+            "relative.schema.json",
+            "absolute.schema.json",
+            "unknown.schema.json",
+            "defs/address.schema.json")) {
+      resolver.file(file, Files.readAllBytes(ids.resolve(file)));
+    }
+    return resolver;
   }
 
   /** ADR-0008's load-time refusals, and schemas that are not well-formed or not valid. */
