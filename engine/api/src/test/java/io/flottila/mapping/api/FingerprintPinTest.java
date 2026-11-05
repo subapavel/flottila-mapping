@@ -34,6 +34,9 @@ class FingerprintPinTest {
               "observations/src-orders.xsd Orders",
               "sha256:5e9bdd3db3b284fc086f0233797ede5e4f3fb874bd696ba3f496dd30bffef9a7"),
           entry(
+              "observations/tgt-attr.xsd Flagged",
+              "sha256:b56d01b2f49ebd527be872f30b54d71b988318a613bd035d7c04148e656c739b"),
+          entry(
               "observations/tgt-create.xsd Create",
               "sha256:c55781b0218fbd5796a6bb9e47dda32fbd3cb7129744178ee56130aeaa3c986f"),
           entry(
