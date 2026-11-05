@@ -191,20 +191,23 @@ final class JsonProjection implements Projection {
       }
       case JsonParser.START_ARRAY -> open.push(array ? step : skipped);
       default -> {
-        // a scalar no leaf reads is not even taken as a string
-        if (!array && step.values.length > 0) {
-          String value =
-              switch (event) {
-                case JsonParser.TRUE -> "true";
-                case JsonParser.FALSE -> "false";
-                case JsonParser.NULL -> "";
-                default -> parser.text();
-              };
+        if (!array) {
+          // taken per queue, so a scalar no leaf reads is not even taken as a string
           for (int k : step.values) {
-            builders[k].append(value);
+            builders[k].append(scalar(event, parser));
           }
         }
       }
     }
+  }
+
+  /** The text of the scalar {@code event} gives: {@code null} is {@code ""}. */
+  private static String scalar(int event, JsonParser parser) {
+    return switch (event) {
+      case JsonParser.TRUE -> "true";
+      case JsonParser.FALSE -> "false";
+      case JsonParser.NULL -> "";
+      default -> parser.text();
+    };
   }
 }

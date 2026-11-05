@@ -179,7 +179,7 @@ final class JsonParser {
     }
     arrays[depth++] = array;
     // a set per depth, an array's unused, so that an object's is at its depth
-    if (keys.size() < depth) {
+    if (keys.size() == depth - 1) {
       keys.add(new HashSet<>());
     }
     keys.get(depth - 1).clear();
