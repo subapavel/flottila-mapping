@@ -7,6 +7,14 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.flottila.mapping.api.StructureResult;
+import io.flottila.mapping.api.Structures;
+import io.flottila.mapping.mapping.AtFilePosition;
+import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
+import io.flottila.mapping.structure.importer.ResolvedFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -883,6 +891,184 @@ class WorkspaceTest {
     }
     Path root = Path.of("/ws");
     return root.resolve(BUNDLE_DIRECTORY).resolve(path).normalize().startsWith(root);
+  }
+
+  // --- #90: the workspace's reference resolver (ADR-0014 "Reference resolver shape", ADR-0024)
+
+  /** The root selector the engine is asked for; no case below reaches a schema's content. */
+  private static final ElementRoot ANY_ROOT = new ElementRoot("Order");
+
+  /**
+   * The escapes {@link #resolverRefusesAnEscapeBeforeAnyRead} sends from {@code a/}: {@code
+   * {outside}} stands for the absolute path of {@code outside/}. A missing file outside is an
+   * escape, never unreadable.
+   */
+  static Stream<String> escapes() {
+    return Stream.of(
+        "../../outside/evil.xsd",
+        "{outside}/evil.xsd",
+        "links/out.xsd",
+        "links/ghost.xsd",
+        "links/loop.xsd",
+        "../../outside/missing.xsd");
+  }
+
+  /**
+   * The resolver refuses a workspace escape with an unchecked {@link WorkspaceEscapeException} that
+   * wraps the {@link WorkspacePathException} naming the reference as the bundle spells it, and
+   * opens no file on the way: {@link ObservedFileSystem} records every open. The witness: the same
+   * resolver then reads a workspace path, and the observer sees that open.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("escapes")
+  void resolverRefusesAnEscapeBeforeAnyRead(String row) throws Exception {
+    assumePosix();
+    Path a = root.resolve("a");
+    Path links = Files.createDirectory(a.resolve("links"));
+    Files.createSymbolicLink(links.resolve("out.xsd"), Path.of("../../../outside/evil.xsd"));
+    Files.createSymbolicLink(links.resolve("ghost.xsd"), Path.of("../../../outside/ghost.xsd"));
+    Files.createSymbolicLink(links.resolve("loop.xsd"), Path.of("loop.xsd"));
+    Files.write(a.resolve("inside.xsd"), NEW);
+    String reference = row.replace("{outside}", outside.toString());
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    assertThatThrownBy(() -> resolver.resolve(reference))
+        .as(reference)
+        .isInstanceOf(WorkspaceEscapeException.class)
+        .cause()
+        .isInstanceOf(WorkspacePathException.class)
+        .hasMessage("not a workspace path: \"" + reference + "\"");
+
+    assertThat(observed.moments()).as("files opened for %s", reference).isEmpty();
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+    ResolvedFile inside = resolver.resolve("inside.xsd");
+    assertThat(inside.name()).isEqualTo("inside.xsd");
+    assertThat(inside.content()).isEqualTo(NEW);
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("the witness: the observer sees a read")
+        .contains("inside.xsd");
+  }
+
+  /**
+   * A workspace path is read as the bundle spells it, through a link inside as well (ADR-0024). A
+   * file that is missing inside, or a directory, is no escape: the engine reports it as {@code
+   * schema-unreadable} at the reference.
+   */
+  @Test
+  void resolverReadsAWorkspacePathAndAnswersAMissingOneAsUnreadable() throws Exception {
+    Path a = root.resolve("a");
+    byte[] shared = "shared schema".getBytes(UTF_8);
+    byte[] linked = "linked schema".getBytes(UTF_8);
+    Files.write(root.resolve("shared.xsd"), shared);
+    Files.createDirectories(root.resolve("real"));
+    Files.write(root.resolve("real/s.xsd"), linked);
+    Files.createSymbolicLink(a.resolve("s-alias.xsd"), Path.of("../real/s.xsd"));
+    Files.createDirectory(a.resolve("sub.xsd"));
+    ReferenceResolver resolver = workspace.resolver(a);
+
+    ResolvedFile up = resolver.resolve("../shared.xsd");
+    assertThat(up.name()).isEqualTo("../shared.xsd");
+    assertThat(up.content()).isEqualTo(shared);
+    ResolvedFile alias = resolver.resolve("s-alias.xsd");
+    assertThat(alias.name()).isEqualTo("s-alias.xsd");
+    assertThat(alias.content()).isEqualTo(linked);
+    for (String reference : List.of("missing.xsd", "sub.xsd")) {
+      assertThat(described(Structures.load(resolver, bundle(reference), ANY_ROOT)))
+          .as(reference)
+          .isEqualTo("schema-unreadable at " + reference + " 1:1");
+    }
+  }
+
+  /** ADR-0024 as amended by the spec-4 grilling, verbatim: the oracle of a package reference. */
+  private static final Pattern PACKAGE_PATTERN =
+      Pattern.compile(
+          "[A-Za-z0-9_-][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.+-]*:/[A-Za-z0-9_-][A-Za-z0-9._-]*"
+              + "(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*");
+
+  /** Enough candidates that both outcomes come up often (103 package references for SEED). */
+  private static final int PACKAGE_CASES = 3000;
+
+  /**
+   * The resolver refuses a reference as a package reference ({@code package-reference-unsupported}
+   * from the engine) exactly when it has the ADR-0024 form, and anything else with an {@code @} is
+   * an escape. It decides from the text alone: the root is deleted before the first call, so a
+   * file-system call would show as {@code schema-unreadable} or a different exception. Candidates
+   * are {@code name@version:path} with parts from {@link #generate} and {@link #segment}.
+   */
+  @Test
+  void packageRegexAcceptsExactlyTheAdrForm() throws Exception {
+    ReferenceResolver resolver = workspace.resolver(root.resolve("a"));
+    deleteTree(root);
+    List<String> candidates =
+        new ArrayList<>(
+            List.of(
+                "shared@1.2.0:/xsd/o.xsd",
+                "p@1:/x.xsd",
+                "p_-.q@2+b.1-rc:/a/b.c",
+                "p@1:x.xsd",
+                "p@:/x.xsd",
+                "@1:/x.xsd",
+                "p@1:/../x.xsd",
+                "p@1:/a//b.xsd",
+                "p@.1:/x.xsd",
+                "p@1:/x.xsd/",
+                "p@1@2:/x.xsd",
+                "p@1:/a\\b.xsd"));
+    SplittableRandom random = new SplittableRandom(SEED);
+    for (int i = 0; i < PACKAGE_CASES; i++) {
+      candidates.add(packageCandidate(random));
+    }
+
+    int accepted = 0;
+    int refused = 0;
+    for (String reference : candidates) {
+      if (PACKAGE_PATTERN.matcher(reference).matches()) {
+        accepted++;
+        assertThat(described(Structures.load(resolver, bundle(reference), ANY_ROOT)))
+            .as(printable(reference))
+            .isEqualTo("package-reference-unsupported at " + reference + " 1:1");
+      } else {
+        refused++;
+        assertThatThrownBy(() -> Structures.load(resolver, bundle(reference), ANY_ROOT))
+            .as(printable(reference))
+            .isInstanceOf(WorkspaceEscapeException.class);
+      }
+    }
+    // both outcomes must come up, or the property holds vacuously
+    assertThat(accepted).as("seed %x: package references", SEED).isGreaterThanOrEqualTo(50);
+    assertThat(refused).as("seed %x: other references", SEED).isGreaterThanOrEqualTo(50);
+  }
+
+  /**
+   * {@code name@version:path}: the name and the version are often of the form, else a {@link
+   * #segment} or empty; the path is a {@link #generate}d one, mostly after a {@code /}.
+   */
+  private static String packageCandidate(SplittableRandom random) {
+    String name = random.nextInt(3) == 0 ? segment(random) : "shared";
+    String version =
+        switch (random.nextInt(4)) {
+          case 0 -> segment(random);
+          case 1 -> "";
+          default -> random.nextBoolean() ? "1.2.0" : "2+b.1-rc";
+        };
+    String path = generate(random);
+    return name + "@" + version + ":" + (random.nextInt(4) == 0 ? path : "/" + path);
+  }
+
+  private static SchemaBundle bundle(String reference) {
+    return new SchemaBundle(List.of(reference));
+  }
+
+  /** A refused load as {@code code at file line:column}; anything else fails the test. */
+  private static String described(StructureResult result) {
+    if (result instanceof StructureResult.Refused(Diagnostic diagnostic)
+        && diagnostic.location() instanceof AtFilePosition(String file, int line, int column)) {
+      return diagnostic.code() + " at " + file + " " + line + ":" + column;
+    }
+    throw new AssertionError("expected a load error at a file position, got " + result);
   }
 
   // --- helpers ---
