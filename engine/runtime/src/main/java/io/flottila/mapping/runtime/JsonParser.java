@@ -13,11 +13,11 @@ import java.util.Set;
  * with no tree: {@link #next()} returns the next one, and {@link #text()} the key, string or number
  * of the last. A number keeps its input spelling, a string and a key are what they escape, with
  * U+FFFD for an escaped character XML 1.0 cannot hold, as {@code json-to-xml} gives them. A leading
- * byte order mark is dropped, as {@code unparsed-text} drops it. Anything else is malformed input: a
- * text that RFC 8259 refuses, a raw U+FFFE or U+FFFF in a string, which {@code unparsed-text}
+ * byte order mark is dropped, as {@code unparsed-text} drops it. Anything else is malformed input:
+ * a text that RFC 8259 refuses, a raw U+FFFE or U+FFFF in a string, which {@code unparsed-text}
  * refuses, content after the value, or an object with one key twice, which compares keys as the
- * strings they escape. Its state is a stack of the open
- * containers, so deep nesting needs no call stack.
+ * strings they escape. Its state is a stack of the open containers, so deep nesting needs no call
+ * stack.
  */
 final class JsonParser {
 

@@ -411,7 +411,8 @@ public final class Lowering {
     }
     for (Field child : structure.types().get(type.get()).fields()) {
       if (child.step().toString().equals(steps.get(step))) {
-        Optional<List<Field>> below = held(structure, append(chain, child), steps, step + 1, failed);
+        Optional<List<Field>> below =
+            held(structure, append(chain, child), steps, step + 1, failed);
         if (below.isPresent()) {
           return below;
         }
