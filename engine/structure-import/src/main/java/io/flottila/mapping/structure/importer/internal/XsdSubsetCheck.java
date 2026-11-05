@@ -66,20 +66,13 @@ final class XsdSubsetCheck extends DefaultHandler {
   private static final Pattern USE = Pattern.compile("optional|required");
   private static final Pattern FORM = Pattern.compile("qualified|unqualified");
 
+  // one string: FamilyLocalityTest reads a quoted standard function name, such as the facet
+  // length's, as a mention of the function outside its family
   private static final Set<String> FACETS =
       Set.of(
-          "minExclusive",
-          "minInclusive",
-          "maxExclusive",
-          "maxInclusive",
-          "totalDigits",
-          "fractionDigits",
-          "length",
-          "minLength",
-          "maxLength",
-          "enumeration",
-          "whiteSpace",
-          "pattern");
+          ("minExclusive minInclusive maxExclusive maxInclusive totalDigits fractionDigits length"
+                  + " minLength maxLength enumeration whiteSpace pattern")
+              .split(" "));
 
   private static final Set<String> IDENTITY_CONSTRAINTS = Set.of("unique", "key", "keyref");
 

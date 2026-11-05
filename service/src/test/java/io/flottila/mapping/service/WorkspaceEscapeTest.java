@@ -292,8 +292,7 @@ class WorkspaceEscapeTest {
     assertThat(reply.status()).as("%s", reply).isEqualTo(200);
     assertThat(reply.json().path("kind").textValue()).isEqualTo("refused");
     assertThat(described(reply.json().path("diagnostics")))
-        .containsExactly(
-            "error schema-reference-outside-bundle at file doc.xsd 4:" + column);
+        .containsExactly("error schema-reference-outside-bundle at file doc.xsd 4:" + column);
     assertThat(reply.json().path("diagnostics").path(0).path("message").textValue())
         .contains("\"" + location + "\"");
     assertThat(reply.text()).as("never the outside schema").doesNotContain(MARKER);

@@ -167,7 +167,9 @@ class DiagnosticCatalogueTest {
             "schema-unreadable",
             "root-selector-unsupported",
             // a package reference the host's resolver does not read (#90, ADR-0014)
-            "package-reference-unsupported");
+            "package-reference-unsupported",
+            // an xs:import or xs:include that names no bundle file (#93, ADR-0008)
+            "schema-reference-outside-bundle");
     assertThat(all).filteredOn(KEBAB.negate()).as("codes that are not kebab-case").isEmpty();
     assertThat(all).as("codes across all modules").doesNotHaveDuplicates();
     // witness: the kebab check refuses what is not kebab-case
