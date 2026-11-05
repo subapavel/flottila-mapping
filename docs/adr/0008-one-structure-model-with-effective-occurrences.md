@@ -126,10 +126,21 @@ document order. A file that is not well-formed stops only that file (spec-4 gril
 These are design-time errors, raised only for a field that a mapping refers to or must create.
 The structure loads and shows these fields. Model groups are gone after import, so each such
 field carries its **refusal**: the reason and the file, line and column of the declaration that
-causes it. The refusal is part of the fingerprint (ADR-0009). The diagnostic's location is the
+causes it. The refusal's reason is part of the fingerprint, and its position is not (ADR-0009,
+#92). The diagnostic's location is the
 mapping element the author must change: the `authoringId` of the box or target field mapping,
 or the `/targetFieldMappings/<field path>` pointer of a field that must be created. Its message
 names the schema file, line and column (spec-4 grilling, 2026-11-05).
+
+Shape (#92):
+- A field carries at most one refusal.
+- Same-step siblings each carry `ambiguous-field-path`, at the position of the step's second
+  declaration in output order.
+- A path through a refused field is refused, with the refusal nearest the root.
+- The target walk never enters a refused field. A refused field with a minimum above 0 that no
+  mapping writes is reported at its pointer, instead of `unmapped-mandatory-leaf` or
+  `unsupported-field`.
+- `/api/structures` does not show refusals until an editor story asks for them.
 
 - two sibling declarations with the same step;
 - in a target:

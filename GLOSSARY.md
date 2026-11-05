@@ -78,7 +78,8 @@ _Avoid_: loader, file reader, schema catalog
 
 **Refused field**:
 A field that loads and shows in the tree but that a mapping may not use, such as a same-step
-sibling or an abstract target element. It carries the reason and its declaration's position.
+sibling or an abstract target element. It carries its refusal: the reason and the position of
+the declaration that causes it. A field below it is refused with it.
 _Avoid_: unsupported field (the code for a target field the walk cannot create), invalid field
 
 **Source structure** / **Target structure**:
