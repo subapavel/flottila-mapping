@@ -24,6 +24,7 @@ import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.xdm.TableText;
 import java.util.ArrayList;
@@ -66,7 +67,12 @@ import java.util.stream.IntStream;
  * <p>Stage 3 reports, each at its authoring id:
  *
  * <ul>
- *   <li>a source or target field path the structure lacks: {@code orphaned-reference};
+ *   <li>a source or target field path the structure lacks below every same-step sibling on it:
+ *       {@code orphaned-reference};
+ *   <li>a source or target field path through a refused field (ADR-0008 Shape (#92)), with the
+ *       refusal nearest the root: its reason's code, {@code ambiguous-field-path}; at {@code
+ *       /targetFieldMappings/<field path>}, once per path, an unmapped refused target field with
+ *       {@code minOccurs > 0} under a parent that is created: the same;
  *   <li>a source field that is no element below the root (#62, #63), or a target field that is no
  *       element below the root, such as an attribute or the root itself, or that stands under an
  *       unmapped parent which is neither {@code n..n} with {@code n > 0} nor optional, so that PO
@@ -118,6 +124,12 @@ public final class Lowering {
   /** A target field mapping that lowers: its field, and the queue or single value it gives. */
   private record Link(Field field, AuthoringId mapping, Expr value) {}
 
+  /** The field path a mapping names, and the refused field nearest the root on it, if any. */
+  private record Named(FieldPath path, Optional<RefusedField> refused) {}
+
+  /** A refused field on a named path: its path and its refusal. */
+  private record RefusedField(FieldPath path, Refusal refusal) {}
+
   private final MappingModel model;
   private final Structure source;
   private final Structure target;
@@ -161,16 +173,17 @@ public final class Lowering {
             (path, mapping) ->
                 resolve(target, path)
                     .ifPresent(
-                        field ->
+                        named ->
                             occurrences.put(
-                                mapping.id(), target.field(field).orElseThrow().occurrence())));
+                                mapping.id(),
+                                target.field(named.path()).orElseThrow().occurrence())));
     return Map.copyOf(occurrences);
   }
 
   private LowerResult lower() {
     // the fields that are mapped, for the parent check and the target walk
     for (String path : model.targetFieldMappings().keySet()) {
-      resolve(target, path).ifPresent(mapped::add);
+      resolve(target, path).ifPresent(named -> mapped.add(named.path()));
     }
     Map<FieldPath, Link> links = new HashMap<>();
     model.targetFieldMappings().forEach((path, mapping) -> link(path, mapping, links));
@@ -289,38 +302,92 @@ public final class Lowering {
   }
 
   /**
-   * The field path {@code text} names in {@code structure}, or empty once {@code
-   * orphaned-reference} is reported at {@code at}: one check for target fields and source fields.
+   * The field path {@code text} names in {@code structure}, or empty once the reason it names none
+   * is reported at {@code at}: one check for target fields and source fields. A path the structure
+   * lacks is {@code orphaned-reference}, and a path through a refused field is refused with the
+   * refusal nearest the root (ADR-0008 Shape (#92)).
    */
   private Optional<FieldPath> named(Structure structure, String text, AuthoringId at) {
-    Optional<FieldPath> path = resolve(structure, text);
-    if (path.isEmpty()) {
+    Optional<Named> named = resolve(structure, text);
+    if (named.isEmpty()) {
       report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
+      return Optional.empty();
     }
-    return path;
+    Optional<RefusedField> refused = named.get().refused();
+    if (refused.isPresent()) {
+      found.add(refusal(refused.get().path(), refused.get().refusal(), new AtAuthoringId(at)));
+      return Optional.empty();
+    }
+    return Optional.of(named.get().path());
   }
 
   /**
    * The field path {@code text} names, matched step by step against the steps of {@code structure},
-   * which spell each step one way (ADR-0007); empty when there is no such field.
+   * which spell each step one way (ADR-0007), and the refused field nearest the root on it; empty
+   * when there is no such field. Same-step siblings share one path, and each carries a refusal
+   * (ADR-0008 Shape (#92)), so a step is matched below every one of them: a path that only the
+   * second holds is refused, not missing.
    */
-  private static Optional<FieldPath> resolve(Structure structure, String text) {
+  private static Optional<Named> resolve(Structure structure, String text) {
     List<String> steps = FieldPathText.steps(text);
     FieldPath path = structure.rootPath();
     if (!steps.get(1).equals(path.steps().getFirst().toString())) {
       return Optional.empty();
     }
+    List<Field> fields = List.of(structure.root());
+    Optional<RefusedField> refused = Optional.empty();
     for (String step : steps.subList(2, steps.size())) {
-      Optional<FieldPath> child =
-          structure.children(path).stream()
-              .filter(c -> c.steps().getLast().toString().equals(step))
-              .findFirst();
-      if (child.isEmpty()) {
+      List<Field> next =
+          fields.stream()
+              .flatMap(field -> childFields(structure, field).stream())
+              .filter(child -> child.step().toString().equals(step))
+              .toList();
+      if (next.isEmpty()) {
         return Optional.empty();
       }
-      path = child.get();
+      path = path.child(next.getFirst().step());
+      if (refused.isEmpty()) {
+        FieldPath at = path;
+        refused =
+            next.stream()
+                .flatMap(field -> field.refusal().stream())
+                .findFirst()
+                .map(refusal -> new RefusedField(at, refusal));
+      }
+      fields = next;
     }
-    return Optional.of(path);
+    return Optional.of(new Named(path, refused));
+  }
+
+  /**
+   * The child fields of {@code field} in {@code structure}, each same-step sibling with its own
+   * field, which {@link Structure#field} does not give (#92); none for a leaf.
+   */
+  private static List<Field> childFields(Structure structure, Field field) {
+    return field.type().map(id -> structure.types().get(id).fields()).orElse(List.of());
+  }
+
+  /**
+   * The diagnostic of a field a mapping uses or must create through the refused field at {@code
+   * path}, at {@code location}: its reason's code, and a message that names the declaration that
+   * causes it (ADR-0008 "Refused when a mapping uses the field").
+   */
+  private static Diagnostic refusal(FieldPath path, Refusal refusal, Location location) {
+    return switch (refusal.reason()) {
+      case AMBIGUOUS_FIELD_PATH ->
+          new Diagnostic(
+              Severity.ERROR,
+              MappingDiagnostics.AMBIGUOUS_FIELD_PATH,
+              location,
+              path
+                  + " is declared again under its parent at "
+                  + refusal.file()
+                  + " "
+                  + refusal.line()
+                  + ":"
+                  + refusal.column()
+                  + "; a field path cannot tell the siblings apart");
+    };
   }
 
   /** The queue {@code mapping}'s {@code result} gives, or empty once its refusal is reported. */
@@ -570,16 +637,35 @@ public final class Lowering {
    * structure field whose type its path already repeats {@link #RECURSION_CAP} times would be
    * created without end, so it is refused at the model's {@code /target} with {@code
    * unsupported-field} (ADR-0008), and that refusal stops the walk.
+   *
+   * <p>A refused child field, read with its own occurrence from {@code parent}'s type, comes before
+   * all of these and is never entered (ADR-0008 Shape (#92)): one a target field mapping names is
+   * refused at that mapping, an unmapped one with {@code minOccurs > 0} is refused once per path at
+   * its absent target field mapping with its reason's code, instead of {@code
+   * unmapped-mandatory-leaf} or {@code unsupported-field}, and an unmapped optional one is left
+   * out.
    */
   private List<Expr> children(FieldPath parent, Map<FieldPath, Link> links) {
     List<Expr> content = new ArrayList<>();
-    for (FieldPath child : target.children(parent)) {
+    // the refused paths reported at their pointer under this parent
+    Set<FieldPath> refused = new HashSet<>();
+    for (Field field : childFields(target, target.field(parent).orElseThrow())) {
       if (endless) {
         break;
       }
+      FieldPath child = parent.child(field.step());
       Link link = links.get(child);
-      Field field = target.field(child).orElseThrow();
-      if (link != null) {
+      if (field.refusal().isPresent()) {
+        // never entered: a mapping that names it is refused at the mapping, and an optional one
+        // is left out
+        if (!mapped.contains(child) && field.occurrence().min() > 0 && refused.add(child)) {
+          found.add(
+              refusal(
+                  child,
+                  field.refusal().get(),
+                  new AtPointer("/targetFieldMappings/" + pointerSegment(child))));
+        }
+      } else if (link != null) {
         content.add(
             single(link.value()) ? generated(child, link, links) : slots(child, link, links));
       } else if (mapped.contains(child)) {

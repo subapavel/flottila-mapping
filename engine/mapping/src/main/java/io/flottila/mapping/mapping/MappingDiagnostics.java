@@ -90,6 +90,15 @@ public final class MappingDiagnostics {
    */
   public static final String FINGERPRINT_MISMATCH = "fingerprint-mismatch";
 
+  /**
+   * A field path through a field that two or more sibling declarations with one step give (ADR-0008
+   * "Refused when a mapping uses the field", #92): at the source-field box or the target field
+   * mapping that names it, or, for such a target field with {@code minOccurs > 0} that the walk
+   * would create and no mapping writes, at its absent member {@code /targetFieldMappings/<field
+   * path>}. The message names the schema file, line and column of the step's second declaration.
+   */
+  public static final String AMBIGUOUS_FIELD_PATH = "ambiguous-field-path";
+
   // stage 3, a reached standard function box against its catalogue entry (ADR-0025)
 
   /** A function box with more inputs than its catalogue entry has, at the box. */
