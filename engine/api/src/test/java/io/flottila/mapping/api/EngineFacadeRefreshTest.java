@@ -208,6 +208,47 @@ class EngineFacadeRefreshTest {
         .containsExactly(error("schema-unreadable", new AtFilePosition("order.xsd", 1, 1)));
   }
 
+  /**
+   * A side whose bundle has two load errors (#93, a choice and an abstract element, as in {@code
+   * corpus/structures/files-and-names/all-at-once/refused-z.xsd}) keeps its fingerprint and gives
+   * both, in the order the structure load gives them.
+   */
+  @Test
+  void aSideWithTwoLoadErrorsGivesBoth() throws MalformedJsonException, IOException {
+    Files.writeString(
+        base.resolve("two-errors.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="%s">
+          <xs:element name="Order">
+            <xs:complexType>
+              <xs:choice>
+                <xs:element name="OrderId" type="xs:string"/>
+              </xs:choice>
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="Other" abstract="true" type="xs:string"/>
+        </xs:schema>
+        """
+            .formatted(NS));
+    StructureResult load =
+        Structures.load(
+            resolver,
+            new SchemaBundle(List.of("two-errors.xsd")),
+            new ElementRoot("Q{" + NS + "}Order"));
+    if (!(load instanceof StructureResult.Refused(List<Diagnostic> loadErrors))) {
+      throw new AssertionError("expected Refused, got " + load);
+    }
+    assertThat(loadErrors)
+        .extracting(Diagnostic::code)
+        .containsExactly("schema-construct-unsupported", "schema-construct-unsupported");
+
+    RefreshResult.Refreshed result =
+        refreshed(facade.refresh(model("two-errors.xsd", STALE, STALE), resolver));
+
+    assertBytes(result.model(), model("two-errors.xsd", STALE, FINGERPRINT));
+    assertThat(described(result.diagnostics())).containsExactlyElementsOf(described(loadErrors));
+  }
+
   @Test
   void aModelThatStage1Or2RefusesIsRefusedWithItsDiagnostics() throws MalformedJsonException {
     byte[] newer =

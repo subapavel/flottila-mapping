@@ -203,9 +203,9 @@ public final class EngineFacade {
    * Refreshes a mapping model (ADR-0009 as amended on 2026-11-05, ADR-0015): load with stages 1 and
    * 2, then the source and target structures. Each side whose bundle loads gets the fingerprint of
    * the structure just read; a side whose bundle fails to load keeps its stored fingerprint and
-   * gives its load error. When both load, the refreshed model goes through stage 3 and lowering,
-   * whose diagnostics, the orphaned references among them, are the result's; it has no {@code
-   * fingerprint-mismatch}, as both fingerprints were just derived, and no occurrence or type
+   * gives every load error (#93). When both load, the refreshed model goes through stage 3 and
+   * lowering, whose diagnostics, the orphaned references among them, are the result's; it has no
+   * {@code fingerprint-mismatch}, as both fingerprints were just derived, and no occurrence or type
    * warning. When a side fails to load, stage 3 is not run, and the load errors are the result's
    * only diagnostics. Nothing else in the model changes, and it comes back in canonical form
    * (ADR-0010); nothing is written. An unchecked exception from {@code resolver} passes through
