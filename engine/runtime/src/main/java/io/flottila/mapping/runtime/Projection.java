@@ -7,6 +7,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -16,11 +17,12 @@ import javax.xml.stream.XMLStreamReader;
  * Fills the source queues of a compiled mapping in one StAX pass over the input (ADR-0004): only
  * the element steps the queues name are followed, every other subtree is skipped, and no tree is
  * built. A context opens at each start of its context field, and a value is appended at each
- * occurrence of its field: the text of a leaf element, with references and CDATA resolved, or
- * {@code ""} for a structure field (ADR-0008). A queue whose context field never occurs is one
- * empty context, as in PO (ADR-0004 as amended, F-17), a structure field's too. The input is still
- * parsed whole, so it must be well-formed throughout. A DOCTYPE is refused, and no DTD or external
- * entity is ever read.
+ * occurrence of its field: the text of a leaf element, with references and CDATA resolved, {@code
+ * ""} for a structure field (ADR-0008), or an attribute's value, which its element's start tag
+ * holds or lacks (ADR-0006 since #102). A queue whose context field never occurs is one empty
+ * context, as in PO (ADR-0004 as amended, F-17), a structure field's too. The input is still parsed
+ * whole, so it must be well-formed throughout. A DOCTYPE is refused, and no DTD or external entity
+ * is ever read.
  *
  * <p>The plan's entries are distinct (field, context) pairs; equal pairs share one queue
  * (ADR-0006). The step trie is built once at compile and only read by a run.
@@ -28,10 +30,17 @@ import javax.xml.stream.XMLStreamReader;
 final class Projection {
 
   /**
-   * One queue of the plan: a field by its element steps, its context by depth, and whether it is a
-   * structure field, whose queue gets {@code ""} per occurrence (ADR-0008; #63).
+   * One queue of the plan: a field by its steps, its context by depth, whether it is a structure
+   * field, whose queue gets {@code ""} per occurrence (ADR-0008; #63), and whether its last step is
+   * an attribute (#102), so that {@code /A/b} and {@code /A/@b} are two queues.
    */
-  record Queue(List<Name> field, int contextDepth, boolean structureField) {}
+  record Queue(List<Name> field, int contextDepth, boolean structureField, boolean attribute) {}
+
+  /**
+   * An attribute's queue on its element's step: the attribute's name, whose namespace is {@code ""}
+   * for none, as the reader's names have it, and the queue's index.
+   */
+  private record AttributeQueue(QName name, int queue) {}
 
   /** A node of the trie of element steps. */
   private static final class Step {
@@ -50,6 +59,12 @@ final class Projection {
      * subtree is still walked for the queues below it.
      */
     private int[] occurrences = new int[0];
+
+    /**
+     * The queues of this step's attributes: each occurrence whose start tag holds the attribute
+     * appends its value, and one that lacks it appends nothing.
+     */
+    private AttributeQueue[] attributes = new AttributeQueue[0];
 
     Step(String namespace, String localName) {
       this.namespace = namespace;
@@ -92,14 +107,22 @@ final class Projection {
     queues = plan.size();
     for (int k = 0; k < queues; k++) {
       Queue queue = plan.get(k);
+      List<Name> field = queue.field();
+      // an attribute's queue sits on its element's step: its last step is no element step
+      int elements = queue.attribute() ? field.size() - 1 : field.size();
       Step step = document;
-      for (int depth = 1; depth <= queue.field().size(); depth++) {
-        step = step.childOrAdd(queue.field().get(depth - 1));
+      for (int depth = 1; depth <= elements; depth++) {
+        step = step.childOrAdd(field.get(depth - 1));
         if (depth == queue.contextDepth()) {
           step.contexts = append(step.contexts, k);
         }
       }
-      if (queue.structureField()) {
+      if (queue.attribute()) {
+        step.attributes = Arrays.copyOf(step.attributes, step.attributes.length + 1);
+        Name name = field.getLast();
+        step.attributes[step.attributes.length - 1] =
+            new AttributeQueue(new QName(name.namespace(), name.localName()), k);
+      } else if (queue.structureField()) {
         step.occurrences = append(step.occurrences, k);
       } else {
         step.values = append(step.values, k);
@@ -170,6 +193,10 @@ final class Projection {
             for (int k : step.occurrences) {
               builders[k].append("");
             }
+            // read before getElementText, which moves the reader past the start tag
+            for (AttributeQueue attribute : step.attributes) {
+              attribute(reader, attribute, builders[attribute.queue()]);
+            }
             if (step.values.length == 0) {
               open.push(step);
             } else {
@@ -188,6 +215,21 @@ final class Projection {
         default -> {
           // text between fields, comments, processing instructions and the end of the document
         }
+      }
+    }
+  }
+
+  /**
+   * Appends to {@code queue} the value of the start tag's attribute that {@code attribute} names,
+   * if the tag holds it; a tag that lacks it appends nothing (#102).
+   */
+  private static void attribute(
+      XMLStreamReader reader, AttributeQueue attribute, QueueBlock.Builder queue) {
+    // QName equality is local name and namespace, a null namespace read as "" (javap); well-formed
+    // input holds an attribute once per start tag, so at most one index matches
+    for (int i = 0; i < reader.getAttributeCount(); i++) {
+      if (reader.getAttributeName(i).equals(attribute.name())) {
+        queue.append(reader.getAttributeValue(i));
       }
     }
   }

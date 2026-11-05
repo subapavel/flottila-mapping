@@ -7,21 +7,34 @@ import java.util.List;
  * the projection: {@code po:source-queue(array:join(context ! [field ! string()]))} for a leaf
  * field, and {@code po:source-queue(array:join(context ! [field ! '']))} for a structure field, one
  * {@code ""} per occurrence (ADR-0008; #63). {@code po:source-queue} makes a queue whose context
- * never occurs one empty context (ADR-0004 as amended, F-17).
+ * never occurs one empty context (ADR-0004 as amended, F-17). An attribute's queue holds its value
+ * per occurrence, and its field's last step reads {@code @name} (ADR-0006 since #102).
  *
- * @param field the field's element steps from the root down
+ * @param field the field's steps from the root down: elements, and last the attribute for an
+ *     attribute
  * @param contextDepth the context field as the number of steps from the root down to it; the root
  *     is 1, and the context is a proper ancestor of the field
  * @param structureField whether the field is a structure field, whose queue holds {@code ""} per
  *     occurrence instead of its text
+ * @param attribute whether the field's last step is an attribute, never a structure field
  * @param origin the source-field box
  */
 public record SourceQueue(
-    List<Name> field, int contextDepth, boolean structureField, AuthoringId origin)
+    List<Name> field,
+    int contextDepth,
+    boolean structureField,
+    boolean attribute,
+    AuthoringId origin)
     implements Expr {
 
   public SourceQueue {
     field = List.copyOf(field);
+  }
+
+  /** The queue of an element field. */
+  public SourceQueue(
+      List<Name> field, int contextDepth, boolean structureField, AuthoringId origin) {
+    this(field, contextDepth, structureField, false, origin);
   }
 
   /** The queue of a leaf field, which holds its text per occurrence. */
