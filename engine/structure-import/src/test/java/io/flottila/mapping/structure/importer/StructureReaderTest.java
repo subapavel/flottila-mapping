@@ -15,6 +15,7 @@ import io.flottila.mapping.structure.ValueType;
 import io.flottila.mapping.structure.WsdlDirection;
 import io.flottila.mapping.structure.WsdlOperation;
 import io.flottila.mapping.structure.WsdlRoot;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -451,22 +452,35 @@ class StructureReaderTest {
   /**
    * #90 (ADR-0014 "Reference resolver shape"): a reference the host's resolver refuses is a load
    * error about the whole file, at the reference as the bundle spells it, with the engine's code
-   * and message for the resolver's reason.
+   * and message for the resolver's reason. A host that spells the refused reference its own way, an
+   * absolute path for one, shows nowhere in it.
    */
-  @ParameterizedTest(name = "{0} is {1}")
+  @ParameterizedTest(name = "{0} is {1}, the host spelling {3}")
   @CsvSource(
       delimiter = '|',
       value = {
         "UNREADABLE                    | schema-unreadable             | ../xsd/missing.xsd"
+            + " | ../xsd/missing.xsd"
             + " | cannot read the schema file \"../xsd/missing.xsd\"",
         "PACKAGE_REFERENCE_UNSUPPORTED | package-reference-unsupported | shared@1.2.0:/xsd/o.xsd"
+            + " | shared@1.2.0:/xsd/o.xsd"
+            + " | package references need a host resolver: \"shared@1.2.0:/xsd/o.xsd\"",
+        "UNREADABLE                    | schema-unreadable             | missing.xsd"
+            + " | /srv/host/workspace/missing.xsd"
+            + " | cannot read the schema file \"missing.xsd\"",
+        "PACKAGE_REFERENCE_UNSUPPORTED | package-reference-unsupported | shared@1.2.0:/xsd/o.xsd"
+            + " | /srv/host/packages/shared/1.2.0/xsd/o.xsd"
             + " | package references need a host resolver: \"shared@1.2.0:/xsd/o.xsd\""
       })
   void a_reference_the_resolver_refuses_is_a_load_error_with_the_engines_message(
-      UnresolvedReferenceException.Reason reason, String code, String reference, String message) {
+      UnresolvedReferenceException.Reason reason,
+      String code,
+      String reference,
+      String hostSpelling,
+      String message) {
     ReferenceResolver refusing =
         asked -> {
-          throw new UnresolvedReferenceException(reason, asked);
+          throw new UnresolvedReferenceException(reason, hostSpelling);
         };
 
     assertThatThrownBy(
@@ -479,6 +493,33 @@ class StructureReaderTest {
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);
               assertThat(e.getMessage()).isEqualTo(message);
+            });
+  }
+
+  /**
+   * #90: the name a host gives a file it returns is not the engine's. A load error inside the file
+   * sits at the reference the engine asked for, as the bundle spells it, and the host's name, here
+   * an absolute path, shows nowhere in it.
+   */
+  @Test
+  void a_load_error_inside_a_resolved_file_names_the_asked_reference_never_the_hosts_name() {
+    String hostName = "/srv/host/workspace/xsd/order.xsd";
+    ReferenceResolver renaming =
+        asked -> new ResolvedFile(hostName, "<xs:schema\n  <".getBytes(StandardCharsets.UTF_8));
+
+    assertThatThrownBy(
+            () ->
+                new StructureReader(renaming)
+                    .read(new SchemaBundle(List.of("../xsd/order.xsd")), new ElementRoot("Order")))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("schema-not-well-formed");
+              // the attribute list of <xs:schema breaks at the "<" on line 2 (StructuresTest)
+              assertThat(e.file()).isEqualTo("../xsd/order.xsd");
+              assertThat(e.line()).isEqualTo(2);
+              assertThat(e.column()).isEqualTo(3);
+              assertThat(e.getMessage()).doesNotContain(hostName).doesNotContain("/srv/");
             });
   }
 

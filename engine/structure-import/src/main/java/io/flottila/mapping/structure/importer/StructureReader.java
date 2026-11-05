@@ -64,7 +64,8 @@ public final class StructureReader {
       throw new StructureLoadException(
           code, file, 1, 1, UnresolvedReferenceException.message(e.reason(), file));
     }
-    return XsdReader.read(resolved.name(), resolved.content(), element);
+    // a load error inside the file names the reference asked for, whatever the host names it
+    return XsdReader.read(file, resolved.content(), element);
   }
 
   private static StructureLoadException unsupportedRoot(String file, String what) {
