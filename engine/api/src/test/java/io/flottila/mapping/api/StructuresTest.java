@@ -107,9 +107,11 @@ class StructuresTest {
             new SchemaBundle(List.of("broken.xsd")),
             new ElementRoot("Order"));
 
-    if (!(result instanceof StructureResult.Refused(Diagnostic diagnostic))) {
+    if (!(result instanceof StructureResult.Refused(List<Diagnostic> diagnostics))) {
       throw new AssertionError("expected Refused, got " + result);
     }
+    assertThat(diagnostics).hasSize(1);
+    Diagnostic diagnostic = diagnostics.getFirst();
     assertThat(diagnostic.severity()).isEqualTo(Severity.ERROR);
     assertThat(diagnostic.code()).isEqualTo("schema-not-well-formed");
     assertThat(diagnostic.message()).isNotBlank();
@@ -138,9 +140,16 @@ class StructuresTest {
     return new SchemaBundle(List.of(reference));
   }
 
+  /** The one diagnostic of a refused load. */
   private static Diagnostic refused(StructureResult result) {
-    if (result instanceof StructureResult.Refused(Diagnostic diagnostic)) {
-      return diagnostic;
+    List<Diagnostic> diagnostics = refusedAll(result);
+    assertThat(diagnostics).hasSize(1);
+    return diagnostics.getFirst();
+  }
+
+  private static List<Diagnostic> refusedAll(StructureResult result) {
+    if (result instanceof StructureResult.Refused(List<Diagnostic> diagnostics)) {
+      return diagnostics;
     }
     throw new AssertionError("expected Refused, got " + result);
   }
@@ -245,5 +254,156 @@ class StructuresTest {
 
     assertThat(diagnostic.code()).isEqualTo("schema-not-well-formed");
     assertThat(diagnostic.location()).isEqualTo(new AtFilePosition("../xsd/order.xsd", 2, 3));
+  }
+
+  // --- #93: multi-file bundles (ADR-0008 as amended 2026-11-05; carried in from #90). The
+  // reader's table is XsdFilesAndNamesTest in engine/structure-import, over the same fixtures.
+
+  /** {@code corpus/structures/files-and-names/<fixture>}, read through a recording resolver. */
+  private static RecordingResolver fixture(String fixture, String... files) throws Exception {
+    Path directory = CorpusStructures.directory("files-and-names").resolve(fixture);
+    RecordingResolver resolver = new RecordingResolver();
+    for (String file : files) {
+      resolver.file(file, Files.readAllBytes(directory.resolve(file)));
+    }
+    return resolver;
+  }
+
+  /**
+   * #90's untested guard, XsdReader's URIResolver that declines every schemaLocation: an import
+   * whose schemaLocation names {@code unlisted.xsd}, a file beside it on disk that the bundle does
+   * not list, is {@code schema-reference-outside-bundle}, and the resolver never sees that file.
+   * With a bundle file of the import's namespace, the import falls back to it: XmlSchema then reads
+   * the import, and without the declining URIResolver it would open {@code unlisted.xsd} itself.
+   */
+  @Test
+  void anImportOfAnUnlistedFileOnDiskIsOutsideTheBundleAndNeverRead() throws Exception {
+    Path directory = CorpusStructures.directory("files-and-names").resolve("outside-bundle");
+    assertThat(directory.resolve("unlisted.xsd")).as("the witness: it is on disk").isRegularFile();
+    RecordingResolver alone = fixture("outside-bundle", "a.xsd", "unlisted.xsd");
+
+    List<Diagnostic> outside =
+        refusedAll(
+            Structures.load(
+                alone, bundle("a.xsd"), new ElementRoot("Q{urn:flottila:corpus:a}Doc")));
+
+    // two more references outside the bundle, and a name no file declares (XsdFilesAndNamesTest)
+    assertThat(outside).hasSize(4);
+    assertThat(outside.getFirst())
+        .isEqualTo(
+            new Diagnostic(
+                Severity.ERROR,
+                "schema-reference-outside-bundle",
+                new AtFilePosition("a.xsd", 6, 86),
+                "the schemaLocation \"unlisted.xsd\" of this xs:import names no file of the schema"
+                    + " bundle, and no bundle file has its namespace"
+                    + " \"urn:flottila:corpus:unlisted\""));
+    assertThat(alone.calls()).containsExactly("a.xsd");
+
+    RecordingResolver withFallback =
+        fixture("outside-bundle", "fallback.xsd", "listed.xsd", "unlisted.xsd");
+    Structure structure =
+        loaded(
+            Structures.load(
+                withFallback,
+                new SchemaBundle(List.of("fallback.xsd", "listed.xsd")),
+                new ElementRoot("Q{urn:flottila:corpus:a}Doc")));
+
+    assertThat(structure.children(structure.rootPath()))
+        .extracting(FieldPath::toString)
+        .containsExactly("/Q{urn:flottila:corpus:a}Doc/Q{urn:flottila:corpus:unlisted}Listed");
+    assertThat(withFallback.calls()).containsExactly("fallback.xsd", "listed.xsd");
+  }
+
+  /**
+   * #90's other untested guard, the system id XmlSchema gets for each file: an include's relative
+   * schemaLocation maps against the bundle name of the including file, by text ({@code
+   * ./parts/line.xsd} from {@code xsd/main.xsd} is {@code xsd/parts/line.xsd}); both files share
+   * one target namespace, which XmlSchema keeps apart by their system ids.
+   */
+  @Test
+  void anIncludeMapsAgainstTheBundleNameOfTheIncludingFile() throws Exception {
+    RecordingResolver resolver = fixture("include", "xsd/main.xsd", "xsd/parts/line.xsd");
+    String order = "/Q{urn:flottila:corpus:include}Order";
+
+    Structure structure =
+        loaded(
+            Structures.load(
+                resolver,
+                new SchemaBundle(List.of("xsd/main.xsd", "xsd/parts/line.xsd")),
+                new ElementRoot("Q{urn:flottila:corpus:include}Order")));
+
+    FieldPath line = structure.children(structure.rootPath()).getFirst();
+    assertThat(line).hasToString(order + "/Line");
+    assertThat(structure.children(line))
+        .extracting(FieldPath::toString)
+        .containsExactly(order + "/Line/Sku", order + "/Line/Qty");
+    assertThat(resolver.calls()).containsExactly("xsd/main.xsd", "xsd/parts/line.xsd");
+  }
+
+  /**
+   * One load reports every load error of the bundle (ADR-0008): files in bundle order, each file in
+   * document order, the bundle order kept even where the names sort the other way.
+   */
+  @Test
+  void refusalsInSeveralFilesComeBackTogetherInBundleOrder() throws Exception {
+    RecordingResolver resolver =
+        fixture("all-at-once", "refused-z.xsd", "broken.xsd", "refused-a.xsd");
+
+    List<Diagnostic> diagnostics =
+        refusedAll(
+            Structures.load(
+                resolver,
+                new SchemaBundle(List.of("refused-z.xsd", "broken.xsd", "refused-a.xsd")),
+                new ElementRoot("Doc")));
+
+    assertThat(diagnostics)
+        .extracting(StructuresTest::described)
+        .containsExactly(
+            "schema-construct-unsupported refused-z.xsd 6:18",
+            "schema-construct-unsupported refused-z.xsd 11:62",
+            "schema-construct-unsupported broken.xsd 4:23",
+            "schema-not-well-formed broken.xsd 6:3",
+            "schema-construct-unsupported refused-a.xsd 5:40");
+    assertThat(diagnostics)
+        .allSatisfy(
+            diagnostic -> {
+              assertThat(diagnostic.severity()).isEqualTo(Severity.ERROR);
+              assertThat(diagnostic.message()).isNotBlank();
+            });
+    assertThat(resolver.calls()).containsExactly("refused-z.xsd", "broken.xsd", "refused-a.xsd");
+  }
+
+  /**
+   * A file that is not well-formed stops only that file (ADR-0008): the other file's names are
+   * still checked, and a reference into the namespace of the stopped file gives no diagnostic.
+   */
+  @Test
+  void aMalformedFileAndANameErrorInAnotherFileComeBackTogether() throws Exception {
+    RecordingResolver resolver = fixture("names-after-errors", "user.xsd", "broken.xsd");
+
+    List<Diagnostic> diagnostics =
+        refusedAll(
+            Structures.load(
+                resolver,
+                new SchemaBundle(List.of("user.xsd", "broken.xsd")),
+                new ElementRoot("Q{urn:flottila:corpus:user}Doc")));
+
+    assertThat(diagnostics)
+        .extracting(StructuresTest::described)
+        .containsExactly(
+            "schema-construct-unsupported user.xsd 10:48",
+            "schema-invalid user.xsd 17:52",
+            "schema-construct-unsupported user.xsd 18:67",
+            "schema-not-well-formed broken.xsd 8:3");
+    assertThat(diagnostics.get(1).message())
+        .isEqualTo(
+            "the type Q{urn:flottila:corpus:user}Missing is declared in no file of the schema"
+                + " bundle");
+  }
+
+  private static String described(Diagnostic diagnostic) {
+    AtFilePosition at = (AtFilePosition) diagnostic.location();
+    return diagnostic.code() + " " + at.file() + " " + at.line() + ":" + at.column();
   }
 }

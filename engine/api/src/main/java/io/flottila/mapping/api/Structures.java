@@ -15,8 +15,9 @@ public final class Structures {
   private Structures() {}
 
   /**
-   * Loads the structure under {@code root}. A load error is a result, never an exception; an
-   * unchecked exception from {@code resolver} passes through unchanged.
+   * Loads the structure under {@code root}. Load errors are a result, every one of the bundle's
+   * (ADR-0008), never an exception; an unchecked exception from {@code resolver} passes through
+   * unchanged.
    *
    * @param resolver the host's resolver of the bundle's references (ADR-0014 "Reference resolver
    *     shape"), through which every file is read
@@ -27,11 +28,15 @@ public final class Structures {
       return new StructureResult.Loaded(new StructureReader(resolver).read(bundle, root));
     } catch (StructureLoadException e) {
       return new StructureResult.Refused(
-          new Diagnostic(
-              Severity.ERROR,
-              e.code(),
-              new AtFilePosition(e.file(), e.line(), e.column()),
-              e.getMessage()));
+          e.errors().stream()
+              .map(
+                  error ->
+                      new Diagnostic(
+                          Severity.ERROR,
+                          error.code(),
+                          new AtFilePosition(error.file(), error.line(), error.column()),
+                          error.getMessage()))
+              .toList());
     }
   }
 }

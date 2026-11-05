@@ -977,6 +977,42 @@ class WorkspaceTest {
     }
   }
 
+  /**
+   * #93 (ADR-0014 "Reference resolver shape (#90)", ADR-0008): a schemaLocation written inside a
+   * schema is mapped to a bundle file by text before any read. One that escapes the workspace maps
+   * to none, so the load is {@code schema-reference-outside-bundle} at the first such element, and
+   * {@link ObservedFileSystem}, which records every open, sees the bundle file read and nothing
+   * else.
+   */
+  @Test
+  void aSchemaLocationThatEscapesIsOutsideTheBundleAndNeverRead() throws Exception {
+    Path a = root.resolve("a");
+    Files.writeString(
+        a.resolve("doc.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:a">
+          <xs:import namespace="urn:outside" schemaLocation="../../outside/evil.xsd"/>
+          <xs:include schemaLocation="../../../etc/passwd"/>
+        </xs:schema>
+        """);
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    StructureResult result = Structures.load(resolver, bundle("doc.xsd"), ANY_ROOT);
+
+    // just after the xs:import start tag: line 2, column 79
+    assertThat(described(result))
+        .isEqualTo(
+            "schema-reference-outside-bundle at doc.xsd 2:79;"
+                + " schema-reference-outside-bundle at doc.xsd 3:53");
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("files opened")
+        .containsExactly("doc.xsd");
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
   /** ADR-0024 as amended by the spec-4 grilling, verbatim: the oracle of a package reference. */
   private static final Pattern PACKAGE_PATTERN =
       Pattern.compile(
@@ -1058,13 +1094,22 @@ class WorkspaceTest {
     return new SchemaBundle(List.of(reference));
   }
 
-  /** A refused load as {@code code at file line:column}; anything else fails the test. */
+  /**
+   * A refused load's errors, each as {@code code at file line:column}, joined by {@code "; "};
+   * anything else fails the test.
+   */
   private static String described(StructureResult result) {
-    if (result instanceof StructureResult.Refused(Diagnostic diagnostic)
-        && diagnostic.location() instanceof AtFilePosition(String file, int line, int column)) {
-      return diagnostic.code() + " at " + file + " " + line + ":" + column;
+    if (!(result instanceof StructureResult.Refused(List<Diagnostic> diagnostics))) {
+      throw new AssertionError("expected a refused load, got " + result);
     }
-    throw new AssertionError("expected a load error at a file position, got " + result);
+    List<String> described = new ArrayList<>();
+    for (Diagnostic diagnostic : diagnostics) {
+      if (!(diagnostic.location() instanceof AtFilePosition(String file, int line, int column))) {
+        throw new AssertionError("expected a load error at a file position, got " + result);
+      }
+      described.add(diagnostic.code() + " at " + file + " " + line + ":" + column);
+    }
+    return String.join("; ", described);
   }
 
   // --- helpers ---
