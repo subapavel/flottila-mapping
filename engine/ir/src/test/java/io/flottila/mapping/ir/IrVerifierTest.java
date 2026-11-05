@@ -480,6 +480,253 @@ class IrVerifierTest {
     assertRefused(document);
   }
 
+  // --- attributes (ADR-0006 since #102): an attribute item is a TargetSlots with max <= 1, or a
+  // 1-copy TargetRepeat, whose body is an AttributeConstructor; the items come first in their
+  // element's content, carry distinct names, and an AttributeConstructor stands nowhere else
+
+  private static final Name CODE = new Name("", "code");
+  private static final Name LANG = new Name("urn:b", "lang");
+  private static final AuthoringId T4 = new AuthoringId("t4");
+
+  private static AttributeConstructor attribute(Name name, String valueVar, AuthoringId at) {
+    String prefix = name.namespace().isEmpty() ? "" : "ns1";
+    return new AttributeConstructor(prefix, name, new VarRef(valueVar, AtomicType.STRING, at), at);
+  }
+
+  /** {@code name} per slot of {@code queue} in the parent slot, at most {@code max}. */
+  private static TargetSlots attributeSlots(
+      Name name, Expr queue, Expr parentSlot, long min, long max, AuthoringId at) {
+    String valueVar = "a" + at.value();
+    return new TargetSlots(
+        queue, parentSlot, min, max, "s" + at.value(), valueVar, attribute(name, valueVar, at), at);
+  }
+
+  /** {@code code} 0..1 under the root, from the attribute queue {@code /Order/@code}. */
+  private static TargetSlots codeItem() {
+    return attributeSlots(
+        CODE, new SourceQueue(List.of(ORDER, CODE), 1, false, true, A1), rootSlot(), 0, 1, T3);
+  }
+
+  /** A generating attribute: one copy, its value an atomic call. */
+  private static TargetRepeat generatedLang(long copies) {
+    return new TargetRepeat(
+        copies,
+        rootSlot(),
+        "g",
+        new AttributeConstructor("ns1", LANG, call(TRIM, literal(" en ")), T4),
+        T4);
+  }
+
+  @Test
+  void acceptsAttributeItemsBeforeOtherContent() {
+    // under the root, before OrderId; a TargetSlots and a 1-copy TargetRepeat, 0..1 and 1..1
+    assertAccepted(document(codeItem(), generatedLang(1), orderIdLink()));
+    assertAccepted(
+        document(
+            attributeSlots(
+                CODE,
+                new SourceQueue(List.of(ORDER, CODE), 1, false, true, A1),
+                rootSlot(),
+                1,
+                1,
+                T3),
+            orderIdLink()));
+    // in an element's content, before its text: a simple-content leaf
+    assertAccepted(
+        document(
+            new TargetSlots(
+                queue(NOTE, 1, A2),
+                rootSlot(),
+                0,
+                UNBOUNDED,
+                "noteSlot",
+                "note",
+                new ElementConstructor(
+                    "",
+                    NOTE,
+                    List.of(
+                        attributeSlots(
+                            CODE,
+                            new SourceQueue(List.of(ORDER, NOTE, CODE), 2, false, true, A1),
+                            integer("noteSlot", T3),
+                            0,
+                            1,
+                            T3),
+                        new TextConstructor(new VarRef("note", AtomicType.STRING, T2), T2)),
+                    T2),
+                T2)));
+  }
+
+  static Stream<Arguments> attributeItemsAfterContent() {
+    VarRef note = new VarRef("note", AtomicType.STRING, T2);
+    return Stream.of(
+        Arguments.of("after an element in the document", document(orderIdLink(), codeItem())),
+        Arguments.of(
+            "a generated one after an element in the document",
+            document(orderIdLink(), generatedLang(1))),
+        Arguments.of(
+            "after the text of a simple-content leaf",
+            document(
+                new TargetSlots(
+                    queue(NOTE, 1, A2),
+                    rootSlot(),
+                    0,
+                    UNBOUNDED,
+                    "noteSlot",
+                    "note",
+                    new ElementConstructor(
+                        "",
+                        NOTE,
+                        List.of(
+                            new TextConstructor(note, T2),
+                            attributeSlots(
+                                CODE,
+                                new SourceQueue(List.of(ORDER, NOTE, CODE), 2, false, true, A1),
+                                integer("noteSlot", T3),
+                                0,
+                                1,
+                                T3)),
+                        T2),
+                    T2))));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("attributeItemsAfterContent")
+  void refusesAttributeItemAfterContent(String why, TargetDocument document) {
+    // witness: the same items with the attribute first
+    assertAccepted(document(codeItem(), generatedLang(1), orderIdLink()));
+
+    assertRefused(document);
+  }
+
+  static Stream<Arguments> attributeItemsAboveMaxOne() {
+    SourceQueue codes = new SourceQueue(List.of(ORDER, CODE), 1, false, true, A1);
+    return Stream.of(
+        Arguments.of(
+            "TargetSlots max 2", document(attributeSlots(CODE, codes, rootSlot(), 0, 2, T3))),
+        Arguments.of(
+            "TargetSlots unbounded",
+            document(attributeSlots(CODE, codes, rootSlot(), 0, UNBOUNDED, T3))),
+        Arguments.of("TargetRepeat of 2 copies", document(generatedLang(2))));
+  }
+
+  /** An element carries an attribute once: max 1 is the boundary. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("attributeItemsAboveMaxOne")
+  void refusesAttributeSlotsAboveMaxOne(String why, TargetDocument document) {
+    // witness: max 1 and one copy are accepted
+    assertAccepted(document(codeItem(), generatedLang(1)));
+
+    assertRefused(document);
+  }
+
+  @Test
+  void refusesTwoAttributeItemsOfOneName() {
+    SourceQueue codes = new SourceQueue(List.of(ORDER, CODE), 1, false, true, A1);
+    // witness: two names, code and lang
+    assertAccepted(document(codeItem(), generatedLang(1)));
+
+    assertRefused(
+        document(codeItem(), attributeSlots(CODE, codes, rootSlot(), 0, 1, T4), orderIdLink()));
+  }
+
+  static Stream<Arguments> strayAttributeConstructors() {
+    AttributeConstructor code = new AttributeConstructor("", CODE, literal("x"), T3);
+    return Stream.of(
+        Arguments.of("bare in the document's content", document(code)),
+        Arguments.of(
+            "bare in an element's content",
+            document(
+                new TargetRepeat(
+                    1, rootSlot(), "g", new ElementConstructor("", NOTE, List.of(code), T2), T2))),
+        Arguments.of(
+            "inside the element of a TargetSlots",
+            document(
+                new TargetSlots(
+                    queue(NOTE, 1, A2),
+                    rootSlot(),
+                    0,
+                    1,
+                    "noteSlot",
+                    "note",
+                    new ElementConstructor("", NOTE, List.of(code), T2),
+                    T2))),
+        Arguments.of(
+            "as a text's value",
+            document(slots(ORDER_ID, queue(ORDER_ID, 1, A1), rootSlot(), 1, 1, "v", code, T1))));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("strayAttributeConstructors")
+  void refusesStrayAttributeConstructor(String why, TargetDocument document) {
+    // witness: the same constructor as the body of a 1-copy TargetRepeat
+    assertAccepted(
+        document(
+            new TargetRepeat(
+                1, rootSlot(), "g", new AttributeConstructor("", CODE, literal("x"), T3), T3)));
+
+    assertRefused(document);
+  }
+
+  /** An attribute's value is a STRING, as a text's is. */
+  @Test
+  void refusesAnAttributeValueThatIsNoString() {
+    // witness: a Literal value
+    assertAccepted(
+        document(
+            new TargetRepeat(
+                1, rootSlot(), "g", new AttributeConstructor("", CODE, literal("x"), T3), T3)));
+
+    assertRefused(
+        document(
+            new TargetRepeat(
+                1,
+                rootSlot(),
+                "g",
+                new AttributeConstructor("", CODE, queue(ORDER_ID, 1, A1), T3),
+                T3)));
+  }
+
+  /** An attribute has a value and no occurrences of its own, so it is never a structure field. */
+  @Test
+  void refusesAttributeStructureQueue() {
+    // witness: an attribute's queue into a target leaf, and the queue of a structure element
+    assertAccepted(
+        document(
+            slots(
+                NOTE,
+                new SourceQueue(List.of(ORDER, CODE), 1, false, true, A2),
+                rootSlot(),
+                0,
+                UNBOUNDED,
+                "w",
+                new VarRef("w", AtomicType.STRING, T2),
+                T2)));
+    assertAccepted(
+        document(
+            slots(
+                NOTE,
+                new SourceQueue(List.of(ORDER, NOTE), 1, true, false, A2),
+                rootSlot(),
+                0,
+                UNBOUNDED,
+                "w",
+                new VarRef("w", AtomicType.STRING, T2),
+                T2)));
+
+    assertRefused(
+        document(
+            slots(
+                NOTE,
+                new SourceQueue(List.of(ORDER, CODE), 1, true, true, A2),
+                rootSlot(),
+                0,
+                UNBOUNDED,
+                "w",
+                new VarRef("w", AtomicType.STRING, T2),
+                T2)));
+  }
+
   static void assertRefused(TargetDocument document) {
     assertThatThrownBy(() -> IrVerifier.verify(document))
         .isInstanceOfAny(IllegalArgumentException.class, IllegalStateException.class);
