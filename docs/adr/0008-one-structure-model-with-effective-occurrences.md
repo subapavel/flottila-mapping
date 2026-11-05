@@ -84,6 +84,8 @@ Refined by the spec-4 grilling (2026-11-05):
 - The same rule holds for a `wsdl:import`/`include`, an `xsd:import` inside WSDL `types`, and a
   JSON Schema `$ref` to another file.
 - The engine does not compute a bundle's closure for the author.
+- The engine maps a reference written inside a schema to a bundle-listed reference by text,
+  before any read, so the resolver reads only listed files (ADR-0014, #90).
 
 ## JSON as a source at run time
 

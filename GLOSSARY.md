@@ -438,7 +438,7 @@ _Avoid_: safe path, sandboxed path
 
 **Workspace escape**:
 A path that would resolve outside the workspace: `..`, an absolute path, or a symlink pointing
-out. The service refuses it before any read.
+out. The service's reference resolver refuses it before any read.
 _Avoid_: jailbreak
 
 **Problem**:
