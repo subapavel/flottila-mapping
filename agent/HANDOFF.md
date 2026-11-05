@@ -1,14 +1,14 @@
 # Handoff
 
-state: READY — spec 4 "structures in full" (#89) published with 13 tickets (2026-11-05); main 34c3cfb
-integration branch: none yet; `/run-spec` cuts spec/89-structures from main
+state: RUNNING — /run-spec #89 (spec 4 "structures in full"), started 2026-11-05; status comment 6656160285 on #89
+integration branch: spec/89-structures from main a1572bb
 tickets: #90 T1 resolver port (C) · #91 T2 fingerprint at compile, one-pass compile (B, corpus) · #92 T3 refused fields (C) · #93 T4 XSD files and names (B) · #94 T5 XSD model groups (B, corpus) · #95 T6 XSD derivation (B, corpus) · #96 T7 WSDL (B) · #97 T8 JSON Schema reader (B) · #98 T9 JSON input runtime+export (B, corpus, differential) · #99 T10 refresh (B) · #100 T11 gate structures + @stack (B, corpus) · #86 oracle sweep (B, differential) · #87 mutation ratchet (A)
 edges: #92←#91 · #93←#90,#91 · #94←#92,#93 · #95←#92,#93 · #96←#93 · #97←#90,#91 · #98←#97 · #99←#90,#91 · #100←#94,#95,#98,#99,#86,#87. First frontier: #90, #91, #86, #87 (three writers at most).
-in flight: none
+in flight: #86 t/86-oracle-sweep (implementer) · #87 t/87-mutation-ratchet (implementer) · #90 t/90-resolver-port (designer draft); all from spec/89-structures@a1572bb
 blocked chain: none
 grilling (spec 4, 2026-11-05): 3 rounds, all recommendations accepted. Recorded in ADR-0006 (no ContentType in M1), ADR-0008 (closed bundle + import fallback, refused fields, JSON input, all load errors at once, WSDL selector), ADR-0009 (refresh reports orphans + stage-3 diagnostics, compile checks fingerprint, fingerprint pin), ADR-0010 (Save byte-faithful), ADR-0014 (resolver port, closes F-12 on #90's merge), ADR-0015 (/refresh result), ADR-0016 (ArchUnit rule D), ADR-0024 (package-reference pattern); GLOSSARY: Root selector, Fingerprint, Package reference, Reference resolver, Refused field.
 observed (2026-11-05): Saxon-HE 12.5 `json-to-xml` keeps number spelling (1.50, 1e2, -0.0, 20-digit decimal) and retains duplicate keys by default; the export passes duplicates: reject.
-next action: `/run-spec #89`
+next action: resume /run-spec #89: reconcile the in-flight branches above, then refill from the frontier (#91 next)
 carried: spec-2 items by target spec in #48 comment 6595876651 (spec-4 items now in #89/#91); spec-3 items in #70 comment 6639200141 (ContentType closed by the ADR-0006 amendment).
 carried to spec review: trailer exceptions for the PR range: 0dab704 (wrong Co-authored-by form), 4386740 and ac18f47 (owner settings edits from the GitHub web editor, CRLF trailers fail `Ticket:`) · code comments still say "spec 6" for the editor (ui/src/api/client.ts:16, MappingsResource.java:218) · json-sKema undeclared at test scope in service/pom.xml · MappingRunException javadoc says codes are RuntimeErrors (true after #72) · #72 adds RuntimeErrors FORG0001/FOAR0001 with corpus cases (ruling on #72/#74/#80) · carried per ticket in the evidence comments of #72–#79 ("Carried to the spec review") · #83 contract: openapi TraceEntryDto gains {atomic} · #83 Standards judgement calls in evidence comment 6637478756 · #80 run-time truncation to millis (evidence comment 6638545337)
 spec 1: merged to main 3bf9747 (#46); carried #21 comment 6582060566. spec 2: merged 86bf5ed (#66); carried #48 comment 6595876651. spec 3: merged 7dcc540 (#84); carried #70 comment 6639200141.
