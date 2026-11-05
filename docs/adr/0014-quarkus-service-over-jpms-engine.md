@@ -74,7 +74,9 @@ application on the class path. So the engine stays JPMS and the service does not
 
 - The port is `ReferenceResolver` in `structure-import`'s exported package:
   `ResolvedFile resolve(String reference) throws UnresolvedReferenceException`.
-  - `ResolvedFile(name, content)` names the file as the bundle spells it.
+  - `ResolvedFile(name, content)` names the file as the bundle spells it. The engine names files
+    in messages and type ids by that bundle reference, never by the resolver's name, which stays
+    part of the port for hosts that log it.
   - The refusal's `Reason` is `UNREADABLE` or `PACKAGE_REFERENCE_UNSUPPORTED`. It carries no host
     text, and every message is the engine's.
   - A whole-file refusal sits at `{file: the bundle reference, line 1, column 1}`.
