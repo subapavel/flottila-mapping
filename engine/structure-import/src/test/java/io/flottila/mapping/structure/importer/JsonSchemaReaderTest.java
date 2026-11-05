@@ -542,6 +542,131 @@ class JsonSchemaReaderTest {
             });
   }
 
+  /** A schema whose required array {@code tags} has {@code counts} at line 5, column 31. */
+  private static Structure readTags(String counts) throws StructureLoadException {
+    String schema =
+        """
+        {
+          "type": "object",
+          "required": ["tags"],
+          "properties": {
+            "tags": {"type": "array", %s, "items": {"type": "string"}}
+          }
+        }
+        """
+            .formatted(counts);
+    return new StructureReader(new MemoryResolver().file("tags.schema.json", schema))
+        .read(new SchemaBundle(List.of("tags.schema.json")), new JsonRoot());
+  }
+
+  /** Each load error of a refused read, as code, file, line and column. */
+  private static List<String> errors(StructureLoadException e) {
+    return e.errors().stream()
+        .map(error -> error.code() + " " + error.file() + " " + error.line() + ":" + error.column())
+        .toList();
+  }
+
+  static Stream<Arguments> invalidItemCounts() {
+    return Stream.of(
+        argumentSet(
+            "a required array whose minItems 1 is greater than its maxItems 0",
+            "\"minItems\": 1, \"maxItems\": 0",
+            31),
+        argumentSet(
+            "an array whose minItems 3 is greater than its maxItems 2",
+            "\"minItems\": 3, \"maxItems\": 2",
+            31),
+        argumentSet(
+            "a maxItems above 2^64, which a long would wrap",
+            "\"minItems\": 0, \"maxItems\": 18446744073709551617",
+            46),
+        argumentSet(
+            "a minItems of 19 digits, as XSD refuses a maxOccurs of 19 digits",
+            "\"minItems\": 1000000000000000000",
+            31),
+        argumentSet("a negative minItems", "\"minItems\": -1", 31),
+        argumentSet("a maxItems that is no integer", "\"maxItems\": 1.5", 31));
+  }
+
+  /**
+   * A minItems or maxItems that is no count of an XSD occurrence, at most 18 digits, or a minItems
+   * greater than its maxItems, is schema-invalid at that keyword, as XSD refuses such a minOccurs
+   * or maxOccurs (XsdSubsetCheck): no occurrence wraps, turns negative or has its minimum above its
+   * maximum (#89).
+   */
+  @ParameterizedTest(name = "{argumentSetName}")
+  @MethodSource("invalidItemCounts")
+  void anItemCountNoOccurrenceHoldsIsSchemaInvalidAtItsKeyword(String counts, int column) {
+    assertThatThrownBy(() -> readTags(counts))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e ->
+                assertThat(errors(e))
+                    .containsExactly("schema-invalid tags.schema.json 5:" + column));
+  }
+
+  /** The witness: 18 digits and an integer written with a fraction of zero are counts. */
+  @Test
+  void anItemCountOfEighteenDigitsOrAWholeFractionIsACount() throws Exception {
+    assertThat(tree(readTags("\"minItems\": 2.0, \"maxItems\": 999999999999999999")))
+        .containsExactly("/$ 1..1 structure", "/$/tags 2..999999999999999999 xs:string array");
+  }
+
+  /**
+   * ADR-0008: an absolute $ref names the one bundle file whose root $id it is, so a second bundle
+   * file with the same root $id is schema-invalid at its $id, naming the first file (#89).
+   */
+  @Test
+  void aRootIdTwiceInTheBundleIsSchemaInvalidAtTheSecond() throws Exception {
+    MemoryResolver resolver =
+        new MemoryResolver()
+            .file(
+                "root.schema.json",
+                """
+                {
+                  "type": "object",
+                  "properties": {"a": {"$ref": "https://example.com/shared.json#/$defs/A"}}
+                }
+                """)
+            .file(
+                "one.schema.json",
+                """
+                {
+                  "$id": "https://example.com/shared.json",
+                  "$defs": {"A": {"type": "string"}}
+                }
+                """)
+            .file(
+                "two.schema.json",
+                """
+                {
+                  "$defs": {"A": {"type": "integer"}},
+                  "$id": "https://example.com/shared.json"
+                }
+                """);
+    StructureReader reader = new StructureReader(resolver);
+
+    // witness: with the one file, the $ref names it
+    assertThat(
+            tree(
+                reader.read(
+                    new SchemaBundle(List.of("root.schema.json", "one.schema.json")),
+                    new JsonRoot())))
+        .containsExactly("/$ 1..1 structure", "/$/a 0..1 xs:string");
+    assertThatThrownBy(
+            () ->
+                reader.read(
+                    new SchemaBundle(
+                        List.of("root.schema.json", "one.schema.json", "two.schema.json")),
+                    new JsonRoot()))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(errors(e)).containsExactly("schema-invalid two.schema.json 3:3");
+              assertThat(e.getMessage()).contains("one.schema.json");
+            });
+  }
+
   @Test
   void anXsdReadUnderTheJsonRootIsNotWellFormedJson() {
     Path skeleton = Path.of(System.getProperty("flottila.corpus"), "structures", "skeleton");

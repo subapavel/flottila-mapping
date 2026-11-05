@@ -16,13 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A character written raw in a JSON input, not escaped, on both sides (ADR-0008 "JSON as a source at
- * run time", #89): the export reads its input with {@code unparsed-text}, which Saxon-HE 12.5 refuses
- * with {@code err:FOUT1190} when the text holds a character XML 1.0 cannot hold, a raw U+FFFE or
- * U+FFFF, and which drops a leading byte order mark. Our runtime refuses the first with {@link
- * MalformedInputException} and drops the second too, so that the output stays well-formed XML and a
- * run reads what the export reads. The corpus has no case for malformed input, so this pins it. The
- * mapping is the corpus's {@code json-tags}, which reads {@code $/tags}.
+ * A character written raw in a JSON input, not escaped, on both sides (ADR-0008 "JSON as a source
+ * at run time", #89): the export reads its input with {@code unparsed-text}, which Saxon-HE 12.5
+ * refuses with {@code err:FOUT1190} when the text holds a character XML 1.0 cannot hold, a raw
+ * U+FFFE or U+FFFF, and which drops a leading byte order mark. Our runtime refuses the first with
+ * {@link MalformedInputException} and drops the second too, so that the output stays well-formed
+ * XML and a run reads what the export reads. The corpus has no case for malformed input, so this
+ * pins it. The mapping is the corpus's {@code json-tags}, which reads {@code $/tags}.
  */
 class JsonRawCharacterTest {
 
