@@ -355,8 +355,7 @@ public final class XsdReader {
             times(enclosing.max(), particle.getMaxOccurs()));
     if (particle instanceof XmlSchemaElement element) {
       Field field = field(owner, element, file, at, occurrence);
-      elements.add(
-          new Placed(interleaved.map(r -> refused(field, r)).orElse(field), file, at.at()));
+      elements.add(new Placed(interleaved.map(field::withRefusal).orElse(field), file, at.at()));
       return;
     }
     Optional<Refusal> here =
@@ -444,8 +443,7 @@ public final class XsdReader {
       fields.add(
           at == null
               ? field
-              : refused(
-                  field,
+              : field.withRefusal(
                   new Refusal(
                       Refusal.Reason.AMBIGUOUS_FIELD_PATH,
                       at.file(),
@@ -453,17 +451,6 @@ public final class XsdReader {
                       at.at().column())));
     }
     return fields;
-  }
-
-  /** {@code field} with {@code refusal}. */
-  private static Field refused(Field field, Refusal refusal) {
-    return new Field(
-        field.step(),
-        field.occurrence(),
-        field.valueType(),
-        field.nillable(),
-        field.type(),
-        Optional.of(refusal));
   }
 
   /**

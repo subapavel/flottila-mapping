@@ -210,7 +210,7 @@ public final class JsonSchemaReader {
     if (loaded.isPresent() && errors.isEmpty()) {
       Schema root = loaded.get();
       Shape shape = shape(root);
-      if (shape.items().isPresent() || shape.type().isEmpty()) {
+      if (shape.array() || shape.type().isEmpty()) {
         report(
             StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
             root.getLocation(),
@@ -500,7 +500,7 @@ public final class JsonSchemaReader {
           facts.items == null
               ? new Shape(Optional.of(ValueType.STRING), Optional.empty(), Optional.empty(), false)
               : shape(facts.items.getItemsSchema());
-      if (item.items().isPresent()) {
+      if (item.array()) {
         report(
             StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
             facts.items.getLocation(),
@@ -586,8 +586,7 @@ public final class JsonSchemaReader {
         shape.nillable(),
         shape.type(),
         Optional.empty(),
-        // an array property is marked whatever its maxItems (#118)
-        shape.items().isPresent());
+        shape.array());
   }
 
   /**
@@ -722,7 +721,13 @@ public final class JsonSchemaReader {
       Optional<ValueType> valueType,
       Optional<String> type,
       Optional<Occurrence> items,
-      boolean nillable) {}
+      boolean nillable) {
+
+    /** Whether the schema is an array property's, whatever its {@code maxItems} (#118). */
+    boolean array() {
+      return items.isPresent();
+    }
+  }
 
   /** One declaration of a property: in a {@code oneOf} or {@code anyOf} branch, it is optional. */
   private record Declaration(Schema schema, boolean optional) {}

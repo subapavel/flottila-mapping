@@ -509,4 +509,52 @@ class StructureTest {
                 .array())
         .isTrue();
   }
+
+  /**
+   * A refusal added to a field (#92) keeps every other component, the array marker among them
+   * (#118): a marked JSON property stays marked, an unmarked element stays unmarked.
+   */
+  @Test
+  void a_refusal_added_to_a_field_keeps_its_array_marker() {
+    Refusal ambiguous = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, "a.schema.json", 3, 4);
+    Field tags =
+        new Field(
+            json("tags"),
+            new Occurrence(1, 5),
+            Optional.empty(),
+            false,
+            Optional.of("T"),
+            Optional.empty(),
+            true);
+    Field name =
+        new Field(
+            NAME,
+            new Occurrence(0, 1),
+            Optional.of(ValueType.DATE),
+            true,
+            Optional.empty(),
+            Optional.empty(),
+            false);
+
+    assertThat(tags.withRefusal(ambiguous))
+        .isEqualTo(
+            new Field(
+                json("tags"),
+                new Occurrence(1, 5),
+                Optional.empty(),
+                false,
+                Optional.of("T"),
+                Optional.of(ambiguous),
+                true));
+    assertThat(name.withRefusal(ambiguous))
+        .isEqualTo(
+            new Field(
+                NAME,
+                new Occurrence(0, 1),
+                Optional.of(ValueType.DATE),
+                true,
+                Optional.empty(),
+                Optional.of(ambiguous),
+                false));
+  }
 }

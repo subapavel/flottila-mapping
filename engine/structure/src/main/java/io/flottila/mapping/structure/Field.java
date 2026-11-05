@@ -34,6 +34,11 @@ public record Field(
     }
   }
 
+  /** This field with {@code refusal}, every other component kept. */
+  public Field withRefusal(Refusal refusal) {
+    return new Field(step, occurrence, valueType, nillable, type, Optional.of(refusal), array);
+  }
+
   /** A field that is not an array property. */
   public Field(
       FieldPath.Step step,
