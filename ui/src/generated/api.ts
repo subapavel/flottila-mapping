@@ -280,6 +280,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mappings/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["mapping-model.schema"];
+                };
+            };
+            responses: {
+                /** @description The refreshed working copy and its diagnostics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RefreshResponse"];
+                    };
+                };
+                /** @description invalid-workspace-path or malformed-json */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description not-found: the mapping's directory */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description unsupported-media-type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description model-refused: validation stage 1 or 2 refuses the working copy */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["RefusedProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mappings/{id}/test": {
         parameters: {
             query?: never;
@@ -442,7 +520,7 @@ export interface components {
         };
         FieldDto: {
             /** @enum {string} */
-            kind: "element" | "attribute";
+            kind: "element" | "attribute" | "json-property";
             step: string;
             namespace: string;
             localName: string;
@@ -493,6 +571,10 @@ export interface components {
             /** Format: int32 */
             status: number;
             detail: string;
+        };
+        RefreshResponse: {
+            model: components["schemas"]["mapping-model.schema"];
+            diagnostics: components["schemas"]["DiagnosticDto"][];
         };
         RefusedProblem: {
             /** Format: uri */

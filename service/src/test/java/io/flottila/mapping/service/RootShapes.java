@@ -14,7 +14,8 @@ import org.junit.jupiter.api.Named;
  * The wsdl and json root shapes as {@code contract/mapping-model.schema.json} defines them ({@code
  * $defs/wsdlRoot}, {@code wsdlOperation} and {@code jsonRoot}). The schema is read and checked
  * first, so a change to it fails here before a root test passes on a stale shape. Since #96 a wsdl
- * shape is allowed or forbidden: the schema allows a fault exactly when the direction is fault.
+ * shape is allowed or forbidden: the schema allows a fault exactly when the direction is fault. The
+ * json root is read by #97, whose tests cover it.
  */
 final class RootShapes {
 
@@ -28,12 +29,6 @@ final class RootShapes {
   /** Input and output with a fault, and fault without one. */
   static List<Named<String>> wsdlForbidden() {
     return wsdl(false);
-  }
-
-  /** The JSON root. */
-  static List<Named<String>> json() {
-    checkedSchema();
-    return List.of(Named.of("json", "{\"json\": \"$\"}"));
   }
 
   /** Every direction of the schema's enum, with or without a fault, as the schema allows or not. */

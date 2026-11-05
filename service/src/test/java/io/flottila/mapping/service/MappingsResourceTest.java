@@ -466,33 +466,6 @@ class MappingsResourceTest {
     assertThat(TempWorkspace.exists("creating-root/order.mapping.json")).isFalse();
   }
 
-  /**
-   * A create whose root is the json shape of the model schema reaches the engine, which in
-   * milestone 1 refuses it at line 1, column 1 of the bundle's file ({@code
-   * StructureReaderTest.a_JSON_root_is_refused_until_its_reader_exists}): 422 {@code
-   * model-refused}, never 400 {@code invalid-request}. Only the source has the shape.
-   */
-  @ParameterizedTest(name = "{0}")
-  @MethodSource("io.flottila.mapping.service.RootShapes#json")
-  void createWithAJsonRootIsTheEnginesRefusal(String rootShape) {
-    TempWorkspace.mkdirs("creating-root");
-    String target = createRequest("creating-root/order", "../structures/skeleton/order.xsd", ORDER);
-    String request =
-        target.replaceFirst(
-            "\"root\": \\{\"element\": \"[^\"]*\"\\}",
-            java.util.regex.Matcher.quoteReplacement("\"root\": " + rootShape));
-    assertThat(request).as("only the source's root is replaced").isNotEqualTo(target);
-
-    JsonNode problem =
-        assertProblem(
-            http().post("api/mappings", "application/json", bytes(request)), 422, "model-refused");
-
-    assertThat(described(problem.path("diagnostics")))
-        .containsExactly(
-            "error root-selector-unsupported at file ../structures/skeleton/order.xsd 1:1");
-    assertThat(TempWorkspace.exists("creating-root/order.mapping.json")).isFalse();
-  }
-
   /** {@code facade.save(facade.load(body))}: the engine's canonical form, the oracle. */
   private static byte[] engineCanonical(byte[] body) throws Exception {
     EngineFacade facade = new EngineFacade();

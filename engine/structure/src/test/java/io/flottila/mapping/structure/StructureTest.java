@@ -52,6 +52,19 @@ class StructureTest {
         .hasToString("@Q{urn:b}lang");
   }
 
+  /** ADR-0007 (#97): a JSON path starts with {@code $}, and names percent-encode % / @ { }. */
+  @Test
+  void a_JSON_path_starts_with_dollar_and_percent_encodes_its_names() {
+    FieldPath path =
+        FieldPath.of(json("$")).child(json("a/b%")).child(json("@{x}")).child(json("plain $"));
+
+    assertThat(path).hasToString("/$/a%2Fb%25/%40%7Bx%7D/plain $");
+  }
+
+  private static FieldPath.Step json(String name) {
+    return new FieldPath.Step(FieldKind.JSON_PROPERTY, "", name);
+  }
+
   @Test
   void fields_resolve_by_field_path_through_the_type_graph() {
     FieldPath item = ORDER_STRUCTURE.rootPath().child(ITEM);

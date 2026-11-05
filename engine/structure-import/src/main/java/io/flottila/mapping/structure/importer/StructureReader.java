@@ -7,6 +7,7 @@ import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.WsdlOperation;
 import io.flottila.mapping.structure.WsdlRoot;
+import io.flottila.mapping.structure.importer.internal.JsonSchemaReader;
 import io.flottila.mapping.structure.importer.internal.WsdlReader;
 import io.flottila.mapping.structure.importer.internal.XsdReader;
 import java.util.ArrayList;
@@ -16,12 +17,13 @@ import java.util.Map;
 import javax.xml.namespace.QName;
 
 /**
- * Reads a schema bundle into a structure (ADR-0008). It reads XSD bundles of one or more files,
- * linked by {@code xs:import} and {@code xs:include}, with global elements, element references and
- * named types (#93), and WSDL 1.1 and 2.0 bundles under an operation's message (#96); model groups
- * beyond a sequence, derivation and JSON Schema are later tickets of spec 4. It reads every file
- * the bundle lists through the host's {@link ReferenceResolver}, and no other file, and opens no
- * file itself (ADR-0014 "Reference resolver shape").
+ * Reads a schema bundle into a structure (ADR-0008). An element root reads XSD bundles of one or
+ * more files, linked by {@code xs:import} and {@code xs:include}, with global elements, element
+ * references and named types (#93). A WSDL root reads WSDL 1.1 and 2.0 bundles under an operation's
+ * message (#96). The JSON root reads JSON Schema 2020-12 (#97). Model groups beyond a sequence and
+ * derivation are later tickets of spec 4. It reads every file the bundle lists through the host's
+ * {@link ReferenceResolver}, and no other file, and opens no file itself (ADR-0014 "Reference
+ * resolver shape").
  */
 public final class StructureReader {
 
@@ -53,15 +55,15 @@ public final class StructureReader {
           1,
           "a schema bundle lists at least one file");
     }
-    Read read =
+    BundleReader reader =
         switch (root) {
           case ElementRoot(String name) ->
-              (contents, errors) -> XsdReader.read(files, contents, errors, eqName(name));
+              (all, contents, errors) -> XsdReader.read(all, contents, errors, eqName(name));
           case WsdlRoot(WsdlOperation operation) ->
-              (contents, errors) ->
+              (all, contents, errors) ->
                   WsdlReader.read(
-                      files, contents, errors, eqName(operation.interfaceName()), operation);
-          case JsonRoot json -> throw unsupportedRoot(files.getFirst(), "the JSON root");
+                      all, contents, errors, eqName(operation.interfaceName()), operation);
+          case JsonRoot json -> JsonSchemaReader::read;
         };
     // each file the bundle lists is read once, in bundle order, and no other file (ADR-0008)
     List<StructureLoadException> errors = new ArrayList<>();
@@ -83,24 +85,21 @@ public final class StructureReader {
                 code, file, 1, 1, UnresolvedReferenceException.message(e.reason(), file)));
       }
     }
-    return read.read(contents, errors);
+    return reader.read(files, contents, errors);
   }
 
-  /** The reader of the root selector's kind, over the bytes the resolver read. */
-  private interface Read {
-    Structure read(Map<String, byte[]> contents, List<StructureLoadException> errors)
+  /** The reader of a root's schema language, over the bytes of the bundle's files. */
+  @FunctionalInterface
+  private interface BundleReader {
+
+    /**
+     * @param files the bundle's files, in bundle order
+     * @param contents the bytes of each file the host's resolver read
+     * @param errors the load errors of the files the resolver did not read
+     */
+    Structure read(
+        List<String> files, Map<String, byte[]> contents, List<StructureLoadException> errors)
         throws StructureLoadException;
-  }
-
-  private static StructureLoadException unsupportedRoot(String file, String what) {
-    return new StructureLoadException(
-        StructureImportDiagnostics.ROOT_SELECTOR_UNSUPPORTED,
-        file,
-        1,
-        1,
-        "the root selector names "
-            + what
-            + "; milestone 1 reads XSD root elements and WSDL operations only");
   }
 
   /** {@code Q{ns}local} or a bare local name. Anything else is a name no schema declares. */

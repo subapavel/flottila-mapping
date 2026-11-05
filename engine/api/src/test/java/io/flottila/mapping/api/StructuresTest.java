@@ -11,6 +11,7 @@ import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.FieldPath;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
@@ -238,6 +239,55 @@ class StructuresTest {
         .as("compile")
         .isSameAs(hosts);
     assertThatThrownBy(() -> facade.export(model, resolver)).as("export").isSameAs(hosts);
+  }
+
+  // --- #97: a JSON Schema bundle under the JSON root (ADR-0008); the reader's rules are tested in
+  // engine/structure-import (JsonSchemaReaderTest).
+
+  private static final Path JSON_BUNDLE =
+      CorpusStructures.directory("json-schema").resolve("bundle");
+
+  @Test
+  void aJsonSchemaBundleLoadsThroughTheFacadeReadingEachListedFileOnce() throws Exception {
+    RecordingResolver resolver =
+        new RecordingResolver()
+            .file("order.schema.json", Files.readAllBytes(JSON_BUNDLE.resolve("order.schema.json")))
+            .file(
+                "defs/address.schema.json",
+                Files.readAllBytes(JSON_BUNDLE.resolve("defs/address.schema.json")));
+    SchemaBundle bundle =
+        new SchemaBundle(List.of("order.schema.json", "defs/address.schema.json"));
+
+    Structure structure = loaded(Structures.load(resolver, bundle, new JsonRoot()));
+
+    assertThat(structure.rootPath()).hasToString("/$");
+    assertThat(structure.children(structure.rootPath()))
+        .extracting(FieldPath::toString)
+        .containsExactly("/$/id", "/$/shipTo", "/$/country");
+    assertThat(resolver.calls()).containsExactly("order.schema.json", "defs/address.schema.json");
+  }
+
+  /** Each $ref outside the bundle is a load error at that $ref, in document order (ADR-0008). */
+  @Test
+  void aJsonRefOutsideTheBundleIsALoadErrorAtTheRef() throws Exception {
+    RecordingResolver resolver =
+        new RecordingResolver()
+            .file(
+                "order.schema.json", Files.readAllBytes(JSON_BUNDLE.resolve("order.schema.json")));
+
+    List<Diagnostic> diagnostics =
+        refusedAll(Structures.load(resolver, bundle("order.schema.json"), new JsonRoot()));
+
+    assertThat(diagnostics)
+        .extracting(Diagnostic::code)
+        .containsOnly("schema-reference-outside-bundle");
+    assertThat(diagnostics)
+        .extracting(Diagnostic::location)
+        .containsExactly(
+            new AtFilePosition("order.schema.json", 7, 16),
+            new AtFilePosition("order.schema.json", 8, 17));
+    assertThat(diagnostics.getFirst().message()).contains("\"defs/address.schema.json\"");
+    assertThat(resolver.calls()).containsExactly("order.schema.json");
   }
 
   /**

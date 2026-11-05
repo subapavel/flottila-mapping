@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.entry;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldPath;
-import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
@@ -446,24 +445,6 @@ class StructureReaderTest {
               assertThat(e.line()).isEqualTo(6);
               assertThat(e.column()).isEqualTo(59);
             });
-  }
-
-  @Test
-  void a_JSON_root_is_refused_until_its_reader_exists() {
-    for (RootSelector root : List.of(new JsonRoot())) {
-      assertThatThrownBy(
-              () ->
-                  new StructureReader(DirectoryResolver.over(SKELETON))
-                      .read(new SchemaBundle(List.of("order.xsd")), root))
-          .isInstanceOfSatisfying(
-              StructureLoadException.class,
-              e -> {
-                assertThat(e.code()).isEqualTo("root-selector-unsupported");
-                assertThat(e.file()).isEqualTo("order.xsd");
-                assertThat(e.line()).isEqualTo(1);
-                assertThat(e.column()).isEqualTo(1);
-              });
-    }
   }
 
   /**
