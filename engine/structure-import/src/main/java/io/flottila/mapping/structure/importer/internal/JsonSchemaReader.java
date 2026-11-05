@@ -44,6 +44,7 @@ import io.flottila.mapping.structure.ValueType;
 import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import io.flottila.mapping.structure.importer.StructureLoadException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -98,6 +99,9 @@ public final class JsonSchemaReader {
 
   /** The {@code $schema} of draft 2020-12, the one draft read (ADR-0008). */
   private static final String DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
+
+  /** The largest {@code minItems} or {@code maxItems}: 18 digits, as XSD's occurrence counts. */
+  private static final BigDecimal MOST_ITEMS = new BigDecimal("999999999999999999");
 
   /** The start of an absolute URI: its scheme (RFC 3986 §3.1). */
   private static final Pattern ABSOLUTE = Pattern.compile("[A-Za-z][A-Za-z0-9+.-]*:");
@@ -279,7 +283,14 @@ public final class JsonSchemaReader {
       return;
     }
     if (object.get("$id") instanceof IJsonString id) {
-      rootIds.putIfAbsent(id.getValue(), reference);
+      String first = rootIds.putIfAbsent(id.getValue(), reference);
+      if (first != null) {
+        // an absolute $ref names the one bundle file whose root $id it is (ADR-0008)
+        report(
+            StructureImportDiagnostics.SCHEMA_INVALID,
+            keyOf(object, "$id").getLocation(),
+            "the root $id \"" + id.getValue() + "\" is the root $id of " + first + " too");
+      }
     }
     scan(reference, json);
     if (!stopped.contains(reference)) {
@@ -506,10 +517,20 @@ public final class JsonSchemaReader {
             facts.items.getLocation(),
             "an array of arrays is not read (ADR-0008)");
       }
+      long minItems = facts.minItems;
+      if (minItems > facts.maxItems) {
+        // as XSD refuses a minOccurs above its maxOccurs (XsdSubsetCheck)
+        report(
+            StructureImportDiagnostics.SCHEMA_INVALID,
+            facts.minItemsAt,
+            "minItems " + minItems + " is greater than maxItems " + facts.maxItems);
+        // the load fails at that error; the occurrence never has its minimum above its maximum
+        minItems = facts.maxItems;
+      }
       return new Shape(
           item.valueType(),
           item.type(),
-          Optional.of(new Occurrence(facts.minItems, facts.maxItems)),
+          Optional.of(new Occurrence(minItems, facts.maxItems)),
           nillable);
     }
     if (facts.types.equals(Set.of("object"))
@@ -629,11 +650,45 @@ public final class JsonSchemaReader {
       }
       case FormatSchema format -> facts.format = format.getFormat();
       case ItemsSchema items -> facts.items = items;
-      case MinItemsSchema min -> facts.minItems = min.getMinItems().longValue();
-      case MaxItemsSchema max -> facts.maxItems = max.getMaxItems().longValue();
+      case MinItemsSchema min -> {
+        facts.minItems = count(min.getMinItems(), min.getLocation(), "minItems", 0);
+        facts.minItemsAt = min.getLocation();
+      }
+      case MaxItemsSchema max ->
+          facts.maxItems =
+              count(max.getMaxItems(), max.getLocation(), "maxItems", Occurrence.UNBOUNDED);
       case RequiredSchema required -> facts.required.addAll(required.getRequiredProperties());
       default -> {}
     }
+  }
+
+  /**
+   * A {@code minItems} or {@code maxItems} value as a count: a non-negative integer of at most 18
+   * digits, as an XSD {@code minOccurs} or {@code maxOccurs} (XsdSubsetCheck). json-sKema gives any
+   * JSON number there: an {@code Integer}, a {@code BigInteger} beyond it, a {@code Double} or a
+   * {@code BigDecimal} (javap, 0.32.0). Any other value is {@code schema-invalid} at its keyword,
+   * and {@code otherwise} stands in for it, so that no occurrence wraps or turns negative.
+   */
+  private long count(Number value, SourceLocation at, String keyword, long otherwise) {
+    BigDecimal count = new BigDecimal(value.toString());
+    if (count.signum() < 0
+        || count.stripTrailingZeros().scale() > 0
+        || count.compareTo(MOST_ITEMS) > 0) {
+      report(
+          StructureImportDiagnostics.SCHEMA_INVALID,
+          at,
+          keyword + " " + value + " is not a non-negative integer of at most 18 digits");
+      return otherwise;
+    }
+    return count.longValueExact();
+  }
+
+  /** The key {@code name} of {@code object}, which has it: a key carries its own position. */
+  private static IJsonString keyOf(IJsonObject object, String name) {
+    return object.getProperties().keySet().stream()
+        .filter(key -> key.getValue().equals(name))
+        .findFirst()
+        .orElseThrow();
   }
 
   /** Gathers the properties of the branches of a {@code oneOf} or {@code anyOf}, each optional. */
@@ -745,6 +800,10 @@ public final class JsonSchemaReader {
     String format;
     ItemsSchema items;
     long minItems;
+
+    /** The position of the {@code minItems} gathered, if any. */
+    SourceLocation minItemsAt;
+
     long maxItems = Occurrence.UNBOUNDED;
     final Set<String> required = new HashSet<>();
     final Map<String, List<Declaration>> declarations = new LinkedHashMap<>();

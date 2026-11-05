@@ -743,22 +743,22 @@ class EngineFacadeTraceTest {
    * the run's thread, live at the timeout, and the test joins it, so no clock waits for its end. A
    * run that ignored its interrupt would hold the join; JUnit's timeout guards against that hang.
    */
-  private static final long RACE_DELAY_MILLIS = 5_000;
-
-  /** A clock descheduled for this long, inside the lock, in the pinned deschedule case. */
-  private static final long DESCHEDULE_MILLIS = 3_000;
-
   @Test
   @Timeout(60)
   void aTimeoutTraceIsAPrefixOfTheFullTrace() throws Exception {
-    timeoutTraceIsAPrefixOfTheFullTrace(0);
+    timeoutTraceIsAPrefixOfTheFullTrace(false);
   }
 
-  /** The race of #103: the fake clock is descheduled after it saw Row, while the run goes on. */
+  /**
+   * The race of #103: the fake clock is descheduled after it saw Row, while the run goes on as far
+   * as it can. The clock, still inside the tracer's lock, waits until the run's thread is blocked
+   * at its next report, and fails when the run completes first, as it did before #103, when the
+   * clock held no lock.
+   */
   @Test
   @Timeout(60)
   void aTimeoutTraceIsAPrefixOfTheFullTraceWhenTheClockIsDescheduled() throws Exception {
-    timeoutTraceIsAPrefixOfTheFullTrace(DESCHEDULE_MILLIS);
+    timeoutTraceIsAPrefixOfTheFullTrace(true);
   }
 
   /** Tracer's private lock; a renamed field fails the test here, naming it. */
@@ -772,7 +772,7 @@ class EngineFacadeTraceTest {
     }
   }
 
-  private void timeoutTraceIsAPrefixOfTheFullTrace(long descheduleMillis) throws Exception {
+  private void timeoutTraceIsAPrefixOfTheFullTrace(boolean descheduled) throws Exception {
     CompiledMapping mapping = tested(corpusMapping("nested-grp-row-val.mapping.json"), mappings());
     StringBuilder xml = new StringBuilder("<Orders>");
     for (int o = 1; o <= 20_000; o++) {
@@ -799,11 +799,21 @@ class EngineFacadeTraceTest {
                 // clock threw, the trace is a prefix, T2 is in it, and the thread was found live.
                 synchronized (lock) {
                   if (tracer.occurrences().stream().anyMatch(o -> o.field().equals(row))) {
-                    Thread.sleep(descheduleMillis); // 0, or a descheduled clock
-                    platformThreadsInAMapping().stream()
-                        .filter(thread -> !before.contains(thread))
-                        .findFirst()
-                        .ifPresent(timedOut::set);
+                    Thread thread =
+                        platformThreadsInAMapping().stream()
+                            .filter(t -> !before.contains(t))
+                            .findFirst()
+                            .orElseThrow(
+                                () -> new AssertionError("no run's thread at Row's report"));
+                    timedOut.set(thread);
+                    // a descheduled clock: the run goes on until it blocks at its next report
+                    while (descheduled && thread.getState() != Thread.State.BLOCKED) {
+                      if (run.isDone()) {
+                        throw new AssertionError(
+                            "the run completed while the clock was descheduled");
+                      }
+                      Thread.onSpinWait();
+                    }
                     throw new TimeoutException("the fake clock reached the timeout");
                   }
                 }

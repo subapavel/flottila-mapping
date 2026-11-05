@@ -387,29 +387,38 @@ public final class Lowering {
     if (!steps.get(1).equals(structure.root().step().toString())) {
       return Optional.empty();
     }
-    return held(structure, List.of(structure.root()), steps.subList(2, steps.size()))
-        .map(Named::new);
+    return held(structure, List.of(structure.root()), steps, 2, new HashSet<>()).map(Named::new);
   }
 
+  /** A structure type below which the steps from {@code step} on stand under no field. */
+  private record Unheld(String type, int step) {}
+
   /**
-   * {@code chain} continued by the fields of {@code steps} below its last field, the first
-   * same-step sibling below which the rest of the steps stand at each step; empty when no sibling
-   * holds them.
+   * {@code chain} continued by the fields of {@code steps} from {@code step} on below its last
+   * field, the first same-step sibling below which the rest of the steps stand at each step; empty
+   * when no sibling holds them. Whether they stand depends only on the last field's type, so a type
+   * and step that failed once are in {@code failed} and never tried again: each is tried at most
+   * once, where trying every chain of siblings is exponential in the path's length (#89).
    */
   private static Optional<List<Field>> held(
-      Structure structure, List<Field> chain, List<String> steps) {
-    if (steps.isEmpty()) {
+      Structure structure, List<Field> chain, List<String> steps, int step, Set<Unheld> failed) {
+    if (step == steps.size()) {
       return Optional.of(chain);
     }
-    for (Field child : childFields(structure, chain.getLast())) {
-      if (child.step().toString().equals(steps.getFirst())) {
+    Optional<String> type = chain.getLast().type();
+    if (type.isEmpty() || failed.contains(new Unheld(type.get(), step))) {
+      return Optional.empty();
+    }
+    for (Field child : structure.types().get(type.get()).fields()) {
+      if (child.step().toString().equals(steps.get(step))) {
         Optional<List<Field>> below =
-            held(structure, append(chain, child), steps.subList(1, steps.size()));
+            held(structure, append(chain, child), steps, step + 1, failed);
         if (below.isPresent()) {
           return below;
         }
       }
     }
+    failed.add(new Unheld(type.get(), step));
     return Optional.empty();
   }
 

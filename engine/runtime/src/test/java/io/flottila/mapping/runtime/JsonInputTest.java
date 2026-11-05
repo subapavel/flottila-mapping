@@ -404,7 +404,33 @@ class JsonInputTest {
         Arguments.of("['" + u("12g4") + "']", "expected four hex digits after \\u at character 7"),
         Arguments.of("['" + u("12@4") + "']", "expected four hex digits after \\u at character 7"),
         Arguments.of("['" + u("12G4") + "']", "expected four hex digits after \\u at character 7"),
-        Arguments.of("['a" + (char) 0x1F + "']", "a control character in a string at character 5"));
+        Arguments.of("['a" + (char) 0x1F + "']", "a control character in a string at character 5"),
+        // raw, unescaped: unparsed-text refuses them (FOUT1190, observed in Saxon-HE 12.5, #89)
+        Arguments.of(
+            "['a" + (char) 0xFFFE + "']",
+            "a character XML 1.0 cannot hold in a string at character 4"),
+        Arguments.of(
+            "{'k" + (char) 0xFFFF + "': 1}",
+            "a character XML 1.0 cannot hold in a string at character 4"),
+        // a byte order mark only leads the text; anywhere else it is no JSON token
+        Arguments.of("[" + BOM + "1]", "expected a digit at character 2"),
+        Arguments.of(BOM + BOM + "[1]", "expected a digit at character 2"));
+  }
+
+  /** U+FEFF, the byte order mark. */
+  private static final String BOM = String.valueOf((char) 0xFEFF);
+
+  /**
+   * A leading byte order mark is dropped, as {@code unparsed-text} drops it (observed in Saxon-HE
+   * 12.5, #89), and counts in a position; U+FEFF inside a string is a character XML holds.
+   */
+  @Test
+  void aLeadingByteOrderMarkIsDropped() throws Exception {
+    assertThat(read(TAGS, BOM + json("{'tags': ['a', '" + BOM + "b']}")))
+        .containsExactly(List.of("a", BOM + "b"));
+    assertMalformed(
+        BOM + json("{'tags': [1]} x"),
+        "content after the JSON value at character 16 of the JSON input");
   }
 
   @ParameterizedTest(name = "{0}")
