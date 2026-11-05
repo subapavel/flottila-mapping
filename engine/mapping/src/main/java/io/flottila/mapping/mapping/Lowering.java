@@ -717,19 +717,13 @@ public final class Lowering {
 
   /**
    * The depths of the fields on {@code named}'s chain that are JSON array properties, the root
-   * being 1 (#98): a JSON property whose max is above 1, as the JSON Schema reader makes an array
-   * property one repeated field (ADR-0008). An element or attribute is none.
+   * being 1 (#98): the fields with the array marker, whatever their max (#118). An element or
+   * attribute never carries the marker (ADR-0008).
    */
   private static List<Integer> arrays(Named named) {
     List<Integer> arrays = new ArrayList<>();
     for (int depth = 1; depth <= named.chain().size(); depth++) {
-      Field field = named.chain().get(depth - 1);
-      boolean array =
-          switch (field.step().kind()) {
-            case JSON_PROPERTY -> field.occurrence().max() > 1;
-            case ELEMENT, ATTRIBUTE -> false;
-          };
-      if (array) {
+      if (named.chain().get(depth - 1).array()) {
         arrays.add(depth);
       }
     }

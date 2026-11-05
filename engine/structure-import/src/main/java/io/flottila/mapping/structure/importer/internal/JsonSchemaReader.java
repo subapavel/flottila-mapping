@@ -88,7 +88,8 @@ import java.util.stream.Stream;
  *   <li>a property declared twice is one field, refused when the two declarations give two shapes;
  *   <li>an object reached by {@code $ref} is a named structure type, whose id is its file and JSON
  *       pointer, so it is shared and a recursive one is never expanded;
- *   <li>an array property is one repeated field with {@code minItems} and {@code maxItems};
+ *   <li>an array property is one repeated field with {@code minItems} and {@code maxItems}, marked
+ *       as an array property whatever its {@code maxItems} (#118);
  *   <li>the value type comes from {@code type} and {@code format}, and is otherwise {@code
  *       xs:string}; a type list with {@code "null"} marks the field nillable.
  * </ul>
@@ -209,7 +210,7 @@ public final class JsonSchemaReader {
     if (loaded.isPresent() && errors.isEmpty()) {
       Schema root = loaded.get();
       Shape shape = shape(root);
-      if (shape.items().isPresent() || shape.type().isEmpty()) {
+      if (shape.array() || shape.type().isEmpty()) {
         report(
             StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
             root.getLocation(),
@@ -499,7 +500,7 @@ public final class JsonSchemaReader {
           facts.items == null
               ? new Shape(Optional.of(ValueType.STRING), Optional.empty(), Optional.empty(), false)
               : shape(facts.items.getItemsSchema());
-      if (item.items().isPresent()) {
+      if (item.array()) {
         report(
             StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
             facts.items.getLocation(),
@@ -583,7 +584,9 @@ public final class JsonSchemaReader {
         occurrence,
         shape.valueType(),
         shape.nillable(),
-        shape.type());
+        shape.type(),
+        Optional.empty(),
+        shape.array());
   }
 
   /**
@@ -718,7 +721,13 @@ public final class JsonSchemaReader {
       Optional<ValueType> valueType,
       Optional<String> type,
       Optional<Occurrence> items,
-      boolean nillable) {}
+      boolean nillable) {
+
+    /** Whether the schema is an array property's, whatever its {@code maxItems} (#118). */
+    boolean array() {
+      return items.isPresent();
+    }
+  }
 
   /** One declaration of a property: in a {@code oneOf} or {@code anyOf} branch, it is optional. */
   private record Declaration(Schema schema, boolean optional) {}

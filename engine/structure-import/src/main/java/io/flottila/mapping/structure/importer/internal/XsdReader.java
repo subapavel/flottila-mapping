@@ -570,8 +570,8 @@ public final class XsdReader {
       Occurrence each = declarations.size() > 1 ? new Occurrence(0, occurrence.max()) : occurrence;
       for (XmlSchemaElement declaration : declarations) {
         Field field = field(owner, element, declaration, file, at, each);
-        elements.add(
-            new Placed(interleaved.map(r -> refused(field, r)).orElse(field), file, at.at()));
+        // interleaved-target-group replaces abstract-target-element, both refused in a target only
+        elements.add(new Placed(interleaved.map(field::withRefusal).orElse(field), file, at.at()));
       }
       return;
     }
@@ -662,8 +662,7 @@ public final class XsdReader {
       fields.add(
           at == null
               ? field
-              : refused(
-                  field,
+              : field.withRefusal(
                   new Refusal(
                       Refusal.Reason.AMBIGUOUS_FIELD_PATH,
                       at.file(),
@@ -671,20 +670,6 @@ public final class XsdReader {
                       at.at().column())));
     }
     return fields;
-  }
-
-  /**
-   * {@code field} with {@code refusal}, which replaces any it had: interleaved-target-group
-   * replaces abstract-target-element, both refused in a target only.
-   */
-  private static Field refused(Field field, Refusal refusal) {
-    return new Field(
-        field.step(),
-        field.occurrence(),
-        field.valueType(),
-        field.nillable(),
-        field.type(),
-        Optional.of(refusal));
   }
 
   /**

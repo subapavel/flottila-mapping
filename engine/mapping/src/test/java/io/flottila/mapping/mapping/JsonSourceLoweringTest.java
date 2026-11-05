@@ -34,7 +34,8 @@ import org.junit.jupiter.api.Test;
  * Lowering of a JSON source (ADR-0008 "JSON as a source at run time", #98): the input format
  * follows the source's root selector, and a source-field box over a JSON property gives a {@code
  * SourceQueue} whose steps are {@code $} and the property names, with the depths of the array
- * properties on its path, so that a back end reads each array item as an occurrence.
+ * properties on its path, so that a back end reads each array item as an occurrence. An array
+ * property is one by its array marker, whatever its maximum (#118).
  */
 class JsonSourceLoweringTest {
 
@@ -43,44 +44,69 @@ class JsonSourceLoweringTest {
   private static final Name ROOT = new Name("", "$");
 
   /**
-   * The JSON source, as the JSON Schema reader gives it: the root {@code $} holds {@code order}
-   * 0..1, an object with the leaf {@code id}; {@code lines} 0..unbounded, an array of objects with
-   * the leaf {@code sku}; and {@code tags} 0..unbounded, an array of strings.
+   * The JSON source, as the JSON Schema reader gives it, each array property with its array marker
+   * (#118): the root {@code $} holds {@code order} 0..1, an object with the leaf {@code id}; {@code
+   * lines} 0..unbounded, an array of objects with the leaf {@code sku}; {@code tags} 0..unbounded,
+   * an array of strings; {@code one} 0..1, an array of strings with maxItems 1; and {@code objs}
+   * 0..1, an array of objects with maxItems 1 and the leaf {@code sku}. {@code many} is an unmarked
+   * JSON property at 0..unbounded, which no schema gives: it tells the marker from the maximum.
    */
   private static Structure json() {
     String root = "/$";
     return new Structure(
-        new Field(property("$"), new Occurrence(1, 1), Optional.empty(), false, Optional.of(root)),
+        new Field(
+            property("$"),
+            new Occurrence(1, 1),
+            Optional.empty(),
+            false,
+            Optional.of(root),
+            Optional.empty(),
+            false),
         Map.of(
             root,
             new StructureType(
                 root,
                 List.of(
-                    object("order", 0, 1, "/$/order"),
-                    object("lines", 0, Occurrence.UNBOUNDED, "/$/lines"),
-                    leaf("tags", 0, Occurrence.UNBOUNDED))),
+                    object("order", 0, 1, "/$/order", false),
+                    object("lines", 0, Occurrence.UNBOUNDED, "/$/lines", true),
+                    leaf("tags", 0, Occurrence.UNBOUNDED, true),
+                    leaf("one", 0, 1, true),
+                    object("objs", 0, 1, "/$/objs", true),
+                    leaf("many", 0, Occurrence.UNBOUNDED, false))),
             "/$/order",
-            new StructureType("/$/order", List.of(leaf("id", 0, 1))),
+            new StructureType("/$/order", List.of(leaf("id", 0, 1, false))),
             "/$/lines",
-            new StructureType("/$/lines", List.of(leaf("sku", 0, 1)))));
+            new StructureType("/$/lines", List.of(leaf("sku", 0, 1, false))),
+            "/$/objs",
+            new StructureType("/$/objs", List.of(leaf("sku", 0, 1, false)))));
   }
 
   private static FieldPath.Step property(String name) {
     return new FieldPath.Step(FieldKind.JSON_PROPERTY, "", name);
   }
 
-  private static Field object(String name, long min, long max, String type) {
+  /** A JSON object property, an array property's items when {@code array} (#118). */
+  private static Field object(String name, long min, long max, String type, boolean array) {
     return new Field(
-        property(name), new Occurrence(min, max), Optional.empty(), false, Optional.of(type));
+        property(name),
+        new Occurrence(min, max),
+        Optional.empty(),
+        false,
+        Optional.of(type),
+        Optional.empty(),
+        array);
   }
 
-  private static Field leaf(String name, long min, long max) {
+  /** A JSON string property, an array property's items when {@code array} (#118). */
+  private static Field leaf(String name, long min, long max, boolean array) {
     return new Field(
         property(name),
         new Occurrence(min, max),
         Optional.of(ValueType.STRING),
         false,
-        Optional.empty());
+        Optional.empty(),
+        Optional.empty(),
+        array);
   }
 
   /**
@@ -154,5 +180,29 @@ class JsonSourceLoweringTest {
     assertThat(queue(lowerNote("/$/lines"), 1))
         .isEqualTo(
             new SourceQueue(List.of(ROOT, name("lines")), 1, true, false, List.of(2), id("s2")));
+  }
+
+  /**
+   * #118 (ADR-0008 "JSON as a source at run time"): an array property whose maxItems is 1 reads its
+   * items as occurrences, so it is an array step, for an array of strings and for the array of
+   * objects above a leaf.
+   */
+  @Test
+  void anArrayPropertyWithMaxOneIsAnArrayStep() {
+    assertThat(queue(lowerNote("/$/one"), 1))
+        .isEqualTo(
+            new SourceQueue(List.of(ROOT, name("one")), 1, false, false, List.of(2), id("s2")));
+    assertThat(queue(lowerNote("/$/objs/sku"), 1))
+        .isEqualTo(
+            new SourceQueue(
+                List.of(ROOT, name("objs"), name("sku")), 2, false, false, List.of(2), id("s2")));
+  }
+
+  /** #118: the array marker, never the maximum, makes an array step. */
+  @Test
+  void theMarkerNotTheMaximumMakesAnArrayStep() {
+    assertThat(queue(lowerNote("/$/many"), 1))
+        .isEqualTo(
+            new SourceQueue(List.of(ROOT, name("many")), 1, false, false, List.of(), id("s2")));
   }
 }
