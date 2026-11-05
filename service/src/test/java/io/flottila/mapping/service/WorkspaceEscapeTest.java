@@ -8,6 +8,7 @@ import static io.flottila.mapping.service.Fixtures.unwired;
 import static io.flottila.mapping.service.Fixtures.workingCopy;
 import static io.flottila.mapping.service.Wire.assertProblem;
 import static io.flottila.mapping.service.Wire.createRequest;
+import static io.flottila.mapping.service.Wire.described;
 import static io.flottila.mapping.service.Wire.structureRequest;
 import static io.flottila.mapping.service.Wire.testRequest;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
@@ -223,7 +225,78 @@ class WorkspaceEscapeTest {
             "test run with a bundle ref to a missing file outside",
             "POST",
             "api/mappings/mappings/order-id-copy/test",
-            testRequest(exfilModel("../../outside/missing.xsd"), EXFIL_INPUT)));
+            testRequest(exfilModel("../../outside/missing.xsd"), EXFIL_INPUT)),
+        // #93: an escape in a multi-file bundle is refused as in a one-file bundle, after a
+        // listed file is read as well as before
+        attack(
+            "structures: an escape after a listed file",
+            "POST",
+            "api/structures",
+            bundleRequest("structures/skeleton", "order.xsd", "../../../outside/evil.xsd")),
+        attack(
+            "structures: an escape before a listed file",
+            "POST",
+            "api/structures",
+            bundleRequest("structures/skeleton", "../../../outside/evil.xsd", "order.xsd")),
+        attack(
+            "create with an escape in a two-file bundle",
+            "POST",
+            "api/mappings",
+            "{\"id\": \"mappings/escaping\", \"source\": %1$s, \"target\": %1$s}"
+                .formatted(
+                    "{\"bundle\": [\"../structures/skeleton/order.xsd\","
+                        + " \"../../outside/evil.xsd\"], \"root\": {\"element\": \""
+                        + EXFIL
+                        + "\"}}")));
+  }
+
+  /** A {@code StructureRequest} for {@link #EXFIL} over a bundle of several files. */
+  private static String bundleRequest(String base, String... bundle) {
+    return "{\"base\": %s, \"bundle\": [%s], \"root\": {\"element\": %s}}"
+        .formatted(
+            Wire.quoted(base),
+            String.join(", ", Stream.of(bundle).map(Wire::quoted).toList()),
+            Wire.quoted(EXFIL));
+  }
+
+  /**
+   * #93 (ADR-0014 "Reference resolver shape (#90)", ADR-0008): an escape written inside a schema,
+   * in an {@code xs:import}'s schemaLocation, is mapped to a bundle file by text before any read.
+   * It maps to none, so the answer is a 200 {@code refused} with {@code
+   * schema-reference-outside-bundle} at the import, and the outside schema is never read: a read
+   * would declare the root {@code Exfil} and show {@code SecretField}. {@code
+   * WorkspaceTest.aSchemaLocationThatEscapesIsOutsideTheBundleAndNeverRead} observes the opens.
+   */
+  @ParameterizedTest(name = "{0}")
+  @CsvSource({"../../../outside/evil.xsd, 96", "../../../etc/passwd, 90"})
+  void anEscapeInASchemaLocationIsOutsideTheBundleAndNeverRead(String location, int column) {
+    TempWorkspace.write(
+        "structures/escape-import/doc.xsd",
+        bytes(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                       targetNamespace="urn:flottila:test:inside">
+              <xs:import namespace="urn:flottila:test:outside" schemaLocation="%s"/>
+            </xs:schema>
+            """
+                .formatted(location)));
+
+    Http.Reply reply =
+        new Http(root)
+            .post(
+                "api/structures",
+                "application/json",
+                bytes(structureRequest("structures/escape-import", "doc.xsd", EXFIL)));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.json().path("kind").textValue()).isEqualTo("refused");
+    assertThat(described(reply.json().path("diagnostics")))
+        .containsExactly(
+            "error schema-reference-outside-bundle at file doc.xsd 4:" + column);
+    assertThat(reply.json().path("diagnostics").path(0).path("message").textValue())
+        .contains("\"" + location + "\"");
+    assertThat(reply.text()).as("never the outside schema").doesNotContain(MARKER);
   }
 
   @ParameterizedTest(name = "{0}")

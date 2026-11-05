@@ -977,6 +977,39 @@ class WorkspaceTest {
     }
   }
 
+  /**
+   * #93 (ADR-0014 "Reference resolver shape (#90)", ADR-0008): a schemaLocation written inside a
+   * schema is mapped to a bundle file by text before any read. One that escapes the workspace maps
+   * to none, so the load is {@code schema-reference-outside-bundle} at the first such element, and
+   * {@link ObservedFileSystem}, which records every open, sees the bundle file read and nothing
+   * else.
+   */
+  @Test
+  void aSchemaLocationThatEscapesIsOutsideTheBundleAndNeverRead() throws Exception {
+    Path a = root.resolve("a");
+    Files.writeString(
+        a.resolve("doc.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:a">
+          <xs:import namespace="urn:outside" schemaLocation="../../outside/evil.xsd"/>
+          <xs:include schemaLocation="../../../etc/passwd"/>
+        </xs:schema>
+        """);
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    StructureResult result = Structures.load(resolver, bundle("doc.xsd"), ANY_ROOT);
+
+    // just after the xs:import start tag: line 2, column 79
+    assertThat(described(result)).isEqualTo("schema-reference-outside-bundle at doc.xsd 2:79");
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("files opened")
+        .containsExactly("doc.xsd");
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
   /** ADR-0024 as amended by the spec-4 grilling, verbatim: the oracle of a package reference. */
   private static final Pattern PACKAGE_PATTERN =
       Pattern.compile(
