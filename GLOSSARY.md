@@ -56,6 +56,31 @@ _Avoid_: library (for the package itself), common folder
 A field path in a mapping that the mapping's current structure no longer has.
 _Avoid_: broken link, dangling field
 
+**Root selector**:
+The choice of a structure's root inside its schema bundle: an XML root element, a WSDL
+operation with its direction (and fault), or the JSON root.
+_Avoid_: entry point, root element (for WSDL and JSON)
+
+**Fingerprint**:
+A digest of exactly what the compiler reads from a structure, stored in the mapping. A mismatch
+at compile means the structure changed since the last refresh.
+_Avoid_: checksum, schema hash, version
+
+**Package reference**:
+A reference to a file in a shared package at a fixed version, `name@version:/path`. Only a host's
+reference resolver can read it.
+_Avoid_: external reference, URL
+
+**Reference resolver**:
+The host's port through which the engine reads every file a mapping or schema refers to. The
+engine reads no file in any other way.
+_Avoid_: loader, file reader, schema catalog
+
+**Refused field**:
+A field that loads and shows in the tree but that a mapping may not use, such as a same-step
+sibling or an abstract target element. It carries the reason and its declaration's position.
+_Avoid_: unsupported field (the code for a target field the walk cannot create), invalid field
+
 **Source structure** / **Target structure**:
 The structure a mapping reads from / writes to.
 

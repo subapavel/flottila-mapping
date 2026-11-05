@@ -1,6 +1,6 @@
 # Milestone 1 has nine JPMS engine modules behind one facade, a Quarkus service and a separate `ui/`
 
-Status: accepted (2026-10-30, grilling #13); `engine/oracle` added by ADR-0018; `engine/udf-api` and `engine/udf` added by ADR-0020; `engine/bytecode` (after milestone 1) and `bench/jmh` requires set by ADR-0021
+Status: accepted (2026-10-30, grilling #13); `engine/oracle` added by ADR-0018; `engine/udf-api` and `engine/udf` added by ADR-0020; `engine/bytecode` (after milestone 1) and `bench/jmh` requires set by ADR-0021; ArchUnit rule D added by the spec-4 grilling (2026-11-05)
 
 FOUNDING §11 sketches modules along the pipeline. ADR-0008 split structure import into two, and
 ADR-0014 took the service off the module path. This ADR fixes the modules milestone 1 builds,
@@ -60,6 +60,10 @@ module's row is fixed now (ADR-0021); its spec comes after milestone 1.
   - B: no engine class depends on `io.quarkus..`, `jakarta..`, `com.fasterxml..` or
     `io.flottila.mapping.service..`;
   - C: every service class lives in `io.flottila.mapping.service..`, so B can see it.
+  - D (spec-4 grilling, 2026-11-05): no class of `structure-import` uses `java.nio.file.Files`,
+    `java.nio.file.Path`/`Paths` or `java.io.File*`. It reads every file through the reference
+    resolver (ADR-0014). D runs in the same test class. GATE check 8 still names A–C, and the
+    `backend` job holds D with them.
 - **Artefacts**: maven-enforcer `bannedDependencies` bans `io.quarkus*`, `jakarta.*` and
   `com.fasterxml*` in `engine/pom.xml`, `org.openjdk.jmh` everywhere except `bench/jmh`, and
   `net.sf.saxon` at every scope except in `engine/oracle`, which switches the `enforce-no-saxon`

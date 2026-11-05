@@ -1,6 +1,6 @@
 # Service wire rules: mapping ids, ETags, problem types and result unions
 
-Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
+Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015; amended by the spec-4 grilling (2026-11-05): package references pass the pattern
 
 ## Mapping ids and paths
 
@@ -11,6 +11,10 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015
   - A file whose path fails the pattern is not a mapping.
 - `base` matches the id pattern or is `""`.
 - A bundle reference matches `^(\.\./){0,16}[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`.
+  - Since the spec-4 grilling (2026-11-05), a **package reference** also passes:
+    `^[A-Za-z0-9_-][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.+-]*:/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`.
+  - The `:` and `@` it needs are allowed in this form only. It never reaches `Workspace`.
+    Loading it gives `package-reference-unsupported` (ADR-0014).
 - In every path:
   - no segment starts with `.`;
   - `\`, `:`, `%`, NUL, a leading `/` and an empty segment are refused.

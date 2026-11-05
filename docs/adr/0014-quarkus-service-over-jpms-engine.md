@@ -1,6 +1,6 @@
 # The service is a Quarkus application over a JPMS engine, and it keeps mappings as files in a workspace
 
-Status: accepted (2026-10-30, grilling #12); amended by F-3 (no `--add-modules` under Maven) and refined by ADR-0016 (modules, ArchUnit rules)
+Status: accepted (2026-10-30, grilling #12); amended by F-3 (no `--add-modules` under Maven) and refined by ADR-0016 (modules, ArchUnit rules); F-12 resolved by the spec-4 grilling (2026-11-05)
 
 FOUNDING §11 sketches JPMS modules for everything, "the service" included. The owner wants the
 service in Quarkus, the same as Flottila's future backend. Quarkus builds and runs an
@@ -56,6 +56,18 @@ application on the class path. So the engine stays JPMS and the service does not
   yet. The service alone guards bundle paths (ADR-0024, three checks), and the engine reads the
   bundle through `Structures.load`. The package-reference code and the absolute path in
   `schema-unreadable` wait for the port in spec 4.
+- **Decided for spec 4 (spec-4 grilling, 2026-11-05), closing F-12:**
+  - The engine never opens a file. `Structures.load` takes a `ReferenceResolver`. The resolver
+    turns (the referring file, a reference) into bytes and a display name.
+  - Every read goes through it: the bundle files and every `schemaLocation`, `wsdl:import`/`include`
+    and JSON `$ref` to another file (ADR-0008).
+  - The service's resolver is `Workspace` with its three checks (ADR-0024). The engine ships no
+    file-system resolver in production code. Engine tests use an in-memory one.
+  - The mandatory workspace-escape test moves to the resolver. It also covers an escape written
+    inside a schema (`schemaLocation="../../../etc/passwd"`).
+  - A package reference passes stages 1 and 2 (ADR-0024). Loading it gives the design-time error
+    `package-reference-unsupported`.
+  - Messages name a file by its reference relative to the bundle, never by an absolute path.
 
 ## Running
 

@@ -1,6 +1,6 @@
 # One structure model, normalised at import to fields with effective occurrences
 
-Status: accepted (2026-10-30, grilling #8); amended by F-1 (json-sKema also validates mapping models, ADR-0011) and F-3 (no `--add-modules` under Maven)
+Status: accepted (2026-10-30, grilling #8); amended by F-1 (json-sKema also validates mapping models, ADR-0011) and F-3 (no `--add-modules` under Maven); refined by the spec-4 grilling (2026-11-05): references outside the bundle, refused fields, JSON input
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §6 ("one structure model with types and
 cardinalities, shared by editor and compiler") for milestone 1 and fills its gaps. XSD, WSDL and
@@ -57,6 +57,10 @@ queues see fields, not groups.
   the XSD reader.
   - The root is the element of the chosen operation's input, output or fault.
   - Refused: RPC `part@type` and messages with several parts.
+  - Also refused (spec-4 grilling, 2026-11-05): a WSDL 2.0 message declared `#any`, `#none` or
+    `#other`.
+  - The selector's `interface` is the portType (1.1) or interface (2.0) EQName. `operation` and
+    `fault` are NCNames. `fault` is required exactly when the direction is `fault`.
 
 ## Readers
 
@@ -68,6 +72,40 @@ resolve inside the schema bundle. A namespace-only import resolves to the one bu
 that `targetNamespace`. Load errors carry file, line and column; XmlSchema keeps no positions,
 so a JDK SAX pass (DOCTYPE refused) runs first and supplies them (F-7).
 
+Refined by the spec-4 grilling (2026-11-05):
+
+- The bundle is a closed set: it lists every file the reader reads, including the ones reached
+  only through another file. Every read goes through the reference resolver (ADR-0014).
+- An `import` or `include` `schemaLocation` resolves relative to the importing file. An `import`
+  whose location is absolute, a URL, or a file outside the bundle falls back to the namespace
+  rule. An `include` has no namespace, so its location must name a bundle file. When neither
+  matches, the load fails with `schema-reference-outside-bundle` at the `import` or `include`
+  element's file, line and column, and the message names the missing reference.
+- The same rule holds for a `wsdl:import`/`include`, an `xsd:import` inside WSDL `types`, and a
+  JSON Schema `$ref` to another file.
+- The engine does not compute a bundle's closure for the author.
+
+## JSON as a source at run time
+
+Decided in the spec-4 grilling (2026-11-05):
+
+- The input format follows the source structure's root selector: a JSON root reads JSON, every
+  other root reads XML. There is no content-type sniffing.
+- The runtime has its own small JSON pull parser and takes no new dependency (FOUNDING §8).
+  It keeps numbers in their input spelling, reads `null` as `""`, and projects by `$` field paths.
+- The XSLT export reads JSON input through `json-to-xml(unparsed-text(...))` and navigates the
+  `fn:` map/array representation. Saxon-HE 12.5 keeps the input spelling of numbers there
+  (`1.50`, `1e2`, `-0.0`, a 20-digit decimal), observed 2026-11-05. JSON-source corpus mappings
+  sit in the differential like any other.
+- A duplicate key is malformed input on both sides. The runtime refuses it as it refuses bad
+  XML. The export calls `json-to-xml` with `map{'duplicates': 'reject'}` (FOJS0003).
+- The input is never validated, as for XML. A value whose JSON kind does not fit its field reads
+  as absent: an object or array for a leaf, a scalar for a structure field, a non-array for an
+  array property. The export's path navigation over the `fn:` representation gives the same.
+- PO message mappings have no JSON source, so JSON-specific corpus cases are
+  `provenance: decided`. The reading "JSON `null` reads as `""`" stays an assumed row of
+  `obs-structures` (#36).
+
 ## JSON as a target
 
 In milestone 1, JSON runs as a source. Its values stay strings in their input spelling: numbers
@@ -77,9 +115,19 @@ first spec after milestone 1. It adds constructor records (object, array, member
 `TargetSlots`/`TargetRepeat`, as ADR-0006 allows. That spec must also settle the export, because
 Saxon-HE 12.5's `xml-to-json` normalises numbers (`1.50` → `1.5`, observed).
 
+One load reports every load-time error of the bundle: files in bundle order, each file in
+document order. A file that is not well-formed stops only that file (spec-4 grilling,
+2026-11-05).
+
 ## Refused when a mapping uses the field
 
-These are design-time errors, raised only for a field that a mapping refers to or must create:
+These are design-time errors, raised only for a field that a mapping refers to or must create.
+The structure loads and shows these fields. Model groups are gone after import, so each such
+field carries its **refusal**: the reason and the file, line and column of the declaration that
+causes it. The refusal is part of the fingerprint (ADR-0009). The diagnostic's location is the
+mapping element the author must change: the `authoringId` of the box or target field mapping,
+or the `/targetFieldMappings/<field path>` pointer of a field that must be created. Its message
+names the schema file, line and column (spec-4 grilling, 2026-11-05).
 
 - two sibling declarations with the same step;
 - in a target:
