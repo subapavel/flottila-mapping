@@ -193,15 +193,102 @@ class StructuresResourceTest {
   }
 
   /**
-   * The service's root translator takes every wsdl and json shape of the model schema and hands it
-   * to the engine, which in milestone 1 refuses it with {@code root-selector-unsupported} at line
-   * 1, column 1 of the bundle's file ({@code
-   * StructureReaderTest.WSDL_and_JSON_roots_are_refused_until_their_readers_exist}). A 400 would
-   * mean the translator refused a shape the schema defines.
+   * #96: the service's root translator hands every wsdl shape the model schema allows to the
+   * engine's WSDL reader. Over a bundle of no WSDL the interface is not found, at the first file's
+   * xs:schema ({@code
+   * StructureReaderTest.a_WSDL_root_over_a_bundle_of_no_WSDL_is_schema_root_not_found}). A 400
+   * would mean the translator refused a shape the schema defines.
    */
   @ParameterizedTest(name = "{0}")
-  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAndJson")
-  void wsdlAndJsonRootsReachTheEngineAsTheModelSchemaDefinesThem(String rootShape) {
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAllowed")
+  void wsdlRootsReachTheWsdlReaderAsTheModelSchemaDefinesThem(String rootShape) {
+    String request =
+        "{\"base\": \"structures/skeleton\", \"bundle\": [\"order.xsd\"], \"root\": "
+            + rootShape
+            + "}";
+
+    Http.Reply reply = new Http(root).post("api/structures", "application/json", bytes(request));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.json().path("kind").textValue()).as("%s", reply).isEqualTo("refused");
+    assertThat(described(reply.json().path("diagnostics")))
+        .containsExactly("error schema-root-not-found at file order.xsd 6:59");
+  }
+
+  /** #96: a wsdl shape the model schema forbids is not a root selector: 400 invalid-request. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlForbidden")
+  void wsdlShapesTheModelSchemaForbidsAreInvalidRequests(String rootShape) {
+    String request =
+        "{\"base\": \"structures/skeleton\", \"bundle\": [\"order.xsd\"], \"root\": "
+            + rootShape
+            + "}";
+
+    assertProblem(
+        new Http(root).post("api/structures", "application/json", bytes(request)),
+        400,
+        "invalid-request");
+  }
+
+  /**
+   * #96: a WSDL 1.1 bundle loads under the input of an operation: the element of its message's
+   * part, from the XSD its inline schema imports, with the fingerprint of the corpus mapping {@code
+   * wsdl-order-receipt} pins.
+   */
+  @Test
+  void loadsAWsdlRoot() throws IOException {
+    List<String> bundle =
+        List.of(
+            "wsdl/order-11.wsdl",
+            "files-and-names/import-location/po/order.xsd",
+            "files-and-names/import-location/common/types.xsd");
+    for (String file : bundle) {
+      TempWorkspace.write(
+          "structures/wsdl-load/" + file,
+          Files.readAllBytes(Fixtures.repositoryRoot().resolve("corpus/structures/" + file)));
+    }
+
+    Http.Reply reply =
+        new Http(root)
+            .post(
+                "api/structures",
+                "application/json",
+                bytes(
+                    "{\"base\": \"structures/wsdl-load\", \"bundle\": [\""
+                        + String.join("\", \"", bundle)
+                        + "\"], \"root\": {\"wsdl\": {\"interface\":"
+                        + " \"Q{urn:flottila:corpus:wsdl11}OrderPort\", \"operation\": \"Submit\","
+                        + " \"direction\": \"input\"}}}"));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode loaded = reply.json();
+    assertThat(loaded.path("kind").textValue()).as("%s", reply).isEqualTo("loaded");
+    assertThat(loaded.path("fingerprint").textValue())
+        .isEqualTo("sha256:510d96ec830e4ad8aa2e477a6fe73640f58587cc84ce10ec68ce666ca65edd16");
+    JsonNode rootField = loaded.path("root");
+    assertThat(field(rootField)).isEqualTo("Q{urn:flottila:corpus:po}Order 1..1");
+    List<String> fields = new ArrayList<>();
+    for (JsonNode f : loaded.path("types").path(rootField.path("type").textValue())) {
+      fields.add(field(f));
+    }
+    assertThat(fields)
+        .containsExactly(
+            "Q{urn:flottila:corpus:po}Id 1..1",
+            "Q{urn:flottila:corpus:po}ShipTo 1..1",
+            "Q{urn:flottila:corpus:po}Total 1..1",
+            "Q{urn:flottila:corpus:common}Note 0..unbounded");
+  }
+
+  /**
+   * The service's root translator takes the json shape of the model schema and hands it to the
+   * engine, which in milestone 1 refuses it with {@code root-selector-unsupported} at line 1,
+   * column 1 of the bundle's file ({@code
+   * StructureReaderTest.a_JSON_root_is_refused_until_its_reader_exists}). A 400 would mean the
+   * translator refused a shape the schema defines.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("io.flottila.mapping.service.RootShapes#json")
+  void jsonRootReachesTheEngineAsTheModelSchemaDefinesIt(String rootShape) {
     String request =
         "{\"base\": \"structures/skeleton\", \"bundle\": [\"order.xsd\"], \"root\": "
             + rootShape
