@@ -5,15 +5,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrVerifier;
+import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
@@ -428,6 +432,53 @@ class InterpreterTest {
     // the root's slot 1 reads context 1
     assertThat(new String(out, UTF_8))
         .isEqualTo(DECLARATION + ROOT_OPEN + "<Id>1</Id>" + ROOT_CLOSE);
+  }
+
+  // --- target attributes (ADR-0006 since #102)
+
+  /**
+   * Two attribute items on the root, as lowering gives them: {@code code} per slot of OrderId's
+   * queue through {@code TargetSlots} (0..1), and the qualified {@code ns1:lang} through a 1-copy
+   * {@code TargetRepeat} with a constant value. Both stand before the child Note, and both are
+   * written on the root's start tag, before its content; {@code ns1} is declared where {@code lang}
+   * needs it (ADR-0022).
+   */
+  @Test
+  void targetAttributesAreWrittenOnTheirElementBeforeItsContent() throws Exception {
+    AuthoringId t1 = id("t1");
+    AuthoringId t2 = id("t2");
+    TargetDocument document =
+        document(
+            new TargetSlots(
+                rootLeaf("OrderId", "a1"),
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t1),
+                0,
+                1,
+                "slot",
+                "v",
+                new AttributeConstructor(
+                    "", local("code"), new VarRef("v", AtomicType.STRING, t1), t1),
+                t1),
+            new TargetRepeat(
+                1,
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t2),
+                "copy",
+                new AttributeConstructor(
+                    "ns1", new Name("urn:b", "lang"), new Literal("en", t2), t2),
+                t2),
+            leaf("Note", rootLeaf("Note", "a3"), 0, UNBOUNDED, "t3"));
+    IrVerifier.verify(document);
+
+    String out = run(document, sourceOrder("<OrderId>4711</OrderId><Note>x</Note>"));
+
+    assertThat(out)
+        .isEqualTo(
+            DECLARATION
+                + "<ns0:Order xmlns:ns0=\""
+                + NS
+                + "\" code=\"4711\" xmlns:ns1=\"urn:b\" ns1:lang=\"en\">"
+                + "<Note>x</Note>"
+                + ROOT_CLOSE);
   }
 
   // --- tracing (ADR-0006, ADR-0021)

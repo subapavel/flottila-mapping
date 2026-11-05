@@ -359,6 +359,11 @@ class XsltExporterTest {
             fieldLinkWith(
                 new ElementConstructor("", ORDER_ID, List.of(), x9), List.of(valueText()))),
         Arguments.of(
+            "an AttributeConstructor as a queue",
+            fieldLinkWith(
+                new AttributeConstructor("", new Name("", "code"), new Literal("x", x9), x9),
+                List.of(valueText()))),
+        Arguments.of(
             "a TargetSlots as a text's value",
             fieldLinkWith(
                 queue,
