@@ -45,11 +45,11 @@ final class JsonParser {
   /** After <code>{</code>: a key or <code>}</code>. */
   private static final int FIRST_KEY = 2;
 
-  /** After a comma in an object: a key. */
-  private static final int NEXT_KEY = 3;
-
-  /** After a value: a comma or the end of its container, or the end of the input at the top. */
-  private static final int AFTER_VALUE = 4;
+  /**
+   * After a value: a comma or the end of its container, or the end of the input at the top. The key
+   * or item after a comma is read with the comma.
+   */
+  private static final int AFTER_VALUE = 3;
 
   /** U+FFFD, which {@code json-to-xml} gives for a character XML 1.0 cannot hold. */
   private static final char REPLACEMENT = 0xFFFD;
@@ -94,7 +94,6 @@ final class JsonParser {
       case VALUE -> value(c);
       case FIRST_ITEM -> c == ']' ? close() : value(c);
       case FIRST_KEY -> c == '}' ? close() : key(c);
-      case NEXT_KEY -> key(c);
       default -> afterValue(c);
     };
   }
