@@ -53,14 +53,16 @@ import org.xml.sax.helpers.NamespaceSupport;
  *   <li>Instead, a complex type may hold only an {@code xs:complexContent} with one {@code
  *       xs:extension} or {@code xs:restriction} of a named complex type ({@code base}), which holds
  *       what a complex type holds; or only an {@code xs:simpleContent} with one {@code
- *       xs:extension} of a simple type or of a complex type with simple content ({@code base}),
- *       which holds {@code xs:attribute}s (#95).
+ *       xs:extension} or {@code xs:restriction} of a simple type or of a complex type with simple
+ *       content ({@code base}), which holds {@code xs:attribute}s, and a restriction facets too
+ *       (#95). An attribute's {@code use} may be {@code prohibited}.
  *   <li>A sequence holds local {@code xs:element}s, element references ({@code ref}, {@code
  *       minOccurs}, {@code maxOccurs}) and {@code xs:any}.
- *   <li>A global or local element has a {@code type} or one anonymous {@code xs:complexType}. A
- *       local one is a leaf or structure field ({@code name}, {@code minOccurs}, {@code maxOccurs},
- *       {@code form}; with a type also {@code nillable}, {@code default}, {@code fixed}). A global
- *       one may be {@code abstract} and name the head of its {@code substitutionGroup} (#95).
+ *   <li>A global or local element has a {@code type} or one anonymous {@code xs:complexType}, or is
+ *       a global one in a substitution group, which then has its head's type (#95). A local one is
+ *       a leaf or structure field ({@code name}, {@code minOccurs}, {@code maxOccurs}, {@code
+ *       form}; with a type also {@code nillable}, {@code default}, {@code fixed}). A global one may
+ *       be {@code abstract} and name the head of its {@code substitutionGroup} (#95).
  *   <li>A named simple type is an {@code xs:restriction} of a {@code base}, an {@code xs:list} or
  *       an {@code xs:union}.
  * </ul>
@@ -81,7 +83,7 @@ final class XsdSubsetCheck extends DefaultHandler {
   private static final Pattern COUNT = Pattern.compile("[0-9]{1,18}");
   private static final Pattern BOOLEAN = Pattern.compile("true|false");
   private static final String TRUE = "true";
-  private static final Pattern USE = Pattern.compile("optional|required");
+  private static final Pattern USE = Pattern.compile("optional|required|prohibited");
   private static final Pattern FORM = Pattern.compile("qualified|unqualified");
 
   // one string: FamilyLocalityTest reads a quoted standard function name, such as the facet
@@ -103,7 +105,8 @@ final class XsdSubsetCheck extends DefaultHandler {
           Role.COMPLEX_CONTENT,
           Role.SIMPLE_CONTENT,
           Role.COMPLEX_DERIVATION,
-          Role.SIMPLE_EXTENSION);
+          Role.SIMPLE_EXTENSION,
+          Role.SIMPLE_RESTRICTION);
 
   /**
    * Why each XSD element ADR-0008 names as refused when a schema loads is refused, by its local
@@ -142,7 +145,9 @@ final class XsdSubsetCheck extends DefaultHandler {
     SIMPLE_CONTENT(Set.of(), Set.of()),
     // an xs:extension or xs:restriction of complex content
     COMPLEX_DERIVATION(Set.of("base"), Set.of("base")),
+    // an xs:extension or xs:restriction of simple content
     SIMPLE_EXTENSION(Set.of("base"), Set.of("base")),
+    SIMPLE_RESTRICTION(Set.of("base"), Set.of("base")),
     SEQUENCE(Set.of(), Set.of()),
     // a local element is a leaf only when it has a type (child), so a leaf never lacks one
     LEAF(
@@ -199,9 +204,16 @@ final class XsdSubsetCheck extends DefaultHandler {
             };
         case COMPLEX_CONTENT ->
             name.equals("extension") || name.equals("restriction") ? COMPLEX_DERIVATION : null;
-        case SIMPLE_CONTENT -> name.equals("extension") ? SIMPLE_EXTENSION : null;
+        case SIMPLE_CONTENT ->
+            switch (name) {
+              case "extension" -> SIMPLE_EXTENSION;
+              case "restriction" -> SIMPLE_RESTRICTION;
+              default -> null;
+            };
         case COMPLEX_DERIVATION -> content(name);
         case SIMPLE_EXTENSION -> attribute(name);
+        // its facets are not validated (ADR-0004)
+        case SIMPLE_RESTRICTION -> FACETS.contains(name) ? NO_EFFECT : attribute(name);
         case SEQUENCE ->
             switch (name) {
               case "element" ->
@@ -249,6 +261,12 @@ final class XsdSubsetCheck extends DefaultHandler {
 
     /** Whether it has an anonymous type, refused or not. */
     boolean anonymousType;
+
+    /**
+     * Whether it is a global element in a substitution group, which without a type of its own has
+     * its head's (#95).
+     */
+    boolean substitutes;
 
     /**
      * Where the element particles of the sequence it holds or stands in go (#92): its own list for
@@ -518,7 +536,7 @@ final class XsdSubsetCheck extends DefaultHandler {
         schema.elements.put(global(name), new GlobalElement(schema.name, null, start));
         frame.particles = new ArrayList<>();
         schema.elementParticles.put(global(name), frame.particles);
-        member(name, attributes, start);
+        frame.substitutes = member(name, attributes, start);
       }
       case GLOBAL_TYPED -> {
         schema.elements.put(
@@ -570,7 +588,7 @@ final class XsdSubsetCheck extends DefaultHandler {
         schema.elementContentBases.add(use);
         derives(parent, use);
       }
-      case SIMPLE_EXTENSION ->
+      case SIMPLE_EXTENSION, SIMPLE_RESTRICTION ->
           derives(
               parent,
               new NameUse(
@@ -608,18 +626,23 @@ final class XsdSubsetCheck extends DefaultHandler {
     }
   }
 
-  /** Records whether the global element {@code name} is abstract, and its substitution group. */
-  private void member(String name, Attributes attributes, Position at) throws Refusal {
+  /**
+   * Records whether the global element {@code name} is abstract, and its substitution group;
+   * returns whether it has one.
+   */
+  private boolean member(String name, Attributes attributes, Position at) throws Refusal {
     if (TRUE.equals(attributes.getValue("", "abstract"))) {
       schema.abstractElements.put(global(name), at);
     }
     String head = attributes.getValue("", "substitutionGroup");
-    if (head != null) {
-      NameUse use = new NameUse(qualified(head), at);
-      // the head is an element some bundle file declares, as an element reference's is
-      schema.elementRefs.add(use);
-      schema.substitutions.put(global(name), use);
+    if (head == null) {
+      return false;
     }
+    NameUse use = new NameUse(qualified(head), at);
+    // the head is an element some bundle file declares, as an element reference's is
+    schema.elementRefs.add(use);
+    schema.substitutions.put(global(name), use);
+    return true;
   }
 
   @Override
@@ -630,7 +653,8 @@ final class XsdSubsetCheck extends DefaultHandler {
       return;
     }
     Frame closed = open.pop();
-    if (closed.role == Role.GLOBAL && !closed.anonymousType) {
+    // a substitution-group member without a type has its head's (#95)
+    if (closed.role == Role.GLOBAL && !closed.anonymousType && !closed.substitutes) {
       refuse(
           refusal(
               UNSUPPORTED,
@@ -652,7 +676,9 @@ final class XsdSubsetCheck extends DefaultHandler {
       refuse(
           new Refusal(
               UNSUPPORTED,
-              "<" + qName + "> without xs:extension is outside the XSD the reader reads",
+              "<"
+                  + qName
+                  + "> without xs:extension or xs:restriction is outside the XSD the reader reads",
               closed.start));
     }
     // a local element without type is refused at its own start tag

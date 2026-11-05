@@ -46,7 +46,7 @@
   </xs:complexType>
   <xs:complexType name="Narrow">
     <xs:simpleContent>
-      <xs:restriction base="c:Money"/>
+      <xs:restriction base="c:Money"><xs:sequence/></xs:restriction>
     </xs:simpleContent>
   </xs:complexType>
   <xs:complexType name="Money">
@@ -71,5 +71,10 @@
     <xs:complexContent>
       <xs:sequence/>
     </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="WrongSimple">
+    <xs:simpleContent>
+      <xs:sequence/>
+    </xs:simpleContent>
   </xs:complexType>
 </xs:schema>

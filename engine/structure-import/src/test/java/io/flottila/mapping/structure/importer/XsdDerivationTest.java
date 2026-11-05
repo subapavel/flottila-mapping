@@ -51,27 +51,36 @@ class XsdDerivationTest {
     return Stream.of(
         Arguments.of(
             "an extension of complex content, named and anonymous, and a restriction, across"
-                + " namespaces",
+                + " namespaces; the restriction inherits @id, redeclares @since as required in"
+                + " its place and prohibits @note, which the anonymous extension's prohibition"
+                + " keeps",
             List.of("complex/base.xsd", "complex/derived.xsd"),
             "{derived}Deal",
             List.of(
                 "/{derived}Deal 1..1 structure",
                 "/{derived}Deal/Buyer 1..1 structure",
                 "/{derived}Deal/Buyer/@id 1..1 xs:string",
+                "/{derived}Deal/Buyer/@since 0..1 xs:date",
+                "/{derived}Deal/Buyer/@note 0..1 xs:string",
                 "/{derived}Deal/Buyer/@tier 0..1 xs:string",
                 "/{derived}Deal/Buyer/Name 1..1 xs:string",
                 "/{derived}Deal/Buyer/Phone 0..1 xs:string",
                 "/{derived}Deal/Buyer/Number 1..1 xs:integer",
                 "/{derived}Deal/Seller 0..1 structure",
                 "/{derived}Deal/Seller/@id 1..1 xs:string",
+                "/{derived}Deal/Seller/@since 1..1 xs:date",
                 "/{derived}Deal/Seller/Name 1..1 xs:string",
                 "/{derived}Deal/Agent 1..1 structure",
                 "/{derived}Deal/Agent/@id 1..1 xs:string",
+                "/{derived}Deal/Agent/@since 0..1 xs:date",
+                "/{derived}Deal/Agent/@note 0..1 xs:string",
                 "/{derived}Deal/Agent/@desk 0..1 xs:string",
                 "/{derived}Deal/Agent/Name 1..1 xs:string",
                 "/{derived}Deal/Agent/Phone 0..1 xs:string")),
         Arguments.of(
-            "an extension of simple content: a leaf whose attributes are fields of their own",
+            "an extension of simple content: a leaf whose attributes are fields of their own; a"
+                + " restriction keeps its base's value type and the attributes it does not"
+                + " prohibit",
             List.of("simple-content.xsd"),
             "{simple}Invoice",
             List.of(
@@ -83,9 +92,12 @@ class XsdDerivationTest {
                 "/{simple}Invoice/Tax/@tag 0..1 xs:string",
                 "/{simple}Invoice/Code 1..1 xs:string",
                 "/{simple}Invoice/Code/@list 0..1 xs:string",
-                "/{simple}Invoice/Count 1..1 xs:integer")),
+                "/{simple}Invoice/Count 1..1 xs:integer",
+                "/{simple}Invoice/Small 1..1 xs:decimal",
+                "/{simple}Invoice/Small/@currency 1..1 xs:string")),
         Arguments.of(
-            "a substitution group across two namespaces with an abstract head",
+            "a substitution group across two namespaces with an abstract head; Disc, with no type,"
+                + " takes its head's",
             List.of("substitution/heads.xsd", "substitution/members.xsd"),
             "{heads}Catalog",
             List.of(
@@ -94,6 +106,8 @@ class XsdDerivationTest {
                 "/{heads}Catalog/{heads}Gadget/Sku 1..1 xs:string",
                 "/{heads}Catalog/{members}Book 0..unbounded structure",
                 "/{heads}Catalog/{members}Book/Sku 1..1 xs:string",
+                "/{heads}Catalog/{members}Disc 0..unbounded structure",
+                "/{heads}Catalog/{members}Disc/Sku 1..1 xs:string",
                 "/{heads}Catalog/{members}Single 0..unbounded structure",
                 "/{heads}Catalog/{members}Single/Sku 1..1 xs:string",
                 "/{heads}Catalog/{heads}Note 0..1 xs:string",
@@ -261,7 +275,8 @@ class XsdDerivationTest {
                     + " xs:restriction"
                     + outside,
                 unsupported
-                    + "invalid/constructs.xsd 34:24 <xs:simpleContent> without xs:extension"
+                    + "invalid/constructs.xsd 34:24 <xs:simpleContent> without xs:extension or"
+                    + " xs:restriction"
                     + outside,
                 unsupported
                     + "invalid/constructs.xsd 39:38 <xs:restriction> after another child"
@@ -270,7 +285,7 @@ class XsdDerivationTest {
                     + "invalid/constructs.xsd 44:42 a derivation from the built-in type"
                     + " xs:anyType"
                     + outside,
-                unsupported + "invalid/constructs.xsd 49:39 <xs:restriction> here" + outside,
+                unsupported + "invalid/constructs.xsd 49:52 <xs:sequence> here" + outside,
                 unsupported + "invalid/constructs.xsd 57:58 abstract=\"1\"" + outside,
                 unsupported
                     + "invalid/constructs.xsd 60:23 <xs:simpleContent> after another child"
@@ -278,7 +293,8 @@ class XsdDerivationTest {
                 unsupported
                     + "invalid/constructs.xsd 67:39 <xs:extension> after another child"
                     + outside,
-                unsupported + "invalid/constructs.xsd 72:21 <xs:sequence> here" + outside)),
+                unsupported + "invalid/constructs.xsd 72:21 <xs:sequence> here" + outside,
+                unsupported + "invalid/constructs.xsd 77:21 <xs:sequence> here" + outside)),
         Arguments.of(
             "bases of the wrong kind or declared nowhere, and a head declared nowhere",
             List.of("invalid/bases.xsd"),

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Fixture (#95): simple content. An element of a complex type with simple content is a leaf,
      whose value type comes from the built-in ancestry of its base, and whose attributes are fields
-     of their own, the base's first (ADR-0006 since #102, ADR-0008) -->
+     of their own, the base's first (ADR-0006 since #102, ADR-0008). A restriction keeps its base's
+     value type, its facets shown and never validated (ADR-0004), and its base's attributes but
+     those it marks use="prohibited" -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:tns="urn:flottila:corpus:simple"
            targetNamespace="urn:flottila:corpus:simple">
@@ -20,6 +22,7 @@
           </xs:complexType>
         </xs:element>
         <xs:element name="Count" type="tns:Bare"/>
+        <xs:element name="Small" type="tns:SmallMoney"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -40,6 +43,14 @@
   <xs:complexType name="Bare">
     <xs:simpleContent>
       <xs:extension base="xs:int"/>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="SmallMoney">
+    <xs:simpleContent>
+      <xs:restriction base="tns:TaggedMoney">
+        <xs:maxInclusive value="100"/>
+        <xs:attribute name="tag" type="xs:string" use="prohibited"/>
+      </xs:restriction>
     </xs:simpleContent>
   </xs:complexType>
   <xs:simpleType name="Code">
