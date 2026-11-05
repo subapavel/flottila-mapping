@@ -5,12 +5,14 @@ import io.flottila.mapping.structure.importer.StructureLoadException;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.FileReference;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.GlobalElement;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.NameUse;
+import io.flottila.mapping.structure.importer.internal.SchemaFile.Particle;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.Position;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.SimpleType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.Serial;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Set;
@@ -31,8 +33,9 @@ import org.xml.sax.helpers.NamespaceSupport;
  * Reads one XSD file with the JDK's SAX parser before XmlSchema sees it. It refuses every construct
  * outside the XSD the reader reads where it stands, and records what {@link BundleCheck} needs.
  * XmlSchema 2.3.3 keeps no line or column on its objects, so this pass gives every load error its
- * position (ADR-0008). A refused construct's content is not read; a file that is not well-formed
- * stops at the parser's error, and every refusal before it stays.
+ * position (ADR-0008), and every refused field the position of the declaration that causes its
+ * refusal (#92). A refused construct's content is not read; a file that is not well-formed stops at
+ * the parser's error, and every refusal before it stays.
  *
  * <p>The XSD read (#93) is one {@code xs:schema} ({@code targetNamespace}, {@code
  * elementFormDefault}, {@code attributeFormDefault}) of {@code xs:import}s, {@code xs:include}s,
@@ -178,9 +181,17 @@ final class XsdSubsetCheck extends DefaultHandler {
     /** Whether it has an anonymous type, refused or not. */
     boolean anonymousType;
 
-    Frame(Role role, Position start) {
+    /**
+     * Where the element particles of the sequence it holds or stands in go (#92): its own list for
+     * a global element, a named complex type and a local element of an anonymous type, its parent's
+     * otherwise.
+     */
+    List<Particle> particles;
+
+    Frame(Role role, Position start, List<Particle> particles) {
       this.role = role;
       this.start = start;
+      this.particles = particles;
     }
   }
 
@@ -214,8 +225,8 @@ final class XsdSubsetCheck extends DefaultHandler {
   private XsdSubsetCheck(SchemaFile schema, List<StructureLoadException> errors) {
     this.schema = schema;
     this.errors = errors;
-    // the document has no start tag
-    open.push(new Frame(Role.DOCUMENT, null));
+    // the document has no start tag, and no element particle stands outside a complex type
+    open.push(new Frame(Role.DOCUMENT, null, List.of()));
   }
 
   /**
@@ -326,7 +337,7 @@ final class XsdSubsetCheck extends DefaultHandler {
       throw refusal(UNSUPPORTED, "<" + qName + "> here is outside the XSD the reader reads");
     }
     if (role == Role.NO_EFFECT) {
-      return new Frame(role, start);
+      return new Frame(role, start, parent.particles);
     }
     // an element has one xs:complexType; a complex type's xs:sequence comes once, first
     if (earlier > 0
@@ -361,14 +372,19 @@ final class XsdSubsetCheck extends DefaultHandler {
     checkValue(attributes, "elementFormDefault", FORM);
     checkValue(attributes, "attributeFormDefault", FORM);
     checkValue(attributes, "form", FORM);
-    record(role, attributes, start);
-    return new Frame(role, start);
+    Frame frame = new Frame(role, start, parent.particles);
+    record(role, attributes, frame, parent);
+    return frame;
   }
 
-  /** Records what {@link BundleCheck} needs of an element that stands where it may. */
-  private void record(Role role, Attributes attributes, Position start) throws Refusal {
+  /**
+   * Records what {@link BundleCheck} needs of an element that stands where it may, and where an
+   * element particle is declared for {@link XsdReader} (#92).
+   */
+  private void record(Role role, Attributes attributes, Frame frame, Frame parent) throws Refusal {
     String name = attributes.getValue("", "name");
     String type = attributes.getValue("", "type");
+    Position start = frame.start;
     switch (role) {
       case SCHEMA -> {
         String targetNamespace = attributes.getValue("", "targetNamespace");
@@ -393,16 +409,33 @@ final class XsdSubsetCheck extends DefaultHandler {
                   start,
                   "xs:include",
                   "schemaLocation"));
-      case GLOBAL -> schema.elements.put(global(name), new GlobalElement(schema.name, null, start));
+      case GLOBAL -> {
+        schema.elements.put(global(name), new GlobalElement(schema.name, null, start));
+        frame.particles = new ArrayList<>();
+        schema.elementParticles.put(global(name), frame.particles);
+      }
       case GLOBAL_TYPED ->
           schema.elements.put(
               global(name),
               new GlobalElement(schema.name, typeName(type, schema.elementTypes, start), start));
-      case LEAF -> typeName(type, schema.elementTypes, start);
+      case LEAF -> {
+        typeName(type, schema.elementTypes, start);
+        parent.particles.add(new Particle(start, List.of()));
+      }
       case GLOBAL_ATTRIBUTE, ATTRIBUTE -> typeName(type, schema.simpleTypeRefs, start);
-      case ELEMENT_REF ->
-          schema.elementRefs.add(new NameUse(qualified(attributes.getValue("", "ref")), start));
-      case NAMED_COMPLEX_TYPE -> schema.complexTypes.add(global(name));
+      case ELEMENT_REF -> {
+        schema.elementRefs.add(new NameUse(qualified(attributes.getValue("", "ref")), start));
+        parent.particles.add(new Particle(start, List.of()));
+      }
+      case STRUCTURE -> {
+        frame.particles = new ArrayList<>();
+        parent.particles.add(new Particle(start, frame.particles));
+      }
+      case NAMED_COMPLEX_TYPE -> {
+        schema.complexTypes.add(global(name));
+        frame.particles = new ArrayList<>();
+        schema.complexTypeParticles.put(global(name), frame.particles);
+      }
       case NAMED_SIMPLE_TYPE -> {
         simpleType = global(name);
         schema.simpleTypes.put(simpleType, new SimpleType(null, start));
@@ -411,7 +444,7 @@ final class XsdSubsetCheck extends DefaultHandler {
         QName base = typeName(attributes.getValue("", "base"), schema.simpleTypeRefs, start);
         schema.simpleTypes.put(simpleType, new SimpleType(base, start));
       }
-      case DOCUMENT, COMPLEX_TYPE, SEQUENCE, STRUCTURE, STRUCTURE_TYPE, NO_EFFECT -> {
+      case DOCUMENT, COMPLEX_TYPE, SEQUENCE, STRUCTURE_TYPE, NO_EFFECT -> {
         // nothing to record
       }
     }

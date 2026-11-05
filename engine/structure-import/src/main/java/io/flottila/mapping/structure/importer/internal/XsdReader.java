@@ -4,17 +4,22 @@ import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.StructureType;
 import io.flottila.mapping.structure.ValueType;
 import io.flottila.mapping.structure.importer.StructureLoadException;
+import io.flottila.mapping.structure.importer.internal.SchemaFile.Particle;
+import io.flottila.mapping.structure.importer.internal.SchemaFile.Position;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
@@ -40,8 +45,30 @@ public final class XsdReader {
   private final XmlSchemaCollection collection;
   private final Map<String, StructureType> types = new HashMap<>();
 
-  private XsdReader(XmlSchemaCollection collection) {
+  /**
+   * The element particles of a complex type and the file that declares it, which a refusal among
+   * them names (#92).
+   *
+   * @param particles the particles of its sequence, in document order
+   */
+  private record Declared(String file, List<Particle> particles) {}
+
+  /** The particles of each global element's anonymous complex type, across the bundle. */
+  private final Map<QName, Declared> elementParticles = new HashMap<>();
+
+  /** The particles of each named complex type, across the bundle. */
+  private final Map<QName, Declared> complexTypeParticles = new HashMap<>();
+
+  private XsdReader(XmlSchemaCollection collection, List<SchemaFile> schemas) {
     this.collection = collection;
+    // a refusal names the file that declares the type, whichever file declares the root (ADR-0008)
+    for (SchemaFile schema : schemas) {
+      schema.elementParticles.forEach(
+          (name, particles) -> elementParticles.put(name, new Declared(schema.name, particles)));
+      schema.complexTypeParticles.forEach(
+          (name, particles) ->
+              complexTypeParticles.put(name, new Declared(schema.name, particles)));
+    }
   }
 
   /**
@@ -121,13 +148,17 @@ public final class XsdReader {
     // a global element is always qualified; XmlSchema's getWireName() drops its namespace
     // (observed)
     FieldPath.Step rootStep = step(FieldKind.ELEMENT, element.getQName());
-    XsdReader reader = new XsdReader(collection);
-    Field rootField = reader.field(rootStep, new Occurrence(1, 1), element, "/" + rootStep);
+    XsdReader reader = new XsdReader(collection, schemas);
+    Field rootField =
+        reader.field(rootStep, new Occurrence(1, 1), element, "/" + rootStep, Optional.empty());
     return new Structure(rootField, reader.types);
   }
 
-  /** The field of a local element or an element reference inside the type {@code owner}. */
-  private Field field(String owner, XmlSchemaElement particle) {
+  /**
+   * The field of a local element or an element reference inside the type {@code owner}, declared at
+   * {@code at} in {@code file}.
+   */
+  private Field field(String owner, XmlSchemaElement particle, String file, Particle at) {
     XmlSchemaElement declaration = particle.isRef() ? particle.getRef().getTarget() : particle;
     // getWireName() applies the form: elementFormDefault="qualified" gives the namespace
     FieldPath.Step step =
@@ -136,7 +167,7 @@ public final class XsdReader {
     // XmlSchema reads maxOccurs="unbounded" as Long.MAX_VALUE, which is Occurrence.UNBOUNDED
     Occurrence occurrence = new Occurrence(particle.getMinOccurs(), particle.getMaxOccurs());
     String base = declaration.isTopLevel() ? "/" + step : owner + "/" + step;
-    return field(step, occurrence, declaration, base);
+    return field(step, occurrence, declaration, base, Optional.of(new Declared(file, at.type())));
   }
 
   /**
@@ -145,18 +176,30 @@ public final class XsdReader {
    *
    * @param base the id of the element's anonymous complex type, before any {@code #n}: the field
    *     path of a global element, otherwise its owner's id and its step
+   * @param local the particles of a local element's anonymous complex type, and the file that
+   *     declares it; not read for a global element, whose type's particles are looked up by name
    */
   private Field field(
-      FieldPath.Step step, Occurrence occurrence, XmlSchemaElement declaration, String base) {
+      FieldPath.Step step,
+      Occurrence occurrence,
+      XmlSchemaElement declaration,
+      String base,
+      Optional<Declared> local) {
     QName typeName = declaration.getSchemaTypeName();
     if (typeName == null) {
       XmlSchemaComplexType anonymous = (XmlSchemaComplexType) declaration.getSchemaType();
-      String id = declaration.isTopLevel() ? shared(base, anonymous) : local(base, anonymous);
+      String id =
+          declaration.isTopLevel()
+              ? shared(base, anonymous, elementParticles.get(declaration.getQName()))
+              : local(base, anonymous, local.orElseThrow());
       return structureField(step, occurrence, id);
     }
     if (!XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(typeName.getNamespaceURI())
         && collection.getTypeByQName(typeName) instanceof XmlSchemaComplexType named) {
-      return structureField(step, occurrence, shared(BundleCheck.eqName(typeName), named));
+      return structureField(
+          step,
+          occurrence,
+          shared(BundleCheck.eqName(typeName), named, complexTypeParticles.get(typeName)));
     }
     return new Field(
         step,
@@ -173,12 +216,13 @@ public final class XsdReader {
   /**
    * The id of a type every use shares: a named complex type ({@code Q{ns}local}) or a global
    * element's anonymous one (its field path). It is reserved before its fields are read, so a
-   * recursive type refers to itself and is never expanded (ADR-0008).
+   * recursive type refers to itself and is never expanded (ADR-0008). Every use shares its refusals
+   * too, at their positions in the file that declares it (#92).
    */
-  private String shared(String id, XmlSchemaComplexType complexType) {
+  private String shared(String id, XmlSchemaComplexType complexType, Declared declared) {
     if (!types.containsKey(id)) {
       types.put(id, null);
-      types.put(id, new StructureType(id, fields(id, complexType)));
+      types.put(id, new StructureType(id, fields(id, complexType, declared)));
     }
     return id;
   }
@@ -186,10 +230,10 @@ public final class XsdReader {
   /**
    * The id of a local element's anonymous complex type: {@code base}, with {@code #2}, {@code #3} …
    * for each further sibling structure field with the same step (ADR-0007 refuses those only when a
-   * mapping uses them, so they load).
+   * mapping uses them, so they load as refused fields, #92).
    */
-  private String local(String base, XmlSchemaComplexType complexType) {
-    List<Field> fields = fields(base, complexType);
+  private String local(String base, XmlSchemaComplexType complexType, Declared declared) {
+    List<Field> fields = fields(base, complexType, declared);
     String id = base;
     for (int n = 2; types.containsKey(id); n++) {
       id = base + "#" + n;
@@ -198,8 +242,11 @@ public final class XsdReader {
     return id;
   }
 
-  /** The fields of a complex type: attributes first, then the elements of its sequence. */
-  private List<Field> fields(String owner, XmlSchemaComplexType complexType) {
+  /**
+   * The fields of a complex type: attributes first, then the elements of its sequence, whose
+   * particles {@code declared} holds in the same order.
+   */
+  private List<Field> fields(String owner, XmlSchemaComplexType complexType, Declared declared) {
     List<Field> fields = new ArrayList<>();
     // the subset check allows no attribute reference or group
     for (XmlSchemaAttributeOrGroupRef member : complexType.getAttributes()) {
@@ -215,11 +262,51 @@ public final class XsdReader {
     }
     XmlSchemaSequence sequence = (XmlSchemaSequence) complexType.getParticle();
     List<XmlSchemaSequenceMember> members = sequence == null ? List.of() : sequence.getItems();
+    List<Field> elements = new ArrayList<>();
+    List<Position> starts = new ArrayList<>();
     for (XmlSchemaSequenceMember member : members) {
-      // an xs:any has no effect (ADR-0008)
+      // an xs:any has no effect (ADR-0008), and the subset check records no particle for it
       if (member instanceof XmlSchemaElement element) {
-        fields.add(field(owner, element));
+        Particle at = declared.particles().get(elements.size());
+        starts.add(at.at());
+        elements.add(field(owner, element, declared.file(), at));
       }
+    }
+    fields.addAll(refused(declared.file(), elements, starts));
+    return fields;
+  }
+
+  /**
+   * {@code elements}, in output order, with each one whose step occurs twice or more refused with
+   * ambiguous-field-path at that step's second declaration in {@code file} (ADR-0008 Shape (#92));
+   * {@code starts} holds where each element's declaration ends its start tag. Attributes are not
+   * looked at: two of one name in one complex type make the schema invalid (XSD 1.1 Part 1,
+   * ct-props-correct.4).
+   */
+  private static List<Field> refused(String file, List<Field> elements, List<Position> starts) {
+    Set<FieldPath.Step> seen = new HashSet<>();
+    Map<FieldPath.Step, Position> second = new HashMap<>();
+    for (int i = 0; i < elements.size(); i++) {
+      FieldPath.Step step = elements.get(i).step();
+      if (!seen.add(step)) {
+        second.putIfAbsent(step, starts.get(i));
+      }
+    }
+    List<Field> fields = new ArrayList<>();
+    for (Field field : elements) {
+      Position at = second.get(field.step());
+      fields.add(
+          at == null
+              ? field
+              : new Field(
+                  field.step(),
+                  field.occurrence(),
+                  field.valueType(),
+                  field.nillable(),
+                  field.type(),
+                  Optional.of(
+                      new Refusal(
+                          Refusal.Reason.AMBIGUOUS_FIELD_PATH, file, at.line(), at.column()))));
     }
     return fields;
   }

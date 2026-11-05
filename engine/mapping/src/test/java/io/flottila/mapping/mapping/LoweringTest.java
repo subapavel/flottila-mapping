@@ -46,6 +46,8 @@ import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
+import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.Structure;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -1226,5 +1228,173 @@ class LoweringTest {
             errorAtId("orphaned-reference", "a1"),
             errorAtId("unsupported-box-kind", "f2"),
             errorAtId("unconnected-target-field", "t1"));
+  }
+
+  // --- refused fields (ADR-0008 "Refused when a mapping uses the field" and its Shape (#92))
+
+  /** {@code mappings} from {@link TestStructures#sameStep()} to itself. */
+  private static LowerResult lowerSameStep(Object... pathThenMapping) {
+    Structure structure = TestStructures.sameStep();
+    return Lowering.lower(
+        model(ref(structure), ref(structure), targetFieldMappings(pathThenMapping), Map.of()),
+        structure,
+        structure);
+  }
+
+  /** A target field mapping {@code id} whose result is the source-field box {@code s<id>}. */
+  private static TargetFieldMapping copy(String id, String sourceField) {
+    return targetFieldMapping(id, "s" + id, boxes("s" + id, source(sourceField)));
+  }
+
+  /** The messages of a lowering refusal, in its order. */
+  private static List<String> messages(LowerResult result) {
+    assertThat(result).isInstanceOf(Refused.class);
+    return ((Refused) result).diagnostics().stream().map(Diagnostic::message).toList();
+  }
+
+  /**
+   * A source-field box on a refused field is ambiguous-field-path at the box, and a target field
+   * mapping on one at the mapping, whose message names the schema file, line and column of the
+   * step's second declaration.
+   */
+  @Test
+  void aBoxOrTargetFieldMappingOnARefusedFieldIsAmbiguousFieldPathThere() {
+    LowerResult source = lowerSameStep("/Doc/Id", copy("t1", "/Doc/Note"));
+    LowerResult target = lowerSameStep("/Doc/Note", copy("t1", "/Doc/Id"));
+
+    assertThat(refused(source)).containsExactly(errorAtId("ambiguous-field-path", "st1"));
+    assertThat(refused(target)).containsExactly(errorAtId("ambiguous-field-path", "t1"));
+    assertThat(messages(source)).hasSize(1);
+    assertThat(messages(source).getFirst())
+        .contains("/Doc/Note")
+        .contains(TestStructures.SAME_STEP_FILE + " 8:65");
+    assertThat(messages(target)).isEqualTo(messages(source));
+  }
+
+  /**
+   * A path through a refused field is refused with the refusal nearest the root: B stands only
+   * under the second Part, and is itself refused at 30:60, yet the box and the mapping name Part's
+   * refusal at 28:53. A path that no sibling holds is orphaned-reference.
+   */
+  @Test
+  void aPathThroughARefusedFieldIsRefusedWithTheRefusalNearestTheRoot() {
+    LowerResult source = lowerSameStep("/Doc/Id", copy("t1", "/Doc/Body/Part/B"));
+    LowerResult target = lowerSameStep("/Doc/Body/Part/B", copy("t1", "/Doc/Id"));
+
+    assertThat(refused(source)).containsExactly(errorAtId("ambiguous-field-path", "st1"));
+    assertThat(refused(target)).containsExactly(errorAtId("ambiguous-field-path", "t1"));
+    for (LowerResult result : List.of(source, target)) {
+      assertThat(messages(result)).hasSize(1);
+      assertThat(messages(result).getFirst())
+          .contains("/Doc/Body/Part ")
+          .contains(TestStructures.SAME_STEP_FILE + " 28:53")
+          .doesNotContain("30:60");
+    }
+    assertThat(refused(lowerSameStep("/Doc/Id", copy("t1", "/Doc/Body/Part/C"))))
+        .containsExactly(errorAtId("orphaned-reference", "st1"));
+  }
+
+  /**
+   * The target walk never enters a refused field. One a target field mapping names is reported at
+   * that mapping only, and an unmapped one with {@code minOccurs > 0} under a created parent once
+   * per path at its pointer, each sibling with its own occurrence: the Refs 0..1, 1..1, 1..1 (two
+   * mandatory, one report) and the Parts 1..1 and 0..2 (the first alone mandatory, still reported).
+   * No unmapped-mandatory-leaf or unsupported-field stands beside them.
+   */
+  @Test
+  void theTargetWalkReportsAnUnmappedMandatoryRefusedFieldOnceAtItsPointer() {
+    assertThat(
+            refused(
+                lowerSameStep(
+                    "/Doc/Head", copy("t1", "/Doc/Head"), "/Doc/Head/Ref", copy("t2", "/Doc/Id"))))
+        .containsExactly(errorAtId("ambiguous-field-path", "t2"));
+
+    LowerResult unmapped =
+        lowerSameStep("/Doc/Head", copy("t1", "/Doc/Head"), "/Doc/Body", copy("t2", "/Doc/Body"));
+    assertThat(refused(unmapped))
+        .containsExactly(
+            errorAtPointer("ambiguous-field-path", unmapped("/Doc/Body/Part")),
+            errorAtPointer("ambiguous-field-path", unmapped("/Doc/Head/Ref")));
+    List<String> messages = messages(unmapped);
+    assertThat(messages.get(0)).contains("/Doc/Body/Part").contains(" 28:53");
+    assertThat(messages.get(1)).contains("/Doc/Head/Ref").contains(" 13:56");
+  }
+
+  /**
+   * Refused fields that no mapping uses or must create are left out: the optional Notes beside the
+   * mapped Code, and the optional Head and Body. The model lowers.
+   */
+  @Test
+  void refusedFieldsThatNoMappingUsesLower() {
+    TargetDocument document =
+        lowered(
+            lowerSameStep("/Doc/Id", copy("t1", "/Doc/Id"), "/Doc/Code", copy("t2", "/Doc/Code")));
+
+    assertThat(document.content()).extracting(Expr::origin).containsExactly(id("t1"), id("t2"));
+  }
+
+  /** The one expression of {@code content}, which is a {@code type}. */
+  private static <T extends Expr> T only(List<Expr> content, Class<T> type) {
+    assertThat(content).hasSize(1).first().isInstanceOf(type);
+    return type.cast(content.getFirst());
+  }
+
+  /**
+   * Same-step siblings that carry no refusal, which the reader never gives, do not break lowering
+   * (#92): a path only the second Part holds resolves to that Part's field, as a source and as a
+   * target. B's TargetSlots stands in the TargetRepeat of the second Part, 1..1, the optional first
+   * Part is left out, and B's occurrence is the second Part's B's. A path no sibling holds is
+   * orphaned-reference.
+   */
+  @Test
+  void aPathOnlyTheSecondOfUnrefusedSameStepSiblingsHoldsResolvesToIt() {
+    Structure structure = TestStructures.unrefusedSiblings();
+    MappingModel model =
+        model(
+            ref(structure),
+            ref(structure),
+            targetFieldMappings(
+                "/Doc/Body",
+                copy("t1", "/Doc/Body"),
+                "/Doc/Body/Part/B",
+                copy("t2", "/Doc/Body/Part/B")),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, structure, structure));
+
+    TargetSlots body = only(document.content(), TargetSlots.class);
+    TargetRepeat part = only(((ElementConstructor) body.body()).content(), TargetRepeat.class);
+    TargetSlots b = only(((ElementConstructor) part.body()).content(), TargetSlots.class);
+    assertThat(part.origin()).isEqualTo(new AuthoringId("/Doc/Body/Part"));
+    assertThat(part.copies()).isEqualTo(1);
+    assertThat(b.origin()).isEqualTo(id("t2"));
+    assertThat(b.queue())
+        .isEqualTo(
+            new SourceQueue(
+                List.of(
+                    new Name("", "Doc"),
+                    new Name("", "Body"),
+                    new Name("", "Part"),
+                    new Name("", "B")),
+                3,
+                false,
+                id("st2")));
+    assertThat(Lowering.occurrences(model, structure))
+        .containsEntry(id("t2"), new Occurrence(0, 1));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+
+    MappingModel orphaned =
+        model(
+            ref(structure),
+            ref(structure),
+            targetFieldMappings(
+                "/Doc/Body",
+                copy("t1", "/Doc/Body/Part/C"),
+                "/Doc/Body/Part/C",
+                copy("t2", "/Doc/Body")),
+            Map.of());
+    assertThat(refused(Lowering.lower(orphaned, structure, structure)))
+        .containsExactly(
+            errorAtId("orphaned-reference", "st1"), errorAtId("orphaned-reference", "t2"));
   }
 }
