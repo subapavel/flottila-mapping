@@ -426,8 +426,8 @@ final class XsdSubsetCheck extends DefaultHandler {
               e.getColumnNumber(),
               e.getMessage()));
     } catch (ParserConfigurationException | SAXException | IOException e) {
-      // the JDK parser supports both features, the input is in memory, and the handler throws no
-      // SAXException of its own
+      // the JDK parser supports the one feature set above, the input is in memory, and the
+      // handler throws no SAXException of its own
       throw new IllegalStateException(e);
     }
     return schema;

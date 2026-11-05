@@ -18,7 +18,7 @@ class WsdlOperationTest {
   }
 
   @Test
-  void a_fault_beside_an_input_is_refused() {
+  void a_fault_beside_an_output_is_refused() {
     assertThatThrownBy(
             () -> new WsdlOperation("Port", "Op", WsdlDirection.OUTPUT, Optional.of("F")))
         .isInstanceOf(IllegalArgumentException.class)
