@@ -78,7 +78,8 @@ _Avoid_: loader, file reader, schema catalog
 
 **Refused field**:
 A field that loads and shows in the tree but that a mapping may not use, such as a same-step
-sibling or an abstract target element. It carries the reason and its declaration's position.
+sibling or an abstract target element. It carries its refusal: the reason and the position of
+the declaration that causes it. A field below it is refused with it.
 _Avoid_: unsupported field (the code for a target field the walk cannot create), invalid field
 
 **Source structure** / **Target structure**:
@@ -275,7 +276,7 @@ The boundary between two contexts of a queue.
 **Slot**:
 One position of a queue: a value or SUPPRESS. Target occurrences and child contexts are counted
 in slots.
-_Avoid_: entry, element, item (reserved for XDM)
+_Avoid_: entry, element, item (reserved for XDM); empty slot (say empty context, or a slot holding `""`)
 
 **Empty context**:
 A context with no slots, as under a parent occurrence without children. A source queue whose

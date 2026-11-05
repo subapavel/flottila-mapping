@@ -38,7 +38,13 @@ compares fingerprints. A mismatch is `fingerprint-mismatch` at `/source/fingerpr
 `/target/fingerprint`, and it blocks compile and test. Only refresh re-derives a fingerprint;
 Save never does (ADR-0010).
 
-A field's refusal (ADR-0008) is part of the canonical text. Extending the reader must not change
+A field's refusal (ADR-0008) is part of the canonical text (#92):
+- A refused field's canonical line ends in ` refused:<reason code>`. A field without a refusal
+  keeps its line.
+- The refusal's file, line and column never enter it. As with whitespace, moving a declaration
+  changes no fingerprint, and compile, which re-reads the bundle, names the current position.
+
+Extending the reader must not change
 the canonical text of a structure it already read: a test pins the fingerprints of the spec-2
 subset as literals. A change that must alter them says so in its ticket, and the corpus mappings
 are refreshed through the refresh path, never edited by hand.
