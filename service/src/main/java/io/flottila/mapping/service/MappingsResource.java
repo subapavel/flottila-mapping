@@ -25,6 +25,7 @@ import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -36,7 +37,6 @@ import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -158,12 +158,11 @@ public class MappingsResource {
           ModelRefusedException,
           NoSuchAlgorithmException {
     InvalidRequestException.present(request);
-    Path directory = workspace.mappingDirectory(request.id());
-    workspace.checkBundle(directory, request.source().bundle());
-    workspace.checkBundle(directory, request.target().bundle());
+    // a bundle reference that escapes is refused inside the resolver (#90)
+    ReferenceResolver resolver = workspace.resolver(workspace.mappingDirectory(request.id()));
     List<Diagnostic> refusals = new ArrayList<>();
-    Optional<StructureRef> source = structure(directory, request.source(), refusals);
-    Optional<StructureRef> target = structure(directory, request.target(), refusals);
+    Optional<StructureRef> source = structure(resolver, request.source(), refusals);
+    Optional<StructureRef> target = structure(resolver, request.target(), refusals);
     if (!refusals.isEmpty()) {
       throw new ModelRefusedException(
           "a structure of the new mapping cannot be loaded", DiagnosticDto.all(refusals));
@@ -310,23 +309,22 @@ public class MappingsResource {
           MalformedInputException,
           JsonProcessingException {
     InvalidRequestException.present(request);
-    Path directory = workspace.mappingDirectory(id);
+    ReferenceResolver resolver = workspace.resolver(workspace.mappingDirectory(id));
     byte[] model = json.writeValueAsBytes(request.model());
     return switch (facade.load(model)) {
       case Refused(List<Diagnostic> diagnostics) -> new TestRefused(DiagnosticDto.all(diagnostics));
-      case Loaded(MappingModel loaded) -> run(directory, model, loaded, request.input());
+      case Loaded _ -> run(resolver, model, request.input());
     };
   }
 
   /**
-   * Checks the working copy's bundle references, then compiles it and runs it for at most the
-   * test-run timeout, with the engine's trace capped at the trace limit.
+   * Compiles the working copy, reading its bundle files through {@code resolver}, which refuses a
+   * reference that escapes (#90), and runs it for at most the test-run timeout, with the engine's
+   * trace capped at the trace limit.
    */
-  private TestResult run(Path directory, byte[] model, MappingModel loaded, String input)
-      throws IOException, WorkspacePathException, MalformedJsonException, MalformedInputException {
-    workspace.checkBundle(directory, loaded.source().bundle().files());
-    workspace.checkBundle(directory, loaded.target().bundle().files());
-    return switch (facade.compile(model, directory, CompileOptions.TEST_RUN)) {
+  private TestResult run(ReferenceResolver resolver, byte[] model, String input)
+      throws MalformedJsonException, MalformedInputException {
+    return switch (facade.compile(model, resolver, CompileOptions.TEST_RUN)) {
       case CompileResult.Refused(List<Diagnostic> diagnostics) ->
           new TestRefused(DiagnosticDto.all(diagnostics));
       case CompileResult.Compiled(CompiledMapping compiled) ->
@@ -350,11 +348,11 @@ public class MappingsResource {
    * The structure {@code choice} names, or empty once its load error is added to {@code refusals}.
    */
   private static Optional<StructureRef> structure(
-      Path directory, StructureChoice choice, List<Diagnostic> refusals)
+      ReferenceResolver resolver, StructureChoice choice, List<Diagnostic> refusals)
       throws InvalidRequestException {
     SchemaBundle bundle = new SchemaBundle(choice.bundle());
     RootSelector root = RootSelectorJson.read(choice.root());
-    return switch (Structures.load(directory, bundle, root)) {
+    return switch (Structures.load(resolver, bundle, root)) {
       case StructureResult.Loaded(Structure structure) ->
           Optional.of(new StructureRef(bundle, root, structure.fingerprint()));
       case StructureResult.Refused(Diagnostic diagnostic) -> {

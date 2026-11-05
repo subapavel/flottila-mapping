@@ -69,7 +69,7 @@ class FingerprintPinTest {
       Path file = Path.of(fileAndRoot[0]);
       StructureResult result =
           Structures.load(
-              CorpusStructures.directory(file.getParent().toString()),
+              DirectoryResolver.over(CorpusStructures.directory(file.getParent().toString())),
               new SchemaBundle(List.of(file.getFileName().toString())),
               new ElementRoot(fileAndRoot[1]));
       assertThat(result).as(key).isInstanceOf(StructureResult.Loaded.class);

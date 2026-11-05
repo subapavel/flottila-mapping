@@ -88,7 +88,8 @@ class EngineFacadeTraceTest {
 
   private CompiledMapping compiled(byte[] model, Path base, CompileOptions options)
       throws Exception {
-    CompileResult result = facade.compile(Fingerprints.refreshed(model, base), base, options);
+    CompileResult result =
+        facade.compile(Fingerprints.refreshed(model, base), DirectoryResolver.over(base), options);
     if (result instanceof CompileResult.Compiled(CompiledMapping mapping)) {
       return mapping;
     }

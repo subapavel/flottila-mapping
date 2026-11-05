@@ -47,7 +47,7 @@ final class Fingerprints {
    * {@code ref} with the fingerprint its bundle gives, or as it is when the bundle fails to load.
    */
   private static StructureRef refreshed(StructureRef ref, Path base) {
-    return switch (Structures.load(base, ref.bundle(), ref.root())) {
+    return switch (Structures.load(DirectoryResolver.over(base), ref.bundle(), ref.root())) {
       case StructureResult.Loaded(var structure) ->
           new StructureRef(ref.bundle(), ref.root(), structure.fingerprint());
       case StructureResult.Refused refused -> ref;

@@ -1,16 +1,20 @@
 package io.flottila.mapping.api;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 
 import io.flottila.mapping.mapping.AtFilePosition;
 import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -39,7 +43,9 @@ class StructuresTest {
 
     StructureResult result =
         Structures.load(
-            base, new SchemaBundle(List.of("order.xsd")), new ElementRoot("Q{urn:a}Order"));
+            DirectoryResolver.over(base),
+            new SchemaBundle(List.of("order.xsd")),
+            new ElementRoot("Q{urn:a}Order"));
 
     assertThat(result).isInstanceOf(StructureResult.Loaded.class);
     StructureResult.Loaded loaded = (StructureResult.Loaded) result;
@@ -58,8 +64,9 @@ class StructuresTest {
     for (Map.Entry<String, String> file : roots.entrySet()) {
       SchemaBundle bundle = new SchemaBundle(List.of(file.getKey()));
       ElementRoot root = new ElementRoot(file.getValue());
-      Structure first = loaded(Structures.load(observations, bundle, root));
-      Structure second = loaded(Structures.load(observations, bundle, root));
+      Structure first = loaded(Structures.load(DirectoryResolver.over(observations), bundle, root));
+      Structure second =
+          loaded(Structures.load(DirectoryResolver.over(observations), bundle, root));
 
       assertThat(second.fingerprint()).as(file.getKey()).isEqualTo(first.fingerprint());
       // the first repeating structure field below the root, and its children
@@ -95,7 +102,10 @@ class StructuresTest {
     Files.writeString(base.resolve("broken.xsd"), "<xs:schema\n  <");
 
     StructureResult result =
-        Structures.load(base, new SchemaBundle(List.of("broken.xsd")), new ElementRoot("Order"));
+        Structures.load(
+            DirectoryResolver.over(base),
+            new SchemaBundle(List.of("broken.xsd")),
+            new ElementRoot("Order"));
 
     if (!(result instanceof StructureResult.Refused(Diagnostic diagnostic))) {
       throw new AssertionError("expected Refused, got " + result);
@@ -105,5 +115,135 @@ class StructuresTest {
     assertThat(diagnostic.message()).isNotBlank();
     // the attribute list of <xs:schema breaks at the "<" on line 2
     assertThat(diagnostic.location()).isEqualTo(new AtFilePosition("broken.xsd", 2, 3));
+  }
+
+  // --- #90: every bundle file is read through the host's reference resolver (ADR-0014
+  // "Reference resolver shape"); the engine opens no file.
+
+  private static final ElementRoot ORDER = new ElementRoot("Q{urn:flottila:corpus:skeleton}Order");
+
+  /**
+   * The fingerprint of the skeleton's {@code order.xsd} under {@link #ORDER}: the one stored in
+   * {@code corpus/mappings/order-id-copy.mapping.json}, and {@code EngineFacadeTest.FINGERPRINT}.
+   */
+  private static final String SKELETON_FINGERPRINT =
+      "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d";
+
+  /** The bytes of {@code corpus/structures/skeleton/order.xsd}. */
+  private static byte[] skeletonOrder() throws Exception {
+    return Files.readAllBytes(CorpusStructures.directory("skeleton").resolve("order.xsd"));
+  }
+
+  private static SchemaBundle bundle(String reference) {
+    return new SchemaBundle(List.of(reference));
+  }
+
+  private static Diagnostic refused(StructureResult result) {
+    if (result instanceof StructureResult.Refused(Diagnostic diagnostic)) {
+      return diagnostic;
+    }
+    throw new AssertionError("expected Refused, got " + result);
+  }
+
+  /** The resolver gets the reference as the bundle spells it, once, and its bytes are read. */
+  @Test
+  void eachBundleFileIsResolvedOnceByItsReference() throws Exception {
+    RecordingResolver resolver = new RecordingResolver().file("../xsd/order.xsd", skeletonOrder());
+
+    StructureResult result = Structures.load(resolver, bundle("../xsd/order.xsd"), ORDER);
+
+    assertThat(loaded(result).rootPath()).hasToString("/Q{urn:flottila:corpus:skeleton}Order");
+    assertThat(resolver.calls()).containsExactly("../xsd/order.xsd");
+  }
+
+  @Test
+  void skeletonFingerprintIsUnchangedThroughTheResolver() throws Exception {
+    RecordingResolver resolver = new RecordingResolver().file("order.xsd", skeletonOrder());
+
+    Structure structure = loaded(Structures.load(resolver, bundle("order.xsd"), ORDER));
+
+    assertThat(structure.fingerprint()).isEqualTo(SKELETON_FINGERPRINT);
+  }
+
+  /**
+   * A whole-file refusal sits at line 1, column 1 of the reference; the message is the engine's.
+   */
+  @Test
+  void unreadableIsSchemaUnreadableAtTheBundleName() {
+    StructureResult result = Structures.load(new RecordingResolver(), bundle("missing.xsd"), ORDER);
+
+    assertThat(refused(result))
+        .isEqualTo(
+            new Diagnostic(
+                Severity.ERROR,
+                "schema-unreadable",
+                new AtFilePosition("missing.xsd", 1, 1),
+                "cannot read the schema file \"missing.xsd\""));
+  }
+
+  @Test
+  void packageReferenceIsPackageReferenceUnsupported() {
+    String reference = "shared@1.2.0:/xsd/o.xsd";
+    RecordingResolver resolver = new RecordingResolver().packageReference(reference);
+
+    StructureResult result = Structures.load(resolver, bundle(reference), ORDER);
+
+    assertThat(refused(result))
+        .isEqualTo(
+            new Diagnostic(
+                Severity.ERROR,
+                "package-reference-unsupported",
+                new AtFilePosition(reference, 1, 1),
+                "package references need a host resolver: \"shared@1.2.0:/xsd/o.xsd\""));
+    assertThat(resolver.calls()).containsExactly(reference);
+  }
+
+  /**
+   * An unchecked exception from the resolver is the host's (the service's workspace escape): it
+   * passes through {@code load}, {@code compile} and {@code export} as the same instance, never as
+   * a diagnostic.
+   */
+  @Test
+  void anUncheckedResolverExceptionPropagatesUnchanged() throws Exception {
+    IllegalStateException hosts = new IllegalStateException("the host refuses this reference");
+    ReferenceResolver resolver =
+        reference -> {
+          throw hosts;
+        };
+    byte[] model =
+        """
+        {"formatVersion": 1,
+         "source": {"bundle": ["order.xsd"], "fingerprint": "%1$s", "root": {"element": "%2$s"}},
+         "target": {"bundle": ["order.xsd"], "fingerprint": "%1$s", "root": {"element": "%2$s"}}}
+        """
+            .formatted(SKELETON_FINGERPRINT, ORDER.element())
+            .getBytes(UTF_8);
+    EngineFacade facade = new EngineFacade();
+    // the witness: the model loads, so compile and export go on to read its structures
+    assertThat(facade.load(model)).isInstanceOf(Loaded.class);
+
+    assertThatThrownBy(() -> Structures.load(resolver, bundle("order.xsd"), ORDER))
+        .as("load")
+        .isSameAs(hosts);
+    assertThatThrownBy(() -> facade.compile(model, resolver, CompileOptions.DEPLOY))
+        .as("compile")
+        .isSameAs(hosts);
+    assertThatThrownBy(() -> facade.export(model, resolver)).as("export").isSameAs(hosts);
+  }
+
+  /**
+   * A refusal inside a file names the file as the bundle spells it, {@code ../} and all; the
+   * position is the one {@link #a_load_error_is_a_result_with_its_file_position} pins.
+   */
+  @Test
+  void aMalformedFileIsNamedAsTheBundleSpellsIt() {
+    RecordingResolver resolver =
+        new RecordingResolver().file("../xsd/order.xsd", "<xs:schema\n  <");
+
+    Diagnostic diagnostic =
+        refused(Structures.load(resolver, bundle("../xsd/order.xsd"), new ElementRoot("Order")));
+
+    assertThat(diagnostic.code()).isEqualTo("schema-not-well-formed");
+    assertThat(diagnostic.location()).isEqualTo(new AtFilePosition("../xsd/order.xsd", 2, 3));
   }
 }

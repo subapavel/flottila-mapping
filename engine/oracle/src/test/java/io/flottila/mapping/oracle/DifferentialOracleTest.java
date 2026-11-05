@@ -11,6 +11,7 @@ import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.ExportResult;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
 import io.flottila.mapping.runtime.MappingRunException;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -65,7 +66,7 @@ class DifferentialOracleTest {
   private static void check(CorpusCase c, Path caseDir) throws Exception {
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
-    Path base = mapping.getParent();
+    ReferenceResolver base = DirectoryResolver.over(mapping.getParent());
     byte[] input = Files.readAllBytes(c.input());
     EngineFacade facade = c.facade();
 
