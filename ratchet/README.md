@@ -14,7 +14,7 @@ All files are line-based, sorted, UTF-8, LF. Columns are separated by one tab.
 | `oracle/differential.txt` | case where our runtime agrees with Saxon-HE 12.5 on the exported XSLT | case id |
 | `oracle/w3c-<suite>.txt` | passing W3C case (later milestones) | `<suite>:<test-set>/<test-case>` |
 | `coverage.tsv` | engine module, `service`, `ui/src/model`, `ui/src/editor/store` | `module`, `lines %`, `branches %` |
-| `mutation.tsv` | class-C module | `module`, `mutation score %` |
+| `mutation.tsv` | class-C module | `module`, `surviving mutants`, `generated mutants` |
 | `bench.tsv` | benchmark scenario (ADR-0021) | `scenario`, `machine label`, `score`, `unit` |
 
 `bench.tsv` (ADR-0021): scenario `<mapping>/<size>/<metric>` (`orders/small/latency`),
@@ -24,7 +24,10 @@ Tolerance 20 % (time, throughput) and 10 % (B/op); a worse score is measured twi
 fails. `regen` moves a baseline only on a gain beyond the tolerance; lowering one takes a finding.
 `check` ignores `bench.tsv`.
 
-Percentages are whole numbers, rounded down. Module names are directories (`engine/xdm`).
+Percentages are whole numbers, rounded down. `mutation.tsv` holds counts: surviving = generated minus
+killed, NON_VIABLE excluded; one more survivor than the row is a drop, and `regen` keeps the smaller
+count (`generated` is informative). A row of the old format (two columns, a whole-percent score) is
+still read, compared as a percent, and rewritten by `regen --all`. Module names are directories (`engine/xdm`).
 
 ## Commands
 
@@ -35,7 +38,7 @@ Percentages are whole numbers, rounded down. Module names are directories (`engi
   drop, writes the files, prints the diff.
 
 Inputs: `engine/oracle/target/surefire-reports/TEST-*.xml` (test name = case id),
-`*/target/site/jacoco/jacoco.csv`, `*/target/pit-reports/mutations.xml`,
+`*/target/site/jacoco/jacoco.csv`, `*/target/pit-reports/mutations.xml` (the gate log `.logs/<t>-pit.log` has one section per module, each preceded by `=== PIT <module> ===`),
 `ui/coverage/coverage-summary.json` (summed per directory), and for `regen` the spec gate's
 `.logs/<spec>-jmh.json` and the tree-scenario result.
 

@@ -13,7 +13,7 @@
 //       feeds ratchet/oracle/corpus.txt, any other class is ignored. A case passes only when all
 //       its metamorphic variants pass, so the oracle tests report one test case per case id.
 //   <module>/target/site/jacoco/jacoco.csv             lines and branches, rounded down
-//   <module>/target/pit-reports/mutations.xml          mutation score, rounded down
+//   <module>/target/pit-reports/mutations.xml          surviving mutants (generated - killed, NON_VIABLE excluded)
 //   ui/coverage/coverage-summary.json                  summed per directory (ui/src/model, ui/src/editor/store)
 //
 // bench.tsv belongs to the speed spec (ADR-0021); neither command touches it yet.
@@ -75,7 +75,7 @@ public final class Ratchet {
     // current = what this build measured; null = report absent
     Map<String, List<String>> oracle = readOracle();
     Map<String, int[]> coverage = measureCoverage();
-    Map<String, Integer> mutation = measureMutation();
+    Map<String, int[]> mutation = measureMutation();
 
     Map<String, List<String>> newFiles = new LinkedHashMap<>();
 
@@ -118,25 +118,38 @@ public final class Ratchet {
     coverageLines.addAll(coverageRows.values());
     newFiles.put("coverage.tsv", coverageLines);
 
-    // mutation.tsv: <module> TAB <score %>
+    // mutation.tsv: <module> TAB <surviving mutants> TAB <generated mutants> (#87). One more survivor is a drop.
+    // The old two-column row (<module> TAB <score %>) is still read, compared as a whole percent and rewritten
+    // in the new format by regen.
     TreeMap<String, String> mutationRows = new TreeMap<>();
     for (String row : readLines(RATCHET.resolve("mutation.tsv"))) {
       String[] c = row.split("\t");
-      Integer now = mutation.get(c[0]);
+      int[] now = mutation.get(c[0]);
       if (now == null) {
         // PIT runs only on the modules a spec touched (ADR-0019, step 1b): a missing report is not a drop
         notRun("mutation " + c[0], false);
         mutationRows.put(c[0], row);
         continue;
       }
-      int listed = Integer.parseInt(c[1]);
-      compare("mutation " + c[0], listed, now);
-      mutationRows.put(c[0], c[0] + "\t" + Math.max(listed, now));
+      int survivors = now[0];
+      if (c.length < 3) {
+        int listed = Integer.parseInt(c[1]);
+        compare("mutation " + c[0], listed, percent(now[1] - now[0], now[0]));
+      } else {
+        int listed = Integer.parseInt(c[1]);
+        if (survivors > listed) {
+          fail("mutation " + c[0] + ": " + survivors + " surviving mutants, the ratchet's " + listed);
+        } else if (survivors < listed) {
+          System.out.println("RISE mutation " + c[0] + ": " + listed + " -> " + survivors + " surviving mutants");
+        }
+        survivors = Math.min(listed, survivors);
+      }
+      mutationRows.put(c[0], c[0] + "\t" + survivors + "\t" + now[1]);
     }
-    for (Map.Entry<String, Integer> e : mutation.entrySet()) {
+    for (Map.Entry<String, int[]> e : mutation.entrySet()) {
       if (!mutationRows.containsKey(e.getKey())) {
-        mutationRows.put(e.getKey(), e.getKey() + "\t" + e.getValue());
-        System.out.println("NEW  mutation " + e.getKey() + " " + e.getValue());
+        mutationRows.put(e.getKey(), e.getKey() + "\t" + e.getValue()[0] + "\t" + e.getValue()[1]);
+        System.out.println("NEW  mutation " + e.getKey() + " " + e.getValue()[0] + "/" + e.getValue()[1]);
       }
     }
     newFiles.put("mutation.tsv", new ArrayList<>(mutationRows.values()));
@@ -319,8 +332,9 @@ public final class Ratchet {
 
   // ---- mutation ----
 
-  private static Map<String, Integer> measureMutation() throws Exception {
-    Map<String, Integer> result = new TreeMap<>();
+  /** Per module {surviving, generated}; generated without NON_VIABLE, surviving = generated - detected. */
+  private static Map<String, int[]> measureMutation() throws Exception {
+    Map<String, int[]> result = new TreeMap<>();
     for (String module : MUTATION_MODULES) {
       Path xml = ROOT.resolve(module).resolve("target/pit-reports/mutations.xml");
       if (!Files.isRegularFile(xml)) {
@@ -339,7 +353,7 @@ public final class Ratchet {
           detected++;
         }
       }
-      result.put(module, percent(detected, total - detected));
+      result.put(module, new int[] {(int) (total - detected), (int) total});
     }
     return result;
   }

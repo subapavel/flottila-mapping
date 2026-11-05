@@ -55,8 +55,9 @@ done
 pit_summary=""
 if [ ${#pit_modules[@]} -gt 0 ]; then
   pit_list=$(IFS=,; echo "${pit_modules[*]}")
+  # one PIT run per module, each section preceded by `=== PIT <module> ===` in the log (#87)
   step "1b pit $pit_list" ".logs/${ticket}-pit.log" \
-    ./mvnw -B -pl "$pit_list" -am test-compile org.pitest:pitest-maven:mutationCoverage
+    scripts/pit-summary.sh --run ".logs/${ticket}-pit.log" "${pit_modules[@]}"
   pit_summary=$(scripts/pit-summary.sh ratchet/mutation.tsv "${pit_modules[@]}") || {
     echo "EXECUTED_FAIL  1b pit floor  (ratchet/mutation.tsv)"
     status=1
