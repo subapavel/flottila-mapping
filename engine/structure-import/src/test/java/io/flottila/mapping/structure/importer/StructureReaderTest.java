@@ -247,6 +247,8 @@ class StructureReaderTest {
         "foreign-attribute       | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
         "nested-simple-type      | /OrderId 1..1 xs:string; /Line 1..unbounded xs:date",
         "root-simple-type        | /Q{urn:flottila:corpus:skeleton}Code 1..1 xs:decimal",
+        "schema-defaults         | /OrderId 1..1 xs:string",
+        "complex-content-mixed   | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
       })
   void a_fixture_the_subsets_refused_loads(String fixture, String fields) throws Exception {
     Structure structure = readSkeleton("test-fixtures/" + fixture + ".xsd");

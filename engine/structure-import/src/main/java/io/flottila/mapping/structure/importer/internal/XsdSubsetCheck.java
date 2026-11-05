@@ -84,9 +84,11 @@ import org.xml.sax.helpers.NamespaceSupport;
  * <p>Accepted with no effect, their content unread (ADR-0008): {@code xs:annotation} anywhere,
  * {@code xs:any}, {@code xs:anyAttribute}, facets, identity constraints, and the content of a list
  * or union. Accepted with no effect since the #89 review: {@code id} on every element, {@code
- * version} on the schema, {@code block} and {@code final} where XSD 1.0 allows them, {@code mixed}
- * on a complex type, {@code nillable} on an element of an anonymous complex type, and attributes in
- * other namespaces than XSD's and the versioning one, of which a {@code vc:minVersion} below 1.1.
+ * version}, {@code blockDefault} and {@code finalDefault} on the schema, {@code block} and {@code
+ * final} where XSD 1.0 allows them, {@code mixed} on a complex type and on its {@code
+ * xs:complexContent}, {@code nillable} on an element of an anonymous complex type, and attributes
+ * in other namespaces than XSD's and the versioning one, of which a {@code vc:minVersion} below
+ * 1.1.
  *
  * <p>Refused when a schema loads, wherever they stand (ADR-0008, #95): {@code xs:redefine} and
  * {@code xs:override}, each named as such; {@code vc:minVersion} 1.1 or above on any element, named
@@ -150,7 +152,13 @@ final class XsdSubsetCheck extends DefaultHandler {
   private enum Role {
     DOCUMENT(Set.of(), Set.of()),
     SCHEMA(
-        Set.of("targetNamespace", "elementFormDefault", "attributeFormDefault", "version"),
+        Set.of(
+            "targetNamespace",
+            "elementFormDefault",
+            "attributeFormDefault",
+            "version",
+            "blockDefault",
+            "finalDefault"),
         Set.of()),
     IMPORT(Set.of("namespace", "schemaLocation"), Set.of()),
     INCLUDE(Set.of("schemaLocation"), Set.of("schemaLocation")),
@@ -183,7 +191,7 @@ final class XsdSubsetCheck extends DefaultHandler {
     NAMED_COMPLEX_TYPE(Set.of("name", "abstract", "mixed", "block", "final"), Set.of("name")),
     COMPLEX_TYPE(Set.of("mixed"), Set.of()),
     // a complex type's xs:complexContent or xs:simpleContent, and its derivation (#95)
-    COMPLEX_CONTENT(Set.of(), Set.of()),
+    COMPLEX_CONTENT(Set.of("mixed"), Set.of()),
     SIMPLE_CONTENT(Set.of(), Set.of()),
     // an xs:extension or xs:restriction of complex content
     COMPLEX_DERIVATION(Set.of("base"), Set.of("base")),

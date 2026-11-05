@@ -226,7 +226,7 @@ class EngineFacadeRefreshTest {
               </xs:assert>
             </xs:complexType>
           </xs:element>
-          <xs:element name="Other" block="#all" type="xs:string"/>
+          <xs:element name="Other" form="qualified" type="xs:string"/>
         </xs:schema>
         """
             .formatted(NS));
