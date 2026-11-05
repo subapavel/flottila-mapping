@@ -742,6 +742,8 @@ class EngineFacadeTraceTest {
    * the run's thread, live at the timeout, and the test joins it, so no clock waits for its end. A
    * run that ignored its interrupt would hold the join; JUnit's timeout guards against that hang.
    */
+  private static final long RACE_DELAY_MILLIS = 5_000;
+
   @Test
   @Timeout(60)
   void aTimeoutTraceIsAPrefixOfTheFullTrace() throws Exception {
@@ -762,6 +764,7 @@ class EngineFacadeTraceTest {
         new EngineFacade(
             (run, timeout, tracer) -> {
               while (tracer.occurrences().stream().noneMatch(o -> o.field().equals(row))) {
+                Thread.sleep(RACE_DELAY_MILLIS); // test-only: a descheduled clock
                 if (run.isDone()) {
                   // the run ended before Row reported: its result, which the test refuses
                   return run.get();
