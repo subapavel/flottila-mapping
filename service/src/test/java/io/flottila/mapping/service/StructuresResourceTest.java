@@ -149,6 +149,7 @@ class StructuresResourceTest {
     assertThat(described(diagnostics))
         .containsExactly("error schema-unreadable at file missing.xsd 1:1");
     String message = diagnostics.path(0).path("message").textValue();
+    assertThat(message).isEqualTo("cannot read the schema file \"missing.xsd\"");
     assertThat(message)
         .doesNotContain(TempWorkspace.root().toString())
         .doesNotContain(TempWorkspace.root().toRealPath().toString());
