@@ -55,4 +55,13 @@
   <xs:complexType name="Looped">
     <xs:attributeGroup ref="d:Loop"/>
   </xs:complexType>
+  <!-- a restriction's own two declarations of one name: the second is reported -->
+  <xs:complexType name="RestrictedTwice">
+    <xs:complexContent>
+      <xs:restriction base="d:Base">
+        <xs:attribute name="b" type="xs:string"/>
+        <xs:attribute name="b" type="xs:string" use="required"/>
+      </xs:restriction>
+    </xs:complexContent>
+  </xs:complexType>
 </xs:schema>

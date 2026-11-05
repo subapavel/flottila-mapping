@@ -363,6 +363,9 @@ class XsdDerivationTest {
                     + "invalid/duplicates.xsd 52:34 the attribute group {duplicates}Loop refers to"
                     + " itself",
                 invalid
+                    + "invalid/duplicates.xsd 63:65 the attribute Q{}b is declared a second time"
+                    + " in one complex type",
+                invalid
                     + "invalid/duplicate-group.xsd 8:49 the attribute {duplicates}code is declared"
                     + " a second time in one complex type")));
   }
