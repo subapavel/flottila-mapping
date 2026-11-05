@@ -101,7 +101,8 @@ class JsonSchemaReaderTest {
                 "/$/createdAt 0..1 xs:dateTime",
                 "/$/note 1..1 xs:string")),
         argumentSet(
-            "oneOf and anyOf give the union of their properties, each with minimum 0",
+            "oneOf and anyOf give the union of their properties, each with minimum 0, even one"
+                + " required beside them",
             "one-of.schema.json",
             List.of(
                 "/$ 1..1 structure",
@@ -140,7 +141,7 @@ class JsonSchemaReaderTest {
             "ignored.schema.json",
             List.of("/$ 1..1 structure", "/$/id 0..1 xs:string")),
         argumentSet(
-            "a schema that refers back to itself through allOf or $ref alone ends",
+            "a schema that refers back to itself through allOf, anyOf or $ref alone ends",
             "cycle.schema.json",
             List.of(
                 "/$ 1..1 structure",

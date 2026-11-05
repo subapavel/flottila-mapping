@@ -1,7 +1,7 @@
 {
-  "title": "oneOf and anyOf give the union of their properties, each with minimum 0",
+  "title": "oneOf and anyOf give the union of their properties, each with minimum 0, iban too",
   "type": "object",
-  "required": ["kind"],
+  "required": ["kind", "iban"],
   "properties": {
     "kind": {"type": "string"},
     "value": {"oneOf": [{"type": "integer"}, {"type": "string", "format": "date"}]}
