@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import org.apache.ws.commons.schema.XmlSchemaAttribute;
@@ -57,13 +58,50 @@ public final class XsdReader {
       QName root)
       throws StructureLoadException {
     List<SchemaFile> schemas = new ArrayList<>();
+    List<Consumer<XmlSchemaCollection>> reads = new ArrayList<>();
     for (String file : files) {
       byte[] content = contents.get(file);
       // a file the resolver did not read declares what is unknown, in a namespace unknown
       schemas.add(
           content == null ? new SchemaFile(file) : XsdSubsetCheck.check(file, content, errors));
+      reads.add(document(file, content));
     }
-    BundleCheck.check(files, schemas, root, errors);
+    return read(
+        files,
+        schemas,
+        errors,
+        root,
+        "the schema bundle declares no global element " + BundleCheck.eqName(root),
+        reads);
+  }
+
+  /** XmlSchema's read of a whole XSD file. */
+  static Consumer<XmlSchemaCollection> document(String file, byte[] content) {
+    return collection -> {
+      InputSource source = new InputSource(new ByteArrayInputStream(content));
+      // the bundle name tells apart two files of one target namespace, such as an include's
+      source.setSystemId(file);
+      collection.read(source);
+    };
+  }
+
+  /**
+   * Checks the bundle across its files, then reads it with XmlSchema when it has no load error.
+   *
+   * @param schemas what the SAX passes read, every file's in bundle order
+   * @param root the root element, or null when none is found
+   * @param missing the message of {@code schema-root-not-found}
+   * @param reads XmlSchema's read of each file, in bundle order; run only when there is no error
+   */
+  static Structure read(
+      List<String> files,
+      List<SchemaFile> schemas,
+      List<StructureLoadException> errors,
+      QName root,
+      String missing,
+      List<Consumer<XmlSchemaCollection>> reads)
+      throws StructureLoadException {
+    BundleCheck.check(files, schemas, root, missing, errors);
     if (!errors.isEmpty()) {
       List<StructureLoadException> ordered = new ArrayList<>(errors);
       ordered.sort(
@@ -78,12 +116,7 @@ public final class XsdReader {
     // resolver shape"), and a declined one is looked up among the schemas already read. Every
     // bundle file is read below, so every name resolves across the collection.
     collection.setSchemaResolver((namespace, schemaLocation, baseUri) -> null);
-    for (Map.Entry<String, byte[]> file : contents.entrySet()) {
-      InputSource source = new InputSource(new ByteArrayInputStream(file.getValue()));
-      // the bundle name tells apart two files of one target namespace, such as an include's
-      source.setSystemId(file.getKey());
-      collection.read(source);
-    }
+    reads.forEach(read -> read.accept(collection));
     XmlSchemaElement element = collection.getElementByQName(root);
     // a global element is always qualified; XmlSchema's getWireName() drops its namespace
     // (observed)

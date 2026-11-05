@@ -420,14 +420,13 @@ class MappingsResourceTest {
   }
 
   /**
-   * A create whose root is a wsdl or json shape of the model schema reaches the engine, which in
-   * milestone 1 refuses it at line 1, column 1 of the bundle's file ({@code
-   * StructureReaderTest.WSDL_and_JSON_roots_are_refused_until_their_readers_exist}): 422 {@code
+   * #96: a create whose root is a wsdl shape the model schema allows reaches the WSDL reader, which
+   * finds no interface in a bundle of no WSDL, at the first file's xs:schema: 422 {@code
    * model-refused}, never 400 {@code invalid-request}. Only the source has the shape.
    */
   @ParameterizedTest(name = "{0}")
-  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAndJson")
-  void createWithAWsdlOrJsonRootIsTheEnginesRefusal(String rootShape) {
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlAllowed")
+  void createWithAWsdlRootIsTheWsdlReadersRefusal(String rootShape) {
     TempWorkspace.mkdirs("creating-root");
     String target = createRequest("creating-root/order", "../structures/skeleton/order.xsd", ORDER);
     String request =
@@ -442,7 +441,28 @@ class MappingsResourceTest {
 
     assertThat(described(problem.path("diagnostics")))
         .containsExactly(
-            "error root-selector-unsupported at file ../structures/skeleton/order.xsd 1:1");
+            "error schema-root-not-found at file ../structures/skeleton/order.xsd 6:59");
+    assertThat(TempWorkspace.exists("creating-root/order.mapping.json")).isFalse();
+  }
+
+  /**
+   * #96: a create whose root is a wsdl shape the model schema forbids is no root selector, as on
+   * {@code POST /api/structures}: 400 {@code invalid-request}, before any structure is read.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("io.flottila.mapping.service.RootShapes#wsdlForbidden")
+  void createWithAWsdlRootTheModelSchemaForbidsIsAnInvalidRequest(String rootShape) {
+    TempWorkspace.mkdirs("creating-root");
+    String target = createRequest("creating-root/order", "../structures/skeleton/order.xsd", ORDER);
+    String request =
+        target.replaceFirst(
+            "\"root\": \\{\"element\": \"[^\"]*\"\\}",
+            java.util.regex.Matcher.quoteReplacement("\"root\": " + rootShape));
+    assertThat(request).as("only the source's root is replaced").isNotEqualTo(target);
+
+    assertProblem(
+        http().post("api/mappings", "application/json", bytes(request)), 400, "invalid-request");
+
     assertThat(TempWorkspace.exists("creating-root/order.mapping.json")).isFalse();
   }
 
