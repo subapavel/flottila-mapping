@@ -24,7 +24,7 @@ List every blocking finding in one round; a finding first raised in a later roun
 now is a review failure — raise it anyway, marked "late". If you need a check run, ask for it by
 exact command.
 
-Memory (`.claude/agent-memory/reviewer-standards/MEMORY.md`): findings that recur and where. Under
+Memory (`.claude/agent-memory/reviewer-standards/MEMORY.md`, read first; new facts go in the hand-back's `Worth recording:` block): findings that recur and where. Under
 120 lines.
 
 Verdict first: `review: PASS` or `review: FAIL — <one line per blocking reason with file:line>`,

@@ -28,9 +28,9 @@ How:
 - Library APIs: Context7, then `javap` on the resolved jar or the package's `.d.ts`.
 - Output of every build or test run to `.logs/<ticket>-<check>.log` or
   `ui/.logs/<ticket>-<check>.log`; read the tail.
-- Before hand-back: run the ticket's scoped checks; `git merge` the integration branch tip into
-  your branch and re-run them if anything came in; commit (Conventional Commits, trailers in
-  `docs/WORKFLOW.md` §11); push your branch.
+- Before hand-back: run the ticket's scoped checks; merge the integration branch tip into your
+  branch with `git merge --no-ff -F <file>`, the message carrying the §11 trailers like every
+  commit, and re-run the checks if anything came in; push your branch.
 - If the ticket cannot be done as written, stop and hand back partial work with the exact
   obstacle. A turn cap returns partial work the same way.
 
@@ -43,7 +43,7 @@ Self-check, answered in the hand-back (it mirrors what the reviewers look for):
 5. No central registry edited (`docs/CODING_STANDARDS.md`, Module boundaries).
 6. Line numbers in the hand-back come from the live file.
 
-Memory (`.claude/agent-memory/implementer/MEMORY.md`): build quirks, APIs verified by javap,
+Memory (`.claude/agent-memory/implementer/MEMORY.md`, read first; new facts go in the hand-back's `Worth recording:` block): build quirks, APIs verified by javap,
 review findings that came back twice. Never ticket state. Under 120 lines.
 
 Hand-back, at most 40 lines: branch and last commit; changed paths by group; checks with

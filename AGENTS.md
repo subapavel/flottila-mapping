@@ -99,8 +99,10 @@ number not in `bench/RESULTS.md` does not exist.
 
 ## Memory
 
-Implementer, test-author, merger, reviewers and designer keep
-`.claude/agent-memory/<name>/MEMORY.md` (committed; durable facts only — build quirks, verified
-APIs, review findings that came back twice; never ticket state; under 120 lines). When a review
+Implementer, test-author, merger, reviewers and designer read
+`.claude/agent-memory/<name>/MEMORY.md` first (committed; durable facts only — build quirks, verified
+APIs, review findings that came back twice; never ticket state; under 120 lines). They write it
+through the hand-back: a last `Worth recording:` block, one line per fact. The architect appends
+those lines at the record step; no subagent edits `.claude/`. When a review
 FAIL repeats a lesson, the lesson goes into the reviewer's memory and the writers' self-check
 lists in the same commit.

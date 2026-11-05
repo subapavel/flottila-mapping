@@ -28,3 +28,11 @@ Durable facts only (AGENTS.md, Memory).
   Seen: #28 ServiceConfig:45,50-51, RootSelectorJson:49-50.
 - smallrye-openapi drops its generated 2xx once any `@APIResponse` is declared; hand-declared
   2xx then need a contract-test witness. Seen: #28.
+- Fixed-seed property loops inside one `@Test` instead of `@ParameterizedTest(name = "seed {0}")`.
+  Seen: #83 TableTextTest, TargetRepeatInterpreterTest; #82 XsDecimalTest.
+- A rule moved into one helper and claimed by its new test still needs a row per clause.
+  Seen: #70 review, `XsDecimal.quotient` had no row for its `max(18, …)` floor.
+- Stale text after an ADR amendment: grep the code comments for the old wording. Seen: F-20 left
+  "a quotient that terminates is exact" in ArithmeticFamily and arithmetic.xsl.
+- A binder that downcasts to `Node.Literal` relies on a check IrVerifier does not make (#83).
+- A service config default with no witness test (#80 `time-zone=UTC`): ask for one.
