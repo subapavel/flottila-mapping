@@ -63,3 +63,25 @@ Target wires: S1 -> `Coded/V`. The attribute `Coded/@code` stays unmapped. Nothi
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
 | `target/requiredAttribute/001` | `attr1.xml` | Two orders, Id `X1` and `X2`. Is an unmapped `use="required"` attribute a design-time error, as an unmapped leaf element with `minOccurs` 1 is (obs-target-creation create-c)? Record the editor message and where it shows (save, activation, test), and what a run produces: `<Coded><V>X1</V><V>X2</V></Coded>` without `code`, an empty `code`, or an error. Assumed: design-time error, `unmapped-mandatory-leaf` at the absent target field mapping of `Coded/@code`; the run never starts. |
+
+## Mapping str-attr (source `src-orders.xsd`, root `Orders`; target `tgt-attr.xsd`, root `Flagged`)
+
+`Flagged` carries the attribute `flag` (optional) and the attribute `code` (`use="required"`), and
+holds `V` 0..unbounded.
+
+| Box | Function | Inputs |
+| --- | --- | --- |
+| S1 | source | `Orders/Order/Tag` (default context `Order`) |
+| C1 | `createIf` | in1 = S1 |
+| S2 | source | `Orders/Order/Id` (default context `Order`) |
+| S3 | source | `Orders/Order/Id` with context `Orders` |
+
+Target wires: C1 -> `Flagged/@flag`; S2 -> `Flagged/@code`; S3 -> `Flagged/V`. Nothing else is
+mapped.
+
+| Case | Input | Question it decides and the assumed reading |
+| --- | --- | --- |
+| `target/attribute/001` | `attr2.xml` | One order, Id `X1`, Tag `no`: C1 gives SUPPRESS. Does a SUPPRESS slot on an attribute write no attribute, as on an element? Record the output. Assumed: `<Flagged code="X1"><V>X1</V></Flagged>`, no `flag`. |
+| `target/attribute/002` | `attr3.xml` | One order without Id, Tag `no`: `code` gets an empty context. Does a required attribute with no value fail the run as a 1..1 element does (`minOccurs`)? Record the error text and where it fires, or the output. Assumed: the run fails at `code`'s target field mapping (`po:MINOCCURS`); no output. |
+| `target/attribute/003` | `attr4.xml` | One order, Id `X1`, Tag `true`: C1 gives the empty string. Is it written as an empty attribute, as a leaf element gets `<E/>`? Assumed: `<Flagged flag="" code="X1"><V>X1</V></Flagged>`. |
+| none yet (#100) | `attr4.xml` | The qualified prefix. Draw the same mapping onto `tgt-attr-ns.xsd` (root `Flagged` in `urn:flottila:obs:attr`, attributes qualified, `V` unqualified). Record the output bytes: the prefix of `Flagged` and of each attribute, and on which element each namespace is declared. Assumed (ADR-0022): `<ns0:Flagged xmlns:ns0="urn:flottila:obs:attr" ns0:flag="" ns0:code="X1"><V>X1</V></ns0:Flagged>`. |

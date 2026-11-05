@@ -3,6 +3,7 @@ package io.flottila.mapping.xslt.export;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.flottila.mapping.ir.AtomicToQueue;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
@@ -50,6 +51,9 @@ import java.util.stream.Collectors;
  *       slot number (ADR-0006; #63). A generating structure field's value follows as {@code
  *       <xsl:value-of select="substring(value, 1, 0)"/>}, a zero-length text that evaluates it
  *       before the body (ADR-0006 as amended by #83).
+ *   <li>An {@code AttributeConstructor} is {@code <xsl:attribute name="name" select="value"/>}, its
+ *       name under the IR's output prefix (ADR-0022), inside its item's {@code xsl:for-each}
+ *       (ADR-0006 since #102).
  *   <li>Each back end evaluates a {@code TargetSlots} queue at most once per mapping run (ADR-0006
  *       since #52). A {@code TargetSlots} directly under the root is written outside any {@code
  *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
@@ -60,7 +64,8 @@ import java.util.stream.Collectors;
  *       xs:string} or {@code $po:SUPPRESS}. A {@code SourceQueue} reads the source document as
  *       {@code /}, the template's focus wherever a queue is written, and has at least one context
  *       ({@code po:source-queue}, F-17); a leaf field's member holds its {@code string()} per
- *       occurrence, a structure field's {@code ''} (ADR-0008; #63). A {@code FunCall} is {@code
+ *       occurrence, a structure field's {@code ''} (ADR-0008; #63), and an attribute's, whose last
+ *       step is {@code @name}, its value's {@code string()} (#102). A {@code FunCall} is {@code
  *       po:<catalogue name>} of the helper module over its args in {@code FunCall} order
  *       (ADR-0025), then the id of its function box, its origin, where the helper's declaration
  *       ends in the param {@code box}: a function that can raise a data error (ADR-0026). A {@code
@@ -136,6 +141,11 @@ public final class XsltExporter {
   private static final String VALUE_OF =
       """
       <xsl:value-of select="%s"/>""";
+
+  /** An {@code AttributeConstructor} (#102): its output name and its value. */
+  private static final String ATTRIBUTE =
+      """
+      <xsl:attribute name="%s" select="%s"/>""";
 
   /**
    * The variable that binds the queue of a {@code TargetSlots} inside an occurrence once, at the
@@ -348,18 +358,26 @@ public final class XsltExporter {
         String name =
             outputName(e.prefix(), e.name(), "ElementConstructor of " + e.origin().value());
         line(out, depth, "<" + name + ">");
-        for (Expr content : e.content()) {
-          instruction(content, depth + 1, inOccurrence, out);
-        }
         String end = "</" + name + ">";
-        if (e.content().size() == 1 && e.content().getFirst() instanceof TextConstructor) {
-          // a single text stays on its element's line; any other content ends on a line of its own
-          out.append(end);
+        if (e.content().size() == 1 && e.content().getFirst() instanceof TextConstructor t) {
+          // a single text stays on its element's line; any other content, a text after attribute
+          // items included (#102), starts a line of its own, and so does the end tag after it
+          out.append(valueOf(t)).append(end);
         } else {
+          for (Expr content : e.content()) {
+            instruction(content, depth + 1, inOccurrence, out);
+          }
           line(out, depth, end);
         }
       }
-      case TextConstructor t -> out.append(VALUE_OF.formatted(attribute(expression(t.value()))));
+      case AttributeConstructor a ->
+          line(
+              out,
+              depth,
+              ATTRIBUTE.formatted(
+                  outputName(a.prefix(), a.name(), "AttributeConstructor of " + a.origin().value()),
+                  attribute(expression(a.value()))));
+      case TextConstructor t -> line(out, depth, valueOf(t));
       case SourceQueue q -> throw misplaced(q, "content");
       case VarRef v -> throw misplaced(v, "content");
       case Literal l -> throw misplaced(l, "content");
@@ -367,6 +385,11 @@ public final class XsltExporter {
       case Lift l -> throw misplaced(l, "content");
       case AtomicToQueue a -> throw misplaced(a, "content");
     }
+  }
+
+  /** The {@code xsl:value-of} of {@code t}'s value. */
+  private String valueOf(TextConstructor t) {
+    return VALUE_OF.formatted(attribute(expression(t.value())));
   }
 
   /** {@code value} as an XPath string literal in apostrophes, an apostrophe doubled. */
@@ -380,8 +403,8 @@ public final class XsltExporter {
       case SourceQueue q -> {
         String where = "SourceQueue of " + q.origin().value();
         yield QUEUE.formatted(
-            path(q.field().subList(0, q.contextDepth()), where),
-            path(q.field().subList(q.contextDepth(), q.field().size()), where),
+            path(q.field().subList(0, q.contextDepth()), false, where),
+            path(q.field().subList(q.contextDepth(), q.field().size()), q.attribute(), where),
             q.structureField() ? STRUCTURE_VALUE : LEAF_VALUE);
       }
       case VarRef v -> "$" + v.name();
@@ -391,6 +414,7 @@ public final class XsltExporter {
       case TargetSlots s -> throw misplaced(s, "an expression");
       case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
+      case AttributeConstructor a -> throw misplaced(a, "an expression");
       case TextConstructor t -> throw misplaced(t, "an expression");
       case AtomicToQueue a -> ATOMIC_TO_QUEUE.formatted(expression(a.value()));
     };
@@ -439,15 +463,19 @@ public final class XsltExporter {
     return max == Long.MAX_VALUE ? UNBOUNDED : Long.toString(max);
   }
 
-  /** The relative path of source element {@code steps}, each under its source prefix. */
-  private String path(List<Name> steps, String where) {
-    StringBuilder path = new StringBuilder();
-    String separator = "";
+  /**
+   * The relative path of source {@code steps}, each under its source prefix: element steps, and the
+   * last an attribute step {@code @name} when {@code attribute} (#102).
+   */
+  private String path(List<Name> steps, boolean attribute, String where) {
+    List<String> names = new ArrayList<>();
     for (Name step : steps) {
-      path.append(separator).append(sourceName(step, where));
-      separator = "/";
+      names.add(sourceName(step, where));
     }
-    return path.toString();
+    if (attribute) {
+      names.set(names.size() - 1, "@" + names.getLast());
+    }
+    return String.join("/", names);
   }
 
   /** The name test of a source step: bare without a namespace, else {@code s0}, {@code s1} … */
