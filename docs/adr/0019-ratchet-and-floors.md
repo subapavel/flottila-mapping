@@ -1,6 +1,6 @@
 # The ratchet is line-based text checked per ticket and regenerated per spec; fixed floors sit under it
 
-Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`) and ADR-0021 (`bytecode`); `bench.tsv` rules set by ADR-0021
+Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`) and ADR-0021 (`bytecode`); `bench.tsv` rules set by ADR-0021; mutation measure amended by #87 (2026-11-05): surviving mutants
 
 FOUNDING §10 says the ratchet holds committed pass lists, coverage and benchmark baselines, and a
 merge may only keep or raise them. ADR-0017 makes the ratchet check ticket-gate step 5 and the
@@ -18,7 +18,7 @@ without conflicts on unrelated lines.
 | `ratchet/oracle/differential.txt` | case where our runtime agrees with Saxon-HE | case id |
 | `ratchet/oracle/w3c-<suite>.txt` | passing W3C case (later milestones) | `<suite>:<set>/<case>` |
 | `ratchet/coverage.tsv` | engine module, service, and `ui/src/model`, `ui/src/editor/store` | `<module>\t<lines %>\t<branches %>` |
-| `ratchet/mutation.tsv` | class-C module | `<module>\t<mutation score %>` |
+| `ratchet/mutation.tsv` | class-C module | `<module>\t<surviving mutants>\t<generated>` (since #87) |
 | `ratchet/bench.tsv` | benchmark scenario | `<scenario>\t<machine label>\t<score>\t<unit>` |
 
 - Percentages are whole numbers, **rounded down**. A refactor that moves coverage by a fraction of
@@ -82,6 +82,19 @@ was reached above them.
   - in `nightly.yml` on `main`, over all nine class-C modules, failing below the floor;
   - in **spec-gate step 1b**, over the class-C modules the spec touched, which feeds
     `mutation.tsv`.
+
+  Amended by #87 (2026-11-05):
+  - The mutation ratchet stores, per class-C module, the number of surviving mutants (generated
+    minus killed, NON_VIABLE excluded) and the number generated. The generated count is
+    informative only.
+  - A module's survivor count may never rise above its row, so one new surviving mutant is a
+    drop. That holds in `scripts/pit-summary.sh`, in `ratchet.java check` and in both gates.
+  - A whole-percent score hid one: in spec 3, `mapping` went from 444/454 to 443/454 and still
+    printed `97% floor 97% ok`.
+  - `regen --all` keeps the smaller count and refuses a rise. A row in the earlier whole-percent
+    format is compared as a percent until `regen --all` rewrites it.
+  - The 80 % PIT threshold in the build is unchanged.
+  - The gate log holds one PIT section per module, each preceded by `=== PIT <module> ===`.
 
   If step 1b takes more than 10 minutes, it narrows to the modules that class-C tickets touched.
 
