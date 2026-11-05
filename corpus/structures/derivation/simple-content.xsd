@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture (#95): simple content. An element of a complex type with simple content is a leaf,
+     whose value type comes from the built-in ancestry of its base, and whose attributes are fields
+     of their own, the base's first (ADR-0006 since #102, ADR-0008) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:flottila:corpus:simple"
+           targetNamespace="urn:flottila:corpus:simple">
+  <xs:element name="Invoice">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Total" type="tns:Money" nillable="true"/>
+        <xs:element name="Tax" type="tns:TaggedMoney" minOccurs="0"/>
+        <xs:element name="Code">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="tns:Code">
+                <xs:attribute name="list" type="xs:string"/>
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="Count" type="tns:Bare"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="Money">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="currency" type="xs:string" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="TaggedMoney">
+    <xs:simpleContent>
+      <xs:extension base="tns:Money">
+        <xs:attribute name="tag" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="Bare">
+    <xs:simpleContent>
+      <xs:extension base="xs:int"/>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="Code">
+    <xs:restriction base="xs:token"/>
+  </xs:simpleType>
+</xs:schema>

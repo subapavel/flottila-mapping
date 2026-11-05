@@ -15,7 +15,13 @@ public record Refusal(Refusal.Reason reason, String file, int line, int column) 
   /** A reason a field is refused. */
   public enum Reason {
     /** Two or more sibling declarations with one step, which no field path tells apart. */
-    AMBIGUOUS_FIELD_PATH("ambiguous-field-path");
+    AMBIGUOUS_FIELD_PATH("ambiguous-field-path"),
+
+    /**
+     * An abstract element, or an element of an abstract type, which a target cannot write; a source
+     * reads it (#95). The position is the abstract declaration in its declaring file.
+     */
+    ABSTRACT_TARGET_ELEMENT("abstract-target-element");
 
     private final String code;
 

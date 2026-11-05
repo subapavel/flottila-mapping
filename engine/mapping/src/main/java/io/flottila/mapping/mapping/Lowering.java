@@ -74,9 +74,10 @@ import java.util.stream.IntStream;
  *   <li>a source or target field path the structure lacks below every same-step sibling on it:
  *       {@code orphaned-reference};
  *   <li>a source or target field path through a refused field (ADR-0008 Shape (#92)), with the
- *       refusal nearest the root: its reason's code, {@code ambiguous-field-path}; at {@code
- *       /targetFieldMappings/<field path>}, once per path, an unmapped refused target field with
- *       {@code minOccurs > 0} under a parent that is created: the same;
+ *       refusal nearest the root: its reason's code, {@code ambiguous-field-path} on either side or
+ *       {@code abstract-target-element} on the target side only (#95), which a source path passes
+ *       through; at {@code /targetFieldMappings/<field path>}, once per path, an unmapped refused
+ *       target field with {@code minOccurs > 0} under a parent that is created: the same;
  *   <li>a source field that is the root (#62, #63, #102), or a target field that is the root, or
  *       that stands under an unmapped parent which is neither {@code n..n} with {@code n > 0} nor
  *       optional, so that PO requires it to be mapped (#63): {@code unsupported-field}; at {@code
@@ -146,10 +147,20 @@ public final class Lowering {
       return chain.getLast();
     }
 
-    /** The refused field on the chain nearest the root, if any (ADR-0008 Shape (#92)). */
-    Optional<RefusedField> refused() {
+    /**
+     * The refused field on the chain nearest the root, if any (ADR-0008 Shape (#92)), among those
+     * whose refusal holds on the side the chain is on: every refusal in a target, and in a source
+     * every one but {@code abstract-target-element} (#95).
+     */
+    Optional<RefusedField> refused(boolean target) {
       return IntStream.rangeClosed(1, chain.size())
-          .filter(depth -> chain.get(depth - 1).refusal().isPresent())
+          .filter(
+              depth ->
+                  chain
+                      .get(depth - 1)
+                      .refusal()
+                      .filter(refusal -> target || refusesSource(refusal.reason()))
+                      .isPresent())
           .mapToObj(
               depth -> new RefusedField(path(depth), chain.get(depth - 1).refusal().orElseThrow()))
           .findFirst();
@@ -158,6 +169,15 @@ public final class Lowering {
 
   /** A refused field on a named path: its path and its refusal. */
   private record RefusedField(FieldPath path, Refusal refusal) {}
+
+  /** Whether a source-field box on a field refused for {@code reason} is refused too. */
+  private static boolean refusesSource(Refusal.Reason reason) {
+    return switch (reason) {
+      case AMBIGUOUS_FIELD_PATH -> true;
+      // a source reads an abstract element; only a target cannot write one (ADR-0008)
+      case ABSTRACT_TARGET_ELEMENT -> false;
+    };
+  }
 
   private final MappingModel model;
   private final Structure source;
@@ -266,7 +286,7 @@ public final class Lowering {
    * PO requires its mapping (#2 §2).
    */
   private Optional<Named> targetField(String text, AuthoringId at) {
-    return named(target, text, at)
+    return named(target, true, text, at)
         .flatMap(
             named -> {
               FieldPath path = named.path();
@@ -322,7 +342,7 @@ public final class Lowering {
    * is reported at the box {@code at}.
    */
   private Optional<Named> sourceField(String text, AuthoringId at) {
-    return named(source, text, at)
+    return named(source, false, text, at)
         .flatMap(
             named -> {
               if (named.chain().size() < UNDER_ROOT) {
@@ -342,15 +362,16 @@ public final class Lowering {
    * The fields {@code text} names in {@code structure}, or empty once the reason it names none is
    * reported at {@code at}: one check for target fields and source fields. A path the structure
    * lacks is {@code orphaned-reference}, and a path through a refused field is refused with the
-   * refusal nearest the root (ADR-0008 Shape (#92)).
+   * refusal nearest the root that holds on {@code structure}'s side, the target's when {@code
+   * target} (ADR-0008 Shape (#92), #95).
    */
-  private Optional<Named> named(Structure structure, String text, AuthoringId at) {
+  private Optional<Named> named(Structure structure, boolean target, String text, AuthoringId at) {
     Optional<Named> named = resolve(structure, text);
     if (named.isEmpty()) {
       report(MappingDiagnostics.ORPHANED_REFERENCE, at, "the structure has no field " + text);
       return Optional.empty();
     }
-    Optional<RefusedField> refused = named.get().refused();
+    Optional<RefusedField> refused = named.get().refused(target);
     if (refused.isPresent()) {
       found.add(refusal(refused.get().path(), refused.get().refusal(), new AtAuthoringId(at)));
       return Optional.empty();
@@ -431,6 +452,20 @@ public final class Lowering {
                   + ":"
                   + refusal.column()
                   + "; a field path cannot tell the siblings apart");
+      case ABSTRACT_TARGET_ELEMENT ->
+          new Diagnostic(
+              Severity.ERROR,
+              MappingDiagnostics.ABSTRACT_TARGET_ELEMENT,
+              location,
+              path
+                  + " is declared abstract at "
+                  + refusal.file()
+                  + " "
+                  + refusal.line()
+                  + ":"
+                  + refusal.column()
+                  + "; a target cannot write an abstract element or an element of an abstract"
+                  + " type");
     };
   }
 

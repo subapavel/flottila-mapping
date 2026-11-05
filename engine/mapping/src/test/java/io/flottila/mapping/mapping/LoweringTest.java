@@ -1333,6 +1333,65 @@ class LoweringTest {
     assertThat(document.content()).extracting(Expr::origin).containsExactly(id("t1"), id("t2"));
   }
 
+  /** {@code mappings} from {@link TestStructures#abstractTarget()} to itself. */
+  private static LowerResult lowerAbstract(Object... pathThenMapping) {
+    Structure structure = TestStructures.abstractTarget();
+    return Lowering.lower(
+        model(ref(structure), ref(structure), targetFieldMappings(pathThenMapping), Map.of()),
+        structure,
+        structure);
+  }
+
+  /**
+   * #95 (ADR-0008 "Refused when a mapping uses the field"): a target field mapping on an abstract
+   * element, or on a path through one, is abstract-target-element at the mapping, its message
+   * naming the abstract declaration's file, line and column; the refusal nearest the root wins.
+   */
+  @Test
+  void aTargetFieldMappingOnAnAbstractElementIsAbstractTargetElementThere() {
+    LowerResult shape = lowerAbstract("/Doc/Shape", copy("t1", "/Doc/Id"));
+    LowerResult below = lowerAbstract("/Doc/Shape/Colour", copy("t1", "/Doc/Id"));
+
+    for (LowerResult result : List.of(shape, below)) {
+      assertThat(refused(result)).containsExactly(errorAtId("abstract-target-element", "t1"));
+      assertThat(messages(result).getFirst())
+          .contains("/Doc/Shape ")
+          .contains(TestStructures.SHAPES_FILE + " 7:48")
+          .doesNotContain("9:51");
+    }
+  }
+
+  /**
+   * An abstract element is refused in a target only: a source-field box reads one, or a field below
+   * one, and the model lowers. A field below it that is refused for another reason is refused at
+   * the box with that reason.
+   */
+  @Test
+  void aSourceBoxOnAnAbstractElementLowersAndAnotherRefusalBelowItStands() {
+    assertThat(lowerAbstract("/Doc/Id", copy("t1", "/Doc/Shape/Size"))).isInstanceOf(Lowered.class);
+    assertThat(lowerAbstract("/Doc/Id", copy("t1", "/Doc/Shape"))).isInstanceOf(Lowered.class);
+
+    LowerResult colour = lowerAbstract("/Doc/Id", copy("t1", "/Doc/Shape/Colour"));
+    assertThat(refused(colour)).containsExactly(errorAtId("ambiguous-field-path", "st1"));
+    assertThat(messages(colour).getFirst()).contains(TestStructures.SHAPES_FILE + " 9:51");
+  }
+
+  /**
+   * The target walk never enters an abstract element: an unmapped mandatory one under a created
+   * parent is abstract-target-element at its pointer, instead of unmapped-mandatory-leaf; an
+   * unmapped optional one is left out.
+   */
+  @Test
+  void anUnmappedMandatoryAbstractElementIsAbstractTargetElementAtItsPointer() {
+    LowerResult result = lowerAbstract("/Doc/Box", copy("t1", "/Doc/Box"));
+
+    assertThat(refused(result))
+        .containsExactly(errorAtPointer("abstract-target-element", unmapped("/Doc/Box/Need")));
+    assertThat(messages(result).getFirst())
+        .contains("/Doc/Box/Need")
+        .contains(TestStructures.SHAPES_FILE + " 21:61");
+  }
+
   /** The one expression of {@code content}, which is a {@code type}. */
   private static <T extends Expr> T only(List<Expr> content, Class<T> type) {
     assertThat(content).hasSize(1).first().isInstanceOf(type);
