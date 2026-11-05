@@ -1,6 +1,6 @@
 # A mapping stores its schema bundle; the structure is re-derived and guarded by a fingerprint
 
-Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied); anonymous type ids since #62
+Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied); anonymous type ids since #62; amended by the spec-4 grilling (2026-11-05): what refresh reports, the compile check, fingerprint stability
 
 A mapping stores three things for each side:
 
@@ -22,6 +22,26 @@ Re-importing a new schema version compares the two structures by field path (ADR
   editor marks it. Compiling raises a design-time error with the `AuthoringId` of the box that
   uses it.
 - A changed occurrence or value type is a warning.
+
+Amended (spec-4 grilling, 2026-11-05): no old structure is stored (snapshots were rejected
+below), and git has usually replaced the old schema file, so refresh cannot diff two
+structures. Refresh:
+
+1. re-derives both fingerprints;
+2. lists the orphaned references, as `orphaned-reference` at the `authoringId` of the box or
+   target field mapping that uses the path;
+3. returns the stage-3 diagnostics of the refreshed working copy. A changed occurrence or value
+   type shows through its real consequences, such as `unmapped-mandatory-leaf` or a failing cast.
+
+There is no occurrence or type-change warning. Compile (stage 3) re-reads the bundle and
+compares fingerprints. A mismatch is `fingerprint-mismatch` at `/source/fingerprint` or
+`/target/fingerprint`, and it blocks compile and test. Only refresh re-derives a fingerprint;
+Save never does (ADR-0010).
+
+A field's refusal (ADR-0008) is part of the canonical text. Extending the reader must not change
+the canonical text of a structure it already read: a test pins the fingerprints of the spec-2
+subset as literals. A change that must alter them says so in its ticket, and the corpus mappings
+are refreshed through the refresh path, never edited by hand.
 
 An anonymous complex type has no name of its own, so its canonical type id is the field path
 of the element that declares it. Sibling structure fields that share one step get ids `path`,

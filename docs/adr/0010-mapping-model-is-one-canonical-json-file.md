@@ -54,6 +54,8 @@ It holds everything that decides the mapping's result, as SAP PO's `<mappingtool
   the same repo, or a raised package version, shows its effect in CI. A *refresh* re-derives the
   fingerprint and lists the orphaned references. Opening and saving the mapping in the editor
   does the same.
+  Clarified (spec-4 grilling, 2026-11-05): that is editor behaviour. The editor calls refresh
+  (spec 5). The service's Save stays byte-faithful and never re-derives a fingerprint.
 - Versions sit on package references. A mapping moves to a new version of a UDF library by
   changing `source` in `udfs`. Two versions of one UDF in one mapping are two `udfs` entries.
   Standard functions have no version. They are bound to the engine. A change of meaning gets a

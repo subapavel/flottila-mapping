@@ -1,6 +1,6 @@
 # The service API: stateless compile and test on the working copy, one diagnostic shape, code-first OpenAPI
 
-Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`); trace shape refined by #53
+Status: accepted (2026-10-30, grilling #12); refined by ADR-0020 (UDF scan endpoint, trace `messages`, `flottila:UDF-ERROR`); trace shape refined by #53; refresh result refined by the spec-4 grilling (2026-11-05)
 
 ADR-0013 makes the editor reach the service only through `ApiClient`, with compile and test
 on the unsaved working copy, and generated wire types only. This ADR fixes the contract and
@@ -19,13 +19,16 @@ contract, and the editor ships with the service.
 | `PUT /api/mappings/{id}` (Save) | working copy, `If-Match` → canonical model, new `ETag` |
 | `POST /api/mappings/{id}/compile` | working copy → diagnostics |
 | `POST /api/mappings/{id}/test` | working copy, input message → output or runtime error, diagnostics, trace |
-| `POST /api/mappings/{id}/refresh` | working copy → working copy with new fingerprints, orphaned references |
+| `POST /api/mappings/{id}/refresh` | working copy → 200 `{model, diagnostics}`: the working copy with new fingerprints, and the orphaned references with every other stage-3 diagnostic (ADR-0009) |
 | `POST /api/mappings/{id}/udfs/scan` | `{source}` → the declarations of the file's `@Udf` methods, or diagnostics (ADR-0020) |
 | `POST /api/structures` | `{bundle, root, base}` → structure graph, fingerprint |
 | `GET /api/catalogue` | → function catalogue |
 
 - Compile, test and refresh are stateless. The model comes from the body. `{id}` only locates
   the mapping file, so relative bundle paths resolve. Refresh never saves.
+- Refresh changes nothing in the model but the fingerprints. A side whose bundle fails to load
+  (including a package reference) keeps its fingerprint, and its load diagnostics are returned.
+  A load problem is never a 4xx (spec-4 grilling, 2026-11-05).
 - The display queue has no endpoint. The test result carries the whole trace, and the editor
   switches between boxes. The service keeps no run or session.
 - A structure goes over the wire as a graph: its types and each type's fields, not an expanded
