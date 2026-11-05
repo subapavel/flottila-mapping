@@ -12,9 +12,11 @@ import java.util.Set;
  * §8: no new dependency). It reads one JSON text by RFC 8259 and gives it as a sequence of events,
  * with no tree: {@link #next()} returns the next one, and {@link #text()} the key, string or number
  * of the last. A number keeps its input spelling, a string and a key are what they escape, with
- * U+FFFD for a character XML 1.0 cannot hold, as {@code json-to-xml} gives them. Anything else is
- * malformed input: a text that RFC 8259 refuses, content after the value, or an object with one key
- * twice, which compares keys as the strings they escape. Its state is a stack of the open
+ * U+FFFD for an escaped character XML 1.0 cannot hold, as {@code json-to-xml} gives them. A leading
+ * byte order mark is dropped, as {@code unparsed-text} drops it. Anything else is malformed input: a
+ * text that RFC 8259 refuses, a raw U+FFFE or U+FFFF in a string, which {@code unparsed-text}
+ * refuses, content after the value, or an object with one key twice, which compares keys as the
+ * strings they escape. Its state is a stack of the open
  * containers, so deep nesting needs no call stack.
  */
 final class JsonParser {
@@ -54,6 +56,9 @@ final class JsonParser {
   /** U+FFFD, which {@code json-to-xml} gives for a character XML 1.0 cannot hold. */
   private static final char REPLACEMENT = 0xFFFD;
 
+  /** U+FEFF, which {@code unparsed-text} drops where it leads the text. */
+  private static final char BYTE_ORDER_MARK = 0xFEFF;
+
   private final Reader in;
   private final char[] buffer = new char[8192];
   private int position;
@@ -72,6 +77,9 @@ final class JsonParser {
 
   private int state = VALUE;
 
+  /** Whether no event has been read yet, so that a byte order mark may lead the input. */
+  private boolean start = true;
+
   /** Whether the value the last event started is an item of an array. */
   private boolean item;
 
@@ -89,6 +97,14 @@ final class JsonParser {
    * @throws IOException when the input cannot be read, or is no UTF-8
    */
   int next() throws MalformedInputException, IOException {
+    if (start) {
+      start = false;
+      // a leading byte order mark is dropped, as unparsed-text drops it (observed in Saxon-HE
+      // 12.5, #89); it still counts in a position
+      if (peek() == BYTE_ORDER_MARK) {
+        position++;
+      }
+    }
     int c = skipWhitespace();
     return switch (state) {
       case VALUE -> value(c);
@@ -256,6 +272,11 @@ final class JsonParser {
       int c = peek();
       if (c == -1) {
         throw malformed("a string without its closing quote");
+      }
+      if (c == 0xFFFE || c == 0xFFFF) {
+        // raw, where an escaped one reads as U+FFFD: unparsed-text refuses the whole text
+        // (FOUT1190, observed in Saxon-HE 12.5, #89), so the output stays well-formed XML
+        throw malformed("a character XML 1.0 cannot hold in a string");
       }
       position++;
       if (c == '"') {
