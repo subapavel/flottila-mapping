@@ -12,8 +12,9 @@
 # and 2, and step 3 must run after it: -Pui needs clean (ADR-0017), and that clean deletes the JaCoCo and PIT
 # reports of service and its upstream modules. Every step runs even if an earlier one failed; each prints an
 # evidence word and its log. Exit 1 if any step failed. The script leaves ratchet/ modified; the verifier
-# commits it. The last lines are the PIT summary, one per module (`module killed/generated score% floor N% ok|DROP`),
-# then the corpus and differential case counts.
+# commits it. The last lines are the PIT summary, one per module (scripts/pit-summary.sh:
+# `module killed/generated survivors S floor N ok|DROP`, or against a ratchet row of the old format
+# `module killed/generated score% floor N% ok|DROP`), then the corpus and differential case counts.
 set -uo pipefail
 
 if [ $# -lt 1 ]; then
@@ -46,7 +47,8 @@ step "1 verify -Pbench" ".logs/${spec}-build.log" \
 step "1 contract diff" ".logs/${spec}-contract.log" \
   git diff --exit-code contract/
 
-# 1b: PIT on the class-C modules (floor 80 %, ADR-0019). test-compile first: PIT needs the classes of a clean tree;
+# 1b: PIT on the class-C modules (the build's 80 % threshold, then the survivor floor of ratchet/mutation.tsv,
+# ADR-0019). test-compile first: PIT needs the classes of a clean tree;
 # -am puts upstream modules in the reactor, and modules without a mutation floor set pit.skip.
 # One PIT run per module, each section preceded by `=== PIT <module> ===` in the log (#87).
 IFS=, read -ra pit_list <<< "$pit_modules"

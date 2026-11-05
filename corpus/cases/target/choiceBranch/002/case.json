@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/choice-branch-both.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0008 Consequences, assumed reading 1: a branch of a choice counts as optional for po:MINOCCURS; ADR-0008 XSD (the branches of a choice become sibling fields, a branch of a choice with two or more branches has minimum 0); ADR-0006 (TargetSlots(min, max) uses the effective occurrence); observation request obs-structures, mapping str-choice-1, row target/choiceBranch/002 (#36); ticket #94",
+  "expect": "output",
+  "note": "Id B, the mirror of target/choiceBranch/001: X1 gives SUPPRESS for Pick/A, declared minOccurs 1 inside the choice, and raises no po:MINOCCURS; Pick holds B only. Assumed until obs-structures str-choice-1 is observed."
+}

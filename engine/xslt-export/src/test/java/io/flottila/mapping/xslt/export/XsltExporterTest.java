@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
@@ -358,6 +359,11 @@ class XsltExporterTest {
             fieldLinkWith(
                 new ElementConstructor("", ORDER_ID, List.of(), x9), List.of(valueText()))),
         Arguments.of(
+            "an AttributeConstructor as a queue",
+            fieldLinkWith(
+                new AttributeConstructor("", new Name("", "code"), new Literal("x", x9), x9),
+                List.of(valueText()))),
+        Arguments.of(
             "a TargetSlots as a text's value",
             fieldLinkWith(
                 queue,
@@ -582,6 +588,159 @@ class XsltExporterTest {
                 + "          <xsl:for-each select=\"po:slots($po:queue1, $slot2, ())\">")
         // the copies' xsl:for-each ends after Pair, on a line of its own
         .contains("        </Pair>\n      </xsl:for-each>\n    </ns0:Order>\n");
+  }
+
+  // --- attributes (#102): a target attribute is xsl:attribute inside its item's xsl:for-each, its
+  // name through the output prefixes; a source attribute is an @ step
+
+  private static final Name CODE = new Name("", "code");
+  private static final Name LANG = new Name("urn:b", "lang");
+
+  /** {@code code} 1..1 from OrderId, then {@code ns1:lang} generated, then the OrderId leaf. */
+  private static TargetDocument attributes() {
+    AuthoringId t1 = id("t1");
+    AuthoringId t2 = id("t2");
+    return new TargetDocument(
+        "ns0",
+        ORDER,
+        ROOT,
+        List.of(
+            new TargetSlots(
+                underRoot(ORDER, ORDER_ID, "a1"),
+                new VarRef(ROOT, AtomicType.INTEGER, t1),
+                1,
+                1,
+                SLOT,
+                VALUE,
+                new AttributeConstructor("", CODE, new VarRef(VALUE, AtomicType.STRING, t1), t1),
+                t1),
+            new TargetRepeat(
+                1,
+                new VarRef(ROOT, AtomicType.INTEGER, t2),
+                SLOT,
+                new AttributeConstructor("ns1", LANG, new Literal("en", id("c2")), t2),
+                t2),
+            slots(underRoot(ORDER, ORDER_ID, "a3"), 0, 1, "", ORDER_ID, "t3")));
+  }
+
+  @Test
+  void attributeExportsAsXslAttribute() {
+    String stylesheet = XsltExporter.export(attributes());
+
+    // the qualified attribute's prefix is an output prefix, declared once on the stylesheet
+    assertThat(stylesheetStartTag(stylesheet))
+        .contains(" xmlns:ns0=\"urn:flottila:corpus:skeleton\" xmlns:ns1=\"urn:b\" ");
+    assertThat(stylesheet)
+        .contains(
+            "    <ns0:Order>\n"
+                + "      <xsl:for-each select=\"po:at-least(po:slots(po:source-queue("
+                + "array:join(/s0:Order ! [OrderId ! string()])), $root, 1), 1, 't1')\">\n"
+                + "        <xsl:variable name=\"slot2\" as=\"xs:integer\" select=\"?1\"/>\n"
+                + "        <xsl:variable name=\"value2\" as=\"xs:string\" select=\"?2\"/>\n"
+                + "        <xsl:attribute name=\"code\" select=\"$value2\"/>\n"
+                + "      </xsl:for-each>\n"
+                + "      <xsl:for-each select=\"1 to 1\">\n"
+                + "        <xsl:variable name=\"slot2\" as=\"xs:integer\""
+                + " select=\"($root - 1) * 1 + .\"/>\n"
+                + "        <xsl:attribute name=\"ns1:lang\" select=\"'en'\"/>\n"
+                + "      </xsl:for-each>\n"
+                + "      <xsl:for-each select=\"po:slots(po:source-queue("
+                + "array:join(/s0:Order ! [OrderId ! string()])), $root, 1)\">\n");
+  }
+
+  /**
+   * A simple-content leaf: its attribute item, then its text, which starts a line of its own after
+   * the item, and its end tag on a line of its own (#102).
+   */
+  @Test
+  void aTextAfterAttributeItemsStartsItsOwnLine() {
+    Name note = new Name("", "Note");
+    AuthoringId t1 = id("t1");
+    AuthoringId t2 = id("t2");
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetSlots(
+                    underRoot(ORDER, note, "a1"),
+                    new VarRef(ROOT, AtomicType.INTEGER, t1),
+                    0,
+                    1,
+                    SLOT,
+                    VALUE,
+                    new ElementConstructor(
+                        "",
+                        note,
+                        List.of(
+                            new TargetRepeat(
+                                1,
+                                new VarRef(SLOT, AtomicType.INTEGER, t2),
+                                "slot3",
+                                new AttributeConstructor("", CODE, new Literal("x", id("c2")), t2),
+                                t2),
+                            new TextConstructor(new VarRef(VALUE, AtomicType.STRING, t1), t1)),
+                        t1),
+                    t1)));
+
+    assertThat(XsltExporter.export(document))
+        .contains(
+            "        <Note>\n"
+                + "          <xsl:for-each select=\"1 to 1\">\n"
+                + "            <xsl:variable name=\"slot3\" as=\"xs:integer\""
+                + " select=\"($slot2 - 1) * 1 + .\"/>\n"
+                + "            <xsl:attribute name=\"code\" select=\"'x'\"/>\n"
+                + "          </xsl:for-each>\n"
+                + "          <xsl:value-of select=\"$value2\"/>\n"
+                + "        </Note>\n");
+  }
+
+  /**
+   * A source attribute's queue reads its last step as {@code @name}, under its source prefix when
+   * it has a namespace, in its element's context or any ancestor's (#102).
+   */
+  @Test
+  void sourceAttributeExportsAsAtStep() {
+    Name item = new Name("", "Item");
+    Name id = new Name("", "id");
+    TargetDocument document =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                slots(
+                    new SourceQueue(List.of(ORDER, CODE), 1, false, true, id("a1")),
+                    0,
+                    1,
+                    "",
+                    ORDER_ID,
+                    "t1"),
+                slots(
+                    new SourceQueue(List.of(ORDER, item, id), 1, false, true, id("a2")),
+                    0,
+                    UNBOUNDED,
+                    "",
+                    new Name("", "Note"),
+                    "t2"),
+                slots(
+                    new SourceQueue(List.of(ORDER, item, LANG), 2, false, true, id("a3")),
+                    0,
+                    UNBOUNDED,
+                    "",
+                    new Name("", "Lang"),
+                    "t3")));
+    IrVerifier.verify(document);
+
+    String stylesheet = XsltExporter.export(document);
+
+    assertThat(stylesheetStartTag(stylesheet)).contains(" xmlns:s1=\"urn:b\" ");
+    assertThat(stylesheet)
+        .contains(
+            "po:source-queue(array:join(/s0:Order ! [@code ! string()]))",
+            "po:source-queue(array:join(/s0:Order ! [Item/@id ! string()]))",
+            "po:source-queue(array:join(/s0:Order/Item ! [@s1:lang ! string()]))");
   }
 
   /**

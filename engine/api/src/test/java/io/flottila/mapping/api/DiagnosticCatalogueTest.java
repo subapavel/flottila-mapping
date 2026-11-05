@@ -157,7 +157,19 @@ class DiagnosticCatalogueTest {
             // stage 3, an unmapped mandatory target leaf (#65)
             "unmapped-mandatory-leaf",
             // stage 3, a stored fingerprint that is not its bundle's (#91, ADR-0009)
-            "fingerprint-mismatch");
+            "fingerprint-mismatch",
+            // stage 3, a field a mapping uses or must create that has no unique field path (#92,
+            // ADR-0008 "Refused when a mapping uses the field")
+            "ambiguous-field-path",
+            // stage 3, a target field of a repeated group of two or more particles that a mapping
+            // writes or must create (#94, ADR-0008 "Refused when a mapping uses the field")
+            "interleaved-target-group",
+            // stage 3, an abstract element, an element of an abstract type or a field below one
+            // that a mapping writes or must create (#95, ADR-0008 "Refused when a mapping uses
+            // the field")
+            "abstract-target-element",
+            // stage 3, a mapping with a JSON target (#97, ADR-0008)
+            "json-target-unsupported");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",
@@ -167,7 +179,9 @@ class DiagnosticCatalogueTest {
             "schema-unreadable",
             "root-selector-unsupported",
             // a package reference the host's resolver does not read (#90, ADR-0014)
-            "package-reference-unsupported");
+            "package-reference-unsupported",
+            // an xs:import, xs:include or $ref that names no bundle file (#93, #97, ADR-0008)
+            "schema-reference-outside-bundle");
     assertThat(all).filteredOn(KEBAB.negate()).as("codes that are not kebab-case").isEmpty();
     assertThat(all).as("codes across all modules").doesNotHaveDuplicates();
     // witness: the kebab check refuses what is not kebab-case

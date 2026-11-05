@@ -67,8 +67,8 @@ public class StructuresResource {
     return switch (Structures.load(
         workspace.resolver(base), bundle, RootSelectorJson.read(request.root()))) {
       case StructureResult.Loaded(Structure structure) -> StructureLoaded.of(structure);
-      case StructureResult.Refused(Diagnostic diagnostic) ->
-          new StructureRefused(List.of(DiagnosticDto.of(diagnostic)));
+      case StructureResult.Refused(List<Diagnostic> diagnostics) ->
+          new StructureRefused(DiagnosticDto.all(diagnostics));
     };
   }
 }

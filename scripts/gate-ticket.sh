@@ -10,7 +10,10 @@
 #                    changed against it (without it they always run), and the trailers of <ref>..HEAD are checked.
 #
 # Every step runs even if an earlier one failed. Each prints an evidence word (VERIFIED_PASS, EXECUTED_FAIL, NOT_RUN)
-# and its log. Exit 1 if any step failed. The last lines are the PIT summary, one per class-C module among <modules>:
+# and its log. Exit 1 if any step failed. The last lines are the PIT summary, one per class-C module among <modules>
+# (scripts/pit-summary.sh):
+#   <module> <killed>/<generated> survivors <S> floor <N> ok|DROP
+# or, against a ratchet row of the old format (`module TAB score %`):
 #   <module> <killed>/<generated> <score>% floor <N>% ok|DROP
 set -uo pipefail
 
@@ -46,7 +49,8 @@ step "1 build $modules,engine/oracle" ".logs/${ticket}-build.log" \
 
 # 1b: PIT on the class-C engine modules among <modules> (floor in ratchet/mutation.tsv, ADR-0019). test-compile first:
 # PIT needs the classes of a clean tree; -am puts upstream modules in the reactor, where pit.skip skips those without
-# a mutation floor. A score below the floor is EXECUTED_FAIL. The summary lines are printed last.
+# a mutation floor. More survivors than the floor row allows (for an old-format row, a score below it) is
+# EXECUTED_FAIL. The summary lines are printed last.
 class_c="engine/xdm engine/ir engine/runtime engine/serializer engine/mapping engine/xslt-export engine/api engine/udf-api engine/udf"
 pit_modules=()
 for m in ${modules//,/ }; do

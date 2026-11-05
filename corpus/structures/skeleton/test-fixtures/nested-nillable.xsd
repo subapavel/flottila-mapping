@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Fixture (#62): a nillable structure field is outside the nested subset -->
+<!-- Fixture (#62, #89 review): nillable on a structure field, accepted with no effect -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            targetNamespace="urn:flottila:corpus:skeleton">
   <xs:element name="Order">

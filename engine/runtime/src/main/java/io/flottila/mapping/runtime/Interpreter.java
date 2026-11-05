@@ -2,6 +2,7 @@ package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
@@ -73,7 +74,7 @@ public final class Interpreter {
             root.localName(),
             compiler.contents(document.content(), scope));
     return new ExecutableMapping(
-        new Projection(List.copyOf(compiler.plan.keySet())),
+        Projection.of(document.input(), List.copyOf(compiler.plan.keySet())),
         rootSlot,
         element,
         compiler.integerSlotCount,
@@ -103,6 +104,12 @@ public final class Interpreter {
       case ElementConstructor e ->
           new Node.Element(
               e.prefix(), e.name().namespace(), e.name().localName(), contents(e.content(), scope));
+      case AttributeConstructor a ->
+          new Node.Attribute(
+              a.prefix(),
+              a.name().namespace(),
+              a.name().localName(),
+              (Node.OfString) compile(a.value(), scope));
       case TextConstructor t -> text((Node.OfString) compile(t.value(), scope));
       case AtomicToQueue a -> atomicToQueue((Node.OfString) compile(a.value(), scope));
     };
@@ -119,7 +126,8 @@ public final class Interpreter {
   private Node.OfQueue queue(SourceQueue q) {
     int index =
         plan.computeIfAbsent(
-            new Projection.Queue(q.field(), q.contextDepth(), q.structureField()),
+            new Projection.Queue(
+                q.field(), q.contextDepth(), q.structureField(), q.attribute(), q.arrays()),
             k -> plan.size());
     return traced(q.origin(), frame -> frame.queues[index]);
   }

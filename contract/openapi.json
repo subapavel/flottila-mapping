@@ -55,7 +55,7 @@
         "properties" : {
           "kind" : {
             "type" : "string",
-            "enum" : [ "element", "attribute" ]
+            "enum" : [ "element", "attribute", "json-property" ]
           },
           "step" : {
             "type" : "string"
@@ -186,6 +186,21 @@
           },
           "detail" : {
             "type" : "string"
+          }
+        }
+      },
+      "RefreshResponse" : {
+        "type" : "object",
+        "required" : [ "model", "diagnostics" ],
+        "properties" : {
+          "model" : {
+            "$ref" : "./mapping-model.schema.json"
+          },
+          "diagnostics" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DiagnosticDto"
+            }
           }
         }
       },
@@ -807,6 +822,83 @@
           }
         },
         "summary" : "Get",
+        "tags" : [ "Mappings Resource" ]
+      }
+    },
+    "/api/mappings/{id}/refresh" : {
+      "post" : {
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : ".+"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "./mapping-model.schema.json"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The refreshed working copy and its diagnostics",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path or malformed-json",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: the mapping's directory",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415" : {
+            "description" : "unsupported-media-type",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "model-refused: validation stage 1 or 2 refuses the working copy",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RefusedProblem"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Refresh",
         "tags" : [ "Mappings Resource" ]
       }
     },

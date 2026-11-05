@@ -10,6 +10,7 @@ import io.flottila.mapping.api.CompileOptions;
 import io.flottila.mapping.api.CompileResult;
 import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
+import io.flottila.mapping.api.RefreshResult;
 import io.flottila.mapping.api.StructureResult;
 import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.api.TestRunResult;
@@ -54,11 +55,13 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
 /**
  * {@code /api/mappings} (ADR-0014, ADR-0015, ADR-0024): list, create, open and save the mappings of
- * the workspace, and test-run a working copy. A saved model's bytes never pass through Jackson:
- * {@code save} reads the body as bytes, so the engine's strict reader sees them as sent, and every
- * answer is the engine's canonical form. A test run's working copy is a member of a JSON request
- * body: Jackson parses it into a tree, and {@code test} writes that tree back to bytes with {@code
- * writeValueAsBytes}, so the engine reads Jackson's serialisation, not the bytes as sent.
+ * the workspace, and test-run or refresh a working copy. A saved model's bytes never pass through
+ * Jackson: {@code save} reads the body as bytes, so the engine's strict reader sees them as sent,
+ * and every answer is the engine's canonical form. {@code refresh} reads its body as bytes too; its
+ * answer's {@code model} member is the canonical bytes read into a tree, whose member order Jackson
+ * keeps. A test run's working copy is a member of a JSON request body: Jackson parses it into a
+ * tree, and {@code test} writes that tree back to bytes with {@code writeValueAsBytes}, so the
+ * engine reads Jackson's serialisation, not the bytes as sent.
  */
 @jakarta.ws.rs.Path("/api/mappings")
 public class MappingsResource {
@@ -318,6 +321,62 @@ public class MappingsResource {
   }
 
   /**
+   * Refresh (ADR-0015, ADR-0009 as amended on 2026-11-05): the working copy in the body, never the
+   * stored file, comes back in canonical form with both fingerprints re-derived, with its orphaned
+   * references and every other stage-3 diagnostic. A side whose bundle fails to load keeps its
+   * fingerprint and gives its load diagnostics in the 200. Nothing is saved. The id only locates
+   * the directory the bundle references are relative to.
+   */
+  @POST
+  @jakarta.ws.rs.Path(ID + "/refresh")
+  @Consumes(APPLICATION_JSON)
+  @Produces(APPLICATION_JSON)
+  @APIResponse(
+      responseCode = "200",
+      description = "The refreshed working copy and its diagnostics",
+      content =
+          @Content(
+              mediaType = APPLICATION_JSON,
+              schema = @Schema(implementation = RefreshResponse.class)))
+  @APIResponse(
+      responseCode = "400",
+      description = "invalid-workspace-path or malformed-json",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "404",
+      description = "not-found: the mapping's directory",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "415",
+      description = "unsupported-media-type",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "422",
+      description = "model-refused: validation stage 1 or 2 refuses the working copy",
+      content =
+          @Content(
+              mediaType = PROBLEM_JSON,
+              schema = @Schema(implementation = RefusedProblem.class)))
+  public RefreshResponse refresh(
+      @PathParam("id") String id,
+      @RequestBody(content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
+          InputStream body)
+      throws IOException, WorkspacePathException, MalformedJsonException, ModelRefusedException {
+    ReferenceResolver resolver = workspace.resolver(workspace.mappingDirectory(id));
+    return switch (facade.refresh(body.readAllBytes(), resolver)) {
+      case RefreshResult.Refreshed(byte[] model, List<Diagnostic> diagnostics) ->
+          new RefreshResponse(json.readTree(model), DiagnosticDto.all(diagnostics));
+      case RefreshResult.Refused(List<Diagnostic> diagnostics) ->
+          throw new ModelRefusedException(
+              "the mapping model is refused by validation stage 1 or 2",
+              DiagnosticDto.all(diagnostics));
+    };
+  }
+
+  /**
    * Compiles the working copy, reading its bundle files through {@code resolver}, which refuses a
    * reference that escapes (#90), and runs it for at most the test-run timeout, with the engine's
    * trace capped at the trace limit.
@@ -345,7 +404,8 @@ public class MappingsResource {
   }
 
   /**
-   * The structure {@code choice} names, or empty once its load error is added to {@code refusals}.
+   * The structure {@code choice} names, or empty once every load error of its bundle is added to
+   * {@code refusals}.
    */
   private static Optional<StructureRef> structure(
       ReferenceResolver resolver, StructureChoice choice, List<Diagnostic> refusals)
@@ -355,8 +415,8 @@ public class MappingsResource {
     return switch (Structures.load(resolver, bundle, root)) {
       case StructureResult.Loaded(Structure structure) ->
           Optional.of(new StructureRef(bundle, root, structure.fingerprint()));
-      case StructureResult.Refused(Diagnostic diagnostic) -> {
-        refusals.add(diagnostic);
+      case StructureResult.Refused(List<Diagnostic> diagnostics) -> {
+        refusals.addAll(diagnostics);
         yield Optional.empty();
       }
     };

@@ -22,6 +22,7 @@ import io.flottila.mapping.runtime.ExecutableMapping;
 import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.xslt.export.XsltExporter;
@@ -658,6 +659,58 @@ class EngineFacadeTest {
                     error("unconnected-target-field", new AtAuthoringId(new AuthoringId("t1"))))));
   }
 
+  /**
+   * #97, ADR-0008 "JSON as a target": a JSON Schema loads as a target, and a mapping with it does
+   * not compile or export: {@code json-target-unsupported} at {@code /target}, beside a stage-3
+   * error of the source side. The target's fingerprint is its bundle's, so nothing else refuses it.
+   */
+  @Test
+  void aJsonTargetIsJsonTargetUnsupportedAtTarget() throws Exception {
+    RecordingResolver resolver =
+        new RecordingResolver()
+            .file(
+                "order.xsd",
+                Files.readAllBytes(CorpusStructures.directory("skeleton").resolve("order.xsd")))
+            .file(
+                "order.schema.json",
+                """
+                {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}}
+                """);
+    StructureResult target =
+        Structures.load(resolver, new SchemaBundle(List.of("order.schema.json")), new JsonRoot());
+    if (!(target instanceof StructureResult.Loaded(var structure))) {
+      throw new AssertionError("expected the JSON target to load, got " + target);
+    }
+    String model =
+        """
+        {"formatVersion": 1,
+         "source": {"bundle": ["order.xsd"], "fingerprint": "%s",
+                    "root": {"element": "Q{urn:flottila:corpus:skeleton}Order"}},
+         "target": {"bundle": ["order.schema.json"], "fingerprint": "%s", "root": {"json": "$"}}}
+        """;
+    EngineFacade facade = new EngineFacade();
+    List<String> jsonTarget =
+        described(List.of(error("json-target-unsupported", new AtPointer("/target"))));
+    byte[] matching = model.formatted(FINGERPRINT, structure.fingerprint()).getBytes(UTF_8);
+    byte[] staleSource = model.formatted(STALE, structure.fingerprint()).getBytes(UTF_8);
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      assertThat(described(refusal(facade.compile(matching, resolver, options))))
+          .as("%s", options)
+          .containsExactlyElementsOf(jsonTarget);
+    }
+    assertThat(facade.export(matching, resolver))
+        .isInstanceOfSatisfying(
+            ExportResult.Refused.class,
+            r -> assertThat(described(r.diagnostics())).containsExactlyElementsOf(jsonTarget));
+    assertThat(described(refusal(facade.compile(staleSource, resolver, DEPLOY))))
+        .containsExactlyInAnyOrderElementsOf(
+            described(
+                List.of(
+                    error("fingerprint-mismatch", new AtPointer("/source/fingerprint")),
+                    error("json-target-unsupported", new AtPointer("/target")))));
+  }
+
   @Test
   void aLoadRefusalIsACompileRefusal() throws Exception {
     byte[] newer =
@@ -712,6 +765,42 @@ class EngineFacadeTest {
                 List.of(
                     error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
                     error("schema-unreadable", new AtFilePosition("z-source.xsd", 1, 1)))));
+  }
+
+  /**
+   * #93 (ADR-0008): every load error of each side, not only each side's first, comes back in one
+   * refusal: here the source's two refusals and the target's own. Beside them, the missing root
+   * {@code Order} is not looked up.
+   */
+  @Test
+  void compileReportsEveryLoadErrorOfBothSides(@TempDir Path base) throws Exception {
+    Files.writeString(
+        base.resolve("a-target.xsd"),
+        "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n</xs:element>\n");
+    Files.writeString(
+        base.resolve("z-source.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:group name="G"/>
+          <xs:notation name="H"/>
+        </xs:schema>
+        """);
+    byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
+
+    List<Diagnostic> diagnostics =
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
+                    error(
+                        "schema-construct-unsupported", new AtFilePosition("z-source.xsd", 2, 23)),
+                    error(
+                        "schema-construct-unsupported",
+                        new AtFilePosition("z-source.xsd", 3, 26)))));
   }
 
   /**

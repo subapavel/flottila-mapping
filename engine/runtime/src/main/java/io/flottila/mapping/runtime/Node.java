@@ -266,4 +266,28 @@ interface Node {
       frame.out.endElement();
     }
   }
+
+  /**
+   * {@code AttributeConstructor} (ADR-0006 since #102): the attribute, with its value, on the
+   * element whose start tag is open, as the IR verifier places it first in its element's content.
+   */
+  final class Attribute implements OfContent {
+
+    private final String prefix;
+    private final String namespace;
+    private final String localName;
+    private final OfString value;
+
+    Attribute(String prefix, String namespace, String localName, OfString value) {
+      this.prefix = prefix;
+      this.namespace = namespace;
+      this.localName = localName;
+      this.value = value;
+    }
+
+    @Override
+    public void write(Frame frame) throws IOException {
+      frame.out.attribute(prefix, namespace, localName, value.eval(frame));
+    }
+  }
 }

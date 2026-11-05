@@ -32,3 +32,9 @@ Durable facts only (AGENTS.md, Memory).
   throws `DuplicateObjectPropertyException`; `JsonPointer.toString()` prints `#/a/b`.
 - json-sKema 0.32.0 reported VALID for a function box with `inputs: ["a1", "a.1"]` under a
   `oneOf` of `$ref` box branches, though `items` alone fails it (seen 2026-10-31).
+- A corpus red that adds mappings can fail only on fingerprint-mismatch: also show the behaviour
+  red (#118, the red-oracle prefix).
+- A hand-written canonical text hashed with `sha256sum` reproduces `Structure.fingerprint()`; pin
+  that literal, never recompute it in the test (#118, spec #89 review).
+- Malformed-input behaviour cannot be a corpus case (`expected-error.json` needs `authoringId`):
+  pin it in a hand-written oracle test (`JsonDuplicateKeyTest`, `JsonRawCharacterTest`).
