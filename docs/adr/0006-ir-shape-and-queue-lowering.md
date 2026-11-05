@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -114,6 +114,22 @@ for-each over the source context".
 - Since #63 a source structure field maps onto a target structure field: its source queue is one
   `""` per occurrence (ADR-0008), `SourceQueue` carries a `structureField` flag, and the export
   reads it as `[field ! '']`.
+- Since #102 a target attribute is a leaf, 0..1, or 1..1 when `use="required"`.
+  - It is a `TargetSlots` (max 1), or a generating `TargetRepeat` (1 copy), whose body is an
+    `AttributeConstructor`.
+  - These items come first in their element's content, in target field order (ADR-0008).
+    `IrVerifier` refuses one placed after other content, and an `AttributeConstructor` anywhere
+    else.
+  - A SUPPRESS slot or an empty context writes no attribute. A `""` value writes `a=""`, as a
+    leaf writes `<E/>` (assumed, `obs-structures` row `str-attr`).
+  - A source attribute's `SourceQueue` sets `attribute`, and its default context is its element
+    (ADR-0007). The export reads `@name` and writes `xsl:attribute`.
+  - A simple-content leaf's content is its attributes, then its text.
+- Since #98 the IR names its input format: `TargetDocument.input` is an `InputFormat` (XML or
+  JSON), set by Lowering from the source structure's root selector (ADR-0008). A JSON
+  `SourceQueue` carries `arrays`, the depths (root = 1) of its path's steps that are array
+  properties, so the runtime
+  and the export read each array item as one occurrence.
 - Constructors are records per output format. Milestone 1 has the XML ones only. A JSON target
   adds records under the same `TargetSlots` / `TargetRepeat`; nothing existing changes.
 - An error after part of the output was written leaves the destination undefined. The API

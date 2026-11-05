@@ -1,5 +1,6 @@
 package io.flottila.mapping.service;
 
+import static io.flottila.mapping.service.Fixtures.FINGERPRINT;
 import static io.flottila.mapping.service.Fixtures.INPUT;
 import static io.flottila.mapping.service.Fixtures.NOTE_AT_10_UTC;
 import static io.flottila.mapping.service.Fixtures.NS;
@@ -292,6 +293,30 @@ class TestRunResourceTest {
         .containsExactly("error unconnected-target-field at id t1");
     assertThat(result.has("output")).isFalse();
     // a refused working copy never ran, so it has no trace (#53)
+    assertThat(result.has("trace")).isFalse();
+  }
+
+  /**
+   * #91 (ADR-0009 as amended on 2026-11-05): a working copy whose stored fingerprints are not the
+   * ones its bundles give is refused, 200 with {@code fingerprint-mismatch} at each side's
+   * fingerprint, and never runs.
+   */
+  @Test
+  void aStaleFingerprintIs200RefusedWithFingerprintMismatch() {
+    TempWorkspace.write("testing-fingerprint/order.mapping.json", corpusMapping());
+    String stale = workingCopy("\"a1\"").replace(FINGERPRINT, "sha256:" + "0".repeat(64));
+    assertThat(stale).as("both sides store the fingerprint").isNotEqualTo(workingCopy("\"a1\""));
+
+    Http.Reply reply = test("testing-fingerprint/order", testRequest(stale, INPUT));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).isEqualTo("refused");
+    assertThat(described(result.path("diagnostics")))
+        .containsExactly(
+            "error fingerprint-mismatch at pointer /source/fingerprint",
+            "error fingerprint-mismatch at pointer /target/fingerprint");
+    assertThat(result.has("output")).isFalse();
     assertThat(result.has("trace")).isFalse();
   }
 

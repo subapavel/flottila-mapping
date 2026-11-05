@@ -280,6 +280,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mappings/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["mapping-model.schema"];
+                };
+            };
+            responses: {
+                /** @description The refreshed working copy and its diagnostics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RefreshResponse"];
+                    };
+                };
+                /** @description invalid-workspace-path or malformed-json */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description not-found: the mapping's directory */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description unsupported-media-type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description model-refused: validation stage 1 or 2 refuses the working copy */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["RefusedProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mappings/{id}/test": {
         parameters: {
             query?: never;
@@ -442,7 +520,7 @@ export interface components {
         };
         FieldDto: {
             /** @enum {string} */
-            kind: "element" | "attribute";
+            kind: "element" | "attribute" | "json-property";
             step: string;
             namespace: string;
             localName: string;
@@ -493,6 +571,10 @@ export interface components {
             /** Format: int32 */
             status: number;
             detail: string;
+        };
+        RefreshResponse: {
+            model: components["schemas"]["mapping-model.schema"];
+            diagnostics: components["schemas"]["DiagnosticDto"][];
         };
         RefusedProblem: {
             /** Format: uri */
@@ -782,12 +864,18 @@ export interface components {
             /** @description The root element's EQName. */
             element: string;
         };
-        /** WsdlOperation */
+        /**
+         * WsdlOperation
+         * @description A WSDL operation's input, output or fault (ADR-0008). fault is present exactly when direction is fault. Names outside ASCII are not checked character by character.
+         */
         wsdlOperation: {
+            /** @description The portType (WSDL 1.1) or interface (WSDL 2.0), an EQName: Q{namespace}local, or a bare NCName when it has no namespace. */
             interface: string;
+            /** @description The operation's NCName. */
             operation: string;
             /** @enum {unknown} */
             direction: "input" | "output" | "fault";
+            /** @description The fault's NCName. */
             fault?: string;
         };
         /** WsdlRoot */
@@ -942,12 +1030,18 @@ export interface components {
                 wsdlRoot: {
                     wsdl: components["schemas"]["wsdlOperation"];
                 };
-                /** WsdlOperation */
+                /**
+                 * WsdlOperation
+                 * @description A WSDL operation's input, output or fault (ADR-0008). fault is present exactly when direction is fault. Names outside ASCII are not checked character by character.
+                 */
                 wsdlOperation: {
+                    /** @description The portType (WSDL 1.1) or interface (WSDL 2.0), an EQName: Q{namespace}local, or a bare NCName when it has no namespace. */
                     interface: string;
+                    /** @description The operation's NCName. */
                     operation: string;
                     /** @enum {unknown} */
                     direction: "input" | "output" | "fault";
+                    /** @description The fault's NCName. */
                     fault?: string;
                 };
                 /** JsonRoot */

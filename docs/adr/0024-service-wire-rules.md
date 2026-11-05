@@ -13,7 +13,8 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015; amende
 - A bundle reference matches `^(\.\./){0,16}[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`.
   - Since the spec-4 grilling (2026-11-05), a **package reference** also passes:
     `^[A-Za-z0-9_-][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.+-]*:/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`.
-  - The `:` and `@` it needs are allowed in this form only. It never reaches `Workspace`.
+  - The `:` and `@` it needs are allowed in this form only. It never reaches the three checks: the
+    service's resolver refuses it first (#90).
     Loading it gives `package-reference-unsupported` (ADR-0014).
 - In every path:
   - no segment starts with `.`;
@@ -47,7 +48,9 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015; amende
 
 - `model-refused` adds `diagnostics`. It answers:
   - a save refused at stage 1 or 2;
-  - a GET of a stored file that is refused.
+  - a GET of a stored file that is refused;
+  - a refresh whose working copy is refused at stage 1 or 2 (#99): the 200 answer carries a valid
+    model, so there is nothing to refresh.
 - Creating an existing id is 409. This is not the spec-5 `If-Match` 409.
 
 ## Results
@@ -65,7 +68,10 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015; amende
 - The service bypasses Jackson for model bytes on GET, PUT and create, so the strict reader and byte
   identity hold.
 - It calls only:
-  - `EngineFacade.load`, `save`, `compile`, `run`, `newMapping` and `testRun` (#54);
+  - `EngineFacade.load`, `save`, `compile`, `run`, `newMapping` and `testRun` (#54), and `refresh`
+    (#99);
+  - since #90, `Workspace.resolver` implements `ReferenceResolver` and builds `ResolvedFile` and
+    `UnresolvedReferenceException`; `Structures.load`, `compile` and `export` take it;
   - `Structures.load`;
   - `Structure.fingerprint()` and the structure's read accessors (root field and type definitions), which
     `/api/structures` maps to `FieldDto`.

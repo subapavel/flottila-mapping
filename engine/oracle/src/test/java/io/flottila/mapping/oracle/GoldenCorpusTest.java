@@ -17,6 +17,7 @@ import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.Location;
 import io.flottila.mapping.oracle.CaseFiles.CorpusCase;
 import io.flottila.mapping.runtime.MappingRunException;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,7 +71,7 @@ class GoldenCorpusTest {
     assertThat(c.expect()).isIn("output", "error", "none");
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
-    Path base = mapping.getParent();
+    ReferenceResolver base = DirectoryResolver.over(mapping.getParent());
     EngineFacade facade = c.facade();
 
     if (expectsRuntimeError(c)) {
@@ -182,7 +183,8 @@ class GoldenCorpusTest {
     Path mapping = CaseFiles.corpus().resolve(c.mapping());
     byte[] model = Files.readAllBytes(mapping);
     EngineFacade facade = c.facade();
-    CompileResult compiled = facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN);
+    CompileResult compiled =
+        facade.compile(model, DirectoryResolver.over(mapping.getParent()), CompileOptions.TEST_RUN);
     if (!(compiled instanceof CompileResult.Compiled(CompiledMapping tested))) {
       throw new AssertionError(c.id() + ": expected Compiled, got " + compiled);
     }
@@ -326,6 +328,18 @@ class GoldenCorpusTest {
     for (String[] step : steps.subList(1, steps.size())) {
       List<Node> next = new ArrayList<>();
       for (Node parent : level) {
+        if (step[1].startsWith("@")) {
+          // an attribute step (#102), the last: the parent's attribute of that name, if any
+          String[] attribute = step(step[1].substring(1));
+          Node found =
+              parent
+                  .getAttributes()
+                  .getNamedItemNS(attribute[0].isEmpty() ? null : attribute[0], attribute[1]);
+          if (found != null) {
+            next.add(found);
+          }
+          continue;
+        }
         for (Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
           if (named(child, step)) {
             next.add(child);

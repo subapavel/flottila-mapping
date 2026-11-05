@@ -88,7 +88,8 @@ class EngineFacadeTraceTest {
 
   private CompiledMapping compiled(byte[] model, Path base, CompileOptions options)
       throws Exception {
-    CompileResult result = facade.compile(model, base, options);
+    CompileResult result =
+        facade.compile(Fingerprints.refreshed(model, base), DirectoryResolver.over(base), options);
     if (result instanceof CompileResult.Compiled(CompiledMapping mapping)) {
       return mapping;
     }
@@ -745,6 +746,33 @@ class EngineFacadeTraceTest {
   @Test
   @Timeout(60)
   void aTimeoutTraceIsAPrefixOfTheFullTrace() throws Exception {
+    timeoutTraceIsAPrefixOfTheFullTrace(false);
+  }
+
+  /**
+   * The race of #103: the fake clock is descheduled after it saw Row, while the run goes on as far
+   * as it can. The clock, still inside the tracer's lock, waits until the run's thread is blocked
+   * at its next report, and fails when the run completes first, as it did before #103, when the
+   * clock held no lock.
+   */
+  @Test
+  @Timeout(60)
+  void aTimeoutTraceIsAPrefixOfTheFullTraceWhenTheClockIsDescheduled() throws Exception {
+    timeoutTraceIsAPrefixOfTheFullTrace(true);
+  }
+
+  /** Tracer's private lock; a renamed field fails the test here, naming it. */
+  private static Object tracerLock(Object tracer) {
+    try {
+      java.lang.reflect.Field field = tracer.getClass().getDeclaredField("lock");
+      field.setAccessible(true);
+      return field.get(tracer);
+    } catch (ReflectiveOperationException | RuntimeException e) {
+      throw new AssertionError("the fake clock needs the private field Tracer.lock: " + e, e);
+    }
+  }
+
+  private void timeoutTraceIsAPrefixOfTheFullTrace(boolean descheduled) throws Exception {
     CompiledMapping mapping = tested(corpusMapping("nested-grp-row-val.mapping.json"), mappings());
     StringBuilder xml = new StringBuilder("<Orders>");
     for (int o = 1; o <= 20_000; o++) {
@@ -761,19 +789,36 @@ class EngineFacadeTraceTest {
     EngineFacade timed =
         new EngineFacade(
             (run, timeout, tracer) -> {
-              while (tracer.occurrences().stream().noneMatch(o -> o.field().equals(row))) {
-                if (run.isDone()) {
-                  // the run ended before Row reported: its result, which the test refuses
-                  return run.get();
+              Object lock = tracerLock(tracer);
+              while (true) {
+                // Row's report and the throw are one step under the tracer's lock, which the run
+                // needs for every report: the run is blocked at its next report, live inside
+                // ExecutableMapping.run, however the threads are scheduled. Once the monitor is
+                // left (the throw), the run may go on, even to its end, before the facade's
+                // cancel; every assertion holds then: the result is a RuntimeError because the
+                // clock threw, the trace is a prefix, T2 is in it, and the thread was found live.
+                synchronized (lock) {
+                  if (tracer.occurrences().stream().anyMatch(o -> o.field().equals(row))) {
+                    Thread thread =
+                        platformThreadsInAMapping().stream()
+                            .filter(t -> !before.contains(t))
+                            .findFirst()
+                            .orElseThrow(
+                                () -> new AssertionError("no run's thread at Row's report"));
+                    timedOut.set(thread);
+                    // a descheduled clock: the run goes on until it blocks at its next report
+                    while (descheduled && thread.getState() != Thread.State.BLOCKED) {
+                      if (run.isDone()) {
+                        throw new AssertionError(
+                            "the run completed while the clock was descheduled");
+                      }
+                      Thread.onSpinWait();
+                    }
+                    throw new TimeoutException("the fake clock reached the timeout");
+                  }
                 }
                 Thread.onSpinWait();
               }
-              // Row has reported, so the run is live inside ExecutableMapping.run
-              platformThreadsInAMapping().stream()
-                  .filter(thread -> !before.contains(thread))
-                  .findFirst()
-                  .ifPresent(timedOut::set);
-              throw new TimeoutException("the fake clock reached the timeout");
             });
 
     TestRunResult result = timed.testRun(mapping, input, Duration.ofSeconds(60), Integer.MAX_VALUE);

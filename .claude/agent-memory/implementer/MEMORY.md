@@ -113,3 +113,30 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - FamilyLocalityTest fails on an XSL variable named like a catalogue function (`$count`): rename it.
 - Merging the integration tip: `git merge --no-ff -F <file>` with the §11 trailers; a plain merge
   fails gate row 2c (six such commits reached #84).
+
+## Spec 4
+
+- JUnit 6.1.3 quotes String arguments in a `{0}` display name; for plain names use
+  `Arguments.argumentSet(name, …)` with `name = "{argumentSetName}"` (#86).
+- A Saxon compile of an export costs about 40 ms, dominated by the helper module; a shared
+  Processor does not help. Compile once, run per input (#86).
+- The worktree guard refuses a Bash call mixing heredocs, `python3 - <<EOF`, loops or pipes: write
+  a helper script with Write and run it as plain `bash <file>` (#87).
+- Tests in `engine/api` and `engine/oracle` once stored fake fingerprints (`"sha256:"+"0".repeat(64)`);
+  compile now checks them (#91). Compute them with `Structures.load(...).structure().fingerprint()`
+  (`Fingerprints.refreshed(model, base)` in api tests).
+- `engine/structure-import` has a 100 % branch ratchet and no PIT (spec 4).
+- Named modules need surefire `--add-opens` for test reflection. `-Dtest=… verify` trips JaCoCo's
+  check: use `test` for a single class (spec 4).
+- Refresh corpus mapping fingerprints through `EngineFacade.refresh` from a scratch launcher
+  (classpath via `dependency:build-classpath`). `ss` is missing; read `/proc/net/tcp` (spec 4).
+- json-sKema 0.32.0 `minItems`/`maxItems` is `requireNumber().getValue()`: Integer, BigInteger,
+  Double or BigDecimal. Never `longValue()` it (javap `MaxItemsKt`, spec #89 review).
+- A json-sKema keyword key's position comes from `getProperties().keySet()` filtered by name;
+  `get(name)` returns only the value (spec #89 review).
+- Saxon-HE 12.5 `unparsed-text` raises FOUT1190 for a raw U+FFFE/U+FFFF and drops a leading BOM
+  (observed, spec #89 review).
+- JaCoCo: an arrow `switch` statement over an enum leaves the implicit default edge uncovered;
+  share an empty, reachable case (spec #89 review).
+- The worktree guard also refuses `-Dtest=Class#method*`, `git -C … | …`, `sed -n` with a variable
+  file and multi-`sed -i` chains: put them in a scratch script and run `bash <script>`.

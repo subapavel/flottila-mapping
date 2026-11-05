@@ -78,7 +78,8 @@ _Avoid_: loader, file reader, schema catalog
 
 **Refused field**:
 A field that loads and shows in the tree but that a mapping may not use, such as a same-step
-sibling or an abstract target element. It carries the reason and its declaration's position.
+sibling or an abstract target element. It carries its refusal: the reason and the position of
+the declaration that causes it. A field below it is refused with it.
 _Avoid_: unsupported field (the code for a target field the walk cannot create), invalid field
 
 **Source structure** / **Target structure**:
@@ -87,6 +88,11 @@ The structure a mapping reads from / writes to.
 **Field**:
 A node of a structure: an element, an attribute or a JSON property.
 _Avoid_: node (reserved for XDM), element (too narrow)
+
+**Array property**:
+A JSON property declared as an array: one field whose occurrences are the items of its array,
+whatever its `maxItems`. A value that is no array, `null` included, reads as absent (ADR-0008).
+_Avoid_: repeated property, list field
 
 **Structure field** / **Leaf field**:
 A field with child fields and no value of its own, whose queue holds one empty string per
@@ -275,7 +281,7 @@ The boundary between two contexts of a queue.
 **Slot**:
 One position of a queue: a value or SUPPRESS. Target occurrences and child contexts are counted
 in slots.
-_Avoid_: entry, element, item (reserved for XDM)
+_Avoid_: entry, element, item (reserved for XDM); empty slot (say empty context, or a slot holding `""`)
 
 **Empty context**:
 A context with no slots, as under a parent occurrence without children. A source queue whose
@@ -438,7 +444,7 @@ _Avoid_: safe path, sandboxed path
 
 **Workspace escape**:
 A path that would resolve outside the workspace: `..`, an absolute path, or a symlink pointing
-out. The service refuses it before any read.
+out. The service's reference resolver refuses it before any read.
 _Avoid_: jailbreak
 
 **Problem**:

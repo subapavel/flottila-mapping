@@ -36,3 +36,9 @@ Durable facts only (AGENTS.md, Memory).
   "a quotient that terminates is exact" in ArithmeticFamily and arithmetic.xsl.
 - A binder that downcasts to `Node.Literal` relies on a check IrVerifier does not make (#83).
 - A service config default with no witness test (#80 `time-zone=UTC`): ask for one.
+- A fake that echoes the asked reference cannot witness a name or no-host-text guarantee: check
+  port fakes against the ADR wording (#90).
+- A seeded loop inside one `@Test` recurs (#92, #118, `EngineFacadeRefusedFieldTest`): ADR-0018
+  wants one parameterised case per seed, the seed in the name.
+- Mutable accumulators (`SchemaFile`, `AttributeOwner`) carry boolean "kind" flags in records;
+  watch for a sealed type instead (spec #89 review).

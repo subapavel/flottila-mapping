@@ -22,7 +22,9 @@ import io.flottila.mapping.runtime.ExecutableMapping;
 import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,9 +108,23 @@ class EngineFacadeTest {
   private static final String FINGERPRINT =
       "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d";
 
-  /** The skeleton's schema directory: surefire runs in {@code engine/api}. */
-  private static Path skeleton() {
-    return CorpusStructures.directory("skeleton");
+  /** A resolver over the skeleton's schema directory: surefire runs in {@code engine/api}. */
+  private static ReferenceResolver skeleton() {
+    return DirectoryResolver.over(CorpusStructures.directory("skeleton"));
+  }
+
+  /** A resolver over the observation kit's schema directory. */
+  private static ReferenceResolver observations() {
+    return DirectoryResolver.over(CorpusStructures.directory("observations"));
+  }
+
+  /**
+   * {@code model}, a model over the observation kit's structures, storing their fingerprints
+   * ({@link Fingerprints}).
+   */
+  private static byte[] overTheKit(String model) {
+    return Fingerprints.refreshed(
+        model.getBytes(UTF_8), CorpusStructures.directory("observations"));
   }
 
   /** A model from {@code order.xsd} to itself with the given target field mappings. */
@@ -205,7 +221,7 @@ class EngineFacadeTest {
   @Test
   void compileAndRunReadASourceLeafAtAnyDepthInItsContext() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] input =
         ("<Orders><Order><Id>1</Id><Line><Sku>A</Sku><Qty>1</Qty></Line><Line><Sku>B</Sku></Line>"
                 + "</Order><Order><Line><Sku>C</Sku></Line></Order></Orders>")
@@ -223,7 +239,8 @@ class EngineFacadeTest {
               : "{\"kind\": \"source\", \"field\": \"/Orders/Order/Line/Sku\", \"context\": \"%s\"}"
                   .formatted(context.getKey());
       byte[] model =
-          """
+          overTheKit(
+              """
           {"formatVersion": 1,
            "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                       "root": {"element": "Orders"}},
@@ -232,8 +249,7 @@ class EngineFacadeTest {
            "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "a1",
                                                 "boxes": {"a1": %2$s}}}}
           """
-              .formatted(FINGERPRINT, box)
-              .getBytes(UTF_8);
+                  .formatted(FINGERPRINT, box));
 
       for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
         byte[] output = facade.run(compiled(facade.compile(model, observations, options)), input);
@@ -250,7 +266,8 @@ class EngineFacadeTest {
    * the given target field mappings.
    */
   private static byte[] ordersToParents(String targetFieldMappings) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
@@ -258,8 +275,7 @@ class EngineFacadeTest {
                     "root": {"element": "Parents"}},
          "targetFieldMappings": %2$s}
         """
-        .formatted(FINGERPRINT, targetFieldMappings)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, targetFieldMappings));
   }
 
   private static final byte[] TWO_ORDERS =
@@ -286,8 +302,7 @@ class EngineFacadeTest {
             """);
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      CompileResult result =
-          facade.compile(model, CorpusStructures.directory("observations"), options);
+      CompileResult result = facade.compile(model, observations(), options);
       byte[] output = facade.run(compiled(result), TWO_ORDERS);
 
       assertThat(new String(output, UTF_8))
@@ -318,8 +333,7 @@ class EngineFacadeTest {
     String twins = "<Twin/><Twin/>";
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      CompileResult result =
-          facade.compile(model, CorpusStructures.directory("observations"), options);
+      CompileResult result = facade.compile(model, observations(), options);
       byte[] output = facade.run(compiled(result), TWO_ORDERS);
 
       assertThat(new String(output, UTF_8))
@@ -374,15 +388,15 @@ class EngineFacadeTest {
    * A model from the observation kit's {@code src-orders.xsd} to {@code targetFile}'s {@code root}.
    */
   private static byte[] ordersTo(String targetFile, String root, String targetFieldMappings) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
          "target": {"bundle": ["%2$s"], "fingerprint": "%1$s", "root": {"element": "%3$s"}},
          "targetFieldMappings": %4$s}
         """
-        .formatted(FINGERPRINT, targetFile, root, targetFieldMappings)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, targetFile, root, targetFieldMappings));
   }
 
   /** {@code Orders/Order/Id} in the context {@code Orders} onto {@code field}, as {@code id}. */
@@ -412,7 +426,7 @@ class EngineFacadeTest {
             "under an unmapped n..n parent",
             ordersTo(
                 "tgt-unmapped.xsd", "Unmapped", "{" + orderIdOnto("/Unmapped/Head/A", "t1") + "}"),
-            CorpusStructures.directory("observations"),
+            observations(),
             "/Unmapped/Head/Req"),
         Arguments.of(
             "under a mapped parent",
@@ -424,14 +438,14 @@ class EngineFacadeTest {
                    "boxes": {"a1": {"kind": "source", "field": "/Orders/Order",
                                     "context": "/Orders"}}}}
                 """),
-            CorpusStructures.directory("observations"),
+            observations(),
             "/Unmapped/Head/Req"));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("unmappedMandatoryLeaves")
   void anUnmappedMandatoryLeafIsADiagnosticAtItsTargetField(
-      String why, byte[] model, Path base, String leaf) throws Exception {
+      String why, byte[] model, ReferenceResolver base, String leaf) throws Exception {
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
       List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, base, options));
 
@@ -475,11 +489,13 @@ class EngineFacadeTest {
         """
         {"bundle": ["mandatory.xsd"], "fingerprint": "%s", "root": {"element": "Root"}}"""
             .formatted(FINGERPRINT);
-    return """
+    return Fingerprints.refreshed(
+        """
         {"formatVersion": 1, "source": %1$s, "target": %1$s, "targetFieldMappings": %2$s}
         """
-        .formatted(side, targetFieldMappings)
-        .getBytes(UTF_8);
+            .formatted(side, targetFieldMappings)
+            .getBytes(UTF_8),
+        base);
   }
 
   private static String copy(String field, String id) {
@@ -500,7 +516,8 @@ class EngineFacadeTest {
     byte[] model = mandatory(base, "{" + copy("/Root/Free", "t1") + "}");
 
     List<Diagnostic> diagnostics =
-        refusal(new EngineFacade().compile(model, base, CompileOptions.DEPLOY));
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
 
     assertThat(described(diagnostics))
         .containsExactlyElementsOf(
@@ -518,7 +535,7 @@ class EngineFacadeTest {
   @Test
   void anOptionalLeafAndALeafUnderALeftOutParentStaySilent(@TempDir Path base) throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] leftOut =
         mandatory(base, "{" + copy("/Root/Last", "t1") + ", " + copy("/Root/First", "t2") + "}");
     byte[] c1 =
@@ -528,7 +545,7 @@ class EngineFacadeTest {
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
       byte[] root =
           facade.run(
-              compiled(facade.compile(leftOut, base, options)),
+              compiled(facade.compile(leftOut, DirectoryResolver.over(base), options)),
               utf8("<Root><Last>l</Last><First>f</First><Free>x</Free></Root>"));
       byte[] head = facade.run(compiled(facade.compile(c1, observations, options)), TWO_ORDERS);
 
@@ -539,6 +556,159 @@ class EngineFacadeTest {
           .as("%s", options)
           .isEqualTo(DECLARATION + "<Unmapped><Head><Req>o1</Req></Head></Unmapped>");
     }
+  }
+
+  /**
+   * One compile reports every stage-3 error (#91, spec #89 "One-pass compile"): the target field
+   * mapping of {@code A} fails at its box, which reads a field {@code src-orders.xsd} lacks, and
+   * the walk still reaches the unmapped mandatory {@code Req} beside it. Before #91 the second
+   * diagnostic needed a second compile.
+   */
+  @Test
+  void oneCompileReportsAFailingBoxAndAnUnmappedMandatoryLeafBesideIt() throws Exception {
+    byte[] model =
+        ordersTo(
+            "tgt-unmapped.xsd",
+            "Unmapped",
+            """
+            {"/Unmapped/Head/A": {"id": "t1", "result": "s1",
+               "boxes": {"s1": {"kind": "source", "field": "/Orders/Order/Ref",
+                                "context": "/Orders"}}}}
+            """);
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      List<Diagnostic> diagnostics =
+          refusal(new EngineFacade().compile(model, observations(), options));
+
+      assertThat(described(diagnostics))
+          .as("%s", options)
+          .containsExactlyElementsOf(
+              described(
+                  List.of(
+                      error("unmapped-mandatory-leaf", unmappedAt("/Unmapped/Head/Req")),
+                      error("orphaned-reference", new AtAuthoringId(new AuthoringId("s1"))))));
+    }
+  }
+
+  // --- the fingerprint check (ADR-0009 as amended on 2026-11-05, #91): compile re-reads both
+  // bundles and refuses a stored fingerprint that is not the one its bundle gives
+
+  /** {@code FIELD_LINK} storing {@code source} and {@code target} as the sides' fingerprints. */
+  private static byte[] fieldLinkStoring(String source, String target) {
+    String model = new String(FIELD_LINK, UTF_8);
+    int targetSide = model.indexOf("\"target\"");
+    return (model.substring(0, targetSide).replace(FINGERPRINT, source)
+            + model.substring(targetSide).replace(FINGERPRINT, target))
+        .getBytes(UTF_8);
+  }
+
+  /** A well-formed fingerprint that no structure of the skeleton gives. */
+  private static final String STALE = "sha256:" + "0".repeat(64);
+
+  @Test
+  void aStoredFingerprintThatIsNotItsBundlesIsFingerprintMismatchAtItsSide() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    AtPointer source = new AtPointer("/source/fingerprint");
+    AtPointer target = new AtPointer("/target/fingerprint");
+    Map<byte[], List<Diagnostic>> refusals = new LinkedHashMap<>();
+    refusals.put(
+        fieldLinkStoring(STALE, FINGERPRINT), List.of(error("fingerprint-mismatch", source)));
+    refusals.put(
+        fieldLinkStoring(FINGERPRINT, STALE), List.of(error("fingerprint-mismatch", target)));
+    refusals.put(
+        fieldLinkStoring(STALE, STALE),
+        List.of(error("fingerprint-mismatch", source), error("fingerprint-mismatch", target)));
+    // witness: the model with both fingerprints right compiles
+    assertThat(fieldLinkStoring(FINGERPRINT, FINGERPRINT)).isEqualTo(FIELD_LINK);
+    compiled(facade.compile(FIELD_LINK, skeleton(), DEPLOY));
+
+    for (Map.Entry<byte[], List<Diagnostic>> refused : refusals.entrySet()) {
+      for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+        assertThat(described(refusal(facade.compile(refused.getKey(), skeleton(), options))))
+            .as("%s", options)
+            .containsExactlyElementsOf(described(refused.getValue()));
+      }
+      // the export shares the chain, so it is refused too
+      assertThat(facade.export(refused.getKey(), skeleton()))
+          .isInstanceOfSatisfying(
+              ExportResult.Refused.class,
+              r ->
+                  assertThat(described(r.diagnostics()))
+                      .containsExactlyElementsOf(described(refused.getValue())));
+    }
+  }
+
+  /**
+   * The fingerprint check is a stage-3 error beside the others: a stale source fingerprint and an
+   * unconnected target field mapping are refused in one compile.
+   */
+  @Test
+  void aFingerprintMismatchIsReportedBesideTheOtherStage3Errors() throws Exception {
+    byte[] model =
+        new String(fieldLinkStoring(STALE, FINGERPRINT), UTF_8)
+            .replace("\"result\": \"a1\"", "\"result\": null")
+            .getBytes(UTF_8);
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("fingerprint-mismatch", new AtPointer("/source/fingerprint")),
+                    error("unconnected-target-field", new AtAuthoringId(new AuthoringId("t1"))))));
+  }
+
+  /**
+   * #97, ADR-0008 "JSON as a target": a JSON Schema loads as a target, and a mapping with it does
+   * not compile or export: {@code json-target-unsupported} at {@code /target}, beside a stage-3
+   * error of the source side. The target's fingerprint is its bundle's, so nothing else refuses it.
+   */
+  @Test
+  void aJsonTargetIsJsonTargetUnsupportedAtTarget() throws Exception {
+    RecordingResolver resolver =
+        new RecordingResolver()
+            .file(
+                "order.xsd",
+                Files.readAllBytes(CorpusStructures.directory("skeleton").resolve("order.xsd")))
+            .file(
+                "order.schema.json",
+                """
+                {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}}
+                """);
+    StructureResult target =
+        Structures.load(resolver, new SchemaBundle(List.of("order.schema.json")), new JsonRoot());
+    if (!(target instanceof StructureResult.Loaded(var structure))) {
+      throw new AssertionError("expected the JSON target to load, got " + target);
+    }
+    String model =
+        """
+        {"formatVersion": 1,
+         "source": {"bundle": ["order.xsd"], "fingerprint": "%s",
+                    "root": {"element": "Q{urn:flottila:corpus:skeleton}Order"}},
+         "target": {"bundle": ["order.schema.json"], "fingerprint": "%s", "root": {"json": "$"}}}
+        """;
+    EngineFacade facade = new EngineFacade();
+    List<String> jsonTarget =
+        described(List.of(error("json-target-unsupported", new AtPointer("/target"))));
+    byte[] matching = model.formatted(FINGERPRINT, structure.fingerprint()).getBytes(UTF_8);
+    byte[] staleSource = model.formatted(STALE, structure.fingerprint()).getBytes(UTF_8);
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      assertThat(described(refusal(facade.compile(matching, resolver, options))))
+          .as("%s", options)
+          .containsExactlyElementsOf(jsonTarget);
+    }
+    assertThat(facade.export(matching, resolver))
+        .isInstanceOfSatisfying(
+            ExportResult.Refused.class,
+            r -> assertThat(described(r.diagnostics())).containsExactlyElementsOf(jsonTarget));
+    assertThat(described(refusal(facade.compile(staleSource, resolver, DEPLOY))))
+        .containsExactlyInAnyOrderElementsOf(
+            described(
+                List.of(
+                    error("fingerprint-mismatch", new AtPointer("/source/fingerprint")),
+                    error("json-target-unsupported", new AtPointer("/target")))));
   }
 
   @Test
@@ -561,7 +731,9 @@ class EngineFacadeTest {
   void aStructureLoadErrorIsACompileRefusalAtItsFilePosition(@TempDir Path empty) throws Exception {
     // order.xsd is not in this directory: an error about the whole file, at line 1, column 1
     List<Diagnostic> diagnostics =
-        refusal(new EngineFacade().compile(FIELD_LINK, empty, CompileOptions.DEPLOY));
+        refusal(
+            new EngineFacade()
+                .compile(FIELD_LINK, DirectoryResolver.over(empty), CompileOptions.DEPLOY));
 
     assertThat(diagnostics)
         .isNotEmpty()
@@ -584,7 +756,8 @@ class EngineFacadeTest {
     byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
 
     List<Diagnostic> diagnostics =
-        refusal(new EngineFacade().compile(model, base, CompileOptions.DEPLOY));
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
 
     assertThat(described(diagnostics))
         .containsExactlyElementsOf(
@@ -592,6 +765,71 @@ class EngineFacadeTest {
                 List.of(
                     error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
                     error("schema-unreadable", new AtFilePosition("z-source.xsd", 1, 1)))));
+  }
+
+  /**
+   * #93 (ADR-0008): every load error of each side, not only each side's first, comes back in one
+   * refusal: here the source's two refusals and the target's own. Beside them, the missing root
+   * {@code Order} is not looked up.
+   */
+  @Test
+  void compileReportsEveryLoadErrorOfBothSides(@TempDir Path base) throws Exception {
+    Files.writeString(
+        base.resolve("a-target.xsd"),
+        "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n</xs:element>\n");
+    Files.writeString(
+        base.resolve("z-source.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:group name="G"/>
+          <xs:notation name="H"/>
+        </xs:schema>
+        """);
+    byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
+
+    List<Diagnostic> diagnostics =
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
+                    error(
+                        "schema-construct-unsupported", new AtFilePosition("z-source.xsd", 2, 23)),
+                    error(
+                        "schema-construct-unsupported",
+                        new AtFilePosition("z-source.xsd", 3, 26)))));
+  }
+
+  /**
+   * #90 (ADR-0014 "Reference resolver shape"): a package reference on each side is a load error of
+   * each, at line 1, column 1 of the reference as the model spells it; both structures are read
+   * before the refusal. The source's reference sorts after the target's.
+   */
+  @Test
+  void compileReportsPackageReferenceUnsupportedForBothSides() throws Exception {
+    String source = "shared@1.2.0:/xsd/z-source.xsd";
+    String target = "shared@1.2.0:/xsd/a-target.xsd";
+    RecordingResolver resolver =
+        new RecordingResolver().packageReference(source).packageReference(target);
+    byte[] model = between(source, target, FIELD_LINK_MAPPINGS);
+
+    List<Diagnostic> diagnostics =
+        refusal(new EngineFacade().compile(model, resolver, CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("package-reference-unsupported", new AtFilePosition(target, 1, 1)),
+                    error("package-reference-unsupported", new AtFilePosition(source, 1, 1)))));
+    assertThat(diagnostics)
+        .extracting(Diagnostic::message)
+        .containsExactly(
+            "package references need a host resolver: \"shared@1.2.0:/xsd/a-target.xsd\"",
+            "package references need a host resolver: \"shared@1.2.0:/xsd/z-source.xsd\"");
   }
 
   @Test
@@ -687,11 +925,7 @@ class EngineFacadeTest {
     CompiledMapping fieldLink =
         compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
     CompiledMapping useOneAsMany =
-        compiled(
-            facade.compile(
-                USE_ONE_AS_MANY,
-                CorpusStructures.directory("observations"),
-                CompileOptions.TEST_RUN));
+        compiled(facade.compile(USE_ONE_AS_MANY, observations(), CompileOptions.TEST_RUN));
     byte[] emptySource = utf8("<src:Order xmlns:src=\"" + NS + "\"/>");
 
     for (var run :
@@ -821,8 +1055,9 @@ class EngineFacadeTest {
     assertThat(described(diagnostics)).containsExactlyElementsOf(atTheBox);
   }
 
-  /** A refused model, the directory its bundle references resolve in, and its diagnostics. */
-  private record RefusedModel(String why, byte[] model, Path base, List<Diagnostic> expected) {}
+  /** A refused model, the resolver of its bundle references, and its diagnostics. */
+  private record RefusedModel(
+      String why, byte[] model, ReferenceResolver base, List<Diagnostic> expected) {}
 
   @Test
   void exportRefusesWhatCompileRefuses(@TempDir Path base) throws Exception {
@@ -843,7 +1078,7 @@ class EngineFacadeTest {
             new RefusedModel(
                 "both structures' load errors",
                 between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS),
-                base,
+                DirectoryResolver.over(base),
                 List.of(
                     error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
                     error("schema-unreadable", new AtFilePosition("z-source.xsd", 1, 1)))),
@@ -1389,7 +1624,8 @@ class EngineFacadeTest {
 
   /** obs-useoneasmany uoam-1 with its result on {@code Out/All}: Id, Sku in context Order, Tag. */
   private static final byte[] USE_ONE_AS_MANY =
-      """
+      overTheKit(
+          """
       {"formatVersion": 1,
        "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                   "root": {"element": "Orders"}},
@@ -1402,8 +1638,7 @@ class EngineFacadeTest {
                           "context": "/Orders/Order"},
                    "a3": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
       """
-          .formatted(FINGERPRINT)
-          .getBytes(UTF_8);
+              .formatted(FINGERPRINT));
 
   /** One order with Id A, the given Tags and one Line per Sku. */
   private static byte[] order(int tags, int skus) {
@@ -1423,7 +1658,7 @@ class EngineFacadeTest {
   @Test
   void aUseOneAsManyCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     CompiledMapping deployed = compiled(facade.compile(USE_ONE_AS_MANY, observations, DEPLOY));
     // witness: with as many Tags as Skus (u1.xml's first order) the mapping runs
     assertThat(new String(facade.run(deployed, order(3, 3)), UTF_8))
@@ -1455,14 +1690,17 @@ class EngineFacadeTest {
             .resolve("../../mappings/format-by-example.mapping.json")
             .normalize();
     byte[] model = Files.readAllBytes(mapping);
-    CompiledMapping deployed = compiled(facade.compile(model, mapping.getParent(), DEPLOY));
+    CompiledMapping deployed =
+        compiled(facade.compile(model, DirectoryResolver.over(mapping.getParent()), DEPLOY));
     // witness: with as many Tags as Skus the mapping runs
     assertThat(new String(facade.run(deployed, order(2, 2)), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>t</All><All>t</All></Out>");
 
     assertRunThrows(facade, deployed, order(3, 2), "po:FORMATBYEXAMPLE", "F1");
     CompiledMapping tested =
-        compiled(facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN));
+        compiled(
+            facade.compile(
+                model, DirectoryResolver.over(mapping.getParent()), CompileOptions.TEST_RUN));
     assertRuntimeError(
         facade.testRun(tested, order(3, 2), Duration.ofSeconds(10), TRACE_LIMIT),
         "po:FORMATBYEXAMPLE",
@@ -1477,7 +1715,8 @@ class EngineFacadeTest {
    * sort of Tag with {@code params}, on {@code Out/All}: context 1 of the queue, the first Order.
    */
   private static byte[] sortOfTags(String params) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
@@ -1488,8 +1727,7 @@ class EngineFacadeTest {
                             "params": %2$s},
                      "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
         """
-        .formatted(FINGERPRINT, params)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, params));
   }
 
   /**
@@ -1499,7 +1737,7 @@ class EngineFacadeTest {
   @Test
   void aNumericSortOverANonNumberIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] input = utf8("<Orders><Order><Tag>10</Tag><Tag>x</Tag><Tag>9</Tag></Order></Orders>");
     CompiledMapping lexicographic =
         compiled(facade.compile(sortOfTags("{}"), observations, DEPLOY));
@@ -1517,7 +1755,8 @@ class EngineFacadeTest {
 
   /** sortByKey of Qty by Sku, both in context Order, on {@code Out/All}. */
   private static final byte[] SORT_BY_KEY =
-      """
+      overTheKit(
+          """
       {"formatVersion": 1,
        "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                   "root": {"element": "Orders"}},
@@ -1530,8 +1769,7 @@ class EngineFacadeTest {
                    "a2": {"kind": "source", "field": "/Orders/Order/Line/Qty",
                           "context": "/Orders/Order"}}}}}
       """
-          .formatted(FINGERPRINT)
-          .getBytes(UTF_8);
+              .formatted(FINGERPRINT));
 
   /**
    * A key/value count mismatch stops the run (#2 §4, documented): the second Line has a Sku but no
@@ -1540,8 +1778,7 @@ class EngineFacadeTest {
   @Test
   void aSortByKeyCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    CompiledMapping mapping =
-        compiled(facade.compile(SORT_BY_KEY, CorpusStructures.directory("observations"), DEPLOY));
+    CompiledMapping mapping = compiled(facade.compile(SORT_BY_KEY, observations(), DEPLOY));
     // witness: with a Qty on every Line the values follow their keys
     assertThat(
             new String(
@@ -1569,7 +1806,8 @@ class EngineFacadeTest {
    * Out/All}: a key is 5 where the Tag is true and SUPPRESS where it is not.
    */
   private static byte[] sortByCreatedKeys(String params) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
@@ -1583,8 +1821,7 @@ class EngineFacadeTest {
                      "c1": {"kind": "function", "fn": "createIf", "inputs": ["a1"]},
                      "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
         """
-        .formatted(FINGERPRINT, params)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, params));
   }
 
   /**
@@ -1596,7 +1833,7 @@ class EngineFacadeTest {
   @Test
   void aNumericSortByKeyOverASuppressKeyIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] input = utf8("<Orders><Order><Tag>1</Tag><Tag>no</Tag></Order></Orders>");
     CompiledMapping lexicographic =
         compiled(facade.compile(sortByCreatedKeys("{}"), observations, DEPLOY));

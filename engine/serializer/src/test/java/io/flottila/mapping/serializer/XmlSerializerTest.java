@@ -7,7 +7,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayOutputStream;
 import java.util.HexFormat;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The XML serializer's bytes (ADR-0022): the declaration, no indentation, no trailing newline,
@@ -19,7 +23,7 @@ class XmlSerializerTest {
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
   @FunctionalInterface
-  private interface Body {
+  interface Body {
     void write(XmlSerializer serializer) throws Exception;
   }
 
@@ -180,6 +184,117 @@ class XmlSerializerTest {
     // quotes, LF and tab are written as they are
     assertAscii(DECLARATION + "<v>a&amp;b&lt;c&gt;d&#13;e\"f'g\n\th]]&gt;i</v>", bytes);
   }
+
+  // --- attributes (#102, ADR-0022)
+
+  static Stream<Arguments> closedStartTags() {
+    return Stream.of(
+        Arguments.of("before any element", (Body) s -> {}),
+        Arguments.of(
+            "after the element's text",
+            (Body)
+                s -> {
+                  s.startElement("", "", "v");
+                  s.text("x");
+                }),
+        Arguments.of(
+            "after a child element",
+            (Body)
+                s -> {
+                  s.startElement("", "", "v");
+                  s.startElement("", "", "c");
+                  s.endElement();
+                }),
+        Arguments.of(
+            "after the element ended",
+            (Body)
+                s -> {
+                  s.startElement("", "", "v");
+                  s.endElement();
+                }));
+  }
+
+  /** An attribute is written only while its element's start tag is open (#102). */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("closedStartTags")
+  void attributeAfterContentIsRefused(String why, Body before) throws Exception {
+    // witness: right after the start tag, the attribute is written
+    assertAscii(
+        DECLARATION + "<v a=\"1\">x</v>",
+        document(
+            s -> {
+              s.startElement("", "", "v");
+              s.attribute("", "", "a", "1");
+              s.text("x");
+              s.endElement();
+            }));
+    XmlSerializer serializer = new XmlSerializer(new ByteArrayOutputStream());
+    serializer.startDocument();
+    before.write(serializer);
+
+    assertThatThrownBy(() -> serializer.attribute("", "", "a", "1"))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  /**
+   * An attribute's prefix is declared on the element that carries it when it is unbound there, and
+   * the binding holds for that element's descendants and ends with it (ADR-0022 since #102). A
+   * declaration comes before the attribute that needs it, as an element's comes after its name.
+   */
+  @Test
+  void attributeBindingNotRedeclaredInChild() throws Exception {
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("ns0", "urn:a", "A");
+              // bound by A itself
+              s.attribute("ns0", "urn:a", "code", "1");
+              s.attribute("", "", "plain", "p");
+              s.startElement("", "", "B");
+              // unbound: B declares it
+              s.attribute("ns1", "urn:b", "k", "2");
+              // bound by B's attribute: neither C nor its attribute declares it again
+              s.startElement("ns1", "urn:b", "C");
+              s.attribute("ns1", "urn:b", "k", "3");
+              s.endElement();
+              s.endElement();
+              // B's binding ended with B
+              s.startElement("", "", "D");
+              s.attribute("ns1", "urn:b", "k", "4");
+              s.endElement();
+              s.endElement();
+            });
+
+    assertAscii(
+        DECLARATION
+            + "<ns0:A xmlns:ns0=\"urn:a\" ns0:code=\"1\" plain=\"p\">"
+            + "<B xmlns:ns1=\"urn:b\" ns1:k=\"2\"><ns1:C ns1:k=\"3\"/></B>"
+            + "<D xmlns:ns1=\"urn:b\" ns1:k=\"4\"/>"
+            + "</ns0:A>",
+        bytes);
+  }
+
+  /**
+   * In an attribute value {@code &}, {@code <}, {@code >} and {@code "} are escaped, and CR, LF and
+   * TAB are written {@code &#13;}, {@code &#10;} and {@code &#9;} (ADR-0022 since #102), which a
+   * parser would otherwise normalise to spaces; the apostrophe stays.
+   */
+  @Test
+  void escapesMarkupQuoteAndWhitespaceInAnAttributeValue() throws Exception {
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("", "", "v");
+              s.attribute("", "", "a", "a&b<c>d\"e'f\rg\nh\ti");
+              s.endElement();
+            });
+
+    assertAscii(DECLARATION + "<v a=\"a&amp;b&lt;c&gt;d&quot;e'f&#13;g&#10;h&#9;i\"/>", bytes);
+  }
+
+  // attributeValueRoundTripsThroughSax lives in engine/runtime
+  // (XmlSerializerAttributeRoundTripTest):
+  // this module does not read java.xml, so its tests cannot reach a SAX parser
 
   @Test
   void writesNonAsciiAsUtf8() throws Exception {

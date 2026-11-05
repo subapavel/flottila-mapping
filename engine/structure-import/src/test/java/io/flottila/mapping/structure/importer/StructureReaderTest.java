@@ -7,23 +7,29 @@ import static org.assertj.core.api.Assertions.entry;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldPath;
-import io.flottila.mapping.structure.JsonRoot;
+import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.RootSelector;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.StructureType;
 import io.flottila.mapping.structure.ValueType;
 import io.flottila.mapping.structure.WsdlDirection;
 import io.flottila.mapping.structure.WsdlOperation;
 import io.flottila.mapping.structure.WsdlRoot;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** The flat XSD structure import (spec #21, ticket #25) at the reader's exported API. */
@@ -35,7 +41,8 @@ class StructureReaderTest {
   private static final RootSelector ORDER = new ElementRoot("Q{urn:flottila:corpus:skeleton}Order");
 
   private static Structure readSkeleton(String file) throws StructureLoadException {
-    return new StructureReader(SKELETON).read(new SchemaBundle(List.of(file)), ORDER);
+    return new StructureReader(DirectoryResolver.over(SKELETON))
+        .read(new SchemaBundle(List.of(file)), ORDER);
   }
 
   /** The observation kit's structures (ADR-0018), which #50 maps (#62, F-14). */
@@ -43,7 +50,7 @@ class StructureReaderTest {
       Path.of(System.getProperty("flottila.corpus"), "structures", "observations");
 
   private static Structure readObservation(String file, String root) throws StructureLoadException {
-    return new StructureReader(OBSERVATIONS)
+    return new StructureReader(DirectoryResolver.over(OBSERVATIONS))
         .read(new SchemaBundle(List.of(file)), new ElementRoot(root));
   }
 
@@ -136,26 +143,20 @@ class StructureReaderTest {
   /** A refused construct points at the end of its start tag, where SAX reports an element. */
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
-    "choice,                     schema-construct-unsupported,  9, 20",
     // a nested complex type without xs:sequence (#62): refused at its xs:element
     "nested-complex-type,        schema-construct-unsupported,  9, 33",
-    "annotation,                 schema-construct-unsupported,  9, 66",
-    "type-not-built-in,          schema-construct-unsupported, 10, 53",
     "type-unknown-built-in,      schema-construct-unsupported,  9, 51",
     "type-unbound-prefix,        schema-construct-unsupported,  9, 53",
-    "attribute-not-in-subset,    schema-construct-unsupported,  9, 66",
     "missing-type,               schema-construct-unsupported,  9, 34",
     "nillable-not-true-or-false, schema-construct-unsupported,  9, 64",
-    "attribute-prohibited,       schema-construct-unsupported, 10, 71",
     "foreign-element,            schema-construct-unsupported,  9, 56",
     "redefine,                   schema-construct-unsupported,  5, 44",
     "not-a-schema,               schema-construct-unsupported,  3, 71",
-    "root-simple-type,           schema-construct-unsupported,  6, 20",
+    // #89 review: a root of an anonymous simple type is refused at the root's declaration
+    "root-anonymous-simple-type, schema-construct-unsupported,  5, 28",
     "root-without-complex-type,  schema-construct-unsupported,  5, 29",
     "root-two-complex-types,     schema-construct-unsupported,  7, 22",
-    "complex-type-all,           schema-construct-unsupported,  7, 15",
     "sequence-after-attribute,   schema-construct-unsupported,  8, 21",
-    "foreign-attribute,          schema-construct-unsupported,  9, 100",
     "min-occurs-invalid,         schema-invalid,                9, 68",
     "max-occurs-invalid,         schema-invalid,                9, 66",
     "min-above-max,              schema-invalid,                9, 79",
@@ -187,26 +188,78 @@ class StructureReaderTest {
    */
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
-    "named-complex-type,             schema-construct-unsupported,  5, 36",
-    "import,                         schema-construct-unsupported,  5, 80",
-    "include,                        schema-construct-unsupported,  5, 43",
     "element-form-default-invalid,   schema-construct-unsupported,  4, 87",
-    "nested-choice,                  schema-construct-unsupported, 10, 38",
-    "nested-all,                     schema-construct-unsupported, 10, 35",
-    "nested-attribute,               schema-construct-unsupported, 10, 83",
-    "nested-mixed,                   schema-construct-unsupported, 10, 40",
     "nested-two-sequences,           schema-construct-unsupported, 10, 55",
     "nested-two-complex-types,       schema-construct-unsupported, 10, 75",
+    "nested-complex-and-simple-type, schema-construct-unsupported, 10, 74",
     "nested-type-and-complex-type,   schema-construct-unsupported, 10, 27",
-    "nested-element-ref,             schema-construct-unsupported, 10, 65",
-    "nested-nillable,                schema-construct-unsupported,  9, 71",
-    "nested-simple-type,             schema-construct-unsupported, 10, 26",
     "nested-without-name,            schema-construct-unsupported,  9, 43",
     "nested-structure-min-above-max, schema-invalid,                9, 61",
   })
   void a_construct_outside_the_nested_subset_is_refused_where_it_stands(
       String fixture, String code, int line, int column) {
     a_construct_outside_the_flat_subset_is_refused_where_it_stands(fixture, code, line, column);
+  }
+
+  /**
+   * #93 reads imports, includes, element references and named types, so these fixtures of the
+   * subsets above are refused at the same position for another reason: the one-file bundle lists no
+   * {@code other.xsd}, and the bundle declares no {@code tns:Money} and no global {@code Order} in
+   * no namespace.
+   */
+  @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
+  @CsvSource({
+    "import,             schema-reference-outside-bundle,  5, 80",
+    "include,            schema-reference-outside-bundle,  5, 43",
+    "type-not-built-in,  schema-invalid,                  10, 53",
+    "nested-element-ref, schema-invalid,                  10, 65",
+  })
+  void a_fixture_of_the_subsets_names_what_the_bundle_lacks(
+      String fixture, String code, int line, int column) {
+    a_construct_outside_the_flat_subset_is_refused_where_it_stands(fixture, code, line, column);
+  }
+
+  /**
+   * #93 reads named complex types, attributes at any depth, and annotations and default values with
+   * no effect (ADR-0008), and #94 reads xs:choice and xs:all, so these fixtures of the subsets
+   * above load. A choice of one branch keeps the branch's minimum. The #89 review reads mixed
+   * content, nillable on a structure field and attributes in other namespaces with no effect (US
+   * 13), and anonymous simple types, whose value type comes from the built-in ancestry (US 5).
+   */
+  @ParameterizedTest(name = "{0} loads")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "annotation              | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+        "attribute-not-in-subset | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+        "named-complex-type      | ''",
+        "nested-attribute        | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
+            + " /Line/@id 0..1 xs:string",
+        "choice                  | /OrderId 1..1 xs:string; /A 1..1 xs:string",
+        "complex-type-all        | /A 1..1 xs:string",
+        "nested-choice           | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
+            + " /Line/Sku 1..1 xs:string",
+        "nested-all              | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
+            + " /Line/Sku 1..1 xs:string",
+        "nested-mixed            | /OrderId 1..1 xs:string; /Line 1..unbounded structure",
+        "named-mixed             | /OrderId 1..1 xs:string",
+        "nested-nillable         | /OrderId 1..1 xs:string; /Line 1..unbounded structure",
+        "foreign-attribute       | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+        "nested-simple-type      | /OrderId 1..1 xs:string; /Line 1..unbounded xs:date",
+        "root-simple-type        | /Q{urn:flottila:corpus:skeleton}Code 1..1 xs:decimal",
+        "schema-defaults         | /OrderId 1..1 xs:string",
+        "complex-content-mixed   | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+      })
+  void a_fixture_the_subsets_refused_loads(String fixture, String fields) throws Exception {
+    Structure structure = readSkeleton("test-fixtures/" + fixture + ".xsd");
+
+    List<String> expected = new ArrayList<>(List.of(ORDER_PATH + " 1..1 structure"));
+    for (String field : fields.isEmpty() ? new String[0] : fields.split("; ")) {
+      expected.add(ORDER_PATH + field);
+    }
+    assertThat(tree(structure).entrySet())
+        .extracting(e -> e.getKey() + " " + e.getValue())
+        .containsExactlyElementsOf(expected);
   }
 
   @Test
@@ -257,7 +310,7 @@ class StructureReaderTest {
     Structure structure = readSkeleton("test-fixtures/nested-qualified.xsd");
     String line = ORDER_PATH + "/Q{urn:flottila:corpus:skeleton}Line";
 
-    // an attribute keeps no namespace: attributeFormDefault is outside the subset
+    // an attribute keeps no namespace: attributeFormDefault is unqualified when absent
     assertThat(tree(structure))
         .containsExactly(
             entry(ORDER_PATH, "1..1 structure"),
@@ -280,6 +333,193 @@ class StructureReaderTest {
     }
     assertThat(children).containsExactly("A xs:string", "B xs:integer");
     assertThat(structure.types()).hasSize(3);
+  }
+
+  // --- refused fields (ADR-0008 "Refused when a mapping uses the field", Shape (#92)): same-step
+  // siblings load and each carries ambiguous-field-path at the step's second declaration, the
+  // end of its start tag as in StructureLoadException
+
+  @Test
+  void same_step_siblings_load_each_refused_at_the_second_declaration() throws Exception {
+    String file = "test-fixtures/nested-same-name-siblings.xsd";
+    Structure structure = readSkeleton(file);
+    List<Field> parts = structure.types().get(structure.root().type().orElseThrow()).fields();
+    // the second <xs:element name="Part"> (8 spaces, 24 characters) ends at line 16, column 33
+    Refusal second = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, file, 16, 33);
+
+    assertThat(parts)
+        .extracting(Field::refusal)
+        .containsExactly(Optional.of(second), Optional.of(second));
+    // A and B are each the one field of their type: the path through Part is refused, not they
+    for (Field part : parts) {
+      assertThat(structure.types().get(part.type().orElseThrow()).fields())
+          .extracting(Field::refusal)
+          .containsExactly(Optional.empty());
+    }
+    assertThat(structure.root().refusal()).isEmpty();
+  }
+
+  @Test
+  void same_step_leaf_siblings_are_refused_and_their_neighbour_is_not() throws Exception {
+    String file = "test-fixtures/nested-same-name-leaves.xsd";
+    Structure structure = readSkeleton(file);
+    Field line = structure.types().get(structure.root().type().orElseThrow()).fields().getFirst();
+    List<Field> fields = structure.types().get(line.type().orElseThrow()).fields();
+    List<Map.Entry<String, Optional<Refusal>>> refusals = new ArrayList<>();
+    for (Field field : fields) {
+      refusals.add(
+          entry(
+              field.step().localName() + " " + field.valueType().orElseThrow().typeName(),
+              field.refusal()));
+    }
+    // A B A A: the second A (14 spaces, 51 characters) ends its start tag at line 15, column 66;
+    // the first and the last A carry that position too
+    Refusal second = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, file, 15, 66);
+
+    assertThat(refusals)
+        .containsExactly(
+            entry("A xs:string", Optional.of(second)),
+            entry("B xs:integer", Optional.empty()),
+            entry("A xs:date", Optional.of(second)),
+            entry("A xs:boolean", Optional.of(second)));
+    assertThat(line.refusal()).isEmpty();
+    assertThat(fields.getFirst().refusal().orElseThrow().reason().code())
+        .isEqualTo("ambiguous-field-path");
+  }
+
+  private static final Path REFUSED =
+      Path.of(System.getProperty("flottila.corpus"), "structures", "refused");
+
+  private static final String PAIR = "Q{urn:flottila:corpus:refused:b}Pair";
+
+  private static final String ITEM = "/Q{urn:flottila:corpus:refused:ref-b}Item";
+
+  /**
+   * Bundles whose same-step siblings are declared in another file than the root (ADR-0008: a
+   * refusal carries the file, line and column of the declaration that causes it, wherever that
+   * declaration is written): {row, fixture directory under corpus/structures/refused, bundle, root,
+   * each refused field as "type id, index, step, file line:column" with the types in id order, the
+   * type ids the root's fields name}.
+   */
+  static Stream<Arguments> refusalsWhereDeclared() {
+    return Stream.of(
+        // Part twice in Pair (6 spaces, 24 characters: 10:31), Leaf twice in the second Part's
+        // anonymous type (12 spaces, 43 characters: 14:56); First and Second share Pair, so both
+        // paths carry its refusals at one position
+        Arguments.of(
+            "same-step siblings in a named complex type of the second bundle file",
+            "two-file",
+            List.of("a.xsd", "b.xsd"),
+            "Q{urn:flottila:corpus:refused:a}Doc",
+            List.of(
+                PAIR + " 0 Part b.xsd 10:31",
+                PAIR + " 1 Part b.xsd 10:31",
+                PAIR + "/Part 0 Leaf b.xsd 14:56",
+                PAIR + "/Part 1 Leaf b.xsd 14:56"),
+            List.of(PAIR, PAIR)),
+        // Code twice in Item's anonymous type (8 spaces, 43 characters: 11:52)
+        Arguments.of(
+            "same-step siblings in the anonymous type of a global element of the second bundle"
+                + " file, reached by reference",
+            "element-ref",
+            List.of("a.xsd", "b.xsd"),
+            "Q{urn:flottila:corpus:refused:ref-a}Doc",
+            List.of(ITEM + " 0 Code b.xsd 11:52", ITEM + " 1 Code b.xsd 11:52"),
+            List.of(ITEM)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("refusalsWhereDeclared")
+  void a_refusal_names_the_file_line_and_column_of_the_second_declaration(
+      String row,
+      String fixture,
+      List<String> bundle,
+      String root,
+      List<String> refused,
+      List<String> rootTypes)
+      throws Exception {
+    Structure structure =
+        new StructureReader(DirectoryResolver.over(REFUSED.resolve(fixture)))
+            .read(new SchemaBundle(bundle), new ElementRoot(root));
+    List<String> refusals = new ArrayList<>();
+    for (StructureType type : new TreeMap<>(structure.types()).values()) {
+      for (int i = 0; i < type.fields().size(); i++) {
+        Field field = type.fields().get(i);
+        if (field.refusal().isPresent()) {
+          Refusal refusal = field.refusal().get();
+          refusals.add(
+              type.id()
+                  + " "
+                  + i
+                  + " "
+                  + field.step()
+                  + " "
+                  + refusal.file()
+                  + " "
+                  + refusal.line()
+                  + ":"
+                  + refusal.column());
+        }
+      }
+    }
+
+    assertThat(refusals).containsExactlyElementsOf(refused);
+    assertThat(structure.types().get(structure.root().type().orElseThrow()).fields())
+        .extracting(f -> f.type().orElseThrow())
+        .containsExactlyElementsOf(rootTypes);
+  }
+
+  /**
+   * The structures {@code FingerprintPinTest} (engine/api) pinned before #92, as {directory under
+   * corpus/structures, file, root}: none has same-step siblings, so no canonical line gains a
+   * reason and none of those literals moves (ADR-0009 as refined by #92).
+   */
+  private static final List<List<String>> PINNED_BEFORE_92 =
+      List.of(
+          List.of("observations", "src-orders.xsd", "Orders"),
+          List.of("observations", "tgt-create.xsd", "Create"),
+          List.of("observations", "tgt-gen.xsd", "Gens"),
+          List.of("observations", "tgt-list.xsd", "Out"),
+          List.of("observations", "tgt-nested.xsd", "Doc"),
+          List.of("observations", "tgt-parents.xsd", "Parents"),
+          List.of("observations", "tgt-required-attr.xsd", "Coded"),
+          List.of("observations", "tgt-unmapped.xsd", "Unmapped"),
+          List.of("skeleton", "order.xsd", "Q{urn:flottila:corpus:skeleton}Order"));
+
+  /** Every refused field of {@code structure}: the root, then each type in id order. */
+  private static List<String> refusedFields(Structure structure) {
+    List<String> refused = new ArrayList<>();
+    structure.root().refusal().ifPresent(r -> refused.add("root " + structure.root().step()));
+    for (StructureType type : new TreeMap<>(structure.types()).values()) {
+      for (int i = 0; i < type.fields().size(); i++) {
+        Field field = type.fields().get(i);
+        if (field.refusal().isPresent()) {
+          refused.add(type.id() + " " + i + " " + field.step());
+        }
+      }
+    }
+    return refused;
+  }
+
+  @Test
+  void no_field_of_a_pinned_corpus_structure_is_refused() throws Exception {
+    Map<String, List<String>> refused = new LinkedHashMap<>();
+    Map<String, List<String>> none = new LinkedHashMap<>();
+    for (List<String> pinned : PINNED_BEFORE_92) {
+      Path directory =
+          Path.of(System.getProperty("flottila.corpus"), "structures", pinned.getFirst());
+      Structure structure =
+          new StructureReader(DirectoryResolver.over(directory))
+              .read(new SchemaBundle(List.of(pinned.get(1))), new ElementRoot(pinned.get(2)));
+      String key = pinned.getFirst() + "/" + pinned.get(1) + " " + pinned.get(2);
+      refused.put(key, refusedFields(structure));
+      none.put(key, List.of());
+    }
+
+    // witness: the walk finds the two refused Parts of a same-step fixture, in its root's type
+    assertThat(refusedFields(readSkeleton("test-fixtures/nested-same-name-siblings.xsd")))
+        .containsExactly(ORDER_PATH + " 0 Part", ORDER_PATH + " 1 Part");
+    assertThat(refused).hasSize(9).isEqualTo(none);
   }
 
   /**
@@ -374,7 +614,7 @@ class StructureReaderTest {
   void a_root_the_schema_does_not_declare_is_refused_at_the_schema_element(String root) {
     assertThatThrownBy(
             () ->
-                new StructureReader(SKELETON)
+                new StructureReader(DirectoryResolver.over(SKELETON))
                     .read(new SchemaBundle(List.of("order.xsd")), new ElementRoot(root)))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
@@ -387,41 +627,51 @@ class StructureReaderTest {
             });
   }
 
+  /**
+   * #96 reads WSDL: a WSDL root over a bundle of no WSDL names an interface the bundle does not
+   * declare, at the first file's xs:schema (6:59).
+   */
   @Test
-  void WSDL_and_JSON_roots_are_refused_until_their_readers_exist() {
+  void a_WSDL_root_over_a_bundle_of_no_WSDL_is_schema_root_not_found() {
     RootSelector wsdl =
         new WsdlRoot(
             new WsdlOperation("OrderService", "submit", WsdlDirection.INPUT, Optional.empty()));
-    for (RootSelector root : List.of(wsdl, new JsonRoot())) {
-      assertThatThrownBy(
-              () ->
-                  new StructureReader(SKELETON).read(new SchemaBundle(List.of("order.xsd")), root))
-          .isInstanceOfSatisfying(
-              StructureLoadException.class,
-              e -> {
-                assertThat(e.code()).isEqualTo("root-selector-unsupported");
-                assertThat(e.file()).isEqualTo("order.xsd");
-                assertThat(e.line()).isEqualTo(1);
-                assertThat(e.column()).isEqualTo(1);
-              });
-    }
-  }
-
-  @Test
-  void a_bundle_of_other_than_one_file_is_outside_the_flat_subset() {
     assertThatThrownBy(
             () ->
-                new StructureReader(SKELETON)
+                new StructureReader(DirectoryResolver.over(SKELETON))
+                    .read(new SchemaBundle(List.of("order.xsd")), wsdl))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("schema-root-not-found");
+              assertThat(e.file()).isEqualTo("order.xsd");
+              assertThat(e.line()).isEqualTo(6);
+              assertThat(e.column()).isEqualTo(59);
+            });
+  }
+
+  /**
+   * #93 reads bundles of several files, so the second file is read and, missing, is unreadable; an
+   * empty bundle is still refused.
+   */
+  @Test
+  void a_bundle_of_two_files_reads_both_and_an_empty_one_is_refused() {
+    assertThatThrownBy(
+            () ->
+                new StructureReader(DirectoryResolver.over(SKELETON))
                     .read(new SchemaBundle(List.of("order.xsd", "extra.xsd")), ORDER))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
             e -> {
-              assertThat(e.code()).isEqualTo("schema-construct-unsupported");
+              assertThat(e.code()).isEqualTo("schema-unreadable");
               assertThat(e.file()).isEqualTo("extra.xsd");
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);
             });
-    assertThatThrownBy(() -> new StructureReader(SKELETON).read(new SchemaBundle(List.of()), ORDER))
+    assertThatThrownBy(
+            () ->
+                new StructureReader(DirectoryResolver.over(SKELETON))
+                    .read(new SchemaBundle(List.of()), ORDER))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
             e -> {
@@ -440,6 +690,80 @@ class StructureReaderTest {
               assertThat(e.file()).isEqualTo("no-such-file.xsd");
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);
+            });
+  }
+
+  /**
+   * #90 (ADR-0014 "Reference resolver shape"): a reference the host's resolver refuses is a load
+   * error about the whole file, at the reference as the bundle spells it, with the engine's code
+   * and message for the resolver's reason. A host that spells the refused reference its own way, an
+   * absolute path for one, shows nowhere in it.
+   */
+  @ParameterizedTest(name = "{0} is {1}, the host spelling {3}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "UNREADABLE                    | schema-unreadable             | ../xsd/missing.xsd"
+            + " | ../xsd/missing.xsd"
+            + " | cannot read the schema file \"../xsd/missing.xsd\"",
+        "PACKAGE_REFERENCE_UNSUPPORTED | package-reference-unsupported | shared@1.2.0:/xsd/o.xsd"
+            + " | shared@1.2.0:/xsd/o.xsd"
+            + " | package references need a host resolver: \"shared@1.2.0:/xsd/o.xsd\"",
+        "UNREADABLE                    | schema-unreadable             | missing.xsd"
+            + " | /srv/host/workspace/missing.xsd"
+            + " | cannot read the schema file \"missing.xsd\"",
+        "PACKAGE_REFERENCE_UNSUPPORTED | package-reference-unsupported | shared@1.2.0:/xsd/o.xsd"
+            + " | /srv/host/packages/shared/1.2.0/xsd/o.xsd"
+            + " | package references need a host resolver: \"shared@1.2.0:/xsd/o.xsd\""
+      })
+  void a_reference_the_resolver_refuses_is_a_load_error_with_the_engines_message(
+      UnresolvedReferenceException.Reason reason,
+      String code,
+      String reference,
+      String hostSpelling,
+      String message) {
+    ReferenceResolver refusing =
+        asked -> {
+          throw new UnresolvedReferenceException(reason, hostSpelling);
+        };
+
+    assertThatThrownBy(
+            () -> new StructureReader(refusing).read(new SchemaBundle(List.of(reference)), ORDER))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo(code);
+              assertThat(e.file()).isEqualTo(reference);
+              assertThat(e.line()).isEqualTo(1);
+              assertThat(e.column()).isEqualTo(1);
+              assertThat(e.getMessage()).isEqualTo(message);
+            });
+  }
+
+  /**
+   * #90: the name a host gives a file it returns is not the engine's. A load error inside the file
+   * sits at the reference the engine asked for, as the bundle spells it, and the host's name, here
+   * an absolute path, shows nowhere in it.
+   */
+  @Test
+  void a_load_error_inside_a_resolved_file_names_the_asked_reference_never_the_hosts_name() {
+    String hostName = "/srv/host/workspace/xsd/order.xsd";
+    ReferenceResolver renaming =
+        asked -> new ResolvedFile(hostName, "<xs:schema\n  <".getBytes(StandardCharsets.UTF_8));
+
+    assertThatThrownBy(
+            () ->
+                new StructureReader(renaming)
+                    .read(new SchemaBundle(List.of("../xsd/order.xsd")), new ElementRoot("Order")))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("schema-not-well-formed");
+              // the attribute list of <xs:schema breaks at the "<" on line 2 (StructuresTest)
+              assertThat(e.file()).isEqualTo("../xsd/order.xsd");
+              assertThat(e.line()).isEqualTo(2);
+              assertThat(e.column()).isEqualTo(3);
+              assertThat(e.getMessage()).doesNotContain(hostName).doesNotContain("/srv/");
             });
   }
 

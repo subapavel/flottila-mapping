@@ -2,6 +2,7 @@ package io.flottila.mapping.api;
 
 import io.flottila.mapping.ir.IrOptimiser;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.mapping.AtPointer;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.FunctionCatalogue;
 import io.flottila.mapping.mapping.LoadResult;
@@ -9,21 +10,23 @@ import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Lowered;
 import io.flottila.mapping.mapping.Lowering;
 import io.flottila.mapping.mapping.MalformedJsonException;
+import io.flottila.mapping.mapping.MappingDiagnostics;
 import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.MappingModelFormat;
 import io.flottila.mapping.mapping.Refused;
+import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.runtime.Interpreter;
 import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -144,19 +147,23 @@ public final class EngineFacade {
    * Compiles a mapping model (ADR-0016): load with stages 1 and 2, the source and target
    * structures, stage 3 and lowering, the optimiser if {@code options} ask for it, then the closure
    * compile. The first of these that refuses the model gives the result; the structures are both
-   * read before either refusal is reported. The compiled mapping keeps the occurrence of each
-   * target field mapping's field, which a generating function's trace entry shows (#83).
+   * read before either refusal is reported. Stage 3 checks each side's stored fingerprint against
+   * the structure just read (ADR-0009 as amended on 2026-11-05, #91), and a mismatch is reported
+   * with lowering's diagnostics. The compiled mapping keeps the occurrence of each target field
+   * mapping's field, which a generating function's trace entry shows (#83). An unchecked exception
+   * from {@code resolver} passes through unchanged.
    *
    * @param model the mapping model's bytes
-   * @param base the directory the model's schema bundle references are relative to
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
    * @return the compiled mapping, or the diagnostics that refuse it
    * @throws MalformedJsonException if the bytes are no JSON document
    */
-  public CompileResult compile(byte[] model, Path base, CompileOptions options)
+  public CompileResult compile(byte[] model, ReferenceResolver resolver, CompileOptions options)
       throws MalformedJsonException {
     return loadAndLower(
         model,
-        base,
+        resolver,
         CompileResult.Refused::new,
         lowered -> {
           TargetDocument document = lowered.document();
@@ -172,17 +179,20 @@ public final class EngineFacade {
   /**
    * Exports a mapping model to XSLT 3.0 in the portable profile (ADR-0023): load, structures, stage
    * 3 and lowering as {@link #compile} does them, then the export of the unoptimised IR. A refused
-   * model gives no stylesheet, not even of the target fields that would export.
+   * model gives no stylesheet, not even of the target fields that would export. An unchecked
+   * exception from {@code resolver} passes through unchanged.
    *
    * @param model the mapping model's bytes
-   * @param base the directory the model's schema bundle references are relative to
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
    * @return the stylesheet and its helper module, or the diagnostics that refuse the model
    * @throws MalformedJsonException if the bytes are no JSON document
    */
-  public ExportResult export(byte[] model, Path base) throws MalformedJsonException {
+  public ExportResult export(byte[] model, ReferenceResolver resolver)
+      throws MalformedJsonException {
     return loadAndLower(
         model,
-        base,
+        resolver,
         ExportResult.Refused::new,
         lowered ->
             new ExportResult.Exported(
@@ -190,15 +200,67 @@ public final class EngineFacade {
   }
 
   /**
+   * Refreshes a mapping model (ADR-0009 as amended on 2026-11-05, ADR-0015): load with stages 1 and
+   * 2, then the source and target structures. Each side whose bundle loads gets the fingerprint of
+   * the structure just read; a side whose bundle fails to load keeps its stored fingerprint and
+   * gives every load error (#93). When both load, the refreshed model goes through stage 3 and
+   * lowering, whose diagnostics, the orphaned references among them, are the result's; it has no
+   * {@code fingerprint-mismatch}, as both fingerprints were just derived, and no occurrence or type
+   * warning. When a side fails to load, stage 3 is not run, and the load errors are the result's
+   * only diagnostics. Nothing else in the model changes, and it comes back in canonical form
+   * (ADR-0010); nothing is written. An unchecked exception from {@code resolver} passes through
+   * unchanged.
+   *
+   * @param model the mapping model's bytes
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
+   * @return the refreshed model and its diagnostics, or the diagnostics of stage 1 or 2 that refuse
+   *     the model
+   * @throws MalformedJsonException if the bytes are no JSON document
+   */
+  public RefreshResult refresh(byte[] model, ReferenceResolver resolver)
+      throws MalformedJsonException {
+    return switch (MappingModelFormat.load(model)) {
+      case Refused r -> new RefreshResult.Refused(r.diagnostics());
+      case Loaded(MappingModel loaded) -> {
+        List<Diagnostic> diagnostics = new ArrayList<>();
+        Optional<Structure> source = structure(resolver, loaded.source(), diagnostics);
+        Optional<Structure> target = structure(resolver, loaded.target(), diagnostics);
+        MappingModel refreshed =
+            new MappingModel(
+                loaded.formatVersion(),
+                refreshed(loaded.source(), source),
+                refreshed(loaded.target(), target),
+                loaded.targetFieldMappings(),
+                loaded.udfs());
+        if (diagnostics.isEmpty()
+            && Lowering.lower(refreshed, source.orElseThrow(), target.orElseThrow())
+                instanceof Refused(List<Diagnostic> stage3)) {
+          diagnostics.addAll(stage3);
+        }
+        yield new RefreshResult.Refreshed(MappingModelFormat.save(refreshed), diagnostics);
+      }
+    };
+  }
+
+  /** {@code ref} with the fingerprint of {@code structure}, or as it is when there is none. */
+  private static StructureRef refreshed(StructureRef ref, Optional<Structure> structure) {
+    return structure
+        .map(s -> new StructureRef(ref.bundle(), ref.root(), s.fingerprint()))
+        .orElse(ref);
+  }
+
+  /**
    * The chain compile and export share: load with stages 1 and 2, the source and target structures,
    * then stage 3 and lowering. The first of these that refuses the model gives {@code refused} its
    * diagnostics, which the result sorts; the structures are both read before either refusal is
-   * reported. A model that lowers gives {@code lowered} its unoptimised IR, with the model and the
-   * target structure it was lowered from.
+   * reported. Stage 3 is the fingerprint check of both sides and lowering, whose diagnostics are
+   * reported together (#91). A model that lowers with both fingerprints matching gives {@code
+   * lowered} its unoptimised IR, with the model and the target structure it was lowered from.
    */
   private static <R> R loadAndLower(
       byte[] model,
-      Path base,
+      ReferenceResolver resolver,
       Function<List<Diagnostic>, R> refused,
       Function<LoweredModel, R> lowered)
       throws MalformedJsonException {
@@ -206,15 +268,22 @@ public final class EngineFacade {
       case Refused r -> refused.apply(r.diagnostics());
       case Loaded(MappingModel loaded) -> {
         List<Diagnostic> refusals = new ArrayList<>();
-        Optional<Structure> source = structure(base, loaded.source(), refusals);
-        Optional<Structure> target = structure(base, loaded.target(), refusals);
+        Optional<Structure> source = structure(resolver, loaded.source(), refusals);
+        Optional<Structure> target = structure(resolver, loaded.target(), refusals);
         if (!refusals.isEmpty()) {
           yield refused.apply(refusals);
         }
+        fingerprint(loaded.source(), source.orElseThrow(), "/source/fingerprint", refusals);
+        fingerprint(loaded.target(), target.orElseThrow(), "/target/fingerprint", refusals);
         yield switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
-          case Refused r -> refused.apply(r.diagnostics());
+          case Refused r -> {
+            refusals.addAll(r.diagnostics());
+            yield refused.apply(refusals);
+          }
           case Lowered(TargetDocument document) ->
-              lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document));
+              refusals.isEmpty()
+                  ? lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document))
+                  : refused.apply(refusals);
         };
       }
     };
@@ -223,13 +292,38 @@ public final class EngineFacade {
   /** A model that lowers, the target structure it was lowered over, and its unoptimised IR. */
   private record LoweredModel(MappingModel model, Structure target, TargetDocument document) {}
 
-  /** The structure {@code ref} names, or empty once its load error is added to {@code refusals}. */
+  /**
+   * Adds {@code fingerprint-mismatch} at {@code pointer} to {@code refusals} when {@code ref}
+   * stores another fingerprint than {@code structure}, read from its bundle, gives (ADR-0009). Only
+   * refresh re-derives a stored fingerprint; compile never does.
+   */
+  private static void fingerprint(
+      StructureRef ref, Structure structure, String pointer, List<Diagnostic> refusals) {
+    String derived = structure.fingerprint();
+    if (!derived.equals(ref.fingerprint())) {
+      refusals.add(
+          new Diagnostic(
+              Severity.ERROR,
+              MappingDiagnostics.FINGERPRINT_MISMATCH,
+              new AtPointer(pointer),
+              "the model stores the fingerprint "
+                  + ref.fingerprint()
+                  + ", but its schema bundle now gives "
+                  + derived
+                  + ": the structure changed since the model was written"));
+    }
+  }
+
+  /**
+   * The structure {@code ref} names, or empty once every load error of its bundle is added to
+   * {@code refusals}.
+   */
   private static Optional<Structure> structure(
-      Path base, StructureRef ref, List<Diagnostic> refusals) {
-    return switch (Structures.load(base, ref.bundle(), ref.root())) {
+      ReferenceResolver resolver, StructureRef ref, List<Diagnostic> refusals) {
+    return switch (Structures.load(resolver, ref.bundle(), ref.root())) {
       case StructureResult.Loaded(Structure structure) -> Optional.of(structure);
-      case StructureResult.Refused(Diagnostic diagnostic) -> {
-        refusals.add(diagnostic);
+      case StructureResult.Refused(List<Diagnostic> diagnostics) -> {
+        refusals.addAll(diagnostics);
         yield Optional.empty();
       }
     };
@@ -239,7 +333,8 @@ public final class EngineFacade {
    * Runs one input message through a compiled mapping and returns the target message's bytes. A
    * test-run compile's trace is recorded and dropped; {@link #testRun} returns it.
    *
-   * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws MalformedInputException when the input is not well-formed in the mapping's input format
+   *     (ADR-0008, #98): XML, without a DOCTYPE, or JSON, without a duplicate key
    * @throws MappingRunException when the run meets a runtime error in its data, with its code and
    *     authoring id (ADR-0015 since #52)
    * @throws java.util.concurrent.CancellationException when the thread is interrupted
@@ -284,7 +379,7 @@ public final class EngineFacade {
    *     entry keeps, at least 1
    * @return the target message, or the runtime error that stopped the run
    * @throws IllegalArgumentException when {@code traceLimit} is less than 1; nothing runs
-   * @throws MalformedInputException when the input is no well-formed XML document, or has a DOCTYPE
+   * @throws MalformedInputException when the input is not well-formed in the mapping's input format
    * @throws CancellationException when the calling thread is interrupted while it waits; its
    *     interrupt status is kept, and the run is interrupted too
    * @throws IllegalStateException when the run fails with an unchecked throwable, its cause

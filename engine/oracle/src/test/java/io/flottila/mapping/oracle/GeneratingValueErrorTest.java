@@ -10,6 +10,7 @@ import io.flottila.mapping.api.CompiledMapping;
 import io.flottila.mapping.api.EngineFacade;
 import io.flottila.mapping.api.ExportResult;
 import io.flottila.mapping.runtime.MappingRunException;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import java.nio.file.Path;
 import net.sf.saxon.s9api.SaxonApiException;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,15 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GeneratingValueErrorTest {
 
-  private static final String FINGERPRINT = "sha256:" + "0".repeat(64);
+  /**
+   * The fingerprints of {@code src-orders.xsd} and {@code tgt-gen.xsd}, which compile checks (#91);
+   * {@code FingerprintPinTest} in {@code engine/api} pins them.
+   */
+  private static final String SOURCE_FINGERPRINT =
+      "sha256:5e9bdd3db3b284fc086f0233797ede5e4f3fb874bd696ba3f496dd30bffef9a7";
+
+  private static final String TARGET_FINGERPRINT =
+      "sha256:4a92b5bce393664363954017c2b1029537235b8a4557f9a2a220c66d516f4e35";
   private static final String WHAT = "add(constant, constant) on Gen";
   private static final byte[] INPUT = "<Orders><Order><Id>o1</Id></Order></Orders>".getBytes(UTF_8);
 
@@ -41,7 +50,7 @@ class GeneratingValueErrorTest {
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
-         "target": {"bundle": ["tgt-gen.xsd"], "fingerprint": "%1$s",
+         "target": {"bundle": ["tgt-gen.xsd"], "fingerprint": "%3$s",
                     "root": {"element": "Gens"}},
          "targetFieldMappings": {
            "/Gens/Grp": {"id": "T1", "result": "S1", "boxes": {
@@ -51,12 +60,12 @@ class GeneratingValueErrorTest {
              "C1": {"kind": "function", "fn": "constant", "params": {"value": "%2$s"}},
              "C2": {"kind": "function", "fn": "constant", "params": {"value": "1"}}}}}}
         """
-        .formatted(FINGERPRINT, first)
+        .formatted(SOURCE_FINGERPRINT, first, TARGET_FINGERPRINT)
         .getBytes(UTF_8);
   }
 
-  private static Path structures() {
-    return CaseFiles.corpus().resolve("structures/observations");
+  private static ReferenceResolver structures() {
+    return DirectoryResolver.over(CaseFiles.corpus().resolve("structures/observations"));
   }
 
   private CompiledMapping compiled(byte[] model, CompileOptions options) throws Exception {

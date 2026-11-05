@@ -7,6 +7,17 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.flottila.mapping.api.StructureResult;
+import io.flottila.mapping.api.Structures;
+import io.flottila.mapping.mapping.AtFilePosition;
+import io.flottila.mapping.mapping.Diagnostic;
+import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
+import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
+import io.flottila.mapping.structure.importer.ResolvedFile;
+import io.flottila.mapping.structure.importer.UnresolvedReferenceException;
+import io.flottila.mapping.structure.importer.UnresolvedReferenceException.Reason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -91,20 +102,18 @@ class WorkspaceTest {
     // bundle references: ".." only as a leading run, and never above the root
     Path a = root.resolve("a");
     for (String ref : List.of("a/../x.xsd", "./x.xsd", "../../outside/evil.xsd", "../../x.xsd")) {
-      assertRefused(() -> workspace.checkBundle(a, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(a, List.of(ref)), ref);
     }
-    assertRefused(() -> workspace.checkBundle(root, List.of("../outside/evil.xsd")), "from root");
+    assertRefused(() -> checkBundle(root, List.of("../outside/evil.xsd")), "from root");
     // one bad reference refuses the bundle
-    assertRefused(
-        () -> workspace.checkBundle(a, List.of("b.xsd", "../../outside/evil.xsd")), "second ref");
+    assertRefused(() -> checkBundle(a, List.of("b.xsd", "../../outside/evil.xsd")), "second ref");
 
     assertThat(besideTheWorkspace()).isEqualTo(before);
     // the same shapes inside the workspace are workspace paths
     assertThat(workspace.read("a/b")).asString(UTF_8).isEqualTo("a/b");
     assertThat(workspace.read("x")).asString(UTF_8).isEqualTo("x");
     assertThat(workspace.directory("a")).isEqualTo(root.resolve("a"));
-    assertThatNoException()
-        .isThrownBy(() -> workspace.checkBundle(a, List.of("../x.xsd", "b.xsd")));
+    assertThatNoException().isThrownBy(() -> checkBundle(a, List.of("../x.xsd", "b.xsd")));
   }
 
   @Test
@@ -123,7 +132,7 @@ class WorkspaceTest {
     }
     for (String ref :
         List.of(outside.resolve("evil.xsd").toString(), root.resolve("a/x.xsd").toString())) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(root, List.of(ref)), ref);
     }
 
     assertThat(besideTheWorkspace()).isEqualTo(before);
@@ -148,7 +157,7 @@ class WorkspaceTest {
       assertRefused(() -> workspace.directory(base), base);
     }
     for (String ref : List.of("%2e%2e/outside/evil.xsd", "a%2Fb.xsd", "%252e%252e/x.xsd")) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(root, List.of(ref)), ref);
     }
 
     assertThat(besideTheWorkspace()).isEqualTo(before);
@@ -168,7 +177,7 @@ class WorkspaceTest {
       assertRefused(() -> workspace.directory(base), printable(base));
     }
     for (String ref : List.of("x.xsd\0", "\0../outside/evil.xsd")) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), printable(ref));
+      assertRefused(() -> checkBundle(root, List.of(ref)), printable(ref));
     }
 
     assertThat(besideTheWorkspace()).isEqualTo(before);
@@ -193,7 +202,7 @@ class WorkspaceTest {
     }
     for (String ref :
         List.of("..\\..\\outside\\evil.xsd", "C:\\evil.xsd", "c:evil.xsd", "a:b.xsd")) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(root, List.of(ref)), ref);
     }
 
     assertThat(besideTheWorkspace()).isEqualTo(before);
@@ -250,10 +259,9 @@ class WorkspaceTest {
     assertRefused(() -> workspace.create("links/outdir/new", NEW), "links/outdir/new");
     assertRefused(() -> workspace.directory("links/outdir"), "links/outdir");
     // a bundle reference through either kind of link
-    assertRefused(() -> workspace.checkBundle(root, List.of("links/out.xsd")), "links/out.xsd");
-    assertRefused(
-        () -> workspace.checkBundle(root, List.of("links/outdir/evil.xsd")), "outdir/evil.xsd");
-    assertRefused(() -> workspace.checkBundle(links, List.of("outdir/evil.xsd")), "from links");
+    assertRefused(() -> checkBundle(root, List.of("links/out.xsd")), "links/out.xsd");
+    assertRefused(() -> checkBundle(root, List.of("links/outdir/evil.xsd")), "outdir/evil.xsd");
+    assertRefused(() -> checkBundle(links, List.of("outdir/evil.xsd")), "from links");
     // a dangling link out: whatever the refusal, never a write through it
     assertThatThrownBy(() -> workspace.save("links/ghost", NEW))
         .isInstanceOfAny(WorkspacePathException.class, NoSuchFileException.class);
@@ -286,8 +294,7 @@ class WorkspaceTest {
     assertRefusedAs(() -> workspace.create("links/outdir/new", NEW), "links/outdir/new");
     assertRefusedAs(() -> workspace.mappingDirectory("links/outdir/new"), "links/outdir/new");
     assertRefusedAs(() -> workspace.directory("links/outdir"), "links/outdir");
-    assertRefusedAs(
-        () -> workspace.checkBundle(links, List.of("outdir/evil.xsd")), "outdir/evil.xsd");
+    assertRefusedAs(() -> checkBundle(links, List.of("outdir/evil.xsd")), "outdir/evil.xsd");
   }
 
   @Test
@@ -306,11 +313,8 @@ class WorkspaceTest {
     assertThat(workspace.directory("linked")).isEqualTo(root.resolve("real"));
     assertThatNoException()
         .isThrownBy(
-            () ->
-                workspace.checkBundle(
-                    root, List.of("linked/s.xsd", "s-alias.xsd", "linked/missing.xsd")));
-    assertThatNoException()
-        .isThrownBy(() -> workspace.checkBundle(root.resolve("linked"), List.of("s.xsd")));
+            () -> checkBundle(root, List.of("linked/s.xsd", "s-alias.xsd", "linked/missing.xsd")));
+    assertThatNoException().isThrownBy(() -> checkBundle(root.resolve("linked"), List.of("s.xsd")));
 
     // a save through a link writes in the real parent: the link stays, its target changes
     workspace.save("alias", NEW);
@@ -334,7 +338,7 @@ class WorkspaceTest {
       assertRefused(() -> workspace.directory(base), base);
     }
     for (String ref : List.of("/etc/passwd", "a\\b.xsd", "a/../x.xsd", "%2e%2e/x.xsd")) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(root, List.of(ref)), ref);
     }
 
     // the witness: a workspace path does reach the (missing) file system, so it is no refusal
@@ -389,9 +393,9 @@ class WorkspaceTest {
     // the witness: step 3 alone accepts the reference, and so does the pattern
     assertThat(a.resolve(ref).toRealPath()).isEqualTo(root.resolve("x.xsd"));
 
-    assertRefused(() -> workspace.checkBundle(a, List.of(ref)), ref);
+    assertRefused(() -> checkBundle(a, List.of(ref)), ref);
     // the same file named by a reference that stays inside is a workspace path
-    assertThatNoException().isThrownBy(() -> workspace.checkBundle(a, List.of("../x.xsd")));
+    assertThatNoException().isThrownBy(() -> checkBundle(a, List.of("../x.xsd")));
   }
 
   /**
@@ -409,13 +413,13 @@ class WorkspaceTest {
 
     for (String ref :
         List.of("links/ghost-out.xsd", "links/ghost-in.xsd", "links/ghostdir/x.xsd")) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(root, List.of(ref)), ref);
     }
-    assertRefused(() -> workspace.checkBundle(links, List.of("ghost-in.xsd")), "from links");
+    assertRefused(() -> checkBundle(links, List.of("ghost-in.xsd")), "from links");
 
     // the witness: a missing file that is no link is passed on to the engine
     assertThatNoException()
-        .isThrownBy(() -> workspace.checkBundle(root, List.of("links/missing.xsd", "missing.xsd")));
+        .isThrownBy(() -> checkBundle(root, List.of("links/missing.xsd", "missing.xsd")));
     assertThat(besideTheWorkspace()).isEqualTo(before);
   }
 
@@ -551,9 +555,9 @@ class WorkspaceTest {
     Map<String, String> before = besideTheWorkspace();
 
     for (String ref : List.of("links/loop.xsd", "links/loopdir/x.xsd")) {
-      assertRefused(() -> workspace.checkBundle(root, List.of(ref)), ref);
+      assertRefused(() -> checkBundle(root, List.of(ref)), ref);
     }
-    assertRefused(() -> workspace.checkBundle(links, List.of("loop.xsd")), "from links");
+    assertRefused(() -> checkBundle(links, List.of("loop.xsd")), "from links");
     assertThat(besideTheWorkspace()).isEqualTo(before);
   }
 
@@ -768,9 +772,9 @@ class WorkspaceTest {
       case BUNDLE -> {
         Path from = Files.createDirectories(root.resolve(BUNDLE_DIRECTORY));
         if (isInsideBundleRef(path)) {
-          assertThatNoException().isThrownBy(() -> workspace.checkBundle(from, List.of(path)));
+          assertThatNoException().isThrownBy(() -> checkBundle(from, List.of(path)));
         } else {
-          assertRefused(() -> workspace.checkBundle(from, List.of(path)), printable(path));
+          assertRefused(() -> checkBundle(from, List.of(path)), printable(path));
         }
       }
     }
@@ -885,6 +889,260 @@ class WorkspaceTest {
     return root.resolve(BUNDLE_DIRECTORY).resolve(path).normalize().startsWith(root);
   }
 
+  // --- #90: the workspace's reference resolver (ADR-0014 "Reference resolver shape", ADR-0024)
+
+  /** The root selector the engine is asked for; no case below reaches a schema's content. */
+  private static final ElementRoot ANY_ROOT = new ElementRoot("Order");
+
+  /**
+   * The escapes {@link #resolverRefusesAnEscapeBeforeAnyRead} sends from {@code a/}: {@code
+   * {outside}} stands for the absolute path of {@code outside/}. A missing file outside is an
+   * escape, never unreadable.
+   */
+  static Stream<String> escapes() {
+    return Stream.of(
+        "../../outside/evil.xsd",
+        "{outside}/evil.xsd",
+        "links/out.xsd",
+        "links/ghost.xsd",
+        "links/loop.xsd",
+        "../../outside/missing.xsd");
+  }
+
+  /**
+   * The resolver refuses a workspace escape with an unchecked {@link InvalidWorkspacePathException}
+   * that wraps the {@link WorkspacePathException} naming the reference as the bundle spells it, and
+   * opens no file on the way: {@link ObservedFileSystem} records every open. The witness: the same
+   * resolver then reads a workspace path, and the observer sees that open.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("escapes")
+  void resolverRefusesAnEscapeBeforeAnyRead(String row) throws Exception {
+    assumePosix();
+    Path a = root.resolve("a");
+    Path links = Files.createDirectory(a.resolve("links"));
+    Files.createSymbolicLink(links.resolve("out.xsd"), Path.of("../../../outside/evil.xsd"));
+    Files.createSymbolicLink(links.resolve("ghost.xsd"), Path.of("../../../outside/ghost.xsd"));
+    Files.createSymbolicLink(links.resolve("loop.xsd"), Path.of("loop.xsd"));
+    Files.write(a.resolve("inside.xsd"), NEW);
+    String reference = row.replace("{outside}", outside.toString());
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    assertThatThrownBy(() -> resolver.resolve(reference))
+        .as(reference)
+        .isInstanceOf(InvalidWorkspacePathException.class)
+        .cause()
+        .isInstanceOf(WorkspacePathException.class)
+        .hasMessage("not a workspace path: \"" + reference + "\"");
+
+    assertThat(observed.moments()).as("files opened for %s", reference).isEmpty();
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+    ResolvedFile inside = resolver.resolve("inside.xsd");
+    assertThat(inside.name()).isEqualTo("inside.xsd");
+    assertThat(inside.content()).isEqualTo(NEW);
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("the witness: the observer sees a read")
+        .contains("inside.xsd");
+  }
+
+  /**
+   * A workspace path is read as the bundle spells it, through a link inside as well (ADR-0024). A
+   * file that is missing inside, or a directory, is no escape: the engine reports it as {@code
+   * schema-unreadable} at the reference.
+   */
+  @Test
+  void resolverReadsAWorkspacePathAndAnswersAMissingOneAsUnreadable() throws Exception {
+    Path a = root.resolve("a");
+    byte[] shared = "shared schema".getBytes(UTF_8);
+    byte[] linked = "linked schema".getBytes(UTF_8);
+    Files.write(root.resolve("shared.xsd"), shared);
+    Files.createDirectories(root.resolve("real"));
+    Files.write(root.resolve("real/s.xsd"), linked);
+    Files.createSymbolicLink(a.resolve("s-alias.xsd"), Path.of("../real/s.xsd"));
+    Files.createDirectory(a.resolve("sub.xsd"));
+    ReferenceResolver resolver = workspace.resolver(a);
+
+    ResolvedFile up = resolver.resolve("../shared.xsd");
+    assertThat(up.name()).isEqualTo("../shared.xsd");
+    assertThat(up.content()).isEqualTo(shared);
+    ResolvedFile alias = resolver.resolve("s-alias.xsd");
+    assertThat(alias.name()).isEqualTo("s-alias.xsd");
+    assertThat(alias.content()).isEqualTo(linked);
+    for (String reference : List.of("missing.xsd", "sub.xsd")) {
+      assertThat(described(Structures.load(resolver, bundle(reference), ANY_ROOT)))
+          .as(reference)
+          .isEqualTo("schema-unreadable at " + reference + " 1:1");
+    }
+  }
+
+  /**
+   * #93 (ADR-0014 "Reference resolver shape (#90)", ADR-0008): a schemaLocation written inside a
+   * schema is mapped to a bundle file by text before any read. One that escapes the workspace maps
+   * to none, so the load is {@code schema-reference-outside-bundle} at the first such element, and
+   * {@link ObservedFileSystem}, which records every open, sees the bundle file read and nothing
+   * else.
+   */
+  @Test
+  void aSchemaLocationThatEscapesIsOutsideTheBundleAndNeverRead() throws Exception {
+    Path a = root.resolve("a");
+    Files.writeString(
+        a.resolve("doc.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:a">
+          <xs:import namespace="urn:outside" schemaLocation="../../outside/evil.xsd"/>
+          <xs:include schemaLocation="../../../etc/passwd"/>
+        </xs:schema>
+        """);
+    Map<String, String> before = besideTheWorkspace();
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    StructureResult result = Structures.load(resolver, bundle("doc.xsd"), ANY_ROOT);
+
+    // just after the xs:import start tag: line 2, column 79
+    assertThat(described(result))
+        .isEqualTo(
+            "schema-reference-outside-bundle at doc.xsd 2:79;"
+                + " schema-reference-outside-bundle at doc.xsd 3:53");
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("files opened")
+        .containsExactly("doc.xsd");
+    assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
+  /**
+   * #97 (ADR-0008): a JSON Schema {@code $ref} to a file the bundle does not list is {@code
+   * schema-reference-outside-bundle} at the {@code $ref}, and the unlisted file is never read,
+   * although it lies inside the workspace beside the bundle file (StructuresResourceTest sends the
+   * same bundle over HTTP). {@link ObservedFileSystem} records every open and sees the bundle file
+   * alone.
+   */
+  @Test
+  void aJsonRefToAnUnlistedFileIsOutsideTheBundleAndNeverRead() throws Exception {
+    Path corpus = Fixtures.repositoryRoot().resolve("corpus/structures/json-schema/bundle");
+    Path a = root.resolve("a");
+    Files.createDirectory(a.resolve("defs"));
+    for (String file : List.of("order.schema.json", "defs/address.schema.json")) {
+      Files.copy(corpus.resolve(file), a.resolve(file));
+    }
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    StructureResult result = Structures.load(resolver, bundle("order.schema.json"), new JsonRoot());
+
+    assertThat(described(result))
+        .isEqualTo(
+            "schema-reference-outside-bundle at order.schema.json 7:16;"
+                + " schema-reference-outside-bundle at order.schema.json 8:17");
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("files opened")
+        .containsExactly("order.schema.json");
+  }
+
+  /** ADR-0024 as amended by the spec-4 grilling, verbatim: the oracle of a package reference. */
+  private static final Pattern PACKAGE_PATTERN =
+      Pattern.compile(
+          "[A-Za-z0-9_-][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.+-]*:/[A-Za-z0-9_-][A-Za-z0-9._-]*"
+              + "(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*");
+
+  /** Enough candidates that both outcomes come up often (103 package references for SEED). */
+  private static final int PACKAGE_CASES = 3000;
+
+  /**
+   * The resolver refuses a reference as a package reference ({@code package-reference-unsupported}
+   * from the engine) exactly when it has the ADR-0024 form, and anything else with an {@code @} as
+   * an invalid workspace path. It decides from the text alone: the root is deleted before the first
+   * call, so a file-system call would show as {@code schema-unreadable} or a different exception.
+   * Candidates are {@code name@version:path} with parts from {@link #generate} and {@link
+   * #segment}.
+   */
+  @Test
+  void packageReferencePatternAcceptsExactlyTheAdrForm() throws Exception {
+    ReferenceResolver resolver = workspace.resolver(root.resolve("a"));
+    deleteTree(root);
+    List<String> candidates =
+        new ArrayList<>(
+            List.of(
+                "shared@1.2.0:/xsd/o.xsd",
+                "p@1:/x.xsd",
+                "p_-.q@2+b.1-rc:/a/b.c",
+                "p@1:x.xsd",
+                "p@:/x.xsd",
+                "@1:/x.xsd",
+                "p@1:/../x.xsd",
+                "p@1:/a//b.xsd",
+                "p@.1:/x.xsd",
+                "p@1:/x.xsd/",
+                "p@1@2:/x.xsd",
+                "p@1:/a\\b.xsd"));
+    SplittableRandom random = new SplittableRandom(SEED);
+    for (int i = 0; i < PACKAGE_CASES; i++) {
+      candidates.add(packageCandidate(random));
+    }
+
+    int accepted = 0;
+    int refused = 0;
+    for (String reference : candidates) {
+      if (PACKAGE_PATTERN.matcher(reference).matches()) {
+        accepted++;
+        assertThat(described(Structures.load(resolver, bundle(reference), ANY_ROOT)))
+            .as(printable(reference))
+            .isEqualTo("package-reference-unsupported at " + reference + " 1:1");
+      } else {
+        refused++;
+        assertThatThrownBy(() -> Structures.load(resolver, bundle(reference), ANY_ROOT))
+            .as(printable(reference))
+            .isInstanceOf(InvalidWorkspacePathException.class);
+      }
+    }
+    // both outcomes must come up, or the property holds vacuously
+    assertThat(accepted).as("seed %x: package references", SEED).isGreaterThanOrEqualTo(50);
+    assertThat(refused).as("seed %x: other references", SEED).isGreaterThanOrEqualTo(50);
+  }
+
+  /**
+   * {@code name@version:path}: the name and the version are often of the form, else a {@link
+   * #segment} or empty; the path is a {@link #generate}d one, mostly after a {@code /}.
+   */
+  private static String packageCandidate(SplittableRandom random) {
+    String name = random.nextInt(3) == 0 ? segment(random) : "shared";
+    String version =
+        switch (random.nextInt(4)) {
+          case 0 -> segment(random);
+          case 1 -> "";
+          default -> random.nextBoolean() ? "1.2.0" : "2+b.1-rc";
+        };
+    String path = generate(random);
+    return name + "@" + version + ":" + (random.nextInt(4) == 0 ? path : "/" + path);
+  }
+
+  private static SchemaBundle bundle(String reference) {
+    return new SchemaBundle(List.of(reference));
+  }
+
+  /**
+   * A refused load's errors, each as {@code code at file line:column}, joined by {@code "; "};
+   * anything else fails the test.
+   */
+  private static String described(StructureResult result) {
+    if (!(result instanceof StructureResult.Refused(List<Diagnostic> diagnostics))) {
+      throw new AssertionError("expected a refused load, got " + result);
+    }
+    List<String> described = new ArrayList<>();
+    for (Diagnostic diagnostic : diagnostics) {
+      if (!(diagnostic.location() instanceof AtFilePosition(String file, int line, int column))) {
+        throw new AssertionError("expected a load error at a file position, got " + result);
+      }
+      described.add(diagnostic.code() + " at " + file + " " + line + ":" + column);
+    }
+    return String.join("; ", described);
+  }
+
   // --- helpers ---
 
   /** Writes the mapping model file of {@code id}, whose content is the id. */
@@ -892,6 +1150,25 @@ class WorkspaceTest {
     Path file = root.resolve(id + ".mapping.json");
     Files.createDirectories(file.getParent());
     Files.write(file, id.getBytes(UTF_8));
+  }
+
+  /**
+   * Resolves each bundle reference from {@code directory} through the workspace's reference
+   * resolver (#90): an escape throws the {@link WorkspacePathException} its {@link
+   * InvalidWorkspacePathException} wraps; a file inside that cannot be read, a missing one, is no
+   * escape, so the engine reports it ({@code UNREADABLE}).
+   */
+  private void checkBundle(Path directory, List<String> bundle) throws Exception {
+    ReferenceResolver resolver = workspace.resolver(directory);
+    for (String reference : bundle) {
+      try {
+        resolver.resolve(reference);
+      } catch (InvalidWorkspacePathException invalid) {
+        throw (WorkspacePathException) invalid.getCause();
+      } catch (UnresolvedReferenceException unreadable) {
+        assertThat(unreadable.reason()).as(reference).isEqualTo(Reason.UNREADABLE);
+      }
+    }
   }
 
   private static void assertRefused(ThrowingCallable call, String path) {

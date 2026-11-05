@@ -5,6 +5,7 @@ import io.flottila.mapping.structure.Field;
 import io.flottila.mapping.structure.FieldKind;
 import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.StructureType;
@@ -212,6 +213,190 @@ final class TestStructures {
         leaf("", "Free", 0, 1, ValueType.STRING));
   }
 
+  /** The schema file {@link #sameStep()}'s refusals name. */
+  static final String SAME_STEP_FILE = "same-step.xsd";
+
+  /**
+   * Same-step siblings as the reader gives them (ADR-0008 Shape (#92)): each carries
+   * ambiguous-field-path at its step's second declaration. Under {@code Doc}, the optional leaves
+   * {@code Id}, {@code Note} (refused at 8:65), {@code Code} and {@code Note} again; {@code Head}
+   * 0..1 holds the leaves {@code Ref} 0..1, 1..1 and 1..1 (refused at 13:56); {@code Body} 0..1
+   * holds {@code Part} 1..1 with the leaf {@code A} 0..1, and {@code Part} 0..2 (both refused at
+   * 28:53) with the leaf {@code B} 0..1 twice (refused at 30:60). No namespace.
+   */
+  static Structure sameStep() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Head",
+            new StructureType(
+                "/Doc/Head",
+                List.of(
+                    refused(leaf("", "Ref", 0, 1, ValueType.STRING), 13, 56),
+                    refused(leaf("", "Ref", 1, 1, ValueType.STRING), 13, 56),
+                    refused(leaf("", "Ref", 1, 1, ValueType.STRING), 13, 56))),
+            "/Doc/Body",
+            new StructureType(
+                "/Doc/Body",
+                List.of(
+                    refused(structureField("Part", 1, 1, "/Doc/Body/Part"), 28, 53),
+                    refused(structureField("Part", 0, 2, "/Doc/Body/Part#2"), 28, 53))),
+            "/Doc/Body/Part",
+            new StructureType("/Doc/Body/Part", List.of(leaf("", "A", 0, 1, ValueType.STRING))),
+            "/Doc/Body/Part#2",
+            new StructureType(
+                "/Doc/Body/Part#2",
+                List.of(
+                    refused(leaf("", "B", 0, 1, ValueType.STRING), 30, 60),
+                    refused(leaf("", "B", 0, 1, ValueType.STRING), 30, 60)))),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        refused(leaf("", "Note", 0, 1, ValueType.STRING), 8, 65),
+        leaf("", "Code", 0, 1, ValueType.STRING),
+        refused(leaf("", "Note", 0, 1, ValueType.STRING), 8, 65),
+        structureField("Head", 0, 1, "/Doc/Head"),
+        structureField("Body", 0, 1, "/Doc/Body"));
+  }
+
+  /**
+   * Same-step siblings of their own type (#89): under {@code Doc}, the leaf {@code Id} 0..1 and
+   * {@code a} 0..1 of the type {@code /A}, which holds {@code a} 0..1 twice of the type {@code /A}
+   * (both refused at 5:40). A path of n {@code a} steps is held by 2^n chains. No namespace.
+   */
+  static Structure twinSelf() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/A",
+            new StructureType(
+                "/A",
+                List.of(
+                    refused(structureField("a", 0, 1, "/A"), 5, 40),
+                    refused(structureField("a", 0, 1, "/A"), 5, 40)))),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        structureField("a", 0, 1, "/A"));
+  }
+
+  /** The schema file {@link #abstractTarget()}'s refusals name. */
+  static final String SHAPES_FILE = "shapes.xsd";
+
+  /**
+   * Abstract declarations as the reader gives them (ADR-0008, #95): under {@code Doc}, the leaf
+   * {@code Id} 0..1; {@code Shape} 0..1 of an abstract type (abstract-target-element at 7:48),
+   * holding the leaf {@code Size} 0..1 and the same-step leaves {@code Colour} 0..1 twice
+   * (ambiguous-field-path at 9:51); {@code Box} 0..1 holding the leaf {@code Need} 1..1, a
+   * reference to an abstract element (abstract-target-element at 21:61). No namespace.
+   */
+  static Structure abstractTarget() {
+    Refusal.Reason colour = Refusal.Reason.AMBIGUOUS_FIELD_PATH;
+    Refusal.Reason isAbstract = Refusal.Reason.ABSTRACT_TARGET_ELEMENT;
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Shape",
+            new StructureType(
+                "/Doc/Shape",
+                List.of(
+                    leaf("", "Size", 0, 1, ValueType.STRING),
+                    refused(leaf("", "Colour", 0, 1, ValueType.STRING), colour, 9, 51),
+                    refused(leaf("", "Colour", 0, 1, ValueType.STRING), colour, 9, 51))),
+            "/Doc/Box",
+            new StructureType(
+                "/Doc/Box",
+                List.of(refused(leaf("", "Need", 1, 1, ValueType.STRING), isAbstract, 21, 61)))),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        refused(structureField("Shape", 0, 1, "/Doc/Shape"), isAbstract, 7, 48),
+        structureField("Box", 0, 1, "/Doc/Box"));
+  }
+
+  /** {@code field} refused for {@code reason} at {@link #SHAPES_FILE} line:column. */
+  private static Field refused(Field field, Refusal.Reason reason, int line, int column) {
+    return new Field(
+        field.step(),
+        field.occurrence(),
+        field.valueType(),
+        field.nillable(),
+        field.type(),
+        Optional.of(new Refusal(reason, SHAPES_FILE, line, column)));
+  }
+
+  /** The schema file {@link #interleaved()}'s refusals name. */
+  static final String INTERLEAVED_FILE = "interleaved.xsd";
+
+  /**
+   * A repeated sequence of two leaves as the reader gives it (#94, ADR-0008 "in a target"): under
+   * {@code Doc}, the leaf {@code Id} 0..1, then {@code A} 1..unbounded and {@code B} 0..unbounded,
+   * both refused with interleaved-target-group at {@link #INTERLEAVED_FILE} 20:44, the repeated
+   * sequence's declaration. No namespace.
+   */
+  static Structure interleaved() {
+    Refusal refusal =
+        new Refusal(Refusal.Reason.INTERLEAVED_TARGET_GROUP, INTERLEAVED_FILE, 20, 44);
+    return structure(
+        "",
+        "Doc",
+        Map.of(),
+        leaf("", "Id", 0, 1, ValueType.STRING),
+        refused(leaf("", "A", 1, Occurrence.UNBOUNDED, ValueType.STRING), refusal),
+        refused(leaf("", "B", 0, Occurrence.UNBOUNDED, ValueType.STRING), refusal));
+  }
+
+  /**
+   * Same-step siblings that carry no refusal, which the reader never gives (#92): {@code Doc/Body}
+   * 0..1 holds {@code Part} 0..1 with the leaf {@code A} 0..1, then {@code Part} 1..1 with the leaf
+   * {@code B} 0..1. No namespace.
+   */
+  static Structure unrefusedSiblings() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Body",
+            new StructureType(
+                "/Doc/Body",
+                List.of(
+                    structureField("Part", 0, 1, "/Doc/Body/Part"),
+                    structureField("Part", 1, 1, "/Doc/Body/Part#2"))),
+            "/Doc/Body/Part",
+            new StructureType("/Doc/Body/Part", List.of(leaf("", "A", 0, 1, ValueType.STRING))),
+            "/Doc/Body/Part#2",
+            new StructureType("/Doc/Body/Part#2", List.of(leaf("", "B", 0, 1, ValueType.STRING)))),
+        structureField("Body", 0, 1, "/Doc/Body"));
+  }
+
+  /**
+   * A structure with attributes wherever #102 lowers one, built by hand because the import subset
+   * puts attributes on the root's type only: the root {@code Doc} carries {@code code} 0..1 and
+   * {@code Q{urn:b}flag} 1..1; {@code Item} 0..unbounded carries {@code id} 0..1 and holds the leaf
+   * {@code Name} 0..1; {@code Q{urn:c}Note} 0..1 is a simple-content leaf with the attributes
+   * {@code lang} 0..1 and {@code Q{urn:d}ref} 0..1. Otherwise no namespace.
+   */
+  static Structure tagged() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Item",
+            new StructureType(
+                "/Doc/Item",
+                List.of(attribute("", "id", 0, 1), leaf("", "Name", 0, 1, ValueType.STRING))),
+            "/Doc/Q{urn:c}Note",
+            new StructureType(
+                "/Doc/Q{urn:c}Note",
+                List.of(attribute("", "lang", 0, 1), attribute("urn:d", "ref", 0, 1)))),
+        attribute("", "code", 0, 1),
+        attribute("urn:b", "flag", 1, 1),
+        structureField("Item", 0, Occurrence.UNBOUNDED, "/Doc/Item"),
+        new Field(
+            new FieldPath.Step(FieldKind.ELEMENT, "urn:c", "Note"),
+            new Occurrence(0, 1),
+            Optional.of(ValueType.STRING),
+            false,
+            Optional.of("/Doc/Q{urn:c}Note")));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =
@@ -258,9 +443,30 @@ final class TestStructures {
         Optional.empty());
   }
 
-  private static Field attribute(String name, long min, long max) {
+  /** {@code field} refused with ambiguous-field-path at {@link #SAME_STEP_FILE} line:column. */
+  private static Field refused(Field field, int line, int column) {
+    return refused(
+        field, new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, SAME_STEP_FILE, line, column));
+  }
+
+  /** {@code field} with {@code refusal}. */
+  private static Field refused(Field field, Refusal refusal) {
     return new Field(
-        new FieldPath.Step(FieldKind.ATTRIBUTE, "", name),
+        field.step(),
+        field.occurrence(),
+        field.valueType(),
+        field.nillable(),
+        field.type(),
+        Optional.of(refusal));
+  }
+
+  private static Field attribute(String name, long min, long max) {
+    return attribute("", name, min, max);
+  }
+
+  private static Field attribute(String namespace, String name, long min, long max) {
+    return new Field(
+        new FieldPath.Step(FieldKind.ATTRIBUTE, namespace, name),
         new Occurrence(min, max),
         Optional.of(ValueType.STRING),
         false,

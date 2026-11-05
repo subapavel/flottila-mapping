@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
@@ -45,6 +46,8 @@ import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
 import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
+import io.flottila.mapping.structure.Occurrence;
+import io.flottila.mapping.structure.Structure;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -186,6 +189,20 @@ class LoweringTest {
     // without it, the unmapped OrderId (1..1) is the only diagnostic: Street is accepted (#65)
     assertThat(refused(lower(orderToOrder(targetFieldMappings(ADDRESS + "/Street", street)))))
         .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped(ORDER_ID)));
+  }
+
+  /**
+   * ADR-0008 "JSON as a target": a JSON target loads and shows, but a mapping with one does not
+   * compile, whatever it maps. The root selector decides, so the field link that lowers onto the
+   * skeleton (a mapping with an XML target) gives this one diagnostic and nothing else.
+   */
+  @Test
+  void aJsonTargetIsJsonTargetUnsupportedAtTarget() {
+    StructureRef jsonTarget = Models.jsonRoot(order().fingerprint(), "order.schema.json");
+
+    assertThat(lowered(lower(orderToOrder(fieldLink())))).isNotNull();
+    assertThat(refused(lower(model(ref(order()), jsonTarget, fieldLink(), Map.of()))))
+        .containsExactly(errorAtPointer("json-target-unsupported", "/target"));
   }
 
   @Test
@@ -418,8 +435,14 @@ class LoweringTest {
     assertThat(refused(lower(model))).containsExactly(errorAtId("orphaned-reference", "t2"));
   }
 
+  /**
+   * Until #102 this was {@code anAttributeFieldIsUnsupportedField}: the source attribute at a1 and
+   * the target attribute at t2 were both unsupported-field. Since #102 an attribute below the root
+   * is a source field, whose queue sets {@code attribute}, and a target leaf, whose item comes
+   * before OrderId (ADR-0006).
+   */
   @Test
-  void anAttributeFieldIsUnsupportedField() {
+  void anAttributeIsASourceFieldAndATargetField() {
     MappingModel model =
         orderToOrder(
             targetFieldMappings(
@@ -428,10 +451,270 @@ class LoweringTest {
                 CHANNEL,
                 targetFieldMapping("t2", "a2", boxes("a2", source(ORDER_ID)))));
 
-    // a source field at its box, a target field at its target field mapping
-    assertThat(refused(lower(model)))
+    TargetDocument document = lowered(lower(model));
+
+    assertThat(document.content())
+        .map(e -> ((TargetSlots) e).body())
+        .extracting(Expr::getClass, Expr::origin)
         .containsExactly(
-            errorAtId("unsupported-field", "a1"), errorAtId("unsupported-field", "t2"));
+            tuple(AttributeConstructor.class, id("t2")), tuple(ElementConstructor.class, id("t1")));
+    assertThat(((TargetSlots) document.content().getLast()).queue())
+        .isEqualTo(
+            new SourceQueue(
+                List.of(ORDER_NAME, new Name("", "channel")), 1, false, true, id("a1")));
+  }
+
+  // --- attributes (ADR-0006 since #102), over TestStructures.tagged()
+
+  private static final String DOC = "/Doc";
+  private static final String CODE = DOC + "/@code";
+  private static final String FLAG = DOC + "/@Q{urn:b}flag";
+  private static final String ITEM = DOC + "/Item";
+  private static final String NOTE_C = DOC + "/Q{urn:c}Note";
+  private static final Name DOC_NAME = new Name("", "Doc");
+  private static final Name ITEM_NAME = new Name("", "Item");
+
+  private static LowerResult lowerTagged(Object... pathThenMapping) {
+    return Lowering.lower(
+        model(
+            ref(TestStructures.orders()),
+            ref(TestStructures.tagged()),
+            targetFieldMappings(pathThenMapping),
+            Map.of()),
+        TestStructures.orders(),
+        TestStructures.tagged());
+  }
+
+  private static TargetFieldMapping fromOrders(String id, String field, String context) {
+    return targetFieldMapping(id, "s" + id, boxes("s" + id, source(field, context)));
+  }
+
+  /** The target attribute item of {@code name} under the root, as lowering gives it at depth 2. */
+  private static TargetSlots rootAttribute(
+      String prefix, Name name, Expr queue, long min, String mapping) {
+    return new TargetSlots(
+        queue,
+        integer("root", mapping),
+        min,
+        1,
+        "slot2",
+        "value2",
+        new AttributeConstructor(
+            prefix, name, new VarRef("value2", AtomicType.STRING, id(mapping)), id(mapping)),
+        id(mapping));
+  }
+
+  private static SourceQueue orderIds(String box) {
+    return new SourceQueue(List.of(ORDERS_NAME, ORDER_ELEMENT, new Name("", "Id")), 1, id(box));
+  }
+
+  /**
+   * A source attribute's default context is its element, depth {@code size - 1} (ADR-0007, #2 §1
+   * [SAP✓]), and any proper ancestor may be set instead; a root attribute's element is the root.
+   */
+  @Test
+  void sourceAttributeContextIsItsElement() {
+    List<Name> itemId = List.of(DOC_NAME, ITEM_NAME, new Name("", "id"));
+    MappingModel model =
+        model(
+            ref(TestStructures.tagged()),
+            ref(order()),
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t1", "a1", boxes("a1", source(CODE))),
+                NOTE,
+                targetFieldMapping("t2", "a2", boxes("a2", source(ITEM + "/@id"))),
+                QUANTITY,
+                targetFieldMapping("t3", "a3", boxes("a3", source(ITEM + "/@id", DOC)))),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, TestStructures.tagged(), order()));
+
+    assertThat(document.content())
+        .map(e -> ((TargetSlots) e).queue())
+        .containsExactly(
+            new SourceQueue(List.of(DOC_NAME, new Name("", "code")), 1, false, true, id("a1")),
+            new SourceQueue(itemId, 1, false, true, id("a3")),
+            new SourceQueue(itemId, 2, false, true, id("a2")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * Attribute items come first in their element's content, in target field order, whatever order
+   * the model lists its target field mappings in (ADR-0006, ADR-0008).
+   */
+  @Test
+  void targetAttributeItemPrecedesChildElements() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                ITEM,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders"),
+                ITEM + "/Name",
+                fromOrders("t2", "/Orders/Order/Tag", "/Orders/Order"),
+                ITEM + "/@id",
+                fromOrders("t3", "/Orders/Order/Id", "/Orders/Order"),
+                FLAG,
+                fromOrders("t4", "/Orders/Order/Id", "/Orders"),
+                CODE,
+                fromOrders("t5", "/Orders/Order/Id", "/Orders")));
+
+    assertThat(document.content())
+        .extracting(Expr::origin)
+        .containsExactly(id("t5"), id("t4"), id("t1"));
+    assertThat(document.content().getFirst())
+        .isEqualTo(rootAttribute("", new Name("", "code"), orderIds("st5"), 0, "t5"));
+    ElementConstructor item =
+        (ElementConstructor) ((TargetSlots) document.content().getLast()).body();
+    assertThat(item.content())
+        .map(e -> ((TargetSlots) e).body())
+        .extracting(Expr::getClass, Expr::origin)
+        .containsExactly(
+            tuple(AttributeConstructor.class, id("t3")), tuple(ElementConstructor.class, id("t2")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /** A target attribute is 0..1, or 1..1 when {@code use="required"} (ADR-0006 since #102). */
+  @Test
+  void requiredAttributeSlotsHaveMinOne() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                CODE,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders"),
+                FLAG,
+                fromOrders("t2", "/Orders/Order/Id", "/Orders")));
+
+    assertThat(document.content())
+        .map(e -> (TargetSlots) e)
+        .extracting(TargetSlots::origin, TargetSlots::min, TargetSlots::max)
+        .containsExactly(tuple(id("t1"), 0L, 1L), tuple(id("t2"), 1L, 1L));
+    // without a mapping, the required flag is an unmapped mandatory leaf, as an element is (#91)
+    assertThat(refused(lowerTagged(CODE, fromOrders("t1", "/Orders/Order/Id", "/Orders"))))
+        .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped(FLAG)));
+  }
+
+  /** A generating function on an attribute is one copy, 0..1 and 1..1 alike (ADR-0006). */
+  @Test
+  void generatingAttributeIsOneCopy() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                CODE,
+                targetFieldMapping(
+                    "t1",
+                    "c1",
+                    boxes(
+                        "c1",
+                        function("constant", inputs(), Models.params("value", Models.text("x"))))),
+                FLAG,
+                targetFieldMapping(
+                    "t2",
+                    "c2",
+                    boxes(
+                        "c2",
+                        function(
+                            "constant", inputs(), Models.params("value", Models.text("y")))))));
+
+    FunctionRef constant =
+        new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING);
+    assertThat(document.content())
+        .containsExactly(
+            new TargetRepeat(
+                1,
+                integer("root", "t1"),
+                "slot2",
+                new AttributeConstructor(
+                    "",
+                    new Name("", "code"),
+                    new FunCall(constant, List.of(new Literal("x", id("c1"))), id("c1")),
+                    id("t1")),
+                id("t1")),
+            new TargetRepeat(
+                1,
+                integer("root", "t2"),
+                "slot2",
+                new AttributeConstructor(
+                    "ns0",
+                    new Name("urn:b", "flag"),
+                    new FunCall(constant, List.of(new Literal("y", id("c2"))), id("c2")),
+                    id("t2")),
+                id("t2")));
+  }
+
+  /**
+   * An element with a value and attributes is a leaf (GLOSSARY "Leaf field"): its content is its
+   * attribute items, under its slot number, then its text (ADR-0006 since #102).
+   */
+  @Test
+  void simpleContentLeafHoldsAttributesThenText() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                NOTE_C + "/@lang",
+                fromOrders("t2", "/Orders/Order/Tag", "/Orders/Order"),
+                NOTE_C,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders"),
+                FLAG,
+                fromOrders("t0", "/Orders/Order/Id", "/Orders")));
+
+    TargetSlots lang =
+        new TargetSlots(
+            new SourceQueue(List.of(ORDERS_NAME, ORDER_ELEMENT, new Name("", "Tag")), 2, id("st2")),
+            integer("slot2", "t2"),
+            0,
+            1,
+            "slot3",
+            "value3",
+            new AttributeConstructor(
+                "",
+                new Name("", "lang"),
+                new VarRef("value3", AtomicType.STRING, id("t2")),
+                id("t2")),
+            id("t2"));
+    assertThat(((TargetSlots) document.content().getLast()).body())
+        .isEqualTo(
+            new ElementConstructor(
+                "ns1",
+                new Name("urn:c", "Note"),
+                List.of(
+                    lang,
+                    new TextConstructor(
+                        new VarRef("value2", AtomicType.STRING, id("t1")), id("t1"))),
+                id("t1")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * Prefixes follow the walk (ADR-0022 since #102): an element, then its attributes, then its
+   * children. The root Doc has no namespace, so ns0 is the root's flag's urn:b, met before the
+   * child Note's urn:c (ns1), which is met before Note's own ref in urn:d (ns2).
+   */
+  @Test
+  void qualifiedAttributePrefixInTargetFieldOrder() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                NOTE_C + "/@Q{urn:d}ref",
+                fromOrders("t3", "/Orders/Order/Tag", "/Orders/Order"),
+                NOTE_C,
+                fromOrders("t2", "/Orders/Order/Id", "/Orders"),
+                FLAG,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders")));
+
+    assertThat(document.prefix()).isEmpty();
+    assertThat(document.content().getFirst())
+        .isEqualTo(rootAttribute("ns0", new Name("urn:b", "flag"), orderIds("st1"), 1, "t1"));
+    ElementConstructor note =
+        (ElementConstructor) ((TargetSlots) document.content().getLast()).body();
+    assertThat(note.prefix()).isEqualTo("ns1");
+    assertThat(((TargetSlots) note.content().getFirst()).body())
+        .isEqualTo(
+            new AttributeConstructor(
+                "ns2",
+                new Name("urn:d", "ref"),
+                new VarRef("value3", AtomicType.STRING, id("t3")),
+                id("t3")));
   }
 
   /**
@@ -569,9 +852,10 @@ class LoweringTest {
   /**
    * O1 of the #52 design refused a mapped field under any unmapped parent until #63. Since #63 Val
    * under the unmapped Row (1..2) is still unsupported-field at its target field mapping, because
-   * PO requires a mapping for {@code 0 < minOccurs < maxOccurs} (#2 §2). With Grp unmapped too, Grp
-   * (0..unbounded) is optional and left out with Row and Val, so the mapping compiles and creates
-   * nothing below the root.
+   * PO requires a mapping for {@code 0 < minOccurs < maxOccurs} (#2 §2). Since #91 the same compile
+   * goes on to the target walk, which refuses the unmapped Row itself at its absent target field
+   * mapping. With Grp unmapped too, Grp (0..unbounded) is optional and left out with Row and Val,
+   * so the mapping compiles and creates nothing below the root.
    */
   @Test
   void aMappedFieldUnderAnUnmappedParentNeedingAMappingIsUnsupportedField() {
@@ -579,7 +863,9 @@ class LoweringTest {
     assertThat(lowerNested(nestedMappings(true, true))).isInstanceOf(Lowered.class);
 
     assertThat(refused(lowerNested(nestedMappings(true, false))))
-        .containsExactly(errorAtId("unsupported-field", "t3"));
+        .containsExactly(
+            errorAtPointer("unsupported-field", unmapped(ROW)),
+            errorAtId("unsupported-field", "t3"));
     // until #63 this was unsupported-field at t3 too
     assertThat(lowered(lowerNested(nestedMappings(false, false))).content()).isEmpty();
   }
@@ -853,6 +1139,70 @@ class LoweringTest {
         .containsExactly(new AuthoringId("/Doc/Head"), id("t1"), id("t3"));
   }
 
+  // --- one-pass compile (#91, spec #89): lowering goes on past a target field mapping that fails,
+  // emits nothing for it, and still applies the unmapped rules
+
+  /** A target field mapping {@code id} whose box {@code s<id>} reads a field the source lacks. */
+  private static TargetFieldMapping orphaned(String id) {
+    return targetFieldMapping(
+        id, "s" + id, boxes("s" + id, source("/Orders/Order/Missing", "/Orders")));
+  }
+
+  /**
+   * The failing mapping of Free does not stop the walk: the unmapped mandatory Req under the
+   * created Head and Tilde under the root are reported in the same compile.
+   */
+  @Test
+  void aFailingTargetFieldMappingDoesNotHideTheUnmappedMandatoryLeaves() {
+    // witness: with Free lowering, the same two leaves are reported
+    assertThat(refused(lowerMandatory("/Doc/Free", orderId("t1"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Head/Req")),
+            errorAtPointer("unmapped-mandatory-leaf", unmapped(TILDE_LEAF)));
+
+    assertThat(refused(lowerMandatory("/Doc/Free", orphaned("t1"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Head/Req")),
+            errorAtPointer("unmapped-mandatory-leaf", unmapped(TILDE_LEAF)),
+            errorAtId("orphaned-reference", "st1"));
+  }
+
+  /** A mandatory leaf whose target field mapping fails is mapped: only the failure is reported. */
+  @Test
+  void aMandatoryLeafWhoseMappingFailsIsNotUnmapped() {
+    assertThat(refused(lowerMandatory("/Doc/Head/Req", orphaned("t2"), TILDE_LEAF, orderId("t3"))))
+        .containsExactly(errorAtId("orphaned-reference", "st2"));
+  }
+
+  /**
+   * The walk goes on below a structure field whose target field mapping fails, as below a mapped
+   * one: the unmapped mandatory Need under the failing Item is reported beside Item's failure.
+   */
+  @Test
+  void theWalkGoesOnBelowAStructureFieldWhoseMappingFails() {
+    // witness: with Item lowering, Need is reported alone
+    TargetFieldMapping item =
+        targetFieldMapping("t1", "a1", boxes("a1", source("/Orders/Order", "/Orders")));
+    assertThat(
+            refused(
+                lowerMandatory(
+                    "/Doc/Head/Req", orderId("t2"), "/Doc/Item", item, TILDE_LEAF, orderId("t3"))))
+        .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Item/Need")));
+
+    assertThat(
+            refused(
+                lowerMandatory(
+                    "/Doc/Head/Req",
+                    orderId("t2"),
+                    "/Doc/Item",
+                    orphaned("t1"),
+                    TILDE_LEAF,
+                    orderId("t3"))))
+        .containsExactly(
+            errorAtPointer("unmapped-mandatory-leaf", unmapped("/Doc/Item/Need")),
+            errorAtId("orphaned-reference", "st1"));
+  }
+
   @Test
   void stage3ReportsEveryDiagnosticSorted() {
     // target field order meets f2, t1, a1; the report is sorted by location
@@ -878,5 +1228,346 @@ class LoweringTest {
             errorAtId("orphaned-reference", "a1"),
             errorAtId("unsupported-box-kind", "f2"),
             errorAtId("unconnected-target-field", "t1"));
+  }
+
+  // --- refused fields (ADR-0008 "Refused when a mapping uses the field" and its Shape (#92))
+
+  /** {@code mappings} from {@link TestStructures#sameStep()} to itself. */
+  private static LowerResult lowerSameStep(Object... pathThenMapping) {
+    Structure structure = TestStructures.sameStep();
+    return Lowering.lower(
+        model(ref(structure), ref(structure), targetFieldMappings(pathThenMapping), Map.of()),
+        structure,
+        structure);
+  }
+
+  /**
+   * Resolution matches a step below each same-step sibling in turn, and remembers the type and step
+   * below which a path's rest failed (#89): a 40-step path through the twin {@code a} of {@link
+   * TestStructures#twinSelf()}, ending in a step the structure lacks, is orphaned-reference within
+   * the timeout, where trying every chain of siblings takes 2^38 tries. 2 s stays below PIT's own
+   * timeout, so a mutant without the memo is killed here rather than timed out.
+   */
+  @Test
+  void aLongPathThroughSameStepSiblingsOfOneTypeResolvesInPolynomialTime() {
+    Structure structure = TestStructures.twinSelf();
+    String missing = "/Doc" + "/a".repeat(38) + "/Missing";
+
+    LowerResult result =
+        assertTimeoutPreemptively(
+            Duration.ofSeconds(2),
+            () ->
+                Lowering.lower(
+                    model(
+                        ref(structure),
+                        ref(structure),
+                        targetFieldMappings("/Doc/Id", copy("t1", missing)),
+                        Map.of()),
+                    structure,
+                    structure));
+
+    assertThat(refused(result)).containsExactly(errorAtId("orphaned-reference", "st1"));
+  }
+
+  /** A leaf holds no field: a path with a step below it is orphaned-reference. */
+  @Test
+  void aPathBelowALeafIsAnOrphanedReference() {
+    Structure structure = TestStructures.twinSelf();
+
+    LowerResult result =
+        Lowering.lower(
+            model(
+                ref(structure),
+                ref(structure),
+                targetFieldMappings("/Doc/Id", copy("t1", "/Doc/Id/Below")),
+                Map.of()),
+            structure,
+            structure);
+
+    assertThat(refused(result)).containsExactly(errorAtId("orphaned-reference", "st1"));
+  }
+
+  /** A target field mapping {@code id} whose result is the source-field box {@code s<id>}. */
+  private static TargetFieldMapping copy(String id, String sourceField) {
+    return targetFieldMapping(id, "s" + id, boxes("s" + id, source(sourceField)));
+  }
+
+  /** The messages of a lowering refusal, in its order. */
+  private static List<String> messages(LowerResult result) {
+    assertThat(result).isInstanceOf(Refused.class);
+    return ((Refused) result).diagnostics().stream().map(Diagnostic::message).toList();
+  }
+
+  /**
+   * A source-field box on a refused field is ambiguous-field-path at the box, and a target field
+   * mapping on one at the mapping, whose message names the schema file, line and column of the
+   * step's second declaration.
+   */
+  @Test
+  void aBoxOrTargetFieldMappingOnARefusedFieldIsAmbiguousFieldPathThere() {
+    LowerResult source = lowerSameStep("/Doc/Id", copy("t1", "/Doc/Note"));
+    LowerResult target = lowerSameStep("/Doc/Note", copy("t1", "/Doc/Id"));
+
+    assertThat(refused(source)).containsExactly(errorAtId("ambiguous-field-path", "st1"));
+    assertThat(refused(target)).containsExactly(errorAtId("ambiguous-field-path", "t1"));
+    assertThat(messages(source)).hasSize(1);
+    assertThat(messages(source).getFirst())
+        .contains("/Doc/Note")
+        .contains(TestStructures.SAME_STEP_FILE + " 8:65");
+    assertThat(messages(target)).isEqualTo(messages(source));
+  }
+
+  /**
+   * A path through a refused field is refused with the refusal nearest the root: B stands only
+   * under the second Part, and is itself refused at 30:60, yet the box and the mapping name Part's
+   * refusal at 28:53. A path that no sibling holds is orphaned-reference.
+   */
+  @Test
+  void aPathThroughARefusedFieldIsRefusedWithTheRefusalNearestTheRoot() {
+    LowerResult source = lowerSameStep("/Doc/Id", copy("t1", "/Doc/Body/Part/B"));
+    LowerResult target = lowerSameStep("/Doc/Body/Part/B", copy("t1", "/Doc/Id"));
+
+    assertThat(refused(source)).containsExactly(errorAtId("ambiguous-field-path", "st1"));
+    assertThat(refused(target)).containsExactly(errorAtId("ambiguous-field-path", "t1"));
+    for (LowerResult result : List.of(source, target)) {
+      assertThat(messages(result)).hasSize(1);
+      assertThat(messages(result).getFirst())
+          .contains("/Doc/Body/Part ")
+          .contains(TestStructures.SAME_STEP_FILE + " 28:53")
+          .doesNotContain("30:60");
+    }
+    assertThat(refused(lowerSameStep("/Doc/Id", copy("t1", "/Doc/Body/Part/C"))))
+        .containsExactly(errorAtId("orphaned-reference", "st1"));
+  }
+
+  /**
+   * The target walk never enters a refused field. One a target field mapping names is reported at
+   * that mapping only, and an unmapped one with {@code minOccurs > 0} under a created parent once
+   * per path at its pointer, each sibling with its own occurrence: the Refs 0..1, 1..1, 1..1 (two
+   * mandatory, one report) and the Parts 1..1 and 0..2 (the first alone mandatory, still reported).
+   * No unmapped-mandatory-leaf or unsupported-field stands beside them.
+   */
+  @Test
+  void theTargetWalkReportsAnUnmappedMandatoryRefusedFieldOnceAtItsPointer() {
+    assertThat(
+            refused(
+                lowerSameStep(
+                    "/Doc/Head", copy("t1", "/Doc/Head"), "/Doc/Head/Ref", copy("t2", "/Doc/Id"))))
+        .containsExactly(errorAtId("ambiguous-field-path", "t2"));
+
+    LowerResult unmapped =
+        lowerSameStep("/Doc/Head", copy("t1", "/Doc/Head"), "/Doc/Body", copy("t2", "/Doc/Body"));
+    assertThat(refused(unmapped))
+        .containsExactly(
+            errorAtPointer("ambiguous-field-path", unmapped("/Doc/Body/Part")),
+            errorAtPointer("ambiguous-field-path", unmapped("/Doc/Head/Ref")));
+    List<String> messages = messages(unmapped);
+    assertThat(messages.get(0)).contains("/Doc/Body/Part").contains(" 28:53");
+    assertThat(messages.get(1)).contains("/Doc/Head/Ref").contains(" 13:56");
+  }
+
+  /**
+   * Refused fields that no mapping uses or must create are left out: the optional Notes beside the
+   * mapped Code, and the optional Head and Body. The model lowers.
+   */
+  @Test
+  void refusedFieldsThatNoMappingUsesLower() {
+    TargetDocument document =
+        lowered(
+            lowerSameStep("/Doc/Id", copy("t1", "/Doc/Id"), "/Doc/Code", copy("t2", "/Doc/Code")));
+
+    assertThat(document.content()).extracting(Expr::origin).containsExactly(id("t1"), id("t2"));
+  }
+
+  /** {@code mappings} from {@link TestStructures#abstractTarget()} to itself. */
+  private static LowerResult lowerAbstract(Object... pathThenMapping) {
+    Structure structure = TestStructures.abstractTarget();
+    return Lowering.lower(
+        model(ref(structure), ref(structure), targetFieldMappings(pathThenMapping), Map.of()),
+        structure,
+        structure);
+  }
+
+  /**
+   * #95 (ADR-0008 "Refused when a mapping uses the field"): a target field mapping on an abstract
+   * element, or on a path through one, is abstract-target-element at the mapping, its message
+   * naming the abstract declaration's file, line and column; the refusal nearest the root wins.
+   */
+  @Test
+  void aTargetFieldMappingOnAnAbstractElementIsAbstractTargetElementThere() {
+    LowerResult shape = lowerAbstract("/Doc/Shape", copy("t1", "/Doc/Id"));
+    LowerResult below = lowerAbstract("/Doc/Shape/Colour", copy("t1", "/Doc/Id"));
+
+    for (LowerResult result : List.of(shape, below)) {
+      assertThat(refused(result)).containsExactly(errorAtId("abstract-target-element", "t1"));
+      assertThat(messages(result).getFirst())
+          .contains("/Doc/Shape ")
+          .contains(TestStructures.SHAPES_FILE + " 7:48")
+          .doesNotContain("9:51");
+    }
+  }
+
+  /**
+   * An abstract element is refused in a target only: a source-field box reads one, or a field below
+   * one, and the model lowers. A field below it that is refused for another reason is refused at
+   * the box with that reason.
+   */
+  @Test
+  void aSourceBoxOnAnAbstractElementLowersAndAnotherRefusalBelowItStands() {
+    assertThat(lowerAbstract("/Doc/Id", copy("t1", "/Doc/Shape/Size"))).isInstanceOf(Lowered.class);
+    assertThat(lowerAbstract("/Doc/Id", copy("t1", "/Doc/Shape"))).isInstanceOf(Lowered.class);
+
+    LowerResult colour = lowerAbstract("/Doc/Id", copy("t1", "/Doc/Shape/Colour"));
+    assertThat(refused(colour)).containsExactly(errorAtId("ambiguous-field-path", "st1"));
+    assertThat(messages(colour).getFirst()).contains(TestStructures.SHAPES_FILE + " 9:51");
+  }
+
+  /**
+   * The target walk never enters an abstract element: an unmapped mandatory one under a created
+   * parent is abstract-target-element at its pointer, instead of unmapped-mandatory-leaf; an
+   * unmapped optional one is left out.
+   */
+  @Test
+  void anUnmappedMandatoryAbstractElementIsAbstractTargetElementAtItsPointer() {
+    LowerResult result = lowerAbstract("/Doc/Box", copy("t1", "/Doc/Box"));
+
+    assertThat(refused(result))
+        .containsExactly(errorAtPointer("abstract-target-element", unmapped("/Doc/Box/Need")));
+    assertThat(messages(result).getFirst())
+        .contains("/Doc/Box/Need")
+        .contains(TestStructures.SHAPES_FILE + " 21:61");
+  }
+
+  // --- a repeated group of two or more particles (#94, ADR-0008 "in a target"): refused only
+  // when a mapping must write a field of it
+
+  /** {@code mappings} from {@code source} to {@link TestStructures#interleaved()}. */
+  private static LowerResult lowerInterleaved(Structure source, Object... pathThenMapping) {
+    Structure target = TestStructures.interleaved();
+    return Lowering.lower(
+        model(ref(source), ref(target), targetFieldMappings(pathThenMapping), Map.of()),
+        source,
+        target);
+  }
+
+  /**
+   * A target field mapping on a field of a repeated group is interleaved-target-group at the
+   * mapping, whose message names the schema file, line and column of the repeated group's
+   * declaration. The optional B beside it is left out.
+   */
+  @Test
+  void aTargetFieldMappingOnAFieldOfARepeatedGroupIsInterleavedTargetGroupThere() {
+    LowerResult result =
+        lowerInterleaved(
+            TestStructures.interleaved(),
+            "/Doc/Id",
+            copy("t1", "/Doc/Id"),
+            "/Doc/A",
+            copy("t2", "/Doc/Id"));
+
+    assertThat(refused(result)).containsExactly(errorAtId("interleaved-target-group", "t2"));
+    assertThat(messages(result).getFirst())
+        .contains("/Doc/A")
+        .contains(TestStructures.INTERLEAVED_FILE + " 20:44");
+  }
+
+  /**
+   * An unmapped field of a repeated group with {@code minOccurs > 0} must be written, so it is
+   * interleaved-target-group at its pointer, instead of unmapped-mandatory-leaf; the optional B is
+   * not.
+   */
+  @Test
+  void anUnmappedMandatoryFieldOfARepeatedGroupIsInterleavedTargetGroupAtItsPointer() {
+    LowerResult result =
+        lowerInterleaved(TestStructures.interleaved(), "/Doc/Id", copy("t1", "/Doc/Id"));
+
+    assertThat(refused(result))
+        .containsExactly(errorAtPointer("interleaved-target-group", unmapped("/Doc/A")));
+  }
+
+  /**
+   * The refusal holds in a target only: a source-field box on a field of a repeated group lowers
+   * (ADR-0008 "in a target").
+   */
+  @Test
+  void aSourceBoxOnAFieldOfARepeatedGroupLowers() {
+    Structure target = TestStructures.order();
+    Structure source = TestStructures.interleaved();
+    MappingModel model =
+        model(
+            ref(source),
+            ref(target),
+            targetFieldMappings(ORDER + "/OrderId", copy("t1", "/Doc/A")),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, source, target));
+
+    TargetSlots orderId = only(document.content(), TargetSlots.class);
+    assertThat(orderId.origin()).isEqualTo(id("t1"));
+  }
+
+  /** The one expression of {@code content}, which is a {@code type}. */
+  private static <T extends Expr> T only(List<Expr> content, Class<T> type) {
+    assertThat(content).hasSize(1).first().isInstanceOf(type);
+    return type.cast(content.getFirst());
+  }
+
+  /**
+   * Same-step siblings that carry no refusal, which the reader never gives, do not break lowering
+   * (#92): a path only the second Part holds resolves to that Part's field, as a source and as a
+   * target. B's TargetSlots stands in the TargetRepeat of the second Part, 1..1, the optional first
+   * Part is left out, and B's occurrence is the second Part's B's. A path no sibling holds is
+   * orphaned-reference.
+   */
+  @Test
+  void aPathOnlyTheSecondOfUnrefusedSameStepSiblingsHoldsResolvesToIt() {
+    Structure structure = TestStructures.unrefusedSiblings();
+    MappingModel model =
+        model(
+            ref(structure),
+            ref(structure),
+            targetFieldMappings(
+                "/Doc/Body",
+                copy("t1", "/Doc/Body"),
+                "/Doc/Body/Part/B",
+                copy("t2", "/Doc/Body/Part/B")),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, structure, structure));
+
+    TargetSlots body = only(document.content(), TargetSlots.class);
+    TargetRepeat part = only(((ElementConstructor) body.body()).content(), TargetRepeat.class);
+    TargetSlots b = only(((ElementConstructor) part.body()).content(), TargetSlots.class);
+    assertThat(part.origin()).isEqualTo(new AuthoringId("/Doc/Body/Part"));
+    assertThat(part.copies()).isEqualTo(1);
+    assertThat(b.origin()).isEqualTo(id("t2"));
+    assertThat(b.queue())
+        .isEqualTo(
+            new SourceQueue(
+                List.of(
+                    new Name("", "Doc"),
+                    new Name("", "Body"),
+                    new Name("", "Part"),
+                    new Name("", "B")),
+                3,
+                false,
+                id("st2")));
+    assertThat(Lowering.occurrences(model, structure))
+        .containsEntry(id("t2"), new Occurrence(0, 1));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+
+    MappingModel orphaned =
+        model(
+            ref(structure),
+            ref(structure),
+            targetFieldMappings(
+                "/Doc/Body",
+                copy("t1", "/Doc/Body/Part/C"),
+                "/Doc/Body/Part/C",
+                copy("t2", "/Doc/Body")),
+            Map.of());
+    assertThat(refused(Lowering.lower(orphaned, structure, structure)))
+        .containsExactly(
+            errorAtId("orphaned-reference", "st1"), errorAtId("orphaned-reference", "t2"));
   }
 }
