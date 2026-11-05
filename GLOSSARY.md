@@ -162,6 +162,46 @@ The panel of the function editor that shows the selected box: its catalogue docu
 fidelity, its box parameters, its context and its display queue.
 _Avoid_: properties panel
 
+**Palette**:
+The narrow list of the function editor that offers every function of the function catalogue,
+grouped by function family, with its fidelity and portability marks.
+_Avoid_: toolbox, function list
+
+**Quick insert**:
+Adding a function box by typing its name on the canvas (or `/`), without the palette.
+_Avoid_: command palette, autocomplete
+
+**Field status**:
+The mark of a target row in the structure overview: mapped, unmapped mandatory, orphaned or error.
+The status filter shows the rows of one status. Unmapped mandatory and error come from the last
+compile; mapped and orphaned are derived from the working copy.
+_Avoid_: field state, validity
+
+**Orphaned target field mapping**:
+A target field mapping whose target field path the current target structure no longer has. It
+has no row in the target tree, so the structure overview lists it in a group of its own.
+_Avoid_: dangling mapping
+
+**Remap**:
+Pointing an orphaned source-field box at another source field, keeping its authoring id and its
+wiring.
+_Avoid_: relink, re-import
+
+**Diagnostics panel**:
+The editor's list of the latest diagnostics of the working copy, from compile, refresh or a refused
+save, each leading to the box, row or schema position it names.
+_Avoid_: problems panel (a problem is an HTTP error), error list
+
+**Stale trace**:
+The trace of the last test run after the working copy has changed. The display queue still shows
+it, marked as stale, until the next test run.
+_Avoid_: old run, cached trace
+
+**Save conflict**:
+A save refused because the mapping file changed on disk since the editor loaded it (409
+`mapping-changed`, ADR-0027). The author reloads or keeps editing; nothing is overwritten.
+_Avoid_: merge conflict (that is git's), lock
+
 **Working copy**:
 The mapping model as the author is editing it in the editor, saved or not. Compile and test run
 on it.
