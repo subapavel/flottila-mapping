@@ -200,6 +200,57 @@ public final class EngineFacade {
   }
 
   /**
+   * Refreshes a mapping model (ADR-0009 as amended on 2026-11-05, ADR-0015): load with stages 1 and
+   * 2, then the source and target structures. Each side whose bundle loads gets the fingerprint of
+   * the structure just read; a side whose bundle fails to load keeps its stored fingerprint and
+   * gives its load error. When both load, the refreshed model goes through stage 3 and lowering,
+   * whose diagnostics, the orphaned references among them, are the result's; it has no {@code
+   * fingerprint-mismatch}, as both fingerprints were just derived, and no occurrence or type
+   * warning. When a side fails to load, stage 3 is not run, and the load errors are the result's
+   * only diagnostics. Nothing else in the model changes, and it comes back in canonical form
+   * (ADR-0010); nothing is written. An unchecked exception from {@code resolver} passes through
+   * unchanged.
+   *
+   * @param model the mapping model's bytes
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
+   * @return the refreshed model and its diagnostics, or the diagnostics of stage 1 or 2 that refuse
+   *     the model
+   * @throws MalformedJsonException if the bytes are no JSON document
+   */
+  public RefreshResult refresh(byte[] model, ReferenceResolver resolver)
+      throws MalformedJsonException {
+    return switch (MappingModelFormat.load(model)) {
+      case Refused r -> new RefreshResult.Refused(r.diagnostics());
+      case Loaded(MappingModel loaded) -> {
+        List<Diagnostic> diagnostics = new ArrayList<>();
+        Optional<Structure> source = structure(resolver, loaded.source(), diagnostics);
+        Optional<Structure> target = structure(resolver, loaded.target(), diagnostics);
+        MappingModel refreshed =
+            new MappingModel(
+                loaded.formatVersion(),
+                refreshed(loaded.source(), source),
+                refreshed(loaded.target(), target),
+                loaded.targetFieldMappings(),
+                loaded.udfs());
+        if (diagnostics.isEmpty()
+            && Lowering.lower(refreshed, source.orElseThrow(), target.orElseThrow())
+                instanceof Refused(List<Diagnostic> stage3)) {
+          diagnostics.addAll(stage3);
+        }
+        yield new RefreshResult.Refreshed(MappingModelFormat.save(refreshed), diagnostics);
+      }
+    };
+  }
+
+  /** {@code ref} with the fingerprint of {@code structure}, or as it is when there is none. */
+  private static StructureRef refreshed(StructureRef ref, Optional<Structure> structure) {
+    return structure
+        .map(s -> new StructureRef(ref.bundle(), ref.root(), s.fingerprint()))
+        .orElse(ref);
+  }
+
+  /**
    * The chain compile and export share: load with stages 1 and 2, the source and target structures,
    * then stage 3 and lowering. The first of these that refuses the model gives {@code refused} its
    * diagnostics, which the result sorts; the structures are both read before either refusal is
