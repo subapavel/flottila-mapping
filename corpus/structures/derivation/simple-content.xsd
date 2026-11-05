@@ -23,6 +23,9 @@
         </xs:element>
         <xs:element name="Count" type="tns:Bare"/>
         <xs:element name="Small" type="tns:SmallMoney"/>
+        <xs:element name="Stamped" type="tns:StampedMoney"/>
+        <xs:element name="Tagged" type="tns:RequiredTagMoney"/>
+        <xs:element name="Untagged" type="tns:UntaggedMoney"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -56,4 +59,37 @@
   <xs:simpleType name="Code">
     <xs:restriction base="xs:token"/>
   </xs:simpleType>
+  <!-- attribute groups in simple content: an extension's and a restriction's attributes, and a
+       restriction's prohibition; xs:anyAttribute has no effect -->
+  <xs:attributeGroup name="Stamp">
+    <xs:attribute name="stamp" type="xs:string"/>
+    <xs:anyAttribute/>
+  </xs:attributeGroup>
+  <xs:attributeGroup name="RequiredTag">
+    <xs:attribute name="tag" type="xs:string" use="required"/>
+  </xs:attributeGroup>
+  <xs:attributeGroup name="NoTag">
+    <xs:attribute name="tag" use="prohibited"/>
+  </xs:attributeGroup>
+  <xs:complexType name="StampedMoney">
+    <xs:simpleContent>
+      <xs:extension base="tns:Money">
+        <xs:attributeGroup ref="tns:Stamp"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="RequiredTagMoney">
+    <xs:simpleContent>
+      <xs:restriction base="tns:TaggedMoney">
+        <xs:attributeGroup ref="tns:RequiredTag"/>
+      </xs:restriction>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="UntaggedMoney">
+    <xs:simpleContent>
+      <xs:restriction base="tns:TaggedMoney">
+        <xs:attributeGroup ref="tns:NoTag"/>
+      </xs:restriction>
+    </xs:simpleContent>
+  </xs:complexType>
 </xs:schema>

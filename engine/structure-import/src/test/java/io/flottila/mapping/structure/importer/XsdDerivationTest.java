@@ -80,7 +80,8 @@ class XsdDerivationTest {
         Arguments.of(
             "an extension of simple content: a leaf whose attributes are fields of their own; a"
                 + " restriction keeps its base's value type and the attributes it does not"
-                + " prohibit",
+                + " prohibit; an attribute group's attributes and prohibitions count as the"
+                + " type's own",
             List.of("simple-content.xsd"),
             "{simple}Invoice",
             List.of(
@@ -94,7 +95,16 @@ class XsdDerivationTest {
                 "/{simple}Invoice/Code/@list 0..1 xs:string",
                 "/{simple}Invoice/Count 1..1 xs:integer",
                 "/{simple}Invoice/Small 1..1 xs:decimal",
-                "/{simple}Invoice/Small/@currency 1..1 xs:string")),
+                "/{simple}Invoice/Small/@currency 1..1 xs:string",
+                // attribute groups in simple content (#94 with #95)
+                "/{simple}Invoice/Stamped 1..1 xs:decimal",
+                "/{simple}Invoice/Stamped/@currency 1..1 xs:string",
+                "/{simple}Invoice/Stamped/@stamp 0..1 xs:string",
+                "/{simple}Invoice/Tagged 1..1 xs:decimal",
+                "/{simple}Invoice/Tagged/@currency 1..1 xs:string",
+                "/{simple}Invoice/Tagged/@tag 1..1 xs:string",
+                "/{simple}Invoice/Untagged 1..1 xs:decimal",
+                "/{simple}Invoice/Untagged/@currency 1..1 xs:string")),
         Arguments.of(
             "a substitution group across two namespaces with an abstract head; Disc, with no type,"
                 + " takes its head's",
@@ -294,7 +304,10 @@ class XsdDerivationTest {
                     + "invalid/constructs.xsd 67:39 <xs:extension> after another child"
                     + outside,
                 unsupported + "invalid/constructs.xsd 72:21 <xs:sequence> here" + outside,
-                unsupported + "invalid/constructs.xsd 77:21 <xs:sequence> here" + outside)),
+                unsupported + "invalid/constructs.xsd 77:21 <xs:sequence> here" + outside,
+                unsupported
+                    + "invalid/constructs.xsd 81:60 the attribute default of <xs:attribute>"
+                    + outside)),
         Arguments.of(
             "bases of the wrong kind or declared nowhere, and a head declared nowhere",
             List.of("invalid/bases.xsd"),
