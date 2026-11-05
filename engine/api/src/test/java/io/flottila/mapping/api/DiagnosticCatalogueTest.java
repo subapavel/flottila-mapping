@@ -155,7 +155,9 @@ class DiagnosticCatalogueTest {
             "orphaned-reference",
             "unconnected-target-field",
             // stage 3, an unmapped mandatory target leaf (#65)
-            "unmapped-mandatory-leaf");
+            "unmapped-mandatory-leaf",
+            // stage 3, a stored fingerprint that is not its bundle's (#91, ADR-0009)
+            "fingerprint-mismatch");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",

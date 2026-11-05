@@ -111,6 +111,15 @@ class EngineFacadeTest {
     return CorpusStructures.directory("skeleton");
   }
 
+  /**
+   * {@code model}, a model over the observation kit's structures, storing their fingerprints
+   * ({@link Fingerprints}).
+   */
+  private static byte[] overTheKit(String model) {
+    return Fingerprints.refreshed(
+        model.getBytes(UTF_8), CorpusStructures.directory("observations"));
+  }
+
   /** A model from {@code order.xsd} to itself with the given target field mappings. */
   private static byte[] orderToOrder(String targetFieldMappings) {
     return between("order.xsd", "order.xsd", targetFieldMappings);
@@ -223,7 +232,8 @@ class EngineFacadeTest {
               : "{\"kind\": \"source\", \"field\": \"/Orders/Order/Line/Sku\", \"context\": \"%s\"}"
                   .formatted(context.getKey());
       byte[] model =
-          """
+          overTheKit(
+              """
           {"formatVersion": 1,
            "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                       "root": {"element": "Orders"}},
@@ -232,8 +242,7 @@ class EngineFacadeTest {
            "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "a1",
                                                 "boxes": {"a1": %2$s}}}}
           """
-              .formatted(FINGERPRINT, box)
-              .getBytes(UTF_8);
+                  .formatted(FINGERPRINT, box));
 
       for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
         byte[] output = facade.run(compiled(facade.compile(model, observations, options)), input);
@@ -250,7 +259,8 @@ class EngineFacadeTest {
    * the given target field mappings.
    */
   private static byte[] ordersToParents(String targetFieldMappings) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
@@ -258,8 +268,7 @@ class EngineFacadeTest {
                     "root": {"element": "Parents"}},
          "targetFieldMappings": %2$s}
         """
-        .formatted(FINGERPRINT, targetFieldMappings)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, targetFieldMappings));
   }
 
   private static final byte[] TWO_ORDERS =
@@ -374,15 +383,15 @@ class EngineFacadeTest {
    * A model from the observation kit's {@code src-orders.xsd} to {@code targetFile}'s {@code root}.
    */
   private static byte[] ordersTo(String targetFile, String root, String targetFieldMappings) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
          "target": {"bundle": ["%2$s"], "fingerprint": "%1$s", "root": {"element": "%3$s"}},
          "targetFieldMappings": %4$s}
         """
-        .formatted(FINGERPRINT, targetFile, root, targetFieldMappings)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, targetFile, root, targetFieldMappings));
   }
 
   /** {@code Orders/Order/Id} in the context {@code Orders} onto {@code field}, as {@code id}. */
@@ -475,11 +484,13 @@ class EngineFacadeTest {
         """
         {"bundle": ["mandatory.xsd"], "fingerprint": "%s", "root": {"element": "Root"}}"""
             .formatted(FINGERPRINT);
-    return """
+    return Fingerprints.refreshed(
+        """
         {"formatVersion": 1, "source": %1$s, "target": %1$s, "targetFieldMappings": %2$s}
         """
-        .formatted(side, targetFieldMappings)
-        .getBytes(UTF_8);
+            .formatted(side, targetFieldMappings)
+            .getBytes(UTF_8),
+        base);
   }
 
   private static String copy(String field, String id) {
@@ -539,6 +550,109 @@ class EngineFacadeTest {
           .as("%s", options)
           .isEqualTo(DECLARATION + "<Unmapped><Head><Req>o1</Req></Head></Unmapped>");
     }
+  }
+
+  /**
+   * One compile reports every stage-3 error (#91, spec #89 "One-pass compile"): the target field
+   * mapping of {@code A} fails at its box, which reads a field {@code src-orders.xsd} lacks, and
+   * the walk still reaches the unmapped mandatory {@code Req} beside it. Before #91 the second
+   * diagnostic needed a second compile.
+   */
+  @Test
+  void oneCompileReportsAFailingBoxAndAnUnmappedMandatoryLeafBesideIt() throws Exception {
+    byte[] model =
+        ordersTo(
+            "tgt-unmapped.xsd",
+            "Unmapped",
+            """
+            {"/Unmapped/Head/A": {"id": "t1", "result": "s1",
+               "boxes": {"s1": {"kind": "source", "field": "/Orders/Order/Ref",
+                                "context": "/Orders"}}}}
+            """);
+
+    for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+      List<Diagnostic> diagnostics =
+          refusal(
+              new EngineFacade()
+                  .compile(model, CorpusStructures.directory("observations"), options));
+
+      assertThat(described(diagnostics))
+          .as("%s", options)
+          .containsExactlyElementsOf(
+              described(
+                  List.of(
+                      error("unmapped-mandatory-leaf", unmappedAt("/Unmapped/Head/Req")),
+                      error("orphaned-reference", new AtAuthoringId(new AuthoringId("s1"))))));
+    }
+  }
+
+  // --- the fingerprint check (ADR-0009 as amended on 2026-11-05, #91): compile re-reads both
+  // bundles and refuses a stored fingerprint that is not the one its bundle gives
+
+  /** {@code FIELD_LINK} storing {@code source} and {@code target} as the sides' fingerprints. */
+  private static byte[] fieldLinkStoring(String source, String target) {
+    String model = new String(FIELD_LINK, UTF_8);
+    int targetSide = model.indexOf("\"target\"");
+    return (model.substring(0, targetSide).replace(FINGERPRINT, source)
+            + model.substring(targetSide).replace(FINGERPRINT, target))
+        .getBytes(UTF_8);
+  }
+
+  /** A well-formed fingerprint that no structure of the skeleton gives. */
+  private static final String STALE = "sha256:" + "0".repeat(64);
+
+  @Test
+  void aStoredFingerprintThatIsNotItsBundlesIsFingerprintMismatchAtItsSide() throws Exception {
+    EngineFacade facade = new EngineFacade();
+    AtPointer source = new AtPointer("/source/fingerprint");
+    AtPointer target = new AtPointer("/target/fingerprint");
+    Map<byte[], List<Diagnostic>> refusals = new LinkedHashMap<>();
+    refusals.put(
+        fieldLinkStoring(STALE, FINGERPRINT), List.of(error("fingerprint-mismatch", source)));
+    refusals.put(
+        fieldLinkStoring(FINGERPRINT, STALE), List.of(error("fingerprint-mismatch", target)));
+    refusals.put(
+        fieldLinkStoring(STALE, STALE),
+        List.of(error("fingerprint-mismatch", source), error("fingerprint-mismatch", target)));
+    // witness: the model with both fingerprints right compiles
+    assertThat(fieldLinkStoring(FINGERPRINT, FINGERPRINT)).isEqualTo(FIELD_LINK);
+    compiled(facade.compile(FIELD_LINK, skeleton(), DEPLOY));
+
+    for (Map.Entry<byte[], List<Diagnostic>> refused : refusals.entrySet()) {
+      for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
+        assertThat(described(refusal(facade.compile(refused.getKey(), skeleton(), options))))
+            .as("%s", options)
+            .containsExactlyElementsOf(described(refused.getValue()));
+      }
+      // the export shares the chain, so it is refused too
+      assertThat(facade.export(refused.getKey(), skeleton()))
+          .isInstanceOfSatisfying(
+              ExportResult.Refused.class,
+              r ->
+                  assertThat(described(r.diagnostics()))
+                      .containsExactlyElementsOf(described(refused.getValue())));
+    }
+  }
+
+  /**
+   * The fingerprint check is a stage-3 error beside the others: a stale source fingerprint and an
+   * unconnected target field mapping are refused in one compile.
+   */
+  @Test
+  void aFingerprintMismatchIsReportedBesideTheOtherStage3Errors() throws Exception {
+    byte[] model =
+        new String(fieldLinkStoring(STALE, FINGERPRINT), UTF_8)
+            .replace("\"result\": \"a1\"", "\"result\": null")
+            .getBytes(UTF_8);
+
+    List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, skeleton(), DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("fingerprint-mismatch", new AtPointer("/source/fingerprint")),
+                    error("unconnected-target-field", new AtAuthoringId(new AuthoringId("t1"))))));
   }
 
   @Test
@@ -1389,7 +1503,8 @@ class EngineFacadeTest {
 
   /** obs-useoneasmany uoam-1 with its result on {@code Out/All}: Id, Sku in context Order, Tag. */
   private static final byte[] USE_ONE_AS_MANY =
-      """
+      overTheKit(
+          """
       {"formatVersion": 1,
        "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                   "root": {"element": "Orders"}},
@@ -1402,8 +1517,7 @@ class EngineFacadeTest {
                           "context": "/Orders/Order"},
                    "a3": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
       """
-          .formatted(FINGERPRINT)
-          .getBytes(UTF_8);
+              .formatted(FINGERPRINT));
 
   /** One order with Id A, the given Tags and one Line per Sku. */
   private static byte[] order(int tags, int skus) {
@@ -1477,7 +1591,8 @@ class EngineFacadeTest {
    * sort of Tag with {@code params}, on {@code Out/All}: context 1 of the queue, the first Order.
    */
   private static byte[] sortOfTags(String params) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
@@ -1488,8 +1603,7 @@ class EngineFacadeTest {
                             "params": %2$s},
                      "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
         """
-        .formatted(FINGERPRINT, params)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, params));
   }
 
   /**
@@ -1517,7 +1631,8 @@ class EngineFacadeTest {
 
   /** sortByKey of Qty by Sku, both in context Order, on {@code Out/All}. */
   private static final byte[] SORT_BY_KEY =
-      """
+      overTheKit(
+          """
       {"formatVersion": 1,
        "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                   "root": {"element": "Orders"}},
@@ -1530,8 +1645,7 @@ class EngineFacadeTest {
                    "a2": {"kind": "source", "field": "/Orders/Order/Line/Qty",
                           "context": "/Orders/Order"}}}}}
       """
-          .formatted(FINGERPRINT)
-          .getBytes(UTF_8);
+              .formatted(FINGERPRINT));
 
   /**
    * A key/value count mismatch stops the run (#2 §4, documented): the second Line has a Sku but no
@@ -1569,7 +1683,8 @@ class EngineFacadeTest {
    * Out/All}: a key is 5 where the Tag is true and SUPPRESS where it is not.
    */
   private static byte[] sortByCreatedKeys(String params) {
-    return """
+    return overTheKit(
+        """
         {"formatVersion": 1,
          "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
                     "root": {"element": "Orders"}},
@@ -1583,8 +1698,7 @@ class EngineFacadeTest {
                      "c1": {"kind": "function", "fn": "createIf", "inputs": ["a1"]},
                      "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
         """
-        .formatted(FINGERPRINT, params)
-        .getBytes(UTF_8);
+            .formatted(FINGERPRINT, params));
   }
 
   /**

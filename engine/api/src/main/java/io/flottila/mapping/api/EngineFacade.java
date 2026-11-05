@@ -2,6 +2,7 @@ package io.flottila.mapping.api;
 
 import io.flottila.mapping.ir.IrOptimiser;
 import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.mapping.AtPointer;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.mapping.FunctionCatalogue;
 import io.flottila.mapping.mapping.LoadResult;
@@ -9,9 +10,11 @@ import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.Lowered;
 import io.flottila.mapping.mapping.Lowering;
 import io.flottila.mapping.mapping.MalformedJsonException;
+import io.flottila.mapping.mapping.MappingDiagnostics;
 import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.MappingModelFormat;
 import io.flottila.mapping.mapping.Refused;
+import io.flottila.mapping.mapping.Severity;
 import io.flottila.mapping.mapping.StructureRef;
 import io.flottila.mapping.runtime.Interpreter;
 import io.flottila.mapping.runtime.MalformedInputException;
@@ -144,8 +147,10 @@ public final class EngineFacade {
    * Compiles a mapping model (ADR-0016): load with stages 1 and 2, the source and target
    * structures, stage 3 and lowering, the optimiser if {@code options} ask for it, then the closure
    * compile. The first of these that refuses the model gives the result; the structures are both
-   * read before either refusal is reported. The compiled mapping keeps the occurrence of each
-   * target field mapping's field, which a generating function's trace entry shows (#83).
+   * read before either refusal is reported. Stage 3 checks each side's stored fingerprint against
+   * the structure just read (ADR-0009 as amended on 2026-11-05, #91), and a mismatch is reported
+   * with lowering's diagnostics. The compiled mapping keeps the occurrence of each target field
+   * mapping's field, which a generating function's trace entry shows (#83).
    *
    * @param model the mapping model's bytes
    * @param base the directory the model's schema bundle references are relative to
@@ -193,8 +198,9 @@ public final class EngineFacade {
    * The chain compile and export share: load with stages 1 and 2, the source and target structures,
    * then stage 3 and lowering. The first of these that refuses the model gives {@code refused} its
    * diagnostics, which the result sorts; the structures are both read before either refusal is
-   * reported. A model that lowers gives {@code lowered} its unoptimised IR, with the model and the
-   * target structure it was lowered from.
+   * reported. Stage 3 is the fingerprint check of both sides and lowering, whose diagnostics are
+   * reported together (#91). A model that lowers with both fingerprints matching gives {@code
+   * lowered} its unoptimised IR, with the model and the target structure it was lowered from.
    */
   private static <R> R loadAndLower(
       byte[] model,
@@ -211,10 +217,17 @@ public final class EngineFacade {
         if (!refusals.isEmpty()) {
           yield refused.apply(refusals);
         }
+        fingerprint(loaded.source(), source.orElseThrow(), "/source/fingerprint", refusals);
+        fingerprint(loaded.target(), target.orElseThrow(), "/target/fingerprint", refusals);
         yield switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
-          case Refused r -> refused.apply(r.diagnostics());
+          case Refused r -> {
+            refusals.addAll(r.diagnostics());
+            yield refused.apply(refusals);
+          }
           case Lowered(TargetDocument document) ->
-              lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document));
+              refusals.isEmpty()
+                  ? lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document))
+                  : refused.apply(refusals);
         };
       }
     };
@@ -222,6 +235,28 @@ public final class EngineFacade {
 
   /** A model that lowers, the target structure it was lowered over, and its unoptimised IR. */
   private record LoweredModel(MappingModel model, Structure target, TargetDocument document) {}
+
+  /**
+   * Adds {@code fingerprint-mismatch} at {@code pointer} to {@code refusals} when {@code ref}
+   * stores another fingerprint than {@code structure}, read from its bundle, gives (ADR-0009). Only
+   * refresh re-derives a stored fingerprint; compile never does.
+   */
+  private static void fingerprint(
+      StructureRef ref, Structure structure, String pointer, List<Diagnostic> refusals) {
+    String derived = structure.fingerprint();
+    if (!derived.equals(ref.fingerprint())) {
+      refusals.add(
+          new Diagnostic(
+              Severity.ERROR,
+              MappingDiagnostics.FINGERPRINT_MISMATCH,
+              new AtPointer(pointer),
+              "the model stores the fingerprint "
+                  + ref.fingerprint()
+                  + ", but its schema bundle now gives "
+                  + derived
+                  + ": the structure changed since the model was written"));
+    }
+  }
 
   /** The structure {@code ref} names, or empty once its load error is added to {@code refusals}. */
   private static Optional<Structure> structure(
