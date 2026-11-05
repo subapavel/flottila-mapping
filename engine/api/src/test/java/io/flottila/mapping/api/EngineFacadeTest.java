@@ -715,6 +715,42 @@ class EngineFacadeTest {
   }
 
   /**
+   * #93 (ADR-0008): every load error of each side, not only each side's first, comes back in one
+   * refusal: here the source's two refusals and the target's own. Beside them, the missing root
+   * {@code Order} is not looked up.
+   */
+  @Test
+  void compileReportsEveryLoadErrorOfBothSides(@TempDir Path base) throws Exception {
+    Files.writeString(
+        base.resolve("a-target.xsd"),
+        "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n</xs:element>\n");
+    Files.writeString(
+        base.resolve("z-source.xsd"),
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:group name="G"/>
+          <xs:attributeGroup name="H"/>
+        </xs:schema>
+        """);
+    byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
+
+    List<Diagnostic> diagnostics =
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
+
+    assertThat(described(diagnostics))
+        .containsExactlyElementsOf(
+            described(
+                List.of(
+                    error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
+                    error(
+                        "schema-construct-unsupported", new AtFilePosition("z-source.xsd", 2, 23)),
+                    error(
+                        "schema-construct-unsupported",
+                        new AtFilePosition("z-source.xsd", 3, 32)))));
+  }
+
+  /**
    * #90 (ADR-0014 "Reference resolver shape"): a package reference on each side is a load error of
    * each, at line 1, column 1 of the reference as the model spells it; both structures are read
    * before the refusal. The source's reference sorts after the target's.

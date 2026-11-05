@@ -126,7 +126,8 @@ Saxon-HE 12.5's `xml-to-json` normalises numbers (`1.50` → `1.5`, observed).
 
 One load reports every load-time error of the bundle: files in bundle order, each file in
 document order. A file that is not well-formed stops only that file (spec-4 grilling,
-2026-11-05).
+2026-11-05). `schema-root-not-found` is reported only when the bundle has no other load error, so a root
+in a file that stopped is not also reported as missing (#93).
 
 ## Refused when a mapping uses the field
 
