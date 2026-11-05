@@ -15,6 +15,7 @@ import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.QName;
 import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.Xslt30Transformer;
+import net.sf.saxon.s9api.XsltExecutable;
 import net.sf.saxon.value.DateTimeValue;
 
 /**
@@ -56,12 +57,27 @@ final class SaxonRunner {
   static byte[] run(
       String stylesheet, String helperModule, byte[] input, Path dir, OffsetDateTime now)
       throws Exception {
+    return run(compile(stylesheet, helperModule, dir), input, now);
+  }
+
+  /**
+   * Writes {@code mapping.xsl} and {@code po-runtime.xsl} into {@code dir} and compiles the first
+   * with a fresh {@code Processor(false)}, once for runs on several inputs.
+   */
+  static XsltExecutable compile(String stylesheet, String helperModule, Path dir) throws Exception {
     Files.createDirectories(dir);
     Path mapping = Files.writeString(dir.resolve("mapping.xsl"), stylesheet);
     Files.writeString(dir.resolve(HELPER_MODULE), helperModule);
-    Processor processor = new Processor(false);
-    Xslt30Transformer transformer =
-        processor.newXsltCompiler().compile(new StreamSource(mapping.toFile())).load30();
+    return new Processor(false).newXsltCompiler().compile(new StreamSource(mapping.toFile()));
+  }
+
+  /**
+   * Runs {@code executable} on {@code input} with {@code now} as its current dateTime, whose offset
+   * Saxon takes as the implicit time zone, as {@link #run(String, String, byte[], Path,
+   * OffsetDateTime)} does.
+   */
+  static byte[] run(XsltExecutable executable, byte[] input, OffsetDateTime now) throws Exception {
+    Xslt30Transformer transformer = executable.load30();
     transformer.getUnderlyingController().setCurrentDateTime(DateTimeValue.fromOffsetDateTime(now));
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     transformer.transform(
@@ -97,6 +113,21 @@ final class SaxonRunner {
       throws Exception {
     try {
       byte[] output = run(stylesheet, helperModule, input, dir, now);
+      throw new AssertionError(
+          what + ": expected Saxon to raise an error, it wrote " + new String(output, UTF_8));
+    } catch (SaxonApiException raised) {
+      return raised;
+    }
+  }
+
+  /**
+   * The error Saxon raises when it runs {@code executable} on {@code input} at {@link
+   * CaseFiles#DEFAULT_NOW}; fails when it writes output instead.
+   */
+  static SaxonApiException raised(XsltExecutable executable, byte[] input, String what)
+      throws Exception {
+    try {
+      byte[] output = run(executable, input, CaseFiles.DEFAULT_NOW);
       throw new AssertionError(
           what + ": expected Saxon to raise an error, it wrote " + new String(output, UTF_8));
     } catch (SaxonApiException raised) {
