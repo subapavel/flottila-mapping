@@ -88,7 +88,8 @@ import java.util.stream.Stream;
  *   <li>a property declared twice is one field, refused when the two declarations give two shapes;
  *   <li>an object reached by {@code $ref} is a named structure type, whose id is its file and JSON
  *       pointer, so it is shared and a recursive one is never expanded;
- *   <li>an array property is one repeated field with {@code minItems} and {@code maxItems};
+ *   <li>an array property is one repeated field with {@code minItems} and {@code maxItems}, marked
+ *       as an array property whatever its {@code maxItems} (#118);
  *   <li>the value type comes from {@code type} and {@code format}, and is otherwise {@code
  *       xs:string}; a type list with {@code "null"} marks the field nillable.
  * </ul>
@@ -583,7 +584,10 @@ public final class JsonSchemaReader {
         occurrence,
         shape.valueType(),
         shape.nillable(),
-        shape.type());
+        shape.type(),
+        Optional.empty(),
+        // an array property is marked whatever its maxItems (#118)
+        shape.items().isPresent());
   }
 
   /**
