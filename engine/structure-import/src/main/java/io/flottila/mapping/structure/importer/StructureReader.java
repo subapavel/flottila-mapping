@@ -19,11 +19,11 @@ import javax.xml.namespace.QName;
 /**
  * Reads a schema bundle into a structure (ADR-0008). An element root reads XSD bundles of one or
  * more files, linked by {@code xs:import} and {@code xs:include}, with global elements, element
- * references and named types (#93). A WSDL root reads WSDL 1.1 and 2.0 bundles under an operation's
- * message (#96). The JSON root reads JSON Schema 2020-12 (#97). Model groups beyond a sequence and
- * derivation are later tickets of spec 4. It reads every file the bundle lists through the host's
- * {@link ReferenceResolver}, and no other file, and opens no file itself (ADR-0014 "Reference
- * resolver shape").
+ * references and named types (#93); choices, alls and groups (#94); and derivation and substitution
+ * groups (#95). A WSDL root reads WSDL 1.1 and 2.0 bundles under an operation's message (#96). The
+ * JSON root reads JSON Schema 2020-12 (#97). It reads every file the bundle lists through the
+ * host's {@link ReferenceResolver}, and no other file, and opens no file itself (ADR-0014
+ * "Reference resolver shape").
  */
 public final class StructureReader {
 

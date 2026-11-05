@@ -255,7 +255,7 @@ class XsdModelGroupsTest {
                       invalid + "14:31",
                       unsupported + "19:17",
                       unsupported + "22:44",
-                      unsupported + "24:36",
+                      unsupported + "24:37",
                       invalid + "25:34",
                       invalid + "32:40",
                       unsupported + "33:18",

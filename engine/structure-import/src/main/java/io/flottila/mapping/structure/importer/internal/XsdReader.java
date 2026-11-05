@@ -45,6 +45,7 @@ import org.apache.ws.commons.schema.XmlSchemaSimpleContentExtension;
 import org.apache.ws.commons.schema.XmlSchemaSimpleContentRestriction;
 import org.apache.ws.commons.schema.XmlSchemaSimpleType;
 import org.apache.ws.commons.schema.XmlSchemaSimpleTypeRestriction;
+import org.apache.ws.commons.schema.XmlSchemaType;
 import org.apache.ws.commons.schema.XmlSchemaUse;
 import org.xml.sax.InputSource;
 
@@ -289,13 +290,16 @@ public final class XsdReader {
     XmlSchemaElement typed = typed(declaration);
     QName typeName = typed.getSchemaTypeName();
     Optional<Refusal> refusal = abstractTarget(declaration, typeName);
+    // an anonymous type is complex or simple (#89 review)
     XmlSchemaComplexType complexType =
-        typeName == null ? (XmlSchemaComplexType) typed.getSchemaType() : complex(typeName);
+        typeName == null
+            ? typed.getSchemaType() instanceof XmlSchemaComplexType anonymous ? anonymous : null
+            : complex(typeName);
     if (complexType == null) {
       return new Field(
           step,
           occurrence,
-          Optional.of(valueType(typeName)),
+          Optional.of(valueType(typeName, typed.getSchemaType())),
           declaration.isNillable(),
           Optional.empty(),
           refusal);
@@ -466,8 +470,8 @@ public final class XsdReader {
   /**
    * Adds the attribute fields of {@code members}, attributes and attribute group references, to
    * {@code attributes} in document order, each reference's attribute group inlined (ADR-0008, #94),
-   * and drops a prohibited one from a {@code restriction}. The subset check allows no attribute
-   * reference.
+   * and drops a prohibited one from a {@code restriction}. An attribute reference is a field named
+   * by the referenced QName, with the global attribute's type and its own use (#89 review).
    */
   private void attributes(
       List<?> members, boolean restriction, Map<FieldPath.Step, Field> attributes) {
@@ -477,15 +481,18 @@ public final class XsdReader {
         continue;
       }
       XmlSchemaAttribute attribute = (XmlSchemaAttribute) member;
+      // a reference's wire name is the referenced QName (observed, XmlSchema 2.3.3)
       FieldPath.Step step = step(FieldKind.ATTRIBUTE, attribute.getWireName());
       if (attribute.getUse() != XmlSchemaUse.PROHIBITED) {
         boolean required = attribute.getUse() == XmlSchemaUse.REQUIRED;
+        XmlSchemaAttribute declared =
+            attribute.isRef() ? attribute.getRef().getTarget() : attribute;
         attributes.put(
             step,
             new Field(
                 step,
                 new Occurrence(required ? 1 : 0, 1),
-                Optional.of(valueType(attribute.getSchemaTypeName())),
+                Optional.of(valueType(declared.getSchemaTypeName(), declared.getSchemaType())),
                 false,
                 Optional.empty()));
       } else if (restriction) {
@@ -644,7 +651,7 @@ public final class XsdReader {
    * carries at most one refusal: ambiguous-field-path, which holds in a source too, replaces
    * interleaved-target-group (#94) and abstract-target-element (#95). Attributes are not looked at:
    * two of one name in one complex type make the schema invalid (XSD 1.1 Part 1,
-   * ct-props-correct.4).
+   * ct-props-correct.4), and {@link AttributeCheck} has refused them (#89 review).
    */
   private static List<Field> refused(List<Placed> elements) {
     Set<FieldPath.Step> seen = new HashSet<>();
@@ -681,10 +688,25 @@ public final class XsdReader {
     if (XMLConstants.W3C_XML_SCHEMA_NS_URI.equals(type.getNamespaceURI())) {
       return BuiltInTypes.valueType(type.getLocalPart()).orElseThrow();
     }
-    XmlSchemaSimpleType simple = (XmlSchemaSimpleType) collection.getTypeByQName(type);
+    return valueType((XmlSchemaSimpleType) collection.getTypeByQName(type));
+  }
+
+  /**
+   * The value type of a simple type, named or anonymous (#89 review), by its built-in ancestry. The
+   * subset check allows an anonymous simple type no restriction without a {@code base}.
+   */
+  private ValueType valueType(XmlSchemaSimpleType simple) {
     return simple.getContent() instanceof XmlSchemaSimpleTypeRestriction restriction
         ? valueType(restriction.getBaseTypeName())
         : ValueType.STRING;
+  }
+
+  /**
+   * The value type of an element's or attribute's simple type: the one {@code name} names, or else
+   * its own, {@code anonymous} (#89 review).
+   */
+  private ValueType valueType(QName name, XmlSchemaType anonymous) {
+    return name != null ? valueType(name) : valueType((XmlSchemaSimpleType) anonymous);
   }
 
   private static FieldPath.Step step(FieldKind kind, QName name) {

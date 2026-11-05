@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Fixture (#62): an anonymous simple type is outside the nested subset -->
+<!-- Fixture (#62, #89 review): an anonymous simple type gives its value type by its ancestry -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            targetNamespace="urn:flottila:corpus:skeleton">
   <xs:element name="Order">
@@ -7,7 +7,7 @@
       <xs:sequence>
         <xs:element name="OrderId" type="xs:string"/>
         <xs:element name="Line" maxOccurs="unbounded">
-          <xs:simpleType><xs:restriction base="xs:string"/></xs:simpleType>
+          <xs:simpleType><xs:restriction base="xs:date"/></xs:simpleType>
         </xs:element>
       </xs:sequence>
     </xs:complexType>

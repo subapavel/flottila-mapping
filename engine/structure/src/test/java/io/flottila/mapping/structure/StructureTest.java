@@ -186,46 +186,47 @@ class StructureTest {
   }
 
   /**
-   * Seeded structures (ADR-0018: seeded loops, no jqwik): refusing one field changes the
-   * fingerprint; refusing it at another file, line and column gives the same fingerprint; refusing
-   * another field of the same structure gives another one, because the reason sits on the refused
-   * field's own line.
+   * Seeded structures (ADR-0018: parameterised over seeds, the seed in the case name): refusing one
+   * field changes the fingerprint; refusing it at another file, line and column gives the same
+   * fingerprint; refusing another field of the same structure gives another one, because the reason
+   * sits on the refused field's own line.
    */
-  @Test
-  void a_refusal_enters_the_fingerprint_and_its_position_does_not() {
-    for (long seed = 1; seed <= 200; seed++) {
-      Random random = new Random(seed);
-      Structure plain = randomStructure(random);
-      List<Map.Entry<String, Integer>> fields = fieldsOf(plain);
-      Map.Entry<String, Integer> refused = fields.get(random.nextInt(fields.size()));
-      List<Map.Entry<String, Integer>> others = new ArrayList<>(fields);
-      others.remove(refused);
-      Map.Entry<String, Integer> other = others.get(random.nextInt(others.size()));
-      int line = 1 + random.nextInt(500);
-      int column = 1 + random.nextInt(120);
-      Refusal here =
-          new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, "same-step.xsd", line, column);
-      Refusal moved =
-          new Refusal(
-              Refusal.Reason.AMBIGUOUS_FIELD_PATH,
-              "moved/other.xsd",
-              line + 1 + random.nextInt(500),
-              column + 1 + random.nextInt(120));
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("refusalSeeds")
+  void a_refusal_enters_the_fingerprint_and_its_position_does_not(long seed) {
+    Random random = new Random(seed);
+    Structure plain = randomStructure(random);
+    List<Map.Entry<String, Integer>> fields = fieldsOf(plain);
+    Map.Entry<String, Integer> refused = fields.get(random.nextInt(fields.size()));
+    List<Map.Entry<String, Integer>> others = new ArrayList<>(fields);
+    others.remove(refused);
+    Map.Entry<String, Integer> other = others.get(random.nextInt(others.size()));
+    int line = 1 + random.nextInt(500);
+    int column = 1 + random.nextInt(120);
+    Refusal here = new Refusal(Refusal.Reason.AMBIGUOUS_FIELD_PATH, "same-step.xsd", line, column);
+    Refusal moved =
+        new Refusal(
+            Refusal.Reason.AMBIGUOUS_FIELD_PATH,
+            "moved/other.xsd",
+            line + 1 + random.nextInt(500),
+            column + 1 + random.nextInt(120));
 
-      String withRefusal =
-          refusing(plain, refused.getKey(), refused.getValue(), here).fingerprint();
+    String withRefusal = refusing(plain, refused.getKey(), refused.getValue(), here).fingerprint();
 
-      assertThat(withRefusal)
-          .as("seed %d: %s refused", seed, refused)
-          .matches("sha256:[0-9a-f]{64}")
-          .isNotEqualTo(plain.fingerprint());
-      assertThat(refusing(plain, refused.getKey(), refused.getValue(), moved).fingerprint())
-          .as("seed %d: %s refused at another file, line and column", seed, refused)
-          .isEqualTo(withRefusal);
-      assertThat(refusing(plain, other.getKey(), other.getValue(), here).fingerprint())
-          .as("seed %d: %s refused instead of %s", seed, other, refused)
-          .isNotEqualTo(withRefusal);
-    }
+    assertThat(withRefusal)
+        .as("seed %d: %s refused", seed, refused)
+        .matches("sha256:[0-9a-f]{64}")
+        .isNotEqualTo(plain.fingerprint());
+    assertThat(refusing(plain, refused.getKey(), refused.getValue(), moved).fingerprint())
+        .as("seed %d: %s refused at another file, line and column", seed, refused)
+        .isEqualTo(withRefusal);
+    assertThat(refusing(plain, other.getKey(), other.getValue(), here).fingerprint())
+        .as("seed %d: %s refused instead of %s", seed, other, refused)
+        .isNotEqualTo(withRefusal);
+  }
+
+  static LongStream refusalSeeds() {
+    return LongStream.rangeClosed(1, 200);
   }
 
   /**
@@ -347,10 +348,11 @@ class StructureTest {
   }
 
   /**
-   * Seeded JSON structures (ADR-0018: seeded loops, no jqwik): toggling one field's marker changes
-   * the fingerprint, whatever the field's occurrence and refusal; toggling it back restores it, so
-   * an unmarked field keeps its line; toggling another field gives another fingerprint, because the
-   * marker sits on the field's own line. One case per seed, named by it.
+   * Seeded JSON structures (ADR-0018: parameterised over seeds, the seed in the case name):
+   * toggling one field's marker changes the fingerprint, whatever the field's occurrence and
+   * refusal; toggling it back restores it, so an unmarked field keeps its line; toggling another
+   * field gives another fingerprint, because the marker sits on the field's own line. One case per
+   * seed, named by it.
    */
   @ParameterizedTest(name = "seed {0}")
   @MethodSource("markerSeeds")

@@ -19,8 +19,9 @@ import java.util.List;
  *       {@code $ref} of {@code schema-reference-outside-bundle} among them, at its key; a refused
  *       schema (the root, the second declaration of a property) at its first character;
  *   <li>an error about a whole file ({@code schema-unreadable}, {@code
- *       package-reference-unsupported}, {@code root-selector-unsupported}, an empty bundle, a JSON
- *       Schema file that is not UTF-8): line 1, column 1.
+ *       package-reference-unsupported}, an empty bundle, a JSON Schema file that is not UTF-8):
+ *       line 1, column 1. {@code root-selector-unsupported} stays in the catalogue for stability
+ *       and is no longer produced: since #96 and #97 every root selector kind is read.
  * </ul>
  *
  * <p>One load reports every load error (ADR-0008): {@link #errors} holds them, files in bundle

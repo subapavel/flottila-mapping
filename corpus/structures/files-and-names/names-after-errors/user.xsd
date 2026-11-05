@@ -7,7 +7,7 @@
            xmlns:u="urn:flottila:corpus:user"
            targetNamespace="urn:flottila:corpus:user">
   <xs:import namespace="urn:flottila:corpus:broken"/>
-  <xs:complexType name="Refused" mixed="true"/>
+  <xs:complexType name="Refused" default="no"/>
   <xs:element name="Doc">
     <xs:complexType>
       <xs:sequence>
@@ -15,7 +15,7 @@
         <xs:element ref="b:After"/>
         <xs:element name="Kind" type="u:Refused"/>
         <xs:element name="Count" type="u:Missing"/>
-        <xs:element name="Missing" type="xs:string" block="#all"/>
+        <xs:element name="Missing" type="xs:string" final="#all"/>
       </xs:sequence>
       <xs:attribute name="code" type="b:Code"/>
     </xs:complexType>

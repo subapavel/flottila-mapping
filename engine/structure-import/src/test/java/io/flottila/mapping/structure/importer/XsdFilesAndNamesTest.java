@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Multi-file XSD bundles and names (#93, ADR-0008 as amended 2026-11-05) at the reader behind
@@ -162,7 +163,47 @@ class XsdFilesAndNamesTest {
                 "/{no-effect}Order/Id 1..1 xs:string",
                 "/{no-effect}Order/Status 1..1 xs:string",
                 "/{no-effect}Order/Line 1..unbounded structure",
-                "/{no-effect}Order/Line/No 1..1 xs:integer")));
+                "/{no-effect}Order/Line/No 1..1 xs:integer")),
+        Arguments.of(
+            "id, version, block, final, mixed, nillable on a structure field, attributes in other"
+                + " namespaces and vc:minVersion below 1.1: no effect",
+            "no-effect",
+            List.of("xsd-attributes.xsd"),
+            "{no-effect}Order",
+            List.of(
+                "/{no-effect}Order 1..1 structure",
+                "/{no-effect}Order/@channel 0..1 xs:string",
+                "/{no-effect}Order/Id 1..1 xs:string",
+                "/{no-effect}Order/Status 1..1 xs:string",
+                "/{no-effect}Order/Line 1..unbounded structure",
+                "/{no-effect}Order/Line/No 1..1 xs:integer")),
+        Arguments.of(
+            "anonymous simple types under local and global elements and attributes take the value"
+                + " type of their built-in ancestry",
+            "anonymous-types",
+            List.of("anonymous.xsd"),
+            "{anonymous}Doc",
+            List.of(
+                "/{anonymous}Doc 1..1 structure",
+                "/{anonymous}Doc/@paid 0..1 xs:boolean",
+                "/{anonymous}Doc/@{anonymous}rate 1..1 xs:decimal",
+                "/{anonymous}Doc/Amount 1..1 xs:decimal",
+                "/{anonymous}Doc/Count 0..1 xs:integer",
+                "/{anonymous}Doc/Codes 1..1 xs:string",
+                "/{anonymous}Doc/Either 1..unbounded xs:string",
+                "/{anonymous}Doc/{anonymous}Due 1..1 xs:date")),
+        Arguments.of(
+            "attribute references, to xml:lang through the import of xml.xsd by URL, are fields"
+                + " named by the referenced QName",
+            "attribute-ref",
+            List.of("doc.xsd", "xml.xsd"),
+            "{attribute-ref}Doc",
+            List.of(
+                "/{attribute-ref}Doc 1..1 structure",
+                "/{attribute-ref}Doc/@Q{http://www.w3.org/XML/1998/namespace}lang 1..1 xs:string",
+                "/{attribute-ref}Doc/@Q{http://www.w3.org/XML/1998/namespace}space 0..1 xs:string",
+                "/{attribute-ref}Doc/@{attribute-ref}code 0..1 xs:integer",
+                "/{attribute-ref}Doc/Text 1..1 xs:string")));
   }
 
   /** Each bundle file is read once, in bundle order, and no other file. */
@@ -299,7 +340,38 @@ class XsdFilesAndNamesTest {
             "salami",
             List.of("leaf.xsd"),
             "{leaf}Amount",
-            List.of(unsupported + "leaf.xsd 7:47")));
+            List.of(unsupported + "leaf.xsd 7:47")),
+        Arguments.of(
+            "anonymous simple types beside a type, named, or of a base no bundle file declares or"
+                + " that is complex; attributes without a type or with one in the XSD namespace",
+            "anonymous-types",
+            List.of("refused.xsd"),
+            "{anonymous}Doc",
+            List.of(
+                unsupported + "refused.xsd 11:26",
+                unsupported + "refused.xsd 14:39",
+                invalid + "refused.xsd 17:62",
+                invalid + "refused.xsd 20:59",
+                unsupported + "refused.xsd 24:24",
+                unsupported + "refused.xsd 26:37",
+                unsupported + "refused.xsd 27:65",
+                unsupported + "refused.xsd 28:52",
+                unsupported + "refused.xsd 31:30")),
+        Arguments.of(
+            "an attribute reference to an attribute no bundle file declares, and ones with a type",
+            "attribute-ref",
+            List.of("undeclared.xsd"),
+            "{attribute-ref}Doc",
+            List.of(
+                invalid + "undeclared.xsd 9:40",
+                unsupported + "undeclared.xsd 10:54",
+                unsupported + "undeclared.xsd 11:52")),
+        Arguments.of(
+            "references into the namespace of an import outside the bundle are no second error",
+            "attribute-ref",
+            List.of("doc.xsd"),
+            "{attribute-ref}Doc",
+            List.of(outside + "doc.xsd 10:63")));
   }
 
   /**
@@ -430,11 +502,12 @@ class XsdFilesAndNamesTest {
   /**
    * ADR-0008: accepted with no effect, so the structure and its fingerprint are the plain one's.
    */
-  @Test
-  void constructs_with_no_effect_leave_the_fingerprint_unchanged() throws Exception {
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"annotated.xsd", "xsd-attributes.xsd"})
+  void constructs_with_no_effect_leave_the_fingerprint_unchanged(String file) throws Exception {
     String root = expand("{no-effect}Order");
 
-    Structure annotated = load(new Recording("no-effect"), List.of("annotated.xsd"), root);
+    Structure annotated = load(new Recording("no-effect"), List.of(file), root);
     Structure plain = load(new Recording("no-effect"), List.of("plain.xsd"), root);
 
     assertThat(annotated).isEqualTo(plain);

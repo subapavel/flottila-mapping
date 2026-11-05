@@ -152,11 +152,11 @@ class StructureReaderTest {
     "foreign-element,            schema-construct-unsupported,  9, 56",
     "redefine,                   schema-construct-unsupported,  5, 44",
     "not-a-schema,               schema-construct-unsupported,  3, 71",
-    "root-simple-type,           schema-construct-unsupported,  6, 20",
+    // #89 review: a root of an anonymous simple type is refused at the root's declaration
+    "root-anonymous-simple-type, schema-construct-unsupported,  5, 28",
     "root-without-complex-type,  schema-construct-unsupported,  5, 29",
     "root-two-complex-types,     schema-construct-unsupported,  7, 22",
     "sequence-after-attribute,   schema-construct-unsupported,  8, 21",
-    "foreign-attribute,          schema-construct-unsupported,  9, 100",
     "min-occurs-invalid,         schema-invalid,                9, 68",
     "max-occurs-invalid,         schema-invalid,                9, 66",
     "min-above-max,              schema-invalid,                9, 79",
@@ -189,12 +189,10 @@ class StructureReaderTest {
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
     "element-form-default-invalid,   schema-construct-unsupported,  4, 87",
-    "nested-mixed,                   schema-construct-unsupported, 10, 40",
     "nested-two-sequences,           schema-construct-unsupported, 10, 55",
     "nested-two-complex-types,       schema-construct-unsupported, 10, 75",
+    "nested-complex-and-simple-type, schema-construct-unsupported, 10, 74",
     "nested-type-and-complex-type,   schema-construct-unsupported, 10, 27",
-    "nested-nillable,                schema-construct-unsupported,  9, 71",
-    "nested-simple-type,             schema-construct-unsupported, 10, 26",
     "nested-without-name,            schema-construct-unsupported,  9, 43",
     "nested-structure-min-above-max, schema-invalid,                9, 61",
   })
@@ -224,7 +222,9 @@ class StructureReaderTest {
   /**
    * #93 reads named complex types, attributes at any depth, and annotations and default values with
    * no effect (ADR-0008), and #94 reads xs:choice and xs:all, so these fixtures of the subsets
-   * above load. A choice of one branch keeps the branch's minimum.
+   * above load. A choice of one branch keeps the branch's minimum. The #89 review reads mixed
+   * content, nillable on a structure field and attributes in other namespaces with no effect (US
+   * 13), and anonymous simple types, whose value type comes from the built-in ancestry (US 5).
    */
   @ParameterizedTest(name = "{0} loads")
   @CsvSource(
@@ -241,6 +241,14 @@ class StructureReaderTest {
             + " /Line/Sku 1..1 xs:string",
         "nested-all              | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
             + " /Line/Sku 1..1 xs:string",
+        "nested-mixed            | /OrderId 1..1 xs:string; /Line 1..unbounded structure",
+        "named-mixed             | /OrderId 1..1 xs:string",
+        "nested-nillable         | /OrderId 1..1 xs:string; /Line 1..unbounded structure",
+        "foreign-attribute       | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+        "nested-simple-type      | /OrderId 1..1 xs:string; /Line 1..unbounded xs:date",
+        "root-simple-type        | /Q{urn:flottila:corpus:skeleton}Code 1..1 xs:decimal",
+        "schema-defaults         | /OrderId 1..1 xs:string",
+        "complex-content-mixed   | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
       })
   void a_fixture_the_subsets_refused_loads(String fixture, String fields) throws Exception {
     Structure structure = readSkeleton("test-fixtures/" + fixture + ".xsd");

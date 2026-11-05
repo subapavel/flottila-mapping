@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Fixture (#95): vc:minVersion 1.1 or above is XSD 1.1, refused when the schema loads (ADR-0008),
-     wherever it stands, even on an annotation. A lower vc:minVersion, one that is no decimal, and
-     another versioning attribute stay refused as attributes the reader does not read -->
+     wherever it stands, even on an annotation. A lower vc:minVersion loads with no effect (#89 review);
+     one that is no decimal, and another versioning attribute, stay refused as attributes not read -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
            targetNamespace="urn:flottila:corpus:refused">
