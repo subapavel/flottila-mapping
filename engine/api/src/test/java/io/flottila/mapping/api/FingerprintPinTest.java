@@ -69,7 +69,15 @@ class FingerprintPinTest {
           // " refused:ambiguous-field-path" (ADR-0009 as refined by #92)
           entry(
               "refused/same-step.xsd Doc",
-              "sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e"));
+              "sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e"),
+          // #95: derivation, substitution and an abstract element; the abstract Remark's
+          // canonical line ends in " refused:abstract-target-element"
+          entry(
+              "derivation/order.xsd Q{urn:flottila:corpus:order}Order",
+              "sha256:7fa870df17665f949da9986b2036fc81a4299fe38c920afdd24b20ac29b17284"),
+          entry(
+              "derivation/order.xsd Q{urn:flottila:corpus:order}Receipt",
+              "sha256:f7b3d1697015e4f93e73caa19b269e7cbd44f8b19146ba6b50c49bdb7bfa5c84"));
 
   /**
    * WSDL roots (#96): by the bundle files under {@code corpus/structures/}, a space between, then

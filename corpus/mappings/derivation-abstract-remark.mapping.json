@@ -4,7 +4,7 @@
     "bundle": [
       "../structures/derivation/order.xsd"
     ],
-    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "fingerprint": "sha256:7fa870df17665f949da9986b2036fc81a4299fe38c920afdd24b20ac29b17284",
     "root": {
       "element": "Q{urn:flottila:corpus:order}Order"
     }
@@ -13,7 +13,7 @@
     "bundle": [
       "../structures/derivation/order.xsd"
     ],
-    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "fingerprint": "sha256:f7b3d1697015e4f93e73caa19b269e7cbd44f8b19146ba6b50c49bdb7bfa5c84",
     "root": {
       "element": "Q{urn:flottila:corpus:order}Receipt"
     }
