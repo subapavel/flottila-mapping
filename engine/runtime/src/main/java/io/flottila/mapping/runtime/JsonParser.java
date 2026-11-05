@@ -11,10 +11,11 @@ import java.util.Set;
  * The runtime's own small JSON pull parser (ADR-0008 "JSON as a source at run time", #98; FOUNDING
  * §8: no new dependency). It reads one JSON text by RFC 8259 and gives it as a sequence of events,
  * with no tree: {@link #next()} returns the next one, and {@link #text()} the key, string or number
- * of the last. A number keeps its input spelling, a string and a key are what they escape. Anything
- * else is malformed input: a text that RFC 8259 refuses, content after the value, or an object
- * with one key twice, which compares keys as the strings they escape. Its state is a stack of the
- * open containers, so deep nesting needs no call stack.
+ * of the last. A number keeps its input spelling, a string and a key are what they escape, with
+ * U+FFFD for a character XML 1.0 cannot hold, as {@code json-to-xml} gives them. Anything else is
+ * malformed input: a text that RFC 8259 refuses, content after the value, or an object with one key
+ * twice, which compares keys as the strings they escape. Its state is a stack of the open
+ * containers, so deep nesting needs no call stack.
  */
 final class JsonParser {
 
@@ -49,6 +50,9 @@ final class JsonParser {
 
   /** After a value: a comma or the end of its container, or the end of the input at the top. */
   private static final int AFTER_VALUE = 4;
+
+  /** U+FFFD, which {@code json-to-xml} gives for a character XML 1.0 cannot hold. */
+  private static final char REPLACEMENT = 0xFFFD;
 
   private final Reader in;
   private final char[] buffer = new char[8192];
@@ -240,9 +244,14 @@ final class JsonParser {
     text.append(buffer[position++]);
   }
 
-  /** The string at its opening quote, what it escapes taken into {@link #text}. */
+  /**
+   * The string at its opening quote, what it escapes taken into {@link #text}, as {@code
+   * json-to-xml} reads it: a character that XML 1.0 cannot hold is {@link #REPLACEMENT} (observed
+   * in Saxon-HE 12.5, #98), so a run writes what the export writes.
+   */
   private void string() throws MalformedInputException, IOException {
     text.setLength(0);
+    boolean surrogates = false;
     position++;
     while (true) {
       int c = peek();
@@ -251,12 +260,17 @@ final class JsonParser {
       }
       position++;
       if (c == '"') {
+        if (surrogates) {
+          replaceLoneSurrogates();
+        }
         return;
       }
       if (c < 0x20) {
         throw malformed("a control character in a string");
       }
-      text.append(c == '\\' ? escape() : (char) c);
+      char next = c == '\\' ? escape() : (char) c;
+      surrogates |= Character.isSurrogate(next);
+      text.append(next);
     }
   }
 
@@ -266,8 +280,8 @@ final class JsonParser {
     position++;
     return switch (c) {
       case '"', '\\', '/' -> (char) c;
-      case 'b' -> '\b';
-      case 'f' -> '\f';
+      // backspace and form feed: XML 1.0 holds neither
+      case 'b', 'f' -> REPLACEMENT;
       case 'n' -> '\n';
       case 'r' -> '\r';
       case 't' -> '\t';
@@ -281,10 +295,33 @@ final class JsonParser {
           position++;
           code = code * 16 + digit;
         }
-        yield (char) code;
+        yield xml(code);
       }
       default -> throw malformed("an escape that RFC 8259 does not define");
     };
+  }
+
+  /**
+   * The character of {@code code}, or {@link #REPLACEMENT} for one XML 1.0 cannot hold: a control
+   * character other than tab, line feed and carriage return, U+FFFE or U+FFFF. A surrogate is kept
+   * here; {@link #replaceLoneSurrogates} replaces it unless it is half of a pair.
+   */
+  private static char xml(int code) {
+    boolean control = code < 0x20 && code != '\t' && code != '\n' && code != '\r';
+    return control || code == 0xFFFE || code == 0xFFFF ? REPLACEMENT : (char) code;
+  }
+
+  /** Replaces each surrogate in {@link #text} that is no half of a pair by {@link #REPLACEMENT}. */
+  private void replaceLoneSurrogates() {
+    for (int i = 0; i < text.length(); i++) {
+      if (Character.isHighSurrogate(text.charAt(i))
+          && i + 1 < text.length()
+          && Character.isLowSurrogate(text.charAt(i + 1))) {
+        i++;
+      } else if (Character.isSurrogate(text.charAt(i))) {
+        text.setCharAt(i, REPLACEMENT);
+      }
+    }
   }
 
   /** The value of an ASCII hex digit, or -1: {@code Character.digit} takes other digits too. */

@@ -50,8 +50,7 @@ class JsonSourceLoweringTest {
   private static Structure json() {
     String root = "/$";
     return new Structure(
-        new Field(
-            property("$"), new Occurrence(1, 1), Optional.empty(), false, Optional.of(root)),
+        new Field(property("$"), new Occurrence(1, 1), Optional.empty(), false, Optional.of(root)),
         Map.of(
             root,
             new StructureType(

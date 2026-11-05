@@ -79,8 +79,8 @@ import java.util.stream.Collectors;
  *       and applies its templates to {@code json-to-xml(unparsed-text($po:input), map{'duplicates':
  *       'reject'})}, so the source document is that representation. Its {@code $} step is the
  *       representation's top item, each further step the item whose {@code @key} is its property
- *       name: a leaf any scalar, any other field an object, and an array property each item of
- *       its {@code fn:array}.
+ *       name: a leaf any scalar, any other field an object, and an array property each item of its
+ *       {@code fn:array}.
  *   <li>A {@code Lift} is {@code po:lift} over the sequence of its queues and an inline function of
  *       {@code $in as xs:string*}, which binds slot variable k to {@code $in[k]} and returns the
  *       body (ADR-0025 since #51).
@@ -512,10 +512,10 @@ public final class XsltExporter {
   }
 
   /**
-   * The relative path of {@code q}'s steps after depth {@code from} up to depth {@code to}. Over XML
-   * each is an element step under its source prefix, the field's last an attribute step, {@code
-   * "@"} and its name, when {@code q} reads an attribute (#102). Over JSON each is a {@link
-   * #jsonStep}.
+   * The relative path of the steps of {@code q} after depth {@code from} up to depth {@code to}.
+   *
+   * <p>Over XML each is an element step under its source prefix, and the field's last is an
+   * attribute step when {@code q} reads an attribute (#102). Over JSON each is a JSON step.
    */
   private String path(SourceQueue q, int from, int to, String where) {
     List<String> names = new ArrayList<>();

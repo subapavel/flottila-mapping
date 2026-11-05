@@ -20,7 +20,8 @@ import org.junit.jupiter.api.io.TempDir;
  * run time", #98): our runtime refuses the run with {@link MalformedInputException}, as it refuses
  * XML that is not well-formed, and the export's {@code json-to-xml} with {@code map{'duplicates':
  * 'reject'}} raises {@code err:FOJS0003} in Saxon-HE 12.5. The corpus has no case for malformed
- * input, so this pins it. The mapping is the corpus's {@code json-tags}, which reads {@code $/tags}.
+ * input, so this pins it. The mapping is the corpus's {@code json-tags}, which reads {@code
+ * $/tags}.
  */
 class JsonDuplicateKeyTest {
 
@@ -39,7 +40,8 @@ class JsonDuplicateKeyTest {
   @Test
   void aDuplicateKeyInAMemberTheProjectionSkipsFailsOnBothSides() throws Exception {
     assertBothRefuse(
-        "{\"other\": {\"k\": 1, \"k\": 2}, \"tags\": [\"a\"]}", "the key k twice in a skipped member");
+        "{\"other\": {\"k\": 1, \"k\": 2}, \"tags\": [\"a\"]}",
+        "the key k twice in a skipped member");
   }
 
   /** The keys compare as the strings they escape: the second key escapes its t, and is tags too. */
