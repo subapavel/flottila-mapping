@@ -4,7 +4,7 @@
     "bundle": [
       "../structures/observations/nil.schema.json"
     ],
-    "fingerprint": "sha256:c4c151c16fe989cda60ff2ef006d0cac0768d05331ec0158e4ca6ab3ec5ad5a8",
+    "fingerprint": "sha256:88f31d654678c63609b0643c7175af239bb68f36962ffaee980d17722f045ef2",
     "root": {
       "json": "$"
     }

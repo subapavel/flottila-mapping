@@ -4,7 +4,7 @@
     "bundle": [
       "../structures/json-schema/run-input.schema.json"
     ],
-    "fingerprint": "sha256:3489768361f8b16d79fcca7f687e5f669511108cb743826bfa741a2b643830c7",
+    "fingerprint": "sha256:105d98ae878bb024b38d0a0dd69e349b563ff00572ce7e5e3fa27bd88ac8afe9",
     "root": {
       "json": "$"
     }
