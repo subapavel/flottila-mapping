@@ -174,7 +174,8 @@ class EngineFacadeRefusedFieldTest {
   private static void assertAmbiguous(
       byte[] model, Path base, Location location, String path, String position) throws Exception {
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, base, options));
+      List<Diagnostic> diagnostics =
+          refusal(new EngineFacade().compile(model, DirectoryResolver.over(base), options));
 
       assertThat(described(diagnostics)).as("%s", options).isEqualTo(ambiguousAt(location));
       assertThat(diagnostics.getFirst().message())
@@ -270,7 +271,8 @@ class EngineFacadeRefusedFieldTest {
                 link("/Doc/Body", "t1", "s1", "/Doc/Body"),
                 link(ONLY_UNDER_THE_SECOND, "t2", "s2", "/Doc/Id")));
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(target, base, options));
+      List<Diagnostic> diagnostics =
+          refusal(new EngineFacade().compile(target, DirectoryResolver.over(base), options));
 
       assertThat(described(diagnostics))
           .as("%s", options)
@@ -335,7 +337,8 @@ class EngineFacadeRefusedFieldTest {
             .getBytes(UTF_8);
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      byte[] output = facade.run(compiled(facade.compile(model, base, options)), input);
+      byte[] output =
+          facade.run(compiled(facade.compile(model, DirectoryResolver.over(base), options)), input);
 
       assertThat(new String(output, UTF_8))
           .as("%s", options)
@@ -344,7 +347,10 @@ class EngineFacadeRefusedFieldTest {
 
     // witness: the siblings this model leaves unused are refused fields of the loaded structure
     StructureResult loaded =
-        Structures.load(base, new SchemaBundle(List.of(SAME_STEP)), new ElementRoot("Doc"));
+        Structures.load(
+            DirectoryResolver.over(base),
+            new SchemaBundle(List.of(SAME_STEP)),
+            new ElementRoot("Doc"));
     if (!(loaded instanceof StructureResult.Loaded(Structure structure))) {
       throw new AssertionError("expected Loaded, got " + loaded);
     }
@@ -490,7 +496,9 @@ class EngineFacadeRefusedFieldTest {
 
       for (Side side : List.of(new Side(source, at("s1")), new Side(target, at("t1")))) {
         List<Diagnostic> diagnostics =
-            refusal(new EngineFacade().compile(side.model(), base, CompileOptions.DEPLOY));
+            refusal(
+                new EngineFacade()
+                    .compile(side.model(), DirectoryResolver.over(base), CompileOptions.DEPLOY));
 
         assertThat(described(diagnostics)).as(what).isEqualTo(ambiguousAt(side.at()));
         assertThat(diagnostics.getFirst().message()).as(what).contains(position);

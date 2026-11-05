@@ -379,7 +379,7 @@ class StructureReaderTest {
       Path directory =
           Path.of(System.getProperty("flottila.corpus"), "structures", pinned.getFirst());
       Structure structure =
-          new StructureReader(directory)
+          new StructureReader(DirectoryResolver.over(directory))
               .read(new SchemaBundle(List.of(pinned.get(1))), new ElementRoot(pinned.get(2)));
       String key = pinned.getFirst() + "/" + pinned.get(1) + " " + pinned.get(2);
       refused.put(key, refusedFields(structure));
