@@ -782,7 +782,7 @@ class EngineFacadeTest {
         """
         <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
           <xs:group name="G"/>
-          <xs:attributeGroup name="H"/>
+          <xs:notation name="H"/>
         </xs:schema>
         """);
     byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
@@ -800,7 +800,7 @@ class EngineFacadeTest {
                         "schema-construct-unsupported", new AtFilePosition("z-source.xsd", 2, 23)),
                     error(
                         "schema-construct-unsupported",
-                        new AtFilePosition("z-source.xsd", 3, 32)))));
+                        new AtFilePosition("z-source.xsd", 3, 26)))));
   }
 
   /**

@@ -143,7 +143,6 @@ class StructureReaderTest {
   /** A refused construct points at the end of its start tag, where SAX reports an element. */
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
-    "choice,                     schema-construct-unsupported,  9, 20",
     // a nested complex type without xs:sequence (#62): refused at its xs:element
     "nested-complex-type,        schema-construct-unsupported,  9, 33",
     "type-unknown-built-in,      schema-construct-unsupported,  9, 51",
@@ -157,7 +156,6 @@ class StructureReaderTest {
     "root-simple-type,           schema-construct-unsupported,  6, 20",
     "root-without-complex-type,  schema-construct-unsupported,  5, 29",
     "root-two-complex-types,     schema-construct-unsupported,  7, 22",
-    "complex-type-all,           schema-construct-unsupported,  7, 15",
     "sequence-after-attribute,   schema-construct-unsupported,  8, 21",
     "foreign-attribute,          schema-construct-unsupported,  9, 100",
     "min-occurs-invalid,         schema-invalid,                9, 68",
@@ -192,8 +190,6 @@ class StructureReaderTest {
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
     "element-form-default-invalid,   schema-construct-unsupported,  4, 87",
-    "nested-choice,                  schema-construct-unsupported, 10, 38",
-    "nested-all,                     schema-construct-unsupported, 10, 35",
     "nested-mixed,                   schema-construct-unsupported, 10, 40",
     "nested-two-sequences,           schema-construct-unsupported, 10, 55",
     "nested-two-complex-types,       schema-construct-unsupported, 10, 75",
@@ -228,7 +224,8 @@ class StructureReaderTest {
 
   /**
    * #93 reads named complex types, attributes at any depth, and annotations and default values with
-   * no effect (ADR-0008), so these fixtures of the subsets above load.
+   * no effect (ADR-0008), and #94 reads xs:choice and xs:all, so these fixtures of the subsets
+   * above load. A choice of one branch keeps the branch's minimum.
    */
   @ParameterizedTest(name = "{0} loads")
   @CsvSource(
@@ -239,6 +236,12 @@ class StructureReaderTest {
         "named-complex-type      | ''",
         "nested-attribute        | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
             + " /Line/@id 0..1 xs:string",
+        "choice                  | /OrderId 1..1 xs:string; /A 1..1 xs:string",
+        "complex-type-all        | /A 1..1 xs:string",
+        "nested-choice           | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
+            + " /Line/Sku 1..1 xs:string",
+        "nested-all              | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
+            + " /Line/Sku 1..1 xs:string",
       })
   void a_fixture_the_subsets_refused_loads(String fixture, String fields) throws Exception {
     Structure structure = readSkeleton("test-fixtures/" + fixture + ".xsd");

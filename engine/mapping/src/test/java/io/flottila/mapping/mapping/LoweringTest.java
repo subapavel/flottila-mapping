@@ -1333,6 +1333,74 @@ class LoweringTest {
     assertThat(document.content()).extracting(Expr::origin).containsExactly(id("t1"), id("t2"));
   }
 
+  // --- a repeated group of two or more particles (#94, ADR-0008 "in a target"): refused only
+  // when a mapping must write a field of it
+
+  /** {@code mappings} from {@code source} to {@link TestStructures#interleaved()}. */
+  private static LowerResult lowerInterleaved(Structure source, Object... pathThenMapping) {
+    Structure target = TestStructures.interleaved();
+    return Lowering.lower(
+        model(ref(source), ref(target), targetFieldMappings(pathThenMapping), Map.of()),
+        source,
+        target);
+  }
+
+  /**
+   * A target field mapping on a field of a repeated group is interleaved-target-group at the
+   * mapping, whose message names the schema file, line and column of the repeated group's
+   * declaration. The optional B beside it is left out.
+   */
+  @Test
+  void aTargetFieldMappingOnAFieldOfARepeatedGroupIsInterleavedTargetGroupThere() {
+    LowerResult result =
+        lowerInterleaved(
+            TestStructures.interleaved(),
+            "/Doc/Id",
+            copy("t1", "/Doc/Id"),
+            "/Doc/A",
+            copy("t2", "/Doc/Id"));
+
+    assertThat(refused(result)).containsExactly(errorAtId("interleaved-target-group", "t2"));
+    assertThat(messages(result).getFirst())
+        .contains("/Doc/A")
+        .contains(TestStructures.INTERLEAVED_FILE + " 20:44");
+  }
+
+  /**
+   * An unmapped field of a repeated group with {@code minOccurs > 0} must be written, so it is
+   * interleaved-target-group at its pointer, instead of unmapped-mandatory-leaf; the optional B is
+   * not.
+   */
+  @Test
+  void anUnmappedMandatoryFieldOfARepeatedGroupIsInterleavedTargetGroupAtItsPointer() {
+    LowerResult result =
+        lowerInterleaved(TestStructures.interleaved(), "/Doc/Id", copy("t1", "/Doc/Id"));
+
+    assertThat(refused(result))
+        .containsExactly(errorAtPointer("interleaved-target-group", unmapped("/Doc/A")));
+  }
+
+  /**
+   * The refusal holds in a target only: a source-field box on a field of a repeated group lowers
+   * (ADR-0008 "in a target").
+   */
+  @Test
+  void aSourceBoxOnAFieldOfARepeatedGroupLowers() {
+    Structure target = TestStructures.order();
+    Structure source = TestStructures.interleaved();
+    MappingModel model =
+        model(
+            ref(source),
+            ref(target),
+            targetFieldMappings(ORDER + "/OrderId", copy("t1", "/Doc/A")),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, source, target));
+
+    TargetSlots orderId = only(document.content(), TargetSlots.class);
+    assertThat(orderId.origin()).isEqualTo(id("t1"));
+  }
+
   /** The one expression of {@code content}, which is a {@code type}. */
   private static <T extends Expr> T only(List<Expr> content, Class<T> type) {
     assertThat(content).hasSize(1).first().isInstanceOf(type);
