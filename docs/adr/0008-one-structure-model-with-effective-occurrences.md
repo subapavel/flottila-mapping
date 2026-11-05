@@ -126,6 +126,14 @@ Decided in the spec-4 grilling (2026-11-05):
   and other control-character escapes, an escaped U+FFFE or U+FFFF, and a lone surrogate
   (observed in Saxon-HE 12.5, 2026-11-05). The output therefore stays well-formed XML on both
   sides.
+- A raw (unescaped) U+FFFE or U+FFFF in the JSON input is malformed input on both sides
+  (spec #89 review): `unparsed-text` refuses the text with FOUT1190, and the runtime refuses it
+  as it refuses bad JSON. A leading byte order mark is dropped on both sides; U+FEFF inside a
+  string is kept (observed in Saxon-HE 12.5, 2026-11-05).
+- A JSON Schema `minItems` or `maxItems` must be a non-negative integer of at most 18 digits,
+  as an XSD occurrence count must; anything else, and a `minItems` above `maxItems`, is
+  `schema-invalid` at that keyword. Two bundle files with one root `$id` are `schema-invalid` at
+  the second `$id` (spec #89 review).
 - The input is never validated, as for XML. A value whose JSON kind does not fit its field reads
   as absent: an object or array for a leaf, a scalar for a structure field, a non-array for an
   array property. The export's path navigation over the `fn:` representation gives the same.
