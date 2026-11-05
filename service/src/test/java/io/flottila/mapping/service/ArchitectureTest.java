@@ -3,6 +3,7 @@ package io.flottila.mapping.service;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -10,7 +11,9 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.EvaluationResult;
 import io.flottila.mapping.mapping.MappingModel;
+import io.flottila.mapping.structure.importer.planted.PlantedFileReads;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.ModuleDescriptor;
@@ -20,7 +23,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The service is the unnamed module, so javac does not keep it out of the engine's internals. These
@@ -141,6 +148,116 @@ class ArchitectureTest {
                     "a MappingModel constructor",
                     call -> call.getTargetOwner().isEquivalentTo(MappingModel.class)));
     rule.check(importedClasses());
+  }
+
+  private static final String STRUCTURE_IMPORT = "io.flottila.mapping.structure.importer";
+
+  /**
+   * Rule F (ADR-0016, #90): structure import opens no file. It reads every schema file through the
+   * reference resolver (ADR-0014), so no class of its packages depends on {@code java.nio.file..},
+   * {@code java.io.File*}, {@code java.io.RandomAccessFile} or {@code
+   * java.nio.channels.FileChannel}. Its subject is never empty.
+   */
+  private static ArchRule ruleF() {
+    DescribedPredicate<JavaClass> fileSystem =
+        DescribedPredicate.describe(
+            "the file system (java.nio.file.., java.io.File*, java.io.RandomAccessFile,"
+                + " java.nio.channels.FileChannel)",
+            c ->
+                c.getPackageName().equals("java.nio.file")
+                    || c.getPackageName().startsWith("java.nio.file.")
+                    || (c.getPackageName().equals("java.io")
+                        && c.getSimpleName().startsWith("File"))
+                    || c.getName().equals("java.io.RandomAccessFile")
+                    || c.getName().equals("java.nio.channels.FileChannel"));
+    return noClasses()
+        .that()
+        .resideInAPackage(STRUCTURE_IMPORT + "..")
+        .should()
+        .dependOnClassesThat(fileSystem)
+        .allowEmptyShould(false);
+  }
+
+  @Test
+  void ruleF_structureImportOpensNoFile() {
+    ruleF().check(importedClasses());
+  }
+
+  /**
+   * A planted class and the file-system dependency its violation must name: the call or the
+   * constructor, as ArchUnit writes its target.
+   */
+  record Planted(Class<?> fixture, String dependency) {}
+
+  static Stream<Named<Planted>> plantedFileReads() {
+    return Stream.of(
+        planted(
+            "Files.readAllBytes",
+            PlantedFileReads.FilesReadAllBytes.class,
+            "<java.nio.file.Files.readAllBytes("),
+        planted("Path.of", PlantedFileReads.PathOf.class, "<java.nio.file.Path.of("),
+        planted("Paths.get", PlantedFileReads.PathsGet.class, "<java.nio.file.Paths.get("),
+        planted("new File", PlantedFileReads.NewFile.class, "<java.io.File.<init>("),
+        planted(
+            "new FileInputStream",
+            PlantedFileReads.NewFileInputStream.class,
+            "<java.io.FileInputStream.<init>("),
+        planted(
+            "FileChannel.open",
+            PlantedFileReads.FileChannelOpen.class,
+            "<java.nio.channels.FileChannel.open("),
+        planted(
+            "new RandomAccessFile",
+            PlantedFileReads.NewRandomAccessFile.class,
+            "<java.io.RandomAccessFile.<init>("),
+        // a java.nio.file subpackage only: the fixture of the rule's subpackage clause
+        planted(
+            "PosixFilePermissions.fromString",
+            PlantedFileReads.PosixPermissionsFromString.class,
+            "<java.nio.file.attribute.PosixFilePermissions.fromString("));
+  }
+
+  private static Named<Planted> planted(String name, Class<?> fixture, String dependency) {
+    return Named.of(name, new Planted(fixture, dependency));
+  }
+
+  /**
+   * Rule F fails on each planted file read, and the violation names the planted class and the
+   * forbidden target, so it never fails only because it checked no class.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("plantedFileReads")
+  void ruleF_failsOnAPlantedFileRead(Planted planted) {
+    EvaluationResult result =
+        ruleF().evaluate(new ClassFileImporter().importClasses(planted.fixture()));
+
+    assertThat(result.hasViolation()).as("rule F on %s", planted.fixture().getName()).isTrue();
+    assertThat(result.getFailureReport().getDetails())
+        .as("the violations of %s", planted.fixture().getName())
+        .anySatisfy(
+            detail ->
+                assertThat(detail)
+                    .contains("<" + planted.fixture().getName() + ".")
+                    .contains(planted.dependency()));
+  }
+
+  /** The control: a class of the subject that reads only bytes in memory passes rule F. */
+  @Test
+  void ruleF_passesAClassThatReadsOnlyBytes() {
+    ruleF().check(new ClassFileImporter().importClasses(PlantedFileReads.ReadsBytes.class));
+  }
+
+  /**
+   * Rule F checks at least one class: an import with no class of its subject fails it (ArchUnit
+   * 1.5.1 throws from the evaluation, observed 2026-11-05).
+   */
+  @Test
+  void ruleF_failsWhenItChecksNoClass() {
+    JavaClasses noSubject = new ClassFileImporter().importClasses(String.class);
+
+    assertThatExceptionOfType(AssertionError.class)
+        .isThrownBy(() -> ruleF().check(noSubject))
+        .withMessageContaining("failed to check any classes");
   }
 
   @Test

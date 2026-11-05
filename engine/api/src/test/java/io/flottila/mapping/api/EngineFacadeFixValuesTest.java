@@ -79,7 +79,10 @@ class EngineFacadeFixValuesTest {
 
   private CompiledMapping compiled(byte[] model, CompileOptions options) throws Exception {
     CompileResult result =
-        facade.compile(Fingerprints.refreshed(model, observations()), observations(), options);
+        facade.compile(
+            Fingerprints.refreshed(model, observations()),
+            DirectoryResolver.over(observations()),
+            options);
     if (result instanceof CompileResult.Compiled(CompiledMapping mapping)) {
       return mapping;
     }
@@ -242,7 +245,9 @@ class EngineFacadeFixValuesTest {
   private List<String> diagnostics(byte[] model) throws Exception {
     CompileResult result =
         facade.compile(
-            Fingerprints.refreshed(model, observations()), observations(), CompileOptions.DEPLOY);
+            Fingerprints.refreshed(model, observations()),
+            DirectoryResolver.over(observations()),
+            CompileOptions.DEPLOY);
     if (result instanceof CompileResult.Refused(List<Diagnostic> found)) {
       assertThat(found).allSatisfy(d -> assertThat(d.message()).isNotBlank());
       return found.stream().map(d -> d.severity() + " " + d.code() + " " + d.location()).toList();
@@ -284,7 +289,8 @@ class EngineFacadeFixValuesTest {
     byte[] model = fixValues("\"table\": {\"it's\": \"x\", \"b\": \"\\\"q\\\"\"}", SKU);
 
     ExportResult result =
-        facade.export(Fingerprints.refreshed(model, observations()), observations());
+        facade.export(
+            Fingerprints.refreshed(model, observations()), DirectoryResolver.over(observations()));
 
     assertThat(result).isInstanceOf(ExportResult.Exported.class);
     assertThat(((ExportResult.Exported) result).stylesheet())

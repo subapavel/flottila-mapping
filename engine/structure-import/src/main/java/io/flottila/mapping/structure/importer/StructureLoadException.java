@@ -11,8 +11,9 @@ import java.io.Serial;
  *   <li>a refused construct ({@code schema-construct-unsupported}, {@code schema-invalid}): the end
  *       of its start tag, or the end of refused text;
  *   <li>{@code schema-root-not-found}: the end of the {@code xs:schema} start tag;
- *   <li>an error about a whole file ({@code schema-unreadable}, {@code root-selector-unsupported},
- *       a bundle of other than one file): line 1, column 1.
+ *   <li>an error about a whole file ({@code schema-unreadable}, {@code
+ *       package-reference-unsupported}, {@code root-selector-unsupported}, a bundle of other than
+ *       one file): line 1, column 1.
  * </ul>
  */
 public final class StructureLoadException extends Exception {

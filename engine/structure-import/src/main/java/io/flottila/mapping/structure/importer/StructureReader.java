@@ -7,29 +7,28 @@ import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.WsdlRoot;
 import io.flottila.mapping.structure.importer.internal.XsdReader;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import javax.xml.namespace.QName;
 
 /**
  * Reads a schema bundle into a structure (ADR-0008). Milestone 1 reads the nested XSD subset only:
  * spec #21's flat subset with structure fields at any depth (#62, F-14); full XSD, WSDL and JSON
- * Schema are spec 4.
+ * Schema are spec 4. It reads every file through the host's {@link ReferenceResolver} and opens no
+ * file itself (ADR-0014 "Reference resolver shape").
  */
 public final class StructureReader {
 
-  private final Path base;
+  private final ReferenceResolver resolver;
 
   /**
-   * @param base the directory the bundle's file references are relative to
+   * @param resolver the host's resolver, bound to the base the bundle's references are relative to
    */
-  public StructureReader(Path base) {
-    this.base = base;
+  public StructureReader(ReferenceResolver resolver) {
+    this.resolver = resolver;
   }
 
   /**
-   * Reads the structure under {@code root}.
+   * Reads the structure under {@code root}. An unchecked exception from the resolver passes through
+   * unchanged.
    *
    * @throws StructureLoadException when the bundle cannot be read, is not well-formed, uses a
    *     construct outside the nested subset, or has no such root
@@ -51,18 +50,22 @@ public final class StructureReader {
           case WsdlRoot wsdl -> throw unsupportedRoot(file, "a WSDL operation");
           case JsonRoot json -> throw unsupportedRoot(file, "the JSON root");
         };
-    byte[] content;
+    ResolvedFile resolved;
     try {
-      content = Files.readAllBytes(base.resolve(file));
-    } catch (IOException e) {
+      resolved = resolver.resolve(file);
+    } catch (UnresolvedReferenceException e) {
+      // the engine's code and message, at the reference as the bundle spells it
+      String code =
+          switch (e.reason()) {
+            case UNREADABLE -> StructureImportDiagnostics.SCHEMA_UNREADABLE;
+            case PACKAGE_REFERENCE_UNSUPPORTED ->
+                StructureImportDiagnostics.PACKAGE_REFERENCE_UNSUPPORTED;
+          };
       throw new StructureLoadException(
-          StructureImportDiagnostics.SCHEMA_UNREADABLE,
-          file,
-          1,
-          1,
-          "cannot read the schema file: " + e);
+          code, file, 1, 1, UnresolvedReferenceException.message(e.reason(), file));
     }
-    return XsdReader.read(file, content, element);
+    // a load error inside the file names the reference asked for, whatever the host names it
+    return XsdReader.read(file, resolved.content(), element);
   }
 
   private static StructureLoadException unsupportedRoot(String file, String what) {
