@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
@@ -25,8 +24,9 @@ import javax.xml.namespace.QName;
  *   <li>The bundle is a closed set. An {@code xs:import}'s or {@code xs:include}'s {@code
  *       schemaLocation} is mapped to a bundle file by text, relative to the importing file's bundle
  *       name, with no file-system call (ADR-0014 "Reference resolver shape (#90)"). An import whose
- *       location is absolute, a URL or no bundle file falls back to a bundle file with its
- *       namespace. Otherwise the reference is {@code schema-reference-outside-bundle}.
+ *       location names no bundle file, an absolute path or a URL among them, or that has no
+ *       location, falls back to a bundle file with its namespace. Otherwise the reference is {@code
+ *       schema-reference-outside-bundle}.
  *   <li>Names are checked only once every file has read without a load error, because a refused or
  *       broken file's declarations are unknown: every name a file uses must be declared by a bundle
  *       file, a simple type must not derive from itself, and the root must be a global element of a
@@ -50,10 +50,8 @@ final class BundleCheck {
     for (SchemaFile file : files) {
       for (FileReference reference : file.references) {
         boolean listed =
-            Optional.ofNullable(reference.location())
-                .flatMap(location -> located(file.name, location))
-                .filter(bundle::contains)
-                .isPresent();
+            reference.location() != null
+                && bundle.contains(located(file.name, reference.location()));
         // an include has no namespace to fall back to
         if (!listed
             && (reference.namespace() == null || !namespaces.contains(reference.namespace()))) {
@@ -67,15 +65,12 @@ final class BundleCheck {
   }
 
   /**
-   * The bundle name {@code location} stands for, written in the file {@code file}: its segments
-   * appended to the directory of {@code file}, {@code .} dropped and {@code ..} taking off the
-   * segment before it, if there is one that is not {@code ..} itself. Empty for an absolute path or
-   * a URL.
+   * The bundle name {@code location} stands for, written in the file {@code file}, by text: its
+   * segments appended to the directory of {@code file}, {@code .} dropped and {@code ..} taking off
+   * the segment before it, if there is one that is not {@code ..} itself. An absolute path keeps an
+   * empty segment and a URL its scheme, so neither is ever a bundle name (ADR-0024).
    */
-  static Optional<String> located(String file, String location) {
-    if (location.startsWith("/") || location.contains(":")) {
-      return Optional.empty();
-    }
+  static String located(String file, String location) {
     List<String> segments = new ArrayList<>(List.of(file.split("/", -1)));
     segments.removeLast();
     for (String segment : location.split("/", -1)) {
@@ -85,7 +80,7 @@ final class BundleCheck {
         segments.add(segment);
       }
     }
-    return Optional.of(String.join("/", segments));
+    return String.join("/", segments);
   }
 
   private static StructureLoadException outside(String file, FileReference reference) {

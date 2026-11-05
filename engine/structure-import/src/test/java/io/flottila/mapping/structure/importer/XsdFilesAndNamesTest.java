@@ -9,6 +9,8 @@ import io.flottila.mapping.structure.FieldPath;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.structure.ValueType;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -202,6 +204,12 @@ class XsdFilesAndNamesTest {
             "{include}Order",
             List.of(outside + "xsd/main.xsd 6:50")),
         Arguments.of(
+            "an include of an unlisted file, beside a bundle file that never reaches its namespace",
+            "include",
+            List.of("xsd/main.xsd", "xsd/not-xml.xsd"),
+            "{include}Order",
+            List.of(outside + "xsd/main.xsd 6:50", "schema-not-well-formed xsd/not-xml.xsd 3:72")),
+        Arguments.of(
             "an import whose location and namespace name no bundle file",
             "import-location",
             List.of("po/order.xsd"),
@@ -316,6 +324,51 @@ class XsdFilesAndNamesTest {
                         "no file of the schema bundle has the namespace"
                             + " \"urn:flottila:corpus:nowhere\" this xs:import names"));
     assertThat(resolver.calls).containsExactly("a.xsd");
+  }
+
+  /**
+   * A location maps to a bundle name by text: {@code ..} takes off the segment before it unless
+   * that is {@code ..} too, so the bundle names may start above the resolver's base.
+   */
+  @Test
+  void a_location_maps_by_text_above_the_base_of_the_bundle() throws Exception {
+    Path base = FIXTURES.resolve("up/m/n");
+    List<String> calls = new ArrayList<>();
+    ReferenceResolver above =
+        reference -> {
+          calls.add(reference);
+          try {
+            return new ResolvedFile(
+                reference, Files.readAllBytes(base.resolve(reference).normalize()));
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        };
+    List<String> bundle = List.of("../a/main.xsd", "../../b/part.xsd");
+
+    Structure structure =
+        new StructureReader(above)
+            .read(new SchemaBundle(bundle), new ElementRoot(expand("{up}Doc")));
+
+    assertThat(tree(structure))
+        .containsExactly(
+            expand("/{up}Doc 1..1 structure"),
+            expand("/{up}Doc/Part 1..1 structure"),
+            expand("/{up}Doc/Part/No 1..1 xs:integer"));
+    assertThat(calls).containsExactlyElementsOf(bundle);
+  }
+
+  /** A file the bundle lists twice is read once. */
+  @Test
+  void a_file_listed_twice_is_read_once() throws Exception {
+    Recording resolver = new Recording("include");
+
+    load(
+        resolver,
+        List.of("xsd/main.xsd", "xsd/parts/line.xsd", "xsd/main.xsd"),
+        expand("{include}Order"));
+
+    assertThat(resolver.calls).containsExactly("xsd/main.xsd", "xsd/parts/line.xsd");
   }
 
   /** A named complex type used at two paths is one type; a recursive one is never expanded. */
