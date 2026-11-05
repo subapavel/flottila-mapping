@@ -167,8 +167,8 @@ class EngineFacadeRefreshTest {
   }
 
   /**
-   * Both stale fingerprints are re-derived, so the copy has no {@code fingerprint-mismatch}, and its
-   * other stage-3 errors are returned: here the unconnected target field mapping.
+   * Both stale fingerprints are re-derived, so the copy has no {@code fingerprint-mismatch}, and
+   * its other stage-3 errors are returned: here the unconnected target field mapping.
    */
   @Test
   void staleFingerprintsAreRederivedAndTheOtherStage3DiagnosticsReturned()

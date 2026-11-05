@@ -60,9 +60,9 @@ class RefreshResourceTest {
   }
 
   /**
-   * The corpus mapping with the source side's bundle reference and each side's fingerprint
-   * replaced in place. The corpus mapping is canonical and each side has one bundle file, so the
-   * copy is canonical too.
+   * The corpus mapping with the source side's bundle reference and each side's fingerprint replaced
+   * in place. The corpus mapping is canonical and each side has one bundle file, so the copy is
+   * canonical too.
    */
   private static String corpusWith(
       String sourceBundle, String sourceFingerprint, String targetFingerprint) {
@@ -109,7 +109,9 @@ class RefreshResourceTest {
             },
             new SchemaBundle(List.of(file)),
             new ElementRoot(ORDER));
-    assertThat(result).as("%s/%s loads", directory, file).isInstanceOf(StructureResult.Loaded.class);
+    assertThat(result)
+        .as("%s/%s loads", directory, file)
+        .isInstanceOf(StructureResult.Loaded.class);
     return ((StructureResult.Loaded) result).structure().fingerprint();
   }
 
@@ -214,8 +216,8 @@ class RefreshResourceTest {
   }
 
   /**
-   * A working copy that stage 1 or 2 refuses has no model to answer with: 422 {@code
-   * model-refused} with its diagnostics, as Save answers it (ADR-0024).
+   * A working copy that stage 1 or 2 refuses has no model to answer with: 422 {@code model-refused}
+   * with its diagnostics, as Save answers it (ADR-0024).
    */
   @Test
   void aWorkingCopyThatStage1Or2RefusesIs422ModelRefused() {

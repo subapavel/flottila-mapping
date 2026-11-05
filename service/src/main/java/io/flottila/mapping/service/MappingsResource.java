@@ -59,9 +59,9 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
  * Jackson: {@code save} reads the body as bytes, so the engine's strict reader sees them as sent,
  * and every answer is the engine's canonical form. {@code refresh} reads its body as bytes too; its
  * answer's {@code model} member is the canonical bytes read into a tree, whose member order Jackson
- * keeps. A test run's working copy is a member of a JSON request
- * body: Jackson parses it into a tree, and {@code test} writes that tree back to bytes with {@code
- * writeValueAsBytes}, so the engine reads Jackson's serialisation, not the bytes as sent.
+ * keeps. A test run's working copy is a member of a JSON request body: Jackson parses it into a
+ * tree, and {@code test} writes that tree back to bytes with {@code writeValueAsBytes}, so the
+ * engine reads Jackson's serialisation, not the bytes as sent.
  */
 @jakarta.ws.rs.Path("/api/mappings")
 public class MappingsResource {

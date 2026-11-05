@@ -12,10 +12,10 @@ public sealed interface RefreshResult {
   /**
    * A model that stages 1 and 2 accept, refreshed.
    *
-   * @param model the model's canonical bytes, with each side's fingerprint the one its bundle gives,
-   *     or the stored one when the bundle fails to load
-   * @param diagnostics the load errors of the sides that fail to load; when both load, the
-   *     orphaned references with every other stage-3 diagnostic; sorted by {@link Diagnostic#ORDER}
+   * @param model the model's canonical bytes, with each side's fingerprint the one its bundle
+   *     gives, or the stored one when the bundle fails to load
+   * @param diagnostics the load errors of the sides that fail to load; when both load, the orphaned
+   *     references with every other stage-3 diagnostic; sorted by {@link Diagnostic#ORDER}
    */
   record Refreshed(byte[] model, List<Diagnostic> diagnostics) implements RefreshResult {
 
