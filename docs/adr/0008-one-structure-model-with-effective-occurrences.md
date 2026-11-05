@@ -83,6 +83,13 @@ Refined by the spec-4 grilling (2026-11-05):
   element's file, line and column, and the message names the missing reference.
 - The same rule holds for a `wsdl:import`/`include`, an `xsd:import` inside WSDL `types`, and a
   JSON Schema `$ref` to another file.
+- JSON Schema (#97):
+  - The file part of a relative `$ref` resolves against the referring file's bundle reference,
+    whatever its `$id` says.
+  - A `$ref` that is absolute falls back to the one bundle file whose root `$id` is that URI,
+    the analogue of the namespace rule.
+  - When neither matches, the load fails with `schema-reference-outside-bundle` at the `$ref`
+    keyword's file, line and column.
 - The engine does not compute a bundle's closure for the author.
 - The engine maps a reference written inside a schema to a bundle-listed reference by text,
   before any read, so the resolver reads only listed files (ADR-0014, #90).
