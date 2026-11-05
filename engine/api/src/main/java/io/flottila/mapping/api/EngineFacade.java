@@ -18,12 +18,12 @@ import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.runtime.Tracer;
 import io.flottila.mapping.structure.Structure;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -145,18 +145,20 @@ public final class EngineFacade {
    * structures, stage 3 and lowering, the optimiser if {@code options} ask for it, then the closure
    * compile. The first of these that refuses the model gives the result; the structures are both
    * read before either refusal is reported. The compiled mapping keeps the occurrence of each
-   * target field mapping's field, which a generating function's trace entry shows (#83).
+   * target field mapping's field, which a generating function's trace entry shows (#83). An
+   * unchecked exception from {@code resolver} passes through unchanged.
    *
    * @param model the mapping model's bytes
-   * @param base the directory the model's schema bundle references are relative to
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
    * @return the compiled mapping, or the diagnostics that refuse it
    * @throws MalformedJsonException if the bytes are no JSON document
    */
-  public CompileResult compile(byte[] model, Path base, CompileOptions options)
+  public CompileResult compile(byte[] model, ReferenceResolver resolver, CompileOptions options)
       throws MalformedJsonException {
     return loadAndLower(
         model,
-        base,
+        resolver,
         CompileResult.Refused::new,
         lowered -> {
           TargetDocument document = lowered.document();
@@ -172,17 +174,20 @@ public final class EngineFacade {
   /**
    * Exports a mapping model to XSLT 3.0 in the portable profile (ADR-0023): load, structures, stage
    * 3 and lowering as {@link #compile} does them, then the export of the unoptimised IR. A refused
-   * model gives no stylesheet, not even of the target fields that would export.
+   * model gives no stylesheet, not even of the target fields that would export. An unchecked
+   * exception from {@code resolver} passes through unchanged.
    *
    * @param model the mapping model's bytes
-   * @param base the directory the model's schema bundle references are relative to
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
    * @return the stylesheet and its helper module, or the diagnostics that refuse the model
    * @throws MalformedJsonException if the bytes are no JSON document
    */
-  public ExportResult export(byte[] model, Path base) throws MalformedJsonException {
+  public ExportResult export(byte[] model, ReferenceResolver resolver)
+      throws MalformedJsonException {
     return loadAndLower(
         model,
-        base,
+        resolver,
         ExportResult.Refused::new,
         lowered ->
             new ExportResult.Exported(
@@ -198,7 +203,7 @@ public final class EngineFacade {
    */
   private static <R> R loadAndLower(
       byte[] model,
-      Path base,
+      ReferenceResolver resolver,
       Function<List<Diagnostic>, R> refused,
       Function<LoweredModel, R> lowered)
       throws MalformedJsonException {
@@ -206,8 +211,8 @@ public final class EngineFacade {
       case Refused r -> refused.apply(r.diagnostics());
       case Loaded(MappingModel loaded) -> {
         List<Diagnostic> refusals = new ArrayList<>();
-        Optional<Structure> source = structure(base, loaded.source(), refusals);
-        Optional<Structure> target = structure(base, loaded.target(), refusals);
+        Optional<Structure> source = structure(resolver, loaded.source(), refusals);
+        Optional<Structure> target = structure(resolver, loaded.target(), refusals);
         if (!refusals.isEmpty()) {
           yield refused.apply(refusals);
         }
@@ -225,8 +230,8 @@ public final class EngineFacade {
 
   /** The structure {@code ref} names, or empty once its load error is added to {@code refusals}. */
   private static Optional<Structure> structure(
-      Path base, StructureRef ref, List<Diagnostic> refusals) {
-    return switch (Structures.load(base, ref.bundle(), ref.root())) {
+      ReferenceResolver resolver, StructureRef ref, List<Diagnostic> refusals) {
+    return switch (Structures.load(resolver, ref.bundle(), ref.root())) {
       case StructureResult.Loaded(Structure structure) -> Optional.of(structure);
       case StructureResult.Refused(Diagnostic diagnostic) -> {
         refusals.add(diagnostic);

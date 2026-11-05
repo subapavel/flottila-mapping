@@ -43,7 +43,9 @@ class StructuresTest {
 
     StructureResult result =
         Structures.load(
-            base, new SchemaBundle(List.of("order.xsd")), new ElementRoot("Q{urn:a}Order"));
+            DirectoryResolver.over(base),
+            new SchemaBundle(List.of("order.xsd")),
+            new ElementRoot("Q{urn:a}Order"));
 
     assertThat(result).isInstanceOf(StructureResult.Loaded.class);
     StructureResult.Loaded loaded = (StructureResult.Loaded) result;
@@ -62,8 +64,9 @@ class StructuresTest {
     for (Map.Entry<String, String> file : roots.entrySet()) {
       SchemaBundle bundle = new SchemaBundle(List.of(file.getKey()));
       ElementRoot root = new ElementRoot(file.getValue());
-      Structure first = loaded(Structures.load(observations, bundle, root));
-      Structure second = loaded(Structures.load(observations, bundle, root));
+      Structure first = loaded(Structures.load(DirectoryResolver.over(observations), bundle, root));
+      Structure second =
+          loaded(Structures.load(DirectoryResolver.over(observations), bundle, root));
 
       assertThat(second.fingerprint()).as(file.getKey()).isEqualTo(first.fingerprint());
       // the first repeating structure field below the root, and its children
@@ -99,7 +102,10 @@ class StructuresTest {
     Files.writeString(base.resolve("broken.xsd"), "<xs:schema\n  <");
 
     StructureResult result =
-        Structures.load(base, new SchemaBundle(List.of("broken.xsd")), new ElementRoot("Order"));
+        Structures.load(
+            DirectoryResolver.over(base),
+            new SchemaBundle(List.of("broken.xsd")),
+            new ElementRoot("Order"));
 
     if (!(result instanceof StructureResult.Refused(Diagnostic diagnostic))) {
       throw new AssertionError("expected Refused, got " + result);

@@ -42,7 +42,8 @@ class EngineFacadeRepeatTraceTest {
   }
 
   private Trace trace(byte[] model, String input, int limit) throws Exception {
-    CompileResult result = facade.compile(model, observations(), CompileOptions.TEST_RUN);
+    CompileResult result =
+        facade.compile(model, DirectoryResolver.over(observations()), CompileOptions.TEST_RUN);
     assertThat(result).isInstanceOf(CompileResult.Compiled.class);
     TestRunResult run =
         facade.testRun(

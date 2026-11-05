@@ -21,6 +21,9 @@ public final class StructureImportDiagnostics {
   /** A schema file that cannot be read at all. */
   public static final String SCHEMA_UNREADABLE = "schema-unreadable";
 
+  /** A package reference ({@code name@version:/path}) that the host's resolver does not read. */
+  public static final String PACKAGE_REFERENCE_UNSUPPORTED = "package-reference-unsupported";
+
   /** A root selector of a kind milestone 1 does not read: a WSDL operation or a JSON root. */
   public static final String ROOT_SELECTOR_UNSUPPORTED = "root-selector-unsupported";
 

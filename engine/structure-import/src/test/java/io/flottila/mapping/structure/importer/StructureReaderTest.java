@@ -35,7 +35,8 @@ class StructureReaderTest {
   private static final RootSelector ORDER = new ElementRoot("Q{urn:flottila:corpus:skeleton}Order");
 
   private static Structure readSkeleton(String file) throws StructureLoadException {
-    return new StructureReader(SKELETON).read(new SchemaBundle(List.of(file)), ORDER);
+    return new StructureReader(DirectoryResolver.over(SKELETON))
+        .read(new SchemaBundle(List.of(file)), ORDER);
   }
 
   /** The observation kit's structures (ADR-0018), which #50 maps (#62, F-14). */
@@ -43,7 +44,7 @@ class StructureReaderTest {
       Path.of(System.getProperty("flottila.corpus"), "structures", "observations");
 
   private static Structure readObservation(String file, String root) throws StructureLoadException {
-    return new StructureReader(OBSERVATIONS)
+    return new StructureReader(DirectoryResolver.over(OBSERVATIONS))
         .read(new SchemaBundle(List.of(file)), new ElementRoot(root));
   }
 
@@ -374,7 +375,7 @@ class StructureReaderTest {
   void a_root_the_schema_does_not_declare_is_refused_at_the_schema_element(String root) {
     assertThatThrownBy(
             () ->
-                new StructureReader(SKELETON)
+                new StructureReader(DirectoryResolver.over(SKELETON))
                     .read(new SchemaBundle(List.of("order.xsd")), new ElementRoot(root)))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
@@ -395,7 +396,8 @@ class StructureReaderTest {
     for (RootSelector root : List.of(wsdl, new JsonRoot())) {
       assertThatThrownBy(
               () ->
-                  new StructureReader(SKELETON).read(new SchemaBundle(List.of("order.xsd")), root))
+                  new StructureReader(DirectoryResolver.over(SKELETON))
+                      .read(new SchemaBundle(List.of("order.xsd")), root))
           .isInstanceOfSatisfying(
               StructureLoadException.class,
               e -> {
@@ -411,7 +413,7 @@ class StructureReaderTest {
   void a_bundle_of_other_than_one_file_is_outside_the_flat_subset() {
     assertThatThrownBy(
             () ->
-                new StructureReader(SKELETON)
+                new StructureReader(DirectoryResolver.over(SKELETON))
                     .read(new SchemaBundle(List.of("order.xsd", "extra.xsd")), ORDER))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
@@ -421,7 +423,10 @@ class StructureReaderTest {
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);
             });
-    assertThatThrownBy(() -> new StructureReader(SKELETON).read(new SchemaBundle(List.of()), ORDER))
+    assertThatThrownBy(
+            () ->
+                new StructureReader(DirectoryResolver.over(SKELETON))
+                    .read(new SchemaBundle(List.of()), ORDER))
         .isInstanceOfSatisfying(
             StructureLoadException.class,
             e -> {
@@ -440,6 +445,40 @@ class StructureReaderTest {
               assertThat(e.file()).isEqualTo("no-such-file.xsd");
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);
+            });
+  }
+
+  /**
+   * #90 (ADR-0014 "Reference resolver shape"): a reference the host's resolver refuses is a load
+   * error about the whole file, at the reference as the bundle spells it, with the engine's code
+   * and message for the resolver's reason.
+   */
+  @ParameterizedTest(name = "{0} is {1}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "UNREADABLE                    | schema-unreadable             | ../xsd/missing.xsd"
+            + " | cannot read the schema file \"../xsd/missing.xsd\"",
+        "PACKAGE_REFERENCE_UNSUPPORTED | package-reference-unsupported | shared@1.2.0:/xsd/o.xsd"
+            + " | package references need a host resolver: \"shared@1.2.0:/xsd/o.xsd\""
+      })
+  void a_reference_the_resolver_refuses_is_a_load_error_with_the_engines_message(
+      UnresolvedReferenceException.Reason reason, String code, String reference, String message) {
+    ReferenceResolver refusing =
+        asked -> {
+          throw new UnresolvedReferenceException(reason, asked);
+        };
+
+    assertThatThrownBy(
+            () -> new StructureReader(refusing).read(new SchemaBundle(List.of(reference)), ORDER))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo(code);
+              assertThat(e.file()).isEqualTo(reference);
+              assertThat(e.line()).isEqualTo(1);
+              assertThat(e.column()).isEqualTo(1);
+              assertThat(e.getMessage()).isEqualTo(message);
             });
   }
 

@@ -23,6 +23,7 @@ import io.flottila.mapping.runtime.MalformedInputException;
 import io.flottila.mapping.runtime.MappingRunException;
 import io.flottila.mapping.structure.ElementRoot;
 import io.flottila.mapping.structure.SchemaBundle;
+import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.xslt.export.XsltExporter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,9 +107,14 @@ class EngineFacadeTest {
   private static final String FINGERPRINT =
       "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d";
 
-  /** The skeleton's schema directory: surefire runs in {@code engine/api}. */
-  private static Path skeleton() {
-    return CorpusStructures.directory("skeleton");
+  /** A resolver over the skeleton's schema directory: surefire runs in {@code engine/api}. */
+  private static ReferenceResolver skeleton() {
+    return DirectoryResolver.over(CorpusStructures.directory("skeleton"));
+  }
+
+  /** A resolver over the observation kit's schema directory. */
+  private static ReferenceResolver observations() {
+    return DirectoryResolver.over(CorpusStructures.directory("observations"));
   }
 
   /** A model from {@code order.xsd} to itself with the given target field mappings. */
@@ -205,7 +211,7 @@ class EngineFacadeTest {
   @Test
   void compileAndRunReadASourceLeafAtAnyDepthInItsContext() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] input =
         ("<Orders><Order><Id>1</Id><Line><Sku>A</Sku><Qty>1</Qty></Line><Line><Sku>B</Sku></Line>"
                 + "</Order><Order><Line><Sku>C</Sku></Line></Order></Orders>")
@@ -286,8 +292,7 @@ class EngineFacadeTest {
             """);
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      CompileResult result =
-          facade.compile(model, CorpusStructures.directory("observations"), options);
+      CompileResult result = facade.compile(model, observations(), options);
       byte[] output = facade.run(compiled(result), TWO_ORDERS);
 
       assertThat(new String(output, UTF_8))
@@ -318,8 +323,7 @@ class EngineFacadeTest {
     String twins = "<Twin/><Twin/>";
 
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
-      CompileResult result =
-          facade.compile(model, CorpusStructures.directory("observations"), options);
+      CompileResult result = facade.compile(model, observations(), options);
       byte[] output = facade.run(compiled(result), TWO_ORDERS);
 
       assertThat(new String(output, UTF_8))
@@ -412,7 +416,7 @@ class EngineFacadeTest {
             "under an unmapped n..n parent",
             ordersTo(
                 "tgt-unmapped.xsd", "Unmapped", "{" + orderIdOnto("/Unmapped/Head/A", "t1") + "}"),
-            CorpusStructures.directory("observations"),
+            observations(),
             "/Unmapped/Head/Req"),
         Arguments.of(
             "under a mapped parent",
@@ -424,14 +428,14 @@ class EngineFacadeTest {
                    "boxes": {"a1": {"kind": "source", "field": "/Orders/Order",
                                     "context": "/Orders"}}}}
                 """),
-            CorpusStructures.directory("observations"),
+            observations(),
             "/Unmapped/Head/Req"));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("unmappedMandatoryLeaves")
   void anUnmappedMandatoryLeafIsADiagnosticAtItsTargetField(
-      String why, byte[] model, Path base, String leaf) throws Exception {
+      String why, byte[] model, ReferenceResolver base, String leaf) throws Exception {
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
       List<Diagnostic> diagnostics = refusal(new EngineFacade().compile(model, base, options));
 
@@ -500,7 +504,8 @@ class EngineFacadeTest {
     byte[] model = mandatory(base, "{" + copy("/Root/Free", "t1") + "}");
 
     List<Diagnostic> diagnostics =
-        refusal(new EngineFacade().compile(model, base, CompileOptions.DEPLOY));
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
 
     assertThat(described(diagnostics))
         .containsExactlyElementsOf(
@@ -518,7 +523,7 @@ class EngineFacadeTest {
   @Test
   void anOptionalLeafAndALeafUnderALeftOutParentStaySilent(@TempDir Path base) throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] leftOut =
         mandatory(base, "{" + copy("/Root/Last", "t1") + ", " + copy("/Root/First", "t2") + "}");
     byte[] c1 =
@@ -528,7 +533,7 @@ class EngineFacadeTest {
     for (CompileOptions options : List.of(CompileOptions.DEPLOY, CompileOptions.TEST_RUN)) {
       byte[] root =
           facade.run(
-              compiled(facade.compile(leftOut, base, options)),
+              compiled(facade.compile(leftOut, DirectoryResolver.over(base), options)),
               utf8("<Root><Last>l</Last><First>f</First><Free>x</Free></Root>"));
       byte[] head = facade.run(compiled(facade.compile(c1, observations, options)), TWO_ORDERS);
 
@@ -561,7 +566,9 @@ class EngineFacadeTest {
   void aStructureLoadErrorIsACompileRefusalAtItsFilePosition(@TempDir Path empty) throws Exception {
     // order.xsd is not in this directory: an error about the whole file, at line 1, column 1
     List<Diagnostic> diagnostics =
-        refusal(new EngineFacade().compile(FIELD_LINK, empty, CompileOptions.DEPLOY));
+        refusal(
+            new EngineFacade()
+                .compile(FIELD_LINK, DirectoryResolver.over(empty), CompileOptions.DEPLOY));
 
     assertThat(diagnostics)
         .isNotEmpty()
@@ -584,7 +591,8 @@ class EngineFacadeTest {
     byte[] model = between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS);
 
     List<Diagnostic> diagnostics =
-        refusal(new EngineFacade().compile(model, base, CompileOptions.DEPLOY));
+        refusal(
+            new EngineFacade().compile(model, DirectoryResolver.over(base), CompileOptions.DEPLOY));
 
     assertThat(described(diagnostics))
         .containsExactlyElementsOf(
@@ -716,11 +724,7 @@ class EngineFacadeTest {
     CompiledMapping fieldLink =
         compiled(facade.compile(FIELD_LINK, skeleton(), CompileOptions.TEST_RUN));
     CompiledMapping useOneAsMany =
-        compiled(
-            facade.compile(
-                USE_ONE_AS_MANY,
-                CorpusStructures.directory("observations"),
-                CompileOptions.TEST_RUN));
+        compiled(facade.compile(USE_ONE_AS_MANY, observations(), CompileOptions.TEST_RUN));
     byte[] emptySource = utf8("<src:Order xmlns:src=\"" + NS + "\"/>");
 
     for (var run :
@@ -850,8 +854,9 @@ class EngineFacadeTest {
     assertThat(described(diagnostics)).containsExactlyElementsOf(atTheBox);
   }
 
-  /** A refused model, the directory its bundle references resolve in, and its diagnostics. */
-  private record RefusedModel(String why, byte[] model, Path base, List<Diagnostic> expected) {}
+  /** A refused model, the resolver of its bundle references, and its diagnostics. */
+  private record RefusedModel(
+      String why, byte[] model, ReferenceResolver base, List<Diagnostic> expected) {}
 
   @Test
   void exportRefusesWhatCompileRefuses(@TempDir Path base) throws Exception {
@@ -872,7 +877,7 @@ class EngineFacadeTest {
             new RefusedModel(
                 "both structures' load errors",
                 between("z-source.xsd", "a-target.xsd", FIELD_LINK_MAPPINGS),
-                base,
+                DirectoryResolver.over(base),
                 List.of(
                     error("schema-not-well-formed", new AtFilePosition("a-target.xsd", 2, 3)),
                     error("schema-unreadable", new AtFilePosition("z-source.xsd", 1, 1)))),
@@ -1452,7 +1457,7 @@ class EngineFacadeTest {
   @Test
   void aUseOneAsManyCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     CompiledMapping deployed = compiled(facade.compile(USE_ONE_AS_MANY, observations, DEPLOY));
     // witness: with as many Tags as Skus (u1.xml's first order) the mapping runs
     assertThat(new String(facade.run(deployed, order(3, 3)), UTF_8))
@@ -1484,14 +1489,17 @@ class EngineFacadeTest {
             .resolve("../../mappings/format-by-example.mapping.json")
             .normalize();
     byte[] model = Files.readAllBytes(mapping);
-    CompiledMapping deployed = compiled(facade.compile(model, mapping.getParent(), DEPLOY));
+    CompiledMapping deployed =
+        compiled(facade.compile(model, DirectoryResolver.over(mapping.getParent()), DEPLOY));
     // witness: with as many Tags as Skus the mapping runs
     assertThat(new String(facade.run(deployed, order(2, 2)), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>t</All><All>t</All></Out>");
 
     assertRunThrows(facade, deployed, order(3, 2), "po:FORMATBYEXAMPLE", "F1");
     CompiledMapping tested =
-        compiled(facade.compile(model, mapping.getParent(), CompileOptions.TEST_RUN));
+        compiled(
+            facade.compile(
+                model, DirectoryResolver.over(mapping.getParent()), CompileOptions.TEST_RUN));
     assertRuntimeError(
         facade.testRun(tested, order(3, 2), Duration.ofSeconds(10), TRACE_LIMIT),
         "po:FORMATBYEXAMPLE",
@@ -1528,7 +1536,7 @@ class EngineFacadeTest {
   @Test
   void aNumericSortOverANonNumberIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] input = utf8("<Orders><Order><Tag>10</Tag><Tag>x</Tag><Tag>9</Tag></Order></Orders>");
     CompiledMapping lexicographic =
         compiled(facade.compile(sortOfTags("{}"), observations, DEPLOY));
@@ -1569,8 +1577,7 @@ class EngineFacadeTest {
   @Test
   void aSortByKeyCountMismatchIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    CompiledMapping mapping =
-        compiled(facade.compile(SORT_BY_KEY, CorpusStructures.directory("observations"), DEPLOY));
+    CompiledMapping mapping = compiled(facade.compile(SORT_BY_KEY, observations(), DEPLOY));
     // witness: with a Qty on every Line the values follow their keys
     assertThat(
             new String(
@@ -1625,7 +1632,7 @@ class EngineFacadeTest {
   @Test
   void aNumericSortByKeyOverASuppressKeyIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
-    Path observations = CorpusStructures.directory("observations");
+    ReferenceResolver observations = observations();
     byte[] input = utf8("<Orders><Order><Tag>1</Tag><Tag>no</Tag></Order></Orders>");
     CompiledMapping lexicographic =
         compiled(facade.compile(sortByCreatedKeys("{}"), observations, DEPLOY));
