@@ -55,7 +55,8 @@ import org.xml.sax.helpers.NamespaceSupport;
  *       what a complex type holds; or only an {@code xs:simpleContent} with one {@code
  *       xs:extension} or {@code xs:restriction} of a simple type or of a complex type with simple
  *       content ({@code base}), which holds {@code xs:attribute}s, and a restriction facets too
- *       (#95). An attribute's {@code use} may be {@code prohibited}.
+ *       (#95). An attribute's {@code use} may be {@code prohibited}, and then it needs no {@code
+ *       type} and has no {@code default} or {@code fixed}.
  *   <li>A sequence holds local {@code xs:element}s, element references ({@code ref}, {@code
  *       minOccurs}, {@code maxOccurs}) and {@code xs:any}.
  *   <li>A global or local element has a {@code type} or one anonymous {@code xs:complexType}, or is
@@ -157,6 +158,8 @@ final class XsdSubsetCheck extends DefaultHandler {
     STRUCTURE(Set.of("name", "minOccurs", "maxOccurs", "form"), Set.of("name")),
     STRUCTURE_TYPE(Set.of(), Set.of()),
     ATTRIBUTE(Set.of("name", "type", "use", "form", "default", "fixed"), Set.of("name", "type")),
+    // use="prohibited", which makes no field and needs no type (#95)
+    PROHIBITED_ATTRIBUTE(Set.of("name", "type", "use", "form"), Set.of("name")),
     NAMED_SIMPLE_TYPE(Set.of("name"), Set.of("name")),
     RESTRICTION(Set.of("base"), Set.of("base")),
     // read with no effect: its attributes and content are not read
@@ -200,7 +203,7 @@ final class XsdSubsetCheck extends DefaultHandler {
             switch (name) {
               case "complexContent" -> COMPLEX_CONTENT;
               case "simpleContent" -> SIMPLE_CONTENT;
-              default -> content(name);
+              default -> content(name, attributes);
             };
         case COMPLEX_CONTENT ->
             name.equals("extension") || name.equals("restriction") ? COMPLEX_DERIVATION : null;
@@ -210,10 +213,10 @@ final class XsdSubsetCheck extends DefaultHandler {
               case "restriction" -> SIMPLE_RESTRICTION;
               default -> null;
             };
-        case COMPLEX_DERIVATION -> content(name);
-        case SIMPLE_EXTENSION -> attribute(name);
+        case COMPLEX_DERIVATION -> content(name, attributes);
+        case SIMPLE_EXTENSION -> attribute(name, attributes);
         // its facets are not validated (ADR-0004)
-        case SIMPLE_RESTRICTION -> FACETS.contains(name) ? NO_EFFECT : attribute(name);
+        case SIMPLE_RESTRICTION -> FACETS.contains(name) ? NO_EFFECT : attribute(name, attributes);
         case SEQUENCE ->
             switch (name) {
               case "element" ->
@@ -229,7 +232,15 @@ final class XsdSubsetCheck extends DefaultHandler {
               default -> null;
             };
         case RESTRICTION -> FACETS.contains(name) ? NO_EFFECT : null;
-        case DOCUMENT, IMPORT, INCLUDE, GLOBAL_ATTRIBUTE, ELEMENT_REF, ATTRIBUTE, NO_EFFECT -> null;
+        case DOCUMENT,
+            IMPORT,
+            INCLUDE,
+            GLOBAL_ATTRIBUTE,
+            ELEMENT_REF,
+            ATTRIBUTE,
+            PROHIBITED_ATTRIBUTE,
+            NO_EFFECT ->
+            null;
       };
     }
 
@@ -238,13 +249,14 @@ final class XsdSubsetCheck extends DefaultHandler {
     }
 
     /** The role of a complex type's content: an optional sequence first, then attributes. */
-    private static Role content(String name) {
-      return name.equals("sequence") ? SEQUENCE : attribute(name);
+    private static Role content(String name, Attributes attributes) {
+      return name.equals("sequence") ? SEQUENCE : attribute(name, attributes);
     }
 
-    private static Role attribute(String name) {
+    private static Role attribute(String name, Attributes attributes) {
       return switch (name) {
-        case "attribute" -> ATTRIBUTE;
+        case "attribute" ->
+            "prohibited".equals(attributes.getValue("", "use")) ? PROHIBITED_ATTRIBUTE : ATTRIBUTE;
         case "anyAttribute" -> NO_EFFECT;
         default -> null;
       };
@@ -549,6 +561,11 @@ final class XsdSubsetCheck extends DefaultHandler {
         parent.particles.add(new Particle(start, List.of()));
       }
       case GLOBAL_ATTRIBUTE, ATTRIBUTE -> typeName(type, schema.simpleTypeRefs, start);
+      case PROHIBITED_ATTRIBUTE -> {
+        if (type != null) {
+          typeName(type, schema.simpleTypeRefs, start);
+        }
+      }
       case ELEMENT_REF -> {
         schema.elementRefs.add(new NameUse(qualified(attributes.getValue("", "ref")), start));
         parent.particles.add(new Particle(start, List.of()));
