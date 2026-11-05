@@ -65,17 +65,30 @@ class JsonSchemaReaderTest {
             "no-dollar-schema.schema.json",
             List.of("/$ 1..1 structure", "/$/id 0..1 xs:integer")),
         argumentSet(
-            "an array property is one repeated field with minItems and maxItems",
+            "an array property is one repeated field with minItems and maxItems, marked as one,"
+                + " items without type and an array without items too (#118)",
             "arrays.schema.json",
             List.of(
                 "/$ 1..1 structure",
-                "/$/lines 1..5 structure",
+                "/$/lines 1..5 structure array",
                 "/$/lines/sku 1..1 xs:string",
                 "/$/lines/qty 0..1 xs:integer",
-                "/$/tags 0..unbounded xs:string",
-                "/$/notes 0..unbounded xs:date",
-                "/$/untyped 0..unbounded xs:boolean",
-                "/$/bare 0..unbounded xs:string")),
+                "/$/tags 0..unbounded xs:string array",
+                "/$/notes 0..unbounded xs:date array",
+                "/$/untyped 0..unbounded xs:boolean array",
+                "/$/bare 0..unbounded xs:string array")),
+        argumentSet(
+            "an array property is marked whatever its maxItems: 1, 0, or 1 with a null in its type"
+                + " list; a plain property and the fields below an array's items are not (#118)",
+            "short-arrays.schema.json",
+            List.of(
+                "/$ 1..1 structure",
+                "/$/one 0..1 xs:string array",
+                "/$/none 0..0 xs:string array",
+                "/$/maybe 0..1 xs:string nillable array",
+                "/$/objs 0..1 structure array",
+                "/$/objs/sku 0..1 xs:string",
+                "/$/plain 0..1 xs:string")),
         argumentSet(
             "$ref and $defs resolve through named types, by pointer and by $anchor",
             "refs.schema.json",
@@ -127,7 +140,7 @@ class JsonSchemaReaderTest {
                 "/$/code 0..1 xs:string",
                 "/$/address 0..1 structure nillable",
                 "/$/address/city 0..1 xs:string",
-                "/$/dates 0..unbounded xs:date nillable",
+                "/$/dates 0..unbounded xs:date nillable array",
                 "/$/nothing 0..1 xs:string nillable")),
         argumentSet(
             "field paths start with $ and percent-encode % / @ { }",
@@ -491,6 +504,44 @@ class JsonSchemaReaderTest {
             });
   }
 
+  /**
+   * #118 guard (ADR-0008 "JSON Schema and WSDL"): an array property is marked whatever its
+   * maxItems, and an array of arrays stays refused at its outer {@code items}, with maxItems 1 on
+   * both arrays too.
+   */
+  @Test
+  void anArrayOfArraysWithMaxItemsOneIsStillRefusedAtItems() {
+    MemoryResolver resolver =
+        new MemoryResolver()
+            .file(
+                "pair.schema.json",
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "matrix": {
+                      "type": "array",
+                      "maxItems": 1,
+                      "items": {"type": "array", "maxItems": 1, "items": {"type": "number"}}
+                    }
+                  }
+                }
+                """);
+
+    assertThatThrownBy(
+            () ->
+                new StructureReader(resolver)
+                    .read(new SchemaBundle(List.of("pair.schema.json")), new JsonRoot()))
+        .isInstanceOfSatisfying(
+            StructureLoadException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo("schema-construct-unsupported");
+              assertThat(e.file()).isEqualTo("pair.schema.json");
+              assertThat(e.line()).isEqualTo(7);
+              assertThat(e.column()).isEqualTo(7);
+            });
+  }
+
   @Test
   void anXsdReadUnderTheJsonRootIsNotWellFormedJson() {
     Path skeleton = Path.of(System.getProperty("flottila.corpus"), "structures", "skeleton");
@@ -594,8 +645,13 @@ class JsonSchemaReaderTest {
         .toList();
   }
 
+  /** Occurrence, value type or structure, then nillable and the array marker (#118) when set. */
   private static String describe(Field field) {
     String kind = field.valueType().map(ValueType::typeName).orElse("structure");
-    return field.occurrence() + " " + kind + (field.nillable() ? " nillable" : "");
+    return field.occurrence()
+        + " "
+        + kind
+        + (field.nillable() ? " nillable" : "")
+        + (field.array() ? " array" : "");
   }
 }
