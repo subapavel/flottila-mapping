@@ -53,7 +53,6 @@ final class RootShapes {
               "wsdl " + direction + " with a fault",
               "{\"wsdl\": {" + members + ", \"fault\": \"Rejected\"}}"));
     }
-    shapes.add(Named.of("json", "{\"json\": \"$\"}"));
     return shapes;
   }
 

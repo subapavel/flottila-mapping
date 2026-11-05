@@ -160,7 +160,9 @@ class DiagnosticCatalogueTest {
             "fingerprint-mismatch",
             // stage 3, a field a mapping uses or must create that has no unique field path (#92,
             // ADR-0008 "Refused when a mapping uses the field")
-            "ambiguous-field-path");
+            "ambiguous-field-path",
+            // stage 3, a mapping with a JSON target (#97, ADR-0008)
+            "json-target-unsupported");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",
@@ -171,7 +173,7 @@ class DiagnosticCatalogueTest {
             "root-selector-unsupported",
             // a package reference the host's resolver does not read (#90, ADR-0014)
             "package-reference-unsupported",
-            // an xs:import or xs:include that names no bundle file (#93, ADR-0008)
+            // an xs:import, xs:include or $ref that names no bundle file (#93, #97, ADR-0008)
             "schema-reference-outside-bundle");
     assertThat(all).filteredOn(KEBAB.negate()).as("codes that are not kebab-case").isEmpty();
     assertThat(all).as("codes across all modules").doesNotHaveDuplicates();

@@ -48,7 +48,9 @@ Status: accepted (2026-11-02, #28 design); refines ADR-0014 and ADR-0015; amende
 
 - `model-refused` adds `diagnostics`. It answers:
   - a save refused at stage 1 or 2;
-  - a GET of a stored file that is refused.
+  - a GET of a stored file that is refused;
+  - a refresh whose working copy is refused at stage 1 or 2 (#99): the 200 answer carries a valid
+    model, so there is nothing to refresh.
 - Creating an existing id is 409. This is not the spec-5 `If-Match` 409.
 
 ## Results
