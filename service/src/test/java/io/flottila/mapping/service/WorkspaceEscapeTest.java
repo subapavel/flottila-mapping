@@ -226,6 +226,26 @@ class WorkspaceEscapeTest {
             "POST",
             "api/mappings/mappings/order-id-copy/test",
             testRequest(exfilModel("../../outside/missing.xsd"), EXFIL_INPUT)),
+        // #99: refresh loads both sides' bundles through the same resolver; an escape is a 400,
+        // never a load diagnostic of its side in a 200
+        attack(
+            "refresh with an escaping bundle",
+            "POST",
+            "api/mappings/mappings/order-id-copy/refresh",
+            exfilModel("../../outside/evil.xsd")),
+        attack(
+            "refresh with a symlinked bundle",
+            "POST",
+            "api/mappings/mappings/order-id-copy/refresh",
+            exfilModel("../links/out.xsd")),
+        attack(
+            "refresh with a bundle ref to a missing file outside",
+            "POST",
+            "api/mappings/mappings/order-id-copy/refresh",
+            exfilModel("../../outside/missing.xsd")),
+        attack(
+            "refresh through id ..%2Foutside%2Fevil",
+            "POST", "api/mappings/..%2Foutside%2Fevil/refresh", exfilModel("evil.xsd")),
         // #93: an escape in a multi-file bundle is refused as in a one-file bundle, after a
         // listed file is read as well as before
         attack(
