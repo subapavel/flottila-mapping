@@ -28,8 +28,12 @@ queues see fields, not groups.
 - `sequence` and `all` keep the declared order. The branches of a `choice` become sibling
   fields. `group` and `attributeGroup` references are inlined. An extension gives the base
   content, then its own content. A restriction gives its own content.
+- Attributes under derivation (#95): a restriction inherits the base's attributes. A redeclared
+  attribute replaces the inherited one, and `use="prohibited"` drops it, with or without a `type`
+  and also from inside an attribute group. A simpleContent restriction is a leaf, like its base.
 - A reference to a substitution-group head becomes a choice of the non-abstract members. The
   members are found transitively and across namespaces, head first and then ordered by QName.
+  A member declared without a type takes the head's type (#95).
 - A recursive path may repeat one type at most 16 times.
 - Accepted with no effect:
   - `any`/`anyAttribute`: projection skips them, and they are never written;
