@@ -74,7 +74,7 @@ public final class Interpreter {
             root.localName(),
             compiler.contents(document.content(), scope));
     return new ExecutableMapping(
-        new Projection(List.copyOf(compiler.plan.keySet())),
+        Projection.of(document.input(), List.copyOf(compiler.plan.keySet())),
         rootSlot,
         element,
         compiler.integerSlotCount,
@@ -126,7 +126,8 @@ public final class Interpreter {
   private Node.OfQueue queue(SourceQueue q) {
     int index =
         plan.computeIfAbsent(
-            new Projection.Queue(q.field(), q.contextDepth(), q.structureField(), q.attribute()),
+            new Projection.Queue(
+                q.field(), q.contextDepth(), q.structureField(), q.attribute(), q.arrays()),
             k -> plan.size());
     return traced(q.origin(), frame -> frame.queues[index]);
   }

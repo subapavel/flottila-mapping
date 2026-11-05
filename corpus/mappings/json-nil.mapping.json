@@ -1,0 +1,75 @@
+{
+  "formatVersion": 1,
+  "source": {
+    "bundle": [
+      "../structures/observations/nil.schema.json"
+    ],
+    "fingerprint": "sha256:c4c151c16fe989cda60ff2ef006d0cac0768d05331ec0158e4ca6ab3ec5ad5a8",
+    "root": {
+      "json": "$"
+    }
+  },
+  "target": {
+    "bundle": [
+      "../structures/observations/tgt-list.xsd"
+    ],
+    "fingerprint": "sha256:626cbacff639a86b480bb3c20cc032d8aa47ad341d9111e31882ad30ca6eca70",
+    "root": {
+      "element": "Out"
+    }
+  },
+  "targetFieldMappings": {
+    "/Out/Item": {
+      "boxes": {
+        "S1": {
+          "field": "/$/Item",
+          "kind": "source"
+        }
+      },
+      "id": "T1",
+      "result": "S1"
+    },
+    "/Out/Item/V": {
+      "boxes": {
+        "C1": {
+          "fn": "constant",
+          "kind": "function",
+          "params": {
+            "value": "!"
+          }
+        },
+        "F1": {
+          "fn": "concat",
+          "inputs": [
+            "S2",
+            "C1"
+          ],
+          "kind": "function"
+        },
+        "S2": {
+          "field": "/$/Item/Val",
+          "kind": "source"
+        }
+      },
+      "id": "T2",
+      "result": "F1"
+    },
+    "/Out/Item/W": {
+      "boxes": {
+        "E1": {
+          "fn": "exists",
+          "inputs": [
+            "S3"
+          ],
+          "kind": "function"
+        },
+        "S3": {
+          "field": "/$/Item/Val",
+          "kind": "source"
+        }
+      },
+      "id": "T3",
+      "result": "E1"
+    }
+  }
+}

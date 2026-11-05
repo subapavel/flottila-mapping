@@ -10,10 +10,18 @@ import java.util.List;
  * @param root the root element's name
  * @param rootSlot the {@code INTEGER} variable that holds the root's slot number in {@code content}
  * @param content the root's content, in target field order
+ * @param input the format the input message is read in, which the source's root selector gives
+ *     (ADR-0008 "JSON as a source at run time", #98)
  */
-public record TargetDocument(String prefix, Name root, String rootSlot, List<Expr> content) {
+public record TargetDocument(
+    String prefix, Name root, String rootSlot, List<Expr> content, InputFormat input) {
 
   public TargetDocument {
     content = List.copyOf(content);
+  }
+
+  /** The document of a mapping whose input is XML. */
+  public TargetDocument(String prefix, Name root, String rootSlot, List<Expr> content) {
+    this(prefix, root, rootSlot, content, InputFormat.XML);
   }
 }
