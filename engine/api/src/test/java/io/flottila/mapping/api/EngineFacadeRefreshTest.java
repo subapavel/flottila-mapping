@@ -209,9 +209,9 @@ class EngineFacadeRefreshTest {
   }
 
   /**
-   * A side whose bundle has two load errors (#93, an assertion and an abstract element, as in
-   * {@code corpus/structures/files-and-names/all-at-once/refused-z.xsd}) keeps its fingerprint and
-   * gives both, in the order the structure load gives them.
+   * A side whose bundle has two load errors (#93, an assertion and a {@code block} attribute; #94
+   * opened the choice and #95 the abstract element this fixture used before) keeps its fingerprint
+   * and gives both, in the order the structure load gives them.
    */
   @Test
   void aSideWithTwoLoadErrorsGivesBoth() throws MalformedJsonException, IOException {
@@ -226,7 +226,7 @@ class EngineFacadeRefreshTest {
               </xs:assert>
             </xs:complexType>
           </xs:element>
-          <xs:element name="Other" abstract="true" type="xs:string"/>
+          <xs:element name="Other" block="#all" type="xs:string"/>
         </xs:schema>
         """
             .formatted(NS));

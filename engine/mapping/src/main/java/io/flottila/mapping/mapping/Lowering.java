@@ -77,9 +77,10 @@ import java.util.stream.IntStream;
  *       {@code orphaned-reference};
  *   <li>a source or target field path through a refused field (ADR-0008 Shape (#92)), with the
  *       refusal nearest the root: its reason's code, {@code ambiguous-field-path}, or, on a target
- *       path only, {@code interleaved-target-group} (#94); at {@code /targetFieldMappings/<field
- *       path>}, once per path, an unmapped refused target field with {@code minOccurs > 0} under a
- *       parent that is created: the same;
+ *       path only, {@code interleaved-target-group} (#94) or {@code abstract-target-element} (#95),
+ *       which a source path passes through; at {@code /targetFieldMappings/<field path>}, once per
+ *       path, an unmapped refused target field with {@code minOccurs > 0} under a parent that is
+ *       created: the same;
  *   <li>a source field that is the root (#62, #63, #102), or a target field that is the root, or
  *       that stands under an unmapped parent which is neither {@code n..n} with {@code n > 0} nor
  *       optional, so that PO requires it to be mapped (#63): {@code unsupported-field}; at {@code
@@ -151,7 +152,7 @@ public final class Lowering {
 
     /**
      * The refused field on the chain nearest the root, if any (ADR-0008 Shape (#92)); on a source
-     * path, a refusal that holds in a target only refuses nothing (#94).
+     * path, a refusal that holds in a target only refuses nothing (#94, #95).
      */
     Optional<RefusedField> refused(boolean inTarget) {
       return IntStream.rangeClosed(1, chain.size())
@@ -358,7 +359,7 @@ public final class Lowering {
    * reported at {@code at}: one check for target fields and source fields. A path the structure
    * lacks is {@code orphaned-reference}, and a path through a refused field is refused with the
    * refusal nearest the root (ADR-0008 Shape (#92)), counting a refusal that holds in a target only
-   * when {@code inTarget} (#94).
+   * when {@code inTarget} (#94, #95).
    */
   private Optional<Named> named(
       Structure structure, String text, AuthoringId at, boolean inTarget) {
@@ -461,6 +462,20 @@ public final class Lowering {
                   + ":"
                   + refusal.column()
                   + "; streamed output cannot interleave its fields");
+      case ABSTRACT_TARGET_ELEMENT ->
+          new Diagnostic(
+              Severity.ERROR,
+              MappingDiagnostics.ABSTRACT_TARGET_ELEMENT,
+              location,
+              path
+                  + " is declared abstract at "
+                  + refusal.file()
+                  + " "
+                  + refusal.line()
+                  + ":"
+                  + refusal.column()
+                  + "; a target cannot write an abstract element or an element of an abstract"
+                  + " type");
     };
   }
 
