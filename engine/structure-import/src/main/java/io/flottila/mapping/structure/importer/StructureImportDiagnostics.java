@@ -10,20 +10,20 @@ public final class StructureImportDiagnostics {
   public static final String SCHEMA_NOT_WELL_FORMED = "schema-not-well-formed";
 
   /**
-   * A construct outside the nested XSD subset, a bundle of other than one XSD file, or a JSON
-   * Schema construct ADR-0008 refuses at load.
+   * A construct outside the XSD the reader reads, an empty bundle, or a JSON Schema construct
+   * ADR-0008 refuses at load.
    */
   public static final String SCHEMA_CONSTRUCT_UNSUPPORTED = "schema-construct-unsupported";
 
   /**
-   * A value the XSD does not allow, such as {@code minOccurs} above {@code maxOccurs}, or a JSON
-   * Schema that is not valid, such as a {@code $ref} to nothing.
+   * A value the XSD does not allow, such as {@code minOccurs} above {@code maxOccurs}, a name no
+   * bundle file declares, or a JSON Schema that is not valid, such as a {@code $ref} to nothing.
    */
   public static final String SCHEMA_INVALID = "schema-invalid";
 
   /**
-   * A reference inside a schema to a file the schema bundle does not list (ADR-0008, the closed
-   * bundle): a JSON Schema {@code $ref} to another file (#97).
+   * An {@code xs:import} or {@code xs:include}, or a JSON Schema {@code $ref}, that names no file
+   * of the schema bundle (ADR-0008: the bundle is a closed set).
    */
   public static final String SCHEMA_REFERENCE_OUTSIDE_BUNDLE = "schema-reference-outside-bundle";
 

@@ -2,6 +2,7 @@ package io.flottila.mapping.mapping;
 
 import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
@@ -50,32 +51,33 @@ import java.util.stream.IntStream;
  * with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
  * slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value variable
  * {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or the
- * parent's {@code slot<d - 1>}. A leaf's element holds its value, a structure field's its children
- * in target field order.
+ * parent's {@code slot<d - 1>}. A leaf's element holds its attributes and then its value, a
+ * structure field's its children in target field order, attributes first; an attribute is a leaf,
+ * whose {@code AttributeConstructor} holds its value (ADR-0006 since #102).
  *
  * <p>A box lowers to a queue or a single value (ADR-0006 since #83). A source-field box gives its
- * {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63). A standard function box
- * whose function the catalogue holds gives, by its execution kind, a {@code FunCall} over its
- * inputs' queues, a single value as {@code AtomicToQueue}, and then its params as {@code Literal}s
- * for a context or queue function. For a single-value function it gives the atomic {@code FunCall}
- * over its inputs and then the params when every input is a single value, as for {@code constant},
- * which has none; otherwise a {@code Lift} over its queue inputs whose body is that {@code FunCall}
- * over their slot variables and the single values (ADR-0006, ADR-0025). A param the box leaves out
- * is its catalogue default, and a table param's {@code Literal} is its {@code TableText} (ADR-0026,
- * #83). A box that feeds several inputs is lowered once per use.
+ * {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63), or of an attribute, in
+ * its element's context by default (ADR-0007, #102). A standard function box whose function the
+ * catalogue holds gives, by its execution kind, a {@code FunCall} over its inputs' queues, a single
+ * value as {@code AtomicToQueue}, and then its params as {@code Literal}s for a context or queue
+ * function. For a single-value function it gives the atomic {@code FunCall} over its inputs and
+ * then the params when every input is a single value, as for {@code constant}, which has none;
+ * otherwise a {@code Lift} over its queue inputs whose body is that {@code FunCall} over their slot
+ * variables and the single values (ADR-0006, ADR-0025). A param the box leaves out is its catalogue
+ * default, and a table param's {@code Literal} is its {@code TableText} (ADR-0026, #83). A box that
+ * feeds several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
  * <ul>
  *   <li>a source or target field path the structure lacks: {@code orphaned-reference};
- *   <li>a source field that is no element below the root (#62, #63), or a target field that is no
- *       element below the root, such as an attribute or the root itself, or that stands under an
- *       unmapped parent which is neither {@code n..n} with {@code n > 0} nor optional, so that PO
- *       requires it to be mapped (#63): {@code unsupported-field}; at {@code /target}, an unmapped
- *       field that would be created beyond the recursion cap (ADR-0008): {@code unsupported-field};
- *       at {@code /targetFieldMappings/<field path>}, an unmapped structure field with {@code 0 <
- *       minOccurs < maxOccurs} under a parent that is created, as PO requires its mapping: {@code
- *       unsupported-field};
+ *   <li>a source field that is the root (#62, #63, #102), or a target field that is the root, or
+ *       that stands under an unmapped parent which is neither {@code n..n} with {@code n > 0} nor
+ *       optional, so that PO requires it to be mapped (#63): {@code unsupported-field}; at {@code
+ *       /target}, an unmapped field that would be created beyond the recursion cap (ADR-0008):
+ *       {@code unsupported-field}; at {@code /targetFieldMappings/<field path>}, an unmapped
+ *       structure field with {@code 0 < minOccurs < maxOccurs} under a parent that is created, as
+ *       PO requires its mapping: {@code unsupported-field};
  *   <li>a {@code result} of {@code null}: {@code unconnected-target-field};
  *   <li>at {@code /targetFieldMappings/<field path>}, a target leaf with {@code minOccurs > 0} that
  *       has no target field mapping and stands under a parent that is created, the root, a mapped
@@ -223,24 +225,24 @@ public final class Lowering {
   }
 
   /**
-   * The path of the target element below the root that {@code text} names, or empty once the reason
-   * it names none is reported at the target field mapping {@code at}. Its parents are walked from
-   * the root down: a mapped parent and an unmapped {@code n..n} one ({@code n > 0}) are created, an
-   * unmapped optional one is left out with the field in its subtree, which is accepted, and an
-   * unmapped one with {@code 0 < min < max} is refused, because PO requires its mapping (#2 §2).
+   * The path of the target element or attribute (#102) below the root that {@code text} names, or
+   * empty once the reason it names none is reported at the target field mapping {@code at}. Its
+   * parents are walked from the root down: a mapped parent and an unmapped {@code n..n} one ({@code
+   * n > 0}) are created, an unmapped optional one is left out with the field in its subtree, which
+   * is accepted, and an unmapped one with {@code 0 < min < max} is refused, because PO requires its
+   * mapping (#2 §2).
    */
   private Optional<FieldPath> targetField(String text, AuthoringId at) {
     return named(target, text, at)
         .flatMap(
             path -> {
-              List<FieldPath.Step> steps = path.steps();
-              if (steps.size() < UNDER_ROOT || steps.getLast().kind() != FieldKind.ELEMENT) {
+              if (path.steps().size() < UNDER_ROOT) {
                 report(
                     MappingDiagnostics.UNSUPPORTED_FIELD,
                     at,
                     text
-                        + " is not a target field this engine maps yet: an element below the"
-                        + " root");
+                        + " is not a target field this engine maps yet: an element or attribute"
+                        + " below the root");
                 return Optional.empty();
               }
               for (FieldPath parent : parents(path)) {
@@ -281,20 +283,21 @@ public final class Lowering {
   }
 
   /**
-   * The source element below the root that {@code text} names, a leaf or a structure field, at any
-   * depth (#62, #63), or empty once the reason it names none is reported at the box {@code at}.
+   * The source field below the root that {@code text} names, an element, a leaf or a structure
+   * field, at any depth (#62, #63), or an attribute (#102), or empty once the reason it names none
+   * is reported at the box {@code at}.
    */
   private Optional<FieldPath> sourceField(String text, AuthoringId at) {
     return named(source, text, at)
         .flatMap(
             path -> {
-              Field field = source.field(path).orElseThrow();
-              if (path.steps().size() < UNDER_ROOT || field.step().kind() != FieldKind.ELEMENT) {
+              if (path.steps().size() < UNDER_ROOT) {
                 report(
                     MappingDiagnostics.UNSUPPORTED_FIELD,
                     at,
                     text
-                        + " is not a source field this engine maps yet: an element below the root");
+                        + " is not a source field this engine maps yet: an element or attribute"
+                        + " below the root");
                 return Optional.empty();
               }
               return Optional.of(path);
@@ -359,6 +362,7 @@ public final class Lowering {
                           names(field),
                           contextDepth(box, field),
                           source.field(field).orElseThrow().valueType().isEmpty(),
+                          attribute(field),
                           id));
       case StandardFunctionBox box -> call(mapping, id, box);
       case UdfBox box -> unsupportedBox(id, "the UDF " + box.udf());
@@ -562,7 +566,15 @@ public final class Lowering {
     return names;
   }
 
-  /** The context's steps from the root down; the field's parent when the box names none. */
+  /** Whether the field at {@code path} is an attribute (ADR-0007: its last step's kind). */
+  private static boolean attribute(FieldPath path) {
+    return path.steps().getLast().kind() == FieldKind.ATTRIBUTE;
+  }
+
+  /**
+   * The context's steps from the root down; when the box names none, the field's parent, which is
+   * an attribute's element (ADR-0007).
+   */
   private static int contextDepth(SourceFieldBox box, FieldPath field) {
     return box.context()
         .map(context -> FieldPathText.steps(context).size() - 1)
@@ -596,7 +608,7 @@ public final class Lowering {
         content.add(
             single(link.value()) ? generated(child, link, links) : slots(child, link, links));
       } else if (mapped.contains(child)) {
-        // its target field mapping is refused already; a leaf has no children
+        // its target field mapping is refused already; a leaf's children are its attributes
         children(child, links);
       } else if (field.valueType().isPresent()) {
         if (field.occurrence().min() > 0) {
@@ -688,8 +700,8 @@ public final class Lowering {
 
   /**
    * The {@code TargetSlots} of the mapped field at {@code path}, whose target field mapping gives a
-   * queue: its variables by its depth, its parent's slot number, its effective occurrence, and its
-   * element, which holds the slot's value for a leaf.
+   * queue: its variables by its depth, its parent's slot number, its effective occurrence, 0..1 or
+   * 1..1 for an attribute, and its element or attribute, which holds the slot's value for a leaf.
    */
   private TargetSlots slots(FieldPath path, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
@@ -703,18 +715,19 @@ public final class Lowering {
         occurrence.max(),
         SLOT + depth,
         valueVar,
-        element(path, link, new VarRef(valueVar, AtomicType.STRING, origin), links),
+        constructor(path, link, new VarRef(valueVar, AtomicType.STRING, origin), links),
         origin);
   }
 
   /**
    * The {@code TargetRepeat} of the mapped field at {@code path}, whose target field mapping is a
    * generating function, a single value (ADR-0006 "generating function" since #83): {@code max(1,
-   * minOccurs)} copies of its element per parent occurrence, whatever its {@code maxOccurs}, its
-   * slot-number variable by its depth, and the target field mapping as the origin. The value is
-   * computed once per copy: a leaf's element holds it as its text, and a structure field, which has
-   * none, keeps it as the {@code TargetRepeat}'s value, its element holding its children only
-   * (ADR-0006 as amended by #83).
+   * minOccurs)} copies of its element or attribute per parent occurrence, whatever its {@code
+   * maxOccurs}, so one copy of an attribute, its slot-number variable by its depth, and the target
+   * field mapping as the origin. The value is computed once per copy: a leaf's element holds it as
+   * its text, an attribute as its value, and a structure field, which has none, keeps it as the
+   * {@code TargetRepeat}'s value, its element holding its children only (ADR-0006 as amended by #83
+   * and #102).
    */
   private TargetRepeat generated(FieldPath path, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
@@ -726,27 +739,31 @@ public final class Lowering {
         new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
         SLOT + depth,
         value,
-        element(path, link, link.value(), links),
+        constructor(path, link, link.value(), links),
         origin);
   }
 
   /**
-   * The element of the mapped field at {@code path}: for a leaf its text, {@code leafValue}, and
-   * for a structure field its children. Its prefix is taken before its children's, so prefixes
-   * follow document order (ADR-0022).
+   * The attribute or element of the mapped field at {@code path}. An attribute's value is {@code
+   * leafValue}. An element holds its children in target field order, its attributes first, which
+   * are all a leaf has, and then a leaf's text, {@code leafValue} (ADR-0006 since #102). Its prefix
+   * is taken before its children's, so prefixes follow the walk: an element, its attributes, then
+   * its child elements (ADR-0022).
    */
-  private ElementConstructor element(
-      FieldPath path, Link link, Expr leafValue, Map<FieldPath, Link> links) {
+  private Expr constructor(FieldPath path, Link link, Expr leafValue, Map<FieldPath, Link> links) {
     Field field = link.field();
     FieldPath.Step step = field.step();
     AuthoringId origin = link.mapping();
     String prefix = prefix(step.namespace());
-    List<Expr> content =
-        field.valueType().isPresent()
-            ? List.of(new TextConstructor(leafValue, origin))
-            : children(path, links);
-    return new ElementConstructor(
-        prefix, new Name(step.namespace(), step.localName()), content, origin);
+    Name name = new Name(step.namespace(), step.localName());
+    if (step.kind() == FieldKind.ATTRIBUTE) {
+      return new AttributeConstructor(prefix, name, leafValue, origin);
+    }
+    List<Expr> content = children(path, links);
+    if (field.valueType().isPresent()) {
+      content.add(new TextConstructor(leafValue, origin));
+    }
+    return new ElementConstructor(prefix, name, content, origin);
   }
 
   /** {@code ns0}, {@code ns1} … per namespace in the order met; none for no namespace. */

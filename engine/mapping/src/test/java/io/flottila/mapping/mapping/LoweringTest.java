@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import io.flottila.mapping.ir.AtomicType;
+import io.flottila.mapping.ir.AttributeConstructor;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
@@ -432,8 +433,14 @@ class LoweringTest {
     assertThat(refused(lower(model))).containsExactly(errorAtId("orphaned-reference", "t2"));
   }
 
+  /**
+   * Until #102 this was {@code anAttributeFieldIsUnsupportedField}: the source attribute at a1 and
+   * the target attribute at t2 were both unsupported-field. Since #102 an attribute below the root
+   * is a source field, whose queue sets {@code attribute}, and a target leaf, whose item comes
+   * before OrderId (ADR-0006).
+   */
   @Test
-  void anAttributeFieldIsUnsupportedField() {
+  void anAttributeIsASourceFieldAndATargetField() {
     MappingModel model =
         orderToOrder(
             targetFieldMappings(
@@ -442,10 +449,270 @@ class LoweringTest {
                 CHANNEL,
                 targetFieldMapping("t2", "a2", boxes("a2", source(ORDER_ID)))));
 
-    // a source field at its box, a target field at its target field mapping
-    assertThat(refused(lower(model)))
+    TargetDocument document = lowered(lower(model));
+
+    assertThat(document.content())
+        .map(e -> ((TargetSlots) e).body())
+        .extracting(Expr::getClass, Expr::origin)
         .containsExactly(
-            errorAtId("unsupported-field", "a1"), errorAtId("unsupported-field", "t2"));
+            tuple(AttributeConstructor.class, id("t2")), tuple(ElementConstructor.class, id("t1")));
+    assertThat(((TargetSlots) document.content().getLast()).queue())
+        .isEqualTo(
+            new SourceQueue(
+                List.of(ORDER_NAME, new Name("", "channel")), 1, false, true, id("a1")));
+  }
+
+  // --- attributes (ADR-0006 since #102), over TestStructures.tagged()
+
+  private static final String DOC = "/Doc";
+  private static final String CODE = DOC + "/@code";
+  private static final String FLAG = DOC + "/@Q{urn:b}flag";
+  private static final String ITEM = DOC + "/Item";
+  private static final String NOTE_C = DOC + "/Q{urn:c}Note";
+  private static final Name DOC_NAME = new Name("", "Doc");
+  private static final Name ITEM_NAME = new Name("", "Item");
+
+  private static LowerResult lowerTagged(Object... pathThenMapping) {
+    return Lowering.lower(
+        model(
+            ref(TestStructures.orders()),
+            ref(TestStructures.tagged()),
+            targetFieldMappings(pathThenMapping),
+            Map.of()),
+        TestStructures.orders(),
+        TestStructures.tagged());
+  }
+
+  private static TargetFieldMapping fromOrders(String id, String field, String context) {
+    return targetFieldMapping(id, "s" + id, boxes("s" + id, source(field, context)));
+  }
+
+  /** The target attribute item of {@code name} under the root, as lowering gives it at depth 2. */
+  private static TargetSlots rootAttribute(
+      String prefix, Name name, Expr queue, long min, String mapping) {
+    return new TargetSlots(
+        queue,
+        integer("root", mapping),
+        min,
+        1,
+        "slot2",
+        "value2",
+        new AttributeConstructor(
+            prefix, name, new VarRef("value2", AtomicType.STRING, id(mapping)), id(mapping)),
+        id(mapping));
+  }
+
+  private static SourceQueue orderIds(String box) {
+    return new SourceQueue(List.of(ORDERS_NAME, ORDER_ELEMENT, new Name("", "Id")), 1, id(box));
+  }
+
+  /**
+   * A source attribute's default context is its element, depth {@code size - 1} (ADR-0007, #2 §1
+   * [SAP✓]), and any proper ancestor may be set instead; a root attribute's element is the root.
+   */
+  @Test
+  void sourceAttributeContextIsItsElement() {
+    List<Name> itemId = List.of(DOC_NAME, ITEM_NAME, new Name("", "id"));
+    MappingModel model =
+        model(
+            ref(TestStructures.tagged()),
+            ref(order()),
+            targetFieldMappings(
+                ORDER_ID,
+                targetFieldMapping("t1", "a1", boxes("a1", source(CODE))),
+                NOTE,
+                targetFieldMapping("t2", "a2", boxes("a2", source(ITEM + "/@id"))),
+                QUANTITY,
+                targetFieldMapping("t3", "a3", boxes("a3", source(ITEM + "/@id", DOC)))),
+            Map.of());
+
+    TargetDocument document = lowered(Lowering.lower(model, TestStructures.tagged(), order()));
+
+    assertThat(document.content())
+        .map(e -> ((TargetSlots) e).queue())
+        .containsExactly(
+            new SourceQueue(List.of(DOC_NAME, new Name("", "code")), 1, false, true, id("a1")),
+            new SourceQueue(itemId, 1, false, true, id("a3")),
+            new SourceQueue(itemId, 2, false, true, id("a2")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * Attribute items come first in their element's content, in target field order, whatever order
+   * the model lists its target field mappings in (ADR-0006, ADR-0008).
+   */
+  @Test
+  void targetAttributeItemPrecedesChildElements() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                ITEM,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders"),
+                ITEM + "/Name",
+                fromOrders("t2", "/Orders/Order/Tag", "/Orders/Order"),
+                ITEM + "/@id",
+                fromOrders("t3", "/Orders/Order/Id", "/Orders/Order"),
+                FLAG,
+                fromOrders("t4", "/Orders/Order/Id", "/Orders"),
+                CODE,
+                fromOrders("t5", "/Orders/Order/Id", "/Orders")));
+
+    assertThat(document.content())
+        .extracting(Expr::origin)
+        .containsExactly(id("t5"), id("t4"), id("t1"));
+    assertThat(document.content().getFirst())
+        .isEqualTo(rootAttribute("", new Name("", "code"), orderIds("st5"), 0, "t5"));
+    ElementConstructor item =
+        (ElementConstructor) ((TargetSlots) document.content().getLast()).body();
+    assertThat(item.content())
+        .map(e -> ((TargetSlots) e).body())
+        .extracting(Expr::getClass, Expr::origin)
+        .containsExactly(
+            tuple(AttributeConstructor.class, id("t3")), tuple(ElementConstructor.class, id("t2")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /** A target attribute is 0..1, or 1..1 when {@code use="required"} (ADR-0006 since #102). */
+  @Test
+  void requiredAttributeSlotsHaveMinOne() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                CODE,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders"),
+                FLAG,
+                fromOrders("t2", "/Orders/Order/Id", "/Orders")));
+
+    assertThat(document.content())
+        .map(e -> (TargetSlots) e)
+        .extracting(TargetSlots::origin, TargetSlots::min, TargetSlots::max)
+        .containsExactly(tuple(id("t1"), 0L, 1L), tuple(id("t2"), 1L, 1L));
+    // without a mapping, the required flag is an unmapped mandatory leaf, as an element is (#91)
+    assertThat(refused(lowerTagged(CODE, fromOrders("t1", "/Orders/Order/Id", "/Orders"))))
+        .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped(FLAG)));
+  }
+
+  /** A generating function on an attribute is one copy, 0..1 and 1..1 alike (ADR-0006). */
+  @Test
+  void generatingAttributeIsOneCopy() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                CODE,
+                targetFieldMapping(
+                    "t1",
+                    "c1",
+                    boxes(
+                        "c1",
+                        function("constant", inputs(), Models.params("value", Models.text("x"))))),
+                FLAG,
+                targetFieldMapping(
+                    "t2",
+                    "c2",
+                    boxes(
+                        "c2",
+                        function(
+                            "constant", inputs(), Models.params("value", Models.text("y")))))));
+
+    FunctionRef constant =
+        new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING);
+    assertThat(document.content())
+        .containsExactly(
+            new TargetRepeat(
+                1,
+                integer("root", "t1"),
+                "slot2",
+                new AttributeConstructor(
+                    "",
+                    new Name("", "code"),
+                    new FunCall(constant, List.of(new Literal("x", id("c1"))), id("c1")),
+                    id("t1")),
+                id("t1")),
+            new TargetRepeat(
+                1,
+                integer("root", "t2"),
+                "slot2",
+                new AttributeConstructor(
+                    "ns0",
+                    new Name("urn:b", "flag"),
+                    new FunCall(constant, List.of(new Literal("y", id("c2"))), id("c2")),
+                    id("t2")),
+                id("t2")));
+  }
+
+  /**
+   * An element with a value and attributes is a leaf (GLOSSARY "Leaf field"): its content is its
+   * attribute items, under its slot number, then its text (ADR-0006 since #102).
+   */
+  @Test
+  void simpleContentLeafHoldsAttributesThenText() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                NOTE_C + "/@lang",
+                fromOrders("t2", "/Orders/Order/Tag", "/Orders/Order"),
+                NOTE_C,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders"),
+                FLAG,
+                fromOrders("t0", "/Orders/Order/Id", "/Orders")));
+
+    TargetSlots lang =
+        new TargetSlots(
+            new SourceQueue(List.of(ORDERS_NAME, ORDER_ELEMENT, new Name("", "Tag")), 2, id("st2")),
+            integer("slot2", "t2"),
+            0,
+            1,
+            "slot3",
+            "value3",
+            new AttributeConstructor(
+                "",
+                new Name("", "lang"),
+                new VarRef("value3", AtomicType.STRING, id("t2")),
+                id("t2")),
+            id("t2"));
+    assertThat(((TargetSlots) document.content().getLast()).body())
+        .isEqualTo(
+            new ElementConstructor(
+                "ns1",
+                new Name("urn:c", "Note"),
+                List.of(
+                    lang,
+                    new TextConstructor(
+                        new VarRef("value2", AtomicType.STRING, id("t1")), id("t1"))),
+                id("t1")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+  }
+
+  /**
+   * Prefixes follow the walk (ADR-0022 since #102): an element, then its attributes, then its
+   * children. The root Doc has no namespace, so ns0 is the root's flag's urn:b, met before the
+   * child Note's urn:c (ns1), which is met before Note's own ref in urn:d (ns2).
+   */
+  @Test
+  void qualifiedAttributePrefixInTargetFieldOrder() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                NOTE_C + "/@Q{urn:d}ref",
+                fromOrders("t3", "/Orders/Order/Tag", "/Orders/Order"),
+                NOTE_C,
+                fromOrders("t2", "/Orders/Order/Id", "/Orders"),
+                FLAG,
+                fromOrders("t1", "/Orders/Order/Id", "/Orders")));
+
+    assertThat(document.prefix()).isEmpty();
+    assertThat(document.content().getFirst())
+        .isEqualTo(rootAttribute("ns0", new Name("urn:b", "flag"), orderIds("st1"), 1, "t1"));
+    ElementConstructor note =
+        (ElementConstructor) ((TargetSlots) document.content().getLast()).body();
+    assertThat(note.prefix()).isEqualTo("ns1");
+    assertThat(((TargetSlots) note.content().getFirst()).body())
+        .isEqualTo(
+            new AttributeConstructor(
+                "ns2",
+                new Name("urn:d", "ref"),
+                new VarRef("value3", AtomicType.STRING, id("t3")),
+                id("t3")));
   }
 
   /**

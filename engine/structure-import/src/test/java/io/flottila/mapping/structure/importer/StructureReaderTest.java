@@ -140,11 +140,8 @@ class StructureReaderTest {
     "choice,                     schema-construct-unsupported,  9, 20",
     // a nested complex type without xs:sequence (#62): refused at its xs:element
     "nested-complex-type,        schema-construct-unsupported,  9, 33",
-    "annotation,                 schema-construct-unsupported,  9, 66",
-    "type-not-built-in,          schema-construct-unsupported, 10, 53",
     "type-unknown-built-in,      schema-construct-unsupported,  9, 51",
     "type-unbound-prefix,        schema-construct-unsupported,  9, 53",
-    "attribute-not-in-subset,    schema-construct-unsupported,  9, 66",
     "missing-type,               schema-construct-unsupported,  9, 34",
     "nillable-not-true-or-false, schema-construct-unsupported,  9, 64",
     "attribute-prohibited,       schema-construct-unsupported, 10, 71",
@@ -188,18 +185,13 @@ class StructureReaderTest {
    */
   @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
   @CsvSource({
-    "named-complex-type,             schema-construct-unsupported,  5, 36",
-    "import,                         schema-construct-unsupported,  5, 80",
-    "include,                        schema-construct-unsupported,  5, 43",
     "element-form-default-invalid,   schema-construct-unsupported,  4, 87",
     "nested-choice,                  schema-construct-unsupported, 10, 38",
     "nested-all,                     schema-construct-unsupported, 10, 35",
-    "nested-attribute,               schema-construct-unsupported, 10, 83",
     "nested-mixed,                   schema-construct-unsupported, 10, 40",
     "nested-two-sequences,           schema-construct-unsupported, 10, 55",
     "nested-two-complex-types,       schema-construct-unsupported, 10, 75",
     "nested-type-and-complex-type,   schema-construct-unsupported, 10, 27",
-    "nested-element-ref,             schema-construct-unsupported, 10, 65",
     "nested-nillable,                schema-construct-unsupported,  9, 71",
     "nested-simple-type,             schema-construct-unsupported, 10, 26",
     "nested-without-name,            schema-construct-unsupported,  9, 43",
@@ -208,6 +200,50 @@ class StructureReaderTest {
   void a_construct_outside_the_nested_subset_is_refused_where_it_stands(
       String fixture, String code, int line, int column) {
     a_construct_outside_the_flat_subset_is_refused_where_it_stands(fixture, code, line, column);
+  }
+
+  /**
+   * #93 reads imports, includes, element references and named types, so these fixtures of the
+   * subsets above are refused at the same position for another reason: the one-file bundle lists no
+   * {@code other.xsd}, and the bundle declares no {@code tns:Money} and no global {@code Order} in
+   * no namespace.
+   */
+  @ParameterizedTest(name = "{0} is refused with {1} at {2}:{3}")
+  @CsvSource({
+    "import,             schema-reference-outside-bundle,  5, 80",
+    "include,            schema-reference-outside-bundle,  5, 43",
+    "type-not-built-in,  schema-invalid,                  10, 53",
+    "nested-element-ref, schema-invalid,                  10, 65",
+  })
+  void a_fixture_of_the_subsets_names_what_the_bundle_lacks(
+      String fixture, String code, int line, int column) {
+    a_construct_outside_the_flat_subset_is_refused_where_it_stands(fixture, code, line, column);
+  }
+
+  /**
+   * #93 reads named complex types, attributes at any depth, and annotations and default values with
+   * no effect (ADR-0008), so these fixtures of the subsets above load.
+   */
+  @ParameterizedTest(name = "{0} loads")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "annotation              | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+        "attribute-not-in-subset | /OrderId 1..1 xs:string; /Note 1..1 xs:string",
+        "named-complex-type      | ''",
+        "nested-attribute        | /OrderId 1..1 xs:string; /Line 1..unbounded structure;"
+            + " /Line/@id 0..1 xs:string",
+      })
+  void a_fixture_the_subsets_refused_loads(String fixture, String fields) throws Exception {
+    Structure structure = readSkeleton("test-fixtures/" + fixture + ".xsd");
+
+    List<String> expected = new ArrayList<>(List.of(ORDER_PATH + " 1..1 structure"));
+    for (String field : fields.isEmpty() ? new String[0] : fields.split("; ")) {
+      expected.add(ORDER_PATH + field);
+    }
+    assertThat(tree(structure).entrySet())
+        .extracting(e -> e.getKey() + " " + e.getValue())
+        .containsExactlyElementsOf(expected);
   }
 
   @Test
@@ -258,7 +294,7 @@ class StructureReaderTest {
     Structure structure = readSkeleton("test-fixtures/nested-qualified.xsd");
     String line = ORDER_PATH + "/Q{urn:flottila:corpus:skeleton}Line";
 
-    // an attribute keeps no namespace: attributeFormDefault is outside the subset
+    // an attribute keeps no namespace: attributeFormDefault is unqualified when absent
     assertThat(tree(structure))
         .containsExactly(
             entry(ORDER_PATH, "1..1 structure"),
@@ -411,8 +447,12 @@ class StructureReaderTest {
             });
   }
 
+  /**
+   * #93 reads bundles of several files, so the second file is read and, missing, is unreadable; an
+   * empty bundle is still refused.
+   */
   @Test
-  void a_bundle_of_other_than_one_file_is_outside_the_flat_subset() {
+  void a_bundle_of_two_files_reads_both_and_an_empty_one_is_refused() {
     assertThatThrownBy(
             () ->
                 new StructureReader(DirectoryResolver.over(SKELETON))
@@ -420,7 +460,7 @@ class StructureReaderTest {
         .isInstanceOfSatisfying(
             StructureLoadException.class,
             e -> {
-              assertThat(e.code()).isEqualTo("schema-construct-unsupported");
+              assertThat(e.code()).isEqualTo("schema-unreadable");
               assertThat(e.file()).isEqualTo("extra.xsd");
               assertThat(e.line()).isEqualTo(1);
               assertThat(e.column()).isEqualTo(1);

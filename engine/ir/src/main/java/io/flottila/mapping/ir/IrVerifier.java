@@ -1,9 +1,11 @@
 package io.flottila.mapping.ir;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Re-checks IR after lowering and after every optimiser pass (ADR-0006). A refusal is a compiler
@@ -17,7 +19,8 @@ import java.util.Optional;
  *       slot number ({@code INTEGER}) in the document's content, a {@link TargetSlots}' slot number
  *       ({@code INTEGER}) and value ({@code STRING}) only in its body (#52), and a {@link Lift}'s
  *       slot variables ({@code STRING}) only in its body, which sees nothing else;
- *   <li>a {@link SourceQueue}'s context is a proper ancestor of its field;
+ *   <li>a {@link SourceQueue}'s context is a proper ancestor of its field, and an attribute's queue
+ *       is not a structure field's (#102);
  *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, its queue is a queue and its
  *       parent slot an {@code INTEGER};
  *   <li>a {@link TargetRepeat} has at least one copy and an {@code INTEGER} parent slot, and binds
@@ -32,7 +35,12 @@ import java.util.Optional;
  *       body (ADR-0006 since #51);
  *   <li>a {@link TextConstructor}'s value is a {@code STRING}, and the document's content, an
  *       {@link ElementConstructor}'s content and the body of a {@link TargetSlots} (#51) and of a
- *       {@link TargetRepeat} (#63) are content.
+ *       {@link TargetRepeat} (#63) are content;
+ *   <li>an {@link AttributeConstructor} is the body of an attribute item, a {@link TargetSlots}
+ *       with {@code max <= 1} or a 1-copy {@link TargetRepeat}, and stands nowhere else; its value
+ *       is a {@code STRING}; in the document's content and in each {@link ElementConstructor}'s,
+ *       the attribute items come before all other content, each of a name of its own (ADR-0006
+ *       since #102).
  * </ul>
  */
 public final class IrVerifier {
@@ -50,10 +58,7 @@ public final class IrVerifier {
    * @throws IllegalArgumentException naming the first defect found and its origin
    */
   public static void verify(TargetDocument document) {
-    Map<String, AtomicType> scope = Map.of(document.rootSlot(), AtomicType.INTEGER);
-    for (Expr expr : document.content()) {
-      content(expr, scope);
-    }
+    contents(document.content(), Map.of(document.rootSlot(), AtomicType.INTEGER));
   }
 
   /**
@@ -64,6 +69,9 @@ public final class IrVerifier {
       case SourceQueue q -> {
         if (q.contextDepth() < 1 || q.contextDepth() >= q.field().size()) {
           throw refused(q, "context depth " + q.contextDepth() + " is no proper ancestor");
+        }
+        if (q.attribute() && q.structureField()) {
+          throw refused(q, "an attribute is no structure field");
         }
         yield Optional.of(QUEUE);
       }
@@ -83,34 +91,19 @@ public final class IrVerifier {
         yield Optional.of(QUEUE);
       }
       case TargetSlots s -> {
-        if (s.min() > s.max()) {
-          throw refused(s, "min " + s.min() + " is above max " + s.max());
-        }
-        value(s, s.queue(), QUEUE, scope, "its queue");
-        value(s, s.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
-        Map<String, AtomicType> body = new HashMap<>(scope);
-        body.put(s.slotVar(), AtomicType.INTEGER);
-        body.put(s.valueVar(), AtomicType.STRING);
-        content(s.body(), body);
+        content(s.body(), body(s, scope));
         yield Optional.empty();
       }
       case TargetRepeat r -> {
-        if (r.copies() < 1) {
-          throw refused(r, "it has " + r.copies() + " copies, not at least 1");
-        }
-        value(r, r.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
-        r.value().ifPresent(v -> value(r, v, AtomicType.STRING, scope, "its value"));
-        Map<String, AtomicType> body = new HashMap<>(scope);
-        body.put(r.slotVar(), AtomicType.INTEGER);
-        content(r.body(), body);
+        content(r.body(), body(r, scope));
         yield Optional.empty();
       }
       case ElementConstructor e -> {
-        for (Expr content : e.content()) {
-          content(content, scope);
-        }
+        contents(e.content(), scope);
         yield Optional.empty();
       }
+      case AttributeConstructor a ->
+          throw refused(a, "an attribute stands only as the body of an attribute item");
       case TextConstructor t -> {
         value(t, t.value(), AtomicType.STRING, scope, "its value");
         yield Optional.empty();
@@ -120,6 +113,86 @@ public final class IrVerifier {
         yield Optional.of(QUEUE);
       }
     };
+  }
+
+  /**
+   * Checks {@code s}'s bounds, queue and parent slot in {@code scope}; the scope of its body, which
+   * adds its slot number and its value.
+   */
+  private static Map<String, AtomicType> body(TargetSlots s, Map<String, AtomicType> scope) {
+    if (s.min() > s.max()) {
+      throw refused(s, "min " + s.min() + " is above max " + s.max());
+    }
+    value(s, s.queue(), QUEUE, scope, "its queue");
+    value(s, s.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
+    Map<String, AtomicType> body = new HashMap<>(scope);
+    body.put(s.slotVar(), AtomicType.INTEGER);
+    body.put(s.valueVar(), AtomicType.STRING);
+    return body;
+  }
+
+  /**
+   * Checks {@code r}'s copies, parent slot and value in {@code scope}; the scope of its body, which
+   * adds its slot number.
+   */
+  private static Map<String, AtomicType> body(TargetRepeat r, Map<String, AtomicType> scope) {
+    if (r.copies() < 1) {
+      throw refused(r, "it has " + r.copies() + " copies, not at least 1");
+    }
+    value(r, r.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
+    r.value().ifPresent(v -> value(r, v, AtomicType.STRING, scope, "its value"));
+    Map<String, AtomicType> body = new HashMap<>(scope);
+    body.put(r.slotVar(), AtomicType.INTEGER);
+    return body;
+  }
+
+  /**
+   * Checks the document's or an element's {@code content}: its attribute items, each of a name of
+   * its own, and then the rest, in which no attribute item stands (ADR-0006 since #102).
+   */
+  private static void contents(List<Expr> content, Map<String, AtomicType> scope) {
+    Set<Name> attributes = new HashSet<>();
+    boolean afterAttributes = false;
+    for (Expr expr : content) {
+      Optional<Name> attribute = attributeItem(expr, scope);
+      if (attribute.isEmpty()) {
+        content(expr, scope);
+        afterAttributes = true;
+      } else if (afterAttributes) {
+        throw refused(expr, "an attribute item stands after other content");
+      } else if (!attributes.add(attribute.get())) {
+        throw refused(expr, "its element carries the attribute " + attribute.get() + " twice");
+      }
+    }
+  }
+
+  /**
+   * The attribute's name if {@code expr} is an attribute item, a {@link TargetSlots} or {@link
+   * TargetRepeat} whose body is an {@link AttributeConstructor}, once the item is checked: at most
+   * one occurrence, {@code max <= 1} or one copy, and the attribute's value a {@code STRING} in the
+   * body's scope. Empty for any other {@code expr}, which is not checked here.
+   */
+  private static Optional<Name> attributeItem(Expr expr, Map<String, AtomicType> scope) {
+    AttributeConstructor attribute;
+    Map<String, AtomicType> body;
+    if (expr instanceof TargetSlots s && s.body() instanceof AttributeConstructor a) {
+      if (s.max() > 1) {
+        throw refused(s, "an attribute item has max " + s.max() + ", not at most 1");
+      }
+      attribute = a;
+      body = body(s, scope);
+    } else if (expr instanceof TargetRepeat r && r.body() instanceof AttributeConstructor a) {
+      if (r.copies() > 1) {
+        throw refused(r, "an attribute item has " + r.copies() + " copies, not 1");
+      }
+      attribute = a;
+      body = body(r, scope);
+    } else {
+      return Optional.empty();
+    }
+    // one check for both kinds of item
+    value(attribute, attribute.value(), AtomicType.STRING, body, "its value");
+    return Optional.of(attribute.name());
   }
 
   /** Checks {@code expr}, which stands where content stands. */

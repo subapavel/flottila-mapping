@@ -107,6 +107,40 @@ class StructuresResourceTest {
   }
 
   /**
+   * #93 (ADR-0008): every load error of a bundle comes back in the one {@code refused}, files in
+   * bundle order and each file in document order.
+   */
+  @Test
+  void everyLoadErrorOfABundleIs200Refused() throws IOException {
+    for (String file : List.of("user.xsd", "broken.xsd")) {
+      TempWorkspace.write(
+          "structures/names-after-errors/" + file,
+          Files.readAllBytes(
+              Fixtures.repositoryRoot()
+                  .resolve("corpus/structures/files-and-names/names-after-errors/" + file)));
+    }
+
+    Http.Reply reply =
+        new Http(root)
+            .post(
+                "api/structures",
+                "application/json",
+                bytes(
+                    "{\"base\": \"structures/names-after-errors\", \"bundle\": [\"user.xsd\","
+                        + " \"broken.xsd\"], \"root\": {\"element\":"
+                        + " \"Q{urn:flottila:corpus:user}Doc\"}}"));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertThat(reply.json().path("kind").textValue()).isEqualTo("refused");
+    assertThat(described(reply.json().path("diagnostics")))
+        .containsExactly(
+            "error schema-construct-unsupported at file user.xsd 10:48",
+            "error schema-invalid at file user.xsd 17:52",
+            "error schema-construct-unsupported at file user.xsd 18:67",
+            "error schema-not-well-formed at file broken.xsd 8:3");
+  }
+
+  /**
    * A package reference (ADR-0024, since the spec-4 grilling) passes the pattern and reaches the
    * engine, whose refusal is a load error at line 1, column 1 of the reference: a 200 {@code
    * refused}, never a 4xx (#90, ADR-0014 "Reference resolver shape").

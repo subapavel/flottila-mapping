@@ -168,17 +168,13 @@ public final class JsonSchemaReader {
    * @throws StructureLoadException when a file cannot be read, is not well-formed, is not valid, or
    *     uses a construct ADR-0008 refuses
    */
-  public static Structure read(SchemaBundle bundle, BundleFiles files)
+  public static Structure read(
+      List<String> files, Map<String, byte[]> contents, List<StructureLoadException> errors)
       throws StructureLoadException {
-    if (bundle.files().isEmpty()) {
-      throw new StructureLoadException(
-          StructureImportDiagnostics.SCHEMA_CONSTRUCT_UNSUPPORTED,
-          "",
-          1,
-          1,
-          "a JSON Schema bundle lists its root schema first, and this one lists no file");
+    if (!errors.isEmpty()) {
+      throw new StructureLoadException(errors);
     }
-    return new JsonSchemaReader(bundle, files).read();
+    return new JsonSchemaReader(new SchemaBundle(files), contents::get).read();
   }
 
   private Structure read() throws StructureLoadException {
