@@ -119,7 +119,8 @@ class EngineFacadeAbstractTargetTest {
   void a_source_box_reads_an_element_of_an_abstract_type(@TempDir Path base) throws Exception {
     byte[] model = model(base, link("Id", "Shape/Colour"));
 
-    assertThat(run(model, base, "<s:Doc xmlns:s=\"urn:s\"><Shape><Colour>c</Colour></Shape></s:Doc>"))
+    assertThat(
+            run(model, base, "<s:Doc xmlns:s=\"urn:s\"><Shape><Colour>c</Colour></Shape></s:Doc>"))
         .isEqualTo(DECLARATION + "<ns0:Doc xmlns:ns0=\"urn:s\"><Id>c</Id></ns0:Doc>");
   }
 
