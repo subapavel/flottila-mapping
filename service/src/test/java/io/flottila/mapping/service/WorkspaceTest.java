@@ -12,6 +12,7 @@ import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.mapping.AtFilePosition;
 import io.flottila.mapping.mapping.Diagnostic;
 import io.flottila.mapping.structure.ElementRoot;
+import io.flottila.mapping.structure.JsonRoot;
 import io.flottila.mapping.structure.SchemaBundle;
 import io.flottila.mapping.structure.importer.ReferenceResolver;
 import io.flottila.mapping.structure.importer.ResolvedFile;
@@ -1011,6 +1012,36 @@ class WorkspaceTest {
         .as("files opened")
         .containsExactly("doc.xsd");
     assertThat(besideTheWorkspace()).isEqualTo(before);
+  }
+
+  /**
+   * #97 (ADR-0008): a JSON Schema {@code $ref} to a file the bundle does not list is {@code
+   * schema-reference-outside-bundle} at the {@code $ref}, and the unlisted file is never read,
+   * although it lies inside the workspace beside the bundle file (StructuresResourceTest sends the
+   * same bundle over HTTP). {@link ObservedFileSystem} records every open and sees the bundle file
+   * alone.
+   */
+  @Test
+  void aJsonRefToAnUnlistedFileIsOutsideTheBundleAndNeverRead() throws Exception {
+    Path corpus = Fixtures.repositoryRoot().resolve("corpus/structures/json-schema/bundle");
+    Path a = root.resolve("a");
+    Files.createDirectory(a.resolve("defs"));
+    for (String file : List.of("order.schema.json", "defs/address.schema.json")) {
+      Files.copy(corpus.resolve(file), a.resolve(file));
+    }
+    ObservedFileSystem observed = new ObservedFileSystem();
+    ReferenceResolver resolver = new Workspace(observed.path(root)).resolver(observed.path(a));
+
+    StructureResult result = Structures.load(resolver, bundle("order.schema.json"), new JsonRoot());
+
+    assertThat(described(result))
+        .isEqualTo(
+            "schema-reference-outside-bundle at order.schema.json 7:16;"
+                + " schema-reference-outside-bundle at order.schema.json 8:17");
+    assertThat(observed.moments())
+        .extracting(moment -> moment.file().getFileName().toString())
+        .as("files opened")
+        .containsExactly("order.schema.json");
   }
 
   /** ADR-0024 as amended by the spec-4 grilling, verbatim: the oracle of a package reference. */
