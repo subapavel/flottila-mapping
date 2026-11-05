@@ -122,3 +122,6 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   Processor does not help. Compile once, run per input (#86).
 - The worktree guard refuses a Bash call mixing heredocs, `python3 - <<EOF`, loops or pipes: write
   a helper script with Write and run it as plain `bash <file>` (#87).
+- Tests in `engine/api` and `engine/oracle` once stored fake fingerprints (`"sha256:"+"0".repeat(64)`);
+  compile now checks them (#91). Compute them with `Structures.load(...).structure().fingerprint()`
+  (`Fingerprints.refreshed(model, base)` in api tests).
