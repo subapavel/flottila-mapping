@@ -161,6 +161,9 @@ class DiagnosticCatalogueTest {
             // stage 3, a field a mapping uses or must create that has no unique field path (#92,
             // ADR-0008 "Refused when a mapping uses the field")
             "ambiguous-field-path",
+            // stage 3, a target field of a repeated group of two or more particles that a mapping
+            // writes or must create (#94, ADR-0008 "Refused when a mapping uses the field")
+            "interleaved-target-group",
             // stage 3, a mapping with a JSON target (#97, ADR-0008)
             "json-target-unsupported");
     assertThat(catalogue.get(IMPORT))

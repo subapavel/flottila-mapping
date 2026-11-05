@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,8 +25,11 @@ import java.util.Set;
 import java.util.function.Consumer;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
+import org.apache.ws.commons.schema.XmlSchemaAll;
+import org.apache.ws.commons.schema.XmlSchemaAny;
 import org.apache.ws.commons.schema.XmlSchemaAttribute;
-import org.apache.ws.commons.schema.XmlSchemaAttributeOrGroupRef;
+import org.apache.ws.commons.schema.XmlSchemaAttributeGroupRef;
+import org.apache.ws.commons.schema.XmlSchemaChoice;
 import org.apache.ws.commons.schema.XmlSchemaCollection;
 import org.apache.ws.commons.schema.XmlSchemaComplexContent;
 import org.apache.ws.commons.schema.XmlSchemaComplexContentExtension;
@@ -33,9 +37,9 @@ import org.apache.ws.commons.schema.XmlSchemaComplexContentRestriction;
 import org.apache.ws.commons.schema.XmlSchemaComplexType;
 import org.apache.ws.commons.schema.XmlSchemaContent;
 import org.apache.ws.commons.schema.XmlSchemaElement;
+import org.apache.ws.commons.schema.XmlSchemaGroupRef;
 import org.apache.ws.commons.schema.XmlSchemaParticle;
 import org.apache.ws.commons.schema.XmlSchemaSequence;
-import org.apache.ws.commons.schema.XmlSchemaSequenceMember;
 import org.apache.ws.commons.schema.XmlSchemaSimpleContent;
 import org.apache.ws.commons.schema.XmlSchemaSimpleContentExtension;
 import org.apache.ws.commons.schema.XmlSchemaSimpleContentRestriction;
@@ -49,11 +53,12 @@ import org.xml.sax.InputSource;
  * SAX pass ({@link XsdSubsetCheck}) and the checks across the bundle ({@link BundleCheck}) run
  * first and give every load error its position; XmlSchema reads only a bundle that has none.
  *
- * <p>Derivation (#95): an extension gives the base content and then its own, attributes first, and
- * a restriction gives its own content. An element of a complex type with simple content is a leaf
- * whose attributes are fields of their own. A reference to the head of a substitution group is a
- * choice of its non-abstract members. An abstract element, or an element of an abstract type,
- * carries the refusal {@code abstract-target-element} at the abstract declaration.
+ * <p>Derivation (#95): an extension gives the base content and then its own, and a restriction its
+ * own particles; both inherit the base's attributes. An element of a complex type with simple
+ * content is a leaf whose attributes are fields of their own. A reference to the head of a
+ * substitution group is a choice of its non-abstract members. An abstract element, or an element of
+ * an abstract type, carries the refusal {@code abstract-target-element} at the abstract
+ * declaration.
  */
 public final class XsdReader {
 
@@ -65,34 +70,30 @@ public final class XsdReader {
   private final Map<String, StructureType> types = new HashMap<>();
 
   /**
-   * The element particles of a complex type and the file that declares it, which a refusal among
-   * them names (#92).
+   * The particles of a complex type or a group and the file that declares it, which a refusal among
+   * them names (#92, #94).
    *
-   * @param particles the particles of its sequence, in document order
+   * @param particles its content particle, if it has one, or a group's model group
    */
   private record Declared(String file, List<Particle> particles) {}
 
-  /** Where the declaration of an element field ends its start tag, in which file. */
-  private record Start(String file, Position at) {}
+  /** An element field and where it is declared: the file and the end of its start tag. */
+  private record Placed(Field field, String file, Position at) {}
 
   /**
-   * The element fields a complex type holds, in output order before same-step siblings are refused,
-   * and where each is declared.
+   * How a complex type is derived (#95): its base, null when it is not derived, its own attribute
+   * declarations and attribute group references, and whether it is a restriction.
    */
-  private record Content(List<Field> elements, List<Start> starts) {}
-
-  /**
-   * How a complex type is derived: its base, null when it is not derived, its own attribute
-   * declarations, and whether it is a restriction.
-   */
-  private record Derivation(
-      QName base, List<XmlSchemaAttributeOrGroupRef> attributes, boolean restriction) {}
+  private record Derivation(QName base, List<?> attributes, boolean restriction) {}
 
   /** The particles of each global element's anonymous complex type, across the bundle. */
   private final Map<QName, Declared> elementParticles = new HashMap<>();
 
   /** The particles of each named complex type, across the bundle. */
   private final Map<QName, Declared> complexTypeParticles = new HashMap<>();
+
+  /** The model group of each named group, across the bundle (#94). */
+  private final Map<QName, Declared> groupParticles = new HashMap<>();
 
   /** The refusal of each abstract global element, at its declaration (#95). */
   private final Map<QName, Refusal> abstractElements = new HashMap<>();
@@ -103,6 +104,12 @@ public final class XsdReader {
   /** The elements whose substitution group each head is, across the bundle (#95). */
   private final Map<QName, List<QName>> members = new HashMap<>();
 
+  /**
+   * The id of each local element's anonymous complex type read so far, by its declaration (#94): an
+   * element declared in a group is read at every use of the group, and every use shares its type.
+   */
+  private final Map<XmlSchemaElement, String> anonymousIds = new IdentityHashMap<>();
+
   private XsdReader(XmlSchemaCollection collection, List<SchemaFile> schemas) {
     this.collection = collection;
     // a refusal names the file that declares the type, whichever file declares the root (ADR-0008)
@@ -112,6 +119,8 @@ public final class XsdReader {
       schema.complexTypeParticles.forEach(
           (name, particles) ->
               complexTypeParticles.put(name, new Declared(schema.name, particles)));
+      schema.groupParticles.forEach(
+          (name, particles) -> groupParticles.put(name, new Declared(schema.name, particles)));
       // an abstract declaration's refusal stands in its declaring file (ADR-0008)
       schema.abstractElements.forEach(
           (name, at) -> abstractElements.put(name, abstractTarget(schema.name, at)));
@@ -210,25 +219,33 @@ public final class XsdReader {
     return new Structure(rootField, reader.types);
   }
 
-  /** The field of a local element inside the type {@code owner}, declared at {@code at}. */
-  private Field localField(String owner, XmlSchemaElement particle, String file, Particle at) {
+  /**
+   * The field of a local element, or of {@code declaration}, a branch of an element reference,
+   * inside the type or group {@code owner}, declared at {@code at} in {@code file}, with its
+   * effective occurrence.
+   */
+  private Field field(
+      String owner,
+      XmlSchemaElement particle,
+      XmlSchemaElement declaration,
+      String file,
+      Particle at,
+      Occurrence occurrence) {
     // getWireName() applies the form: elementFormDefault="qualified" gives the namespace
-    FieldPath.Step step = step(FieldKind.ELEMENT, particle.getWireName());
-    // the subset has no sequence occurrence, so the effective occurrence is the particle's own;
-    // XmlSchema reads maxOccurs="unbounded" as Long.MAX_VALUE, which is Occurrence.UNBOUNDED
-    Occurrence occurrence = new Occurrence(particle.getMinOccurs(), particle.getMaxOccurs());
+    FieldPath.Step step =
+        step(FieldKind.ELEMENT, particle.isRef() ? declaration.getQName() : particle.getWireName());
+    String base = declaration.isTopLevel() ? "/" + step : owner + "/" + step;
     return field(
-        step, occurrence, particle, owner + "/" + step, Optional.of(new Declared(file, at.type())));
+        step, occurrence, declaration, base, Optional.of(new Declared(file, at.content())));
   }
 
   /**
-   * The fields of an element reference: the referenced element's, or, when it heads a substitution
-   * group, one per non-abstract element of the group, transitively and across namespaces, the head
-   * first and then by QName, each a branch of a choice (ADR-0008). An abstract head without a
+   * The global elements an element reference to {@code head} stands for: the head, or, when it
+   * heads a substitution group, its non-abstract elements, transitively and across namespaces, the
+   * head first and then by QName (ADR-0008), each a branch of a choice. An abstract head without a
    * non-abstract member stays, refused in a target.
    */
-  private List<Field> referenced(XmlSchemaElement particle) {
-    QName head = particle.getRef().getTargetQName();
+  private List<XmlSchemaElement> branches(QName head) {
     List<QName> substitutes = new ArrayList<>();
     addMembers(head, substitutes);
     substitutes.sort(BY_QNAME);
@@ -238,18 +255,7 @@ public final class XsdReader {
     if (branches.isEmpty()) {
       branches.add(head);
     }
-    // a branch of a choice with two or more branches has minimum 0 (ADR-0008)
-    Occurrence occurrence =
-        new Occurrence(branches.size() > 1 ? 0 : particle.getMinOccurs(), particle.getMaxOccurs());
-    List<Field> fields = new ArrayList<>();
-    for (QName name : branches) {
-      // a global element is always qualified, and its anonymous type's id is its field path
-      FieldPath.Step step = step(FieldKind.ELEMENT, name);
-      fields.add(
-          field(
-              step, occurrence, collection.getElementByQName(name), "/" + step, Optional.empty()));
-    }
-    return fields;
+    return branches.stream().map(collection::getElementByQName).toList();
   }
 
   /**
@@ -305,7 +311,7 @@ public final class XsdReader {
               complexType,
               elementParticles.get(typed.getQName()));
     } else {
-      id = local(base, complexType, local.orElseThrow());
+      id = local(base, typed, complexType, local.orElseThrow());
     }
     // simple content makes a leaf, whose attributes are fields of their own (ADR-0006 since #102)
     Optional<ValueType> valueType = simpleContent(complexType);
@@ -383,26 +389,38 @@ public final class XsdReader {
   /**
    * The id of a local element's anonymous complex type: {@code base}, with {@code #2}, {@code #3} …
    * for each further sibling structure field with the same step (ADR-0007 refuses those only when a
-   * mapping uses them, so they load as refused fields, #92).
+   * mapping uses them, so they load as refused fields, #92). It is reserved before its fields are
+   * read, and a declaration read again, in a group used twice or that refers to itself through the
+   * element, gets the id it got first, so the recursion is never expanded (#94).
    */
-  private String local(String base, XmlSchemaComplexType complexType, Declared declared) {
-    List<Field> fields = fields(base, complexType, declared);
+  private String local(
+      String base,
+      XmlSchemaElement declaration,
+      XmlSchemaComplexType complexType,
+      Declared declared) {
+    String known = anonymousIds.get(declaration);
+    if (known != null) {
+      return known;
+    }
     String id = base;
     for (int n = 2; types.containsKey(id); n++) {
       id = base + "#" + n;
     }
-    types.put(id, new StructureType(id, fields));
+    anonymousIds.put(declaration, id);
+    types.put(id, null);
+    types.put(id, new StructureType(id, fields(base, complexType, declared)));
     return id;
   }
 
   /**
-   * The fields of a complex type: attributes first, then elements, each in output order, with
-   * same-step element siblings refused.
+   * The fields of a complex type: attributes first, then its element fields, which {@code
+   * declared}'s particles declare.
    */
   private List<Field> fields(String owner, XmlSchemaComplexType complexType, Declared declared) {
-    Content content = content(owner, complexType, declared);
     List<Field> fields = new ArrayList<>(attributes(complexType).values());
-    fields.addAll(refused(content.elements(), content.starts()));
+    List<Placed> elements = new ArrayList<>();
+    elements(owner, complexType, declared, elements);
+    fields.addAll(refused(elements));
     return fields;
   }
 
@@ -432,8 +450,8 @@ public final class XsdReader {
    * The attribute fields of a complex type, by step in output order. A derived type has its base's
    * first, a simple type's none (XSD 1.1 Part 1, 3.4.2): an extension adds its own after them; a
    * restriction's own declaration of one replaces it where it stands, and its {@code
-   * use="prohibited"} drops it. A prohibited attribute is no field in any type, and in an extension
-   * it drops nothing.
+   * use="prohibited"} drops it (#95). A prohibited attribute is no field in any type, and in an
+   * extension it drops nothing.
    */
   private Map<FieldPath.Step, Field> attributes(XmlSchemaComplexType complexType) {
     Derivation derivation = derivation(complexType);
@@ -441,8 +459,23 @@ public final class XsdReader {
         derivation.base() == null ? null : complex(derivation.base());
     Map<FieldPath.Step, Field> attributes =
         complexBase == null ? new LinkedHashMap<>() : attributes(complexBase);
-    // the subset check allows no attribute reference or group
-    for (XmlSchemaAttributeOrGroupRef member : derivation.attributes()) {
+    attributes(derivation.attributes(), derivation.restriction(), attributes);
+    return attributes;
+  }
+
+  /**
+   * Adds the attribute fields of {@code members}, attributes and attribute group references, to
+   * {@code attributes} in document order, each reference's attribute group inlined (ADR-0008, #94),
+   * and drops a prohibited one from a {@code restriction}. The subset check allows no attribute
+   * reference.
+   */
+  private void attributes(
+      List<?> members, boolean restriction, Map<FieldPath.Step, Field> attributes) {
+    for (Object member : members) {
+      if (member instanceof XmlSchemaAttributeGroupRef reference) {
+        attributes(reference.getRef().getTarget().getAttributes(), restriction, attributes);
+        continue;
+      }
       XmlSchemaAttribute attribute = (XmlSchemaAttribute) member;
       FieldPath.Step step = step(FieldKind.ATTRIBUTE, attribute.getWireName());
       if (attribute.getUse() != XmlSchemaUse.PROHIBITED) {
@@ -455,95 +488,203 @@ public final class XsdReader {
                 Optional.of(valueType(attribute.getSchemaTypeName())),
                 false,
                 Optional.empty()));
-      } else if (derivation.restriction()) {
+      } else if (restriction) {
         attributes.remove(step);
       }
     }
-    return attributes;
   }
 
   /**
-   * The element fields of a complex type, whose own particles {@code declared} holds in document
-   * order. An extension of complex content gives its base's, read with the base's own particles,
-   * and then its own; a restriction gives its own particles (ADR-0008); simple content gives none.
-   * The element fields of the base are new fields of {@code owner}, whose anonymous types are
-   * {@code owner}'s.
+   * Adds the element fields of a complex type to {@code elements}, in document order: an extension
+   * of complex content gives its base's, read with the base's own particles, and then its own; a
+   * restriction gives its own particles (ADR-0008); simple content gives none. The element fields
+   * of the base are new fields of {@code owner}.
    */
-  private Content content(String owner, XmlSchemaComplexType complexType, Declared declared) {
-    Content content = new Content(new ArrayList<>(), new ArrayList<>());
-    XmlSchemaParticle particle;
+  private void elements(
+      String owner, XmlSchemaComplexType complexType, Declared declared, List<Placed> elements) {
+    XmlSchemaParticle content = complexType.getParticle();
     if (complexType.getContentModel() instanceof XmlSchemaComplexContent complexContent) {
       if (complexContent.getContent() instanceof XmlSchemaComplexContentExtension extension) {
         QName base = extension.getBaseTypeName();
         // the bundle check has made sure the base is a complex type with element content that
         // does not derive from itself
-        content = content(owner, complex(base), complexTypeParticles.get(base));
-        particle = extension.getParticle();
+        elements(owner, complex(base), complexTypeParticles.get(base), elements);
+        content = extension.getParticle();
       } else {
-        particle = ((XmlSchemaComplexContentRestriction) complexContent.getContent()).getParticle();
+        content = ((XmlSchemaComplexContentRestriction) complexContent.getContent()).getParticle();
       }
-    } else if (complexType.getContentModel() instanceof XmlSchemaSimpleContent) {
-      particle = null;
-    } else {
-      particle = complexType.getParticle();
     }
-    XmlSchemaSequence sequence = (XmlSchemaSequence) particle;
-    List<XmlSchemaSequenceMember> items = sequence == null ? List.of() : sequence.getItems();
-    int next = 0;
-    for (XmlSchemaSequenceMember member : items) {
+    // a complex type of attributes only, or of simple content, has no content particle
+    if (content != null) {
+      particle(
+          owner,
+          content,
+          declared.file(),
+          declared.particles().getFirst(),
+          new Occurrence(1, 1),
+          Optional.empty(),
+          Optional.empty(),
+          elements);
+    }
+  }
+
+  /**
+   * Adds the element fields of {@code particle}, declared at {@code at} in {@code file}, to {@code
+   * elements} in document order (ADR-0008 "XSD", #94): an element's own field, or an element
+   * reference's branches (#95); the members of a sequence, a choice or an all, the branches of a
+   * choice as siblings; and a group reference's group, inlined. A field's effective occurrence is
+   * the product of its own occurrence and every enclosing particle's, and below a choice of two or
+   * more branches its minimum is 0.
+   *
+   * <p>Streamed output writes all occurrences of one field together, so a group of two or more
+   * particles that repeats cannot be written, unless it is a choice of single elements. Every field
+   * below such a group carries interleaved-target-group, at the nearest enclosing particle, the
+   * group itself among them, whose maxOccurs is above 1.
+   *
+   * @param owner the id of the type the fields belong to, or a group's EQName inside a group: a
+   *     local element's anonymous type is named after it
+   * @param enclosing the product of the enclosing particles' occurrences
+   * @param repeated the refusal at the nearest enclosing particle whose maxOccurs is above 1, if
+   *     any
+   * @param interleaved the refusal of every field below, once an enclosing group repeats that
+   *     streamed output cannot write
+   */
+  private void particle(
+      String owner,
+      XmlSchemaParticle particle,
+      String file,
+      Particle at,
+      Occurrence enclosing,
+      Optional<Refusal> repeated,
+      Optional<Refusal> interleaved,
+      List<Placed> elements) {
+    // XmlSchema reads maxOccurs="unbounded" as Long.MAX_VALUE, which is Occurrence.UNBOUNDED
+    Occurrence occurrence =
+        new Occurrence(
+            times(enclosing.min(), particle.getMinOccurs()),
+            times(enclosing.max(), particle.getMaxOccurs()));
+    if (particle instanceof XmlSchemaElement element) {
+      List<XmlSchemaElement> declarations =
+          element.isRef() ? branches(element.getRef().getTargetQName()) : List.of(element);
+      // a branch of a choice with two or more branches has minimum 0 (ADR-0008)
+      Occurrence each = declarations.size() > 1 ? new Occurrence(0, occurrence.max()) : occurrence;
+      for (XmlSchemaElement declaration : declarations) {
+        Field field = field(owner, element, declaration, file, at, each);
+        elements.add(
+            new Placed(interleaved.map(r -> refused(field, r)).orElse(field), file, at.at()));
+      }
+      return;
+    }
+    Optional<Refusal> here =
+        particle.getMaxOccurs() > 1
+            ? Optional.of(
+                new Refusal(
+                    Refusal.Reason.INTERLEAVED_TARGET_GROUP,
+                    file,
+                    at.at().line(),
+                    at.at().column()))
+            : repeated;
+    if (particle instanceof XmlSchemaGroupRef reference) {
+      QName name = reference.getRefName();
+      Declared group = groupParticles.get(name);
+      particle(
+          BundleCheck.eqName(name),
+          collection.getGroupByQName(name).getParticle(),
+          group.file(),
+          group.particles().getFirst(),
+          occurrence,
+          here,
+          interleaved,
+          elements);
+      return;
+    }
+    boolean choice = particle instanceof XmlSchemaChoice;
+    List<?> members =
+        particle instanceof XmlSchemaSequence sequence
+            ? sequence.getItems()
+            : choice
+                ? ((XmlSchemaChoice) particle).getItems()
+                : ((XmlSchemaAll) particle).getItems();
+    List<XmlSchemaParticle> items = new ArrayList<>();
+    for (Object member : members) {
       // an xs:any has no effect (ADR-0008), and the subset check records no particle for it
-      if (member instanceof XmlSchemaElement element) {
-        Particle at = declared.particles().get(next++);
-        List<Field> fields =
-            element.isRef()
-                ? referenced(element)
-                : List.of(localField(owner, element, declared.file(), at));
-        for (Field field : fields) {
-          content.elements().add(field);
-          content.starts().add(new Start(declared.file(), at.at()));
-        }
+      if (!(member instanceof XmlSchemaAny)) {
+        items.add((XmlSchemaParticle) member);
       }
     }
-    return content;
+    boolean interleaves =
+        occurrence.max() > 1
+            && items.size() > 1
+            && !(choice && items.stream().allMatch(XmlSchemaElement.class::isInstance));
+    // an xs:any is a branch too
+    Occurrence member =
+        choice && members.size() > 1 ? new Occurrence(0, occurrence.max()) : occurrence;
+    for (int i = 0; i < items.size(); i++) {
+      particle(
+          owner,
+          items.get(i),
+          file,
+          at.content().get(i),
+          member,
+          here,
+          interleaves ? here : interleaved,
+          elements);
+    }
+  }
+
+  /** {@code a} times {@code b}, two occurrence bounds; a product beyond a long is unbounded. */
+  private static long times(long a, long b) {
+    return b != 0 && a > Occurrence.UNBOUNDED / b ? Occurrence.UNBOUNDED : a * b;
   }
 
   /**
    * {@code elements}, in output order, with each one whose step occurs twice or more refused with
-   * ambiguous-field-path at that step's second declaration (ADR-0008 Shape (#92)), which replaces
-   * an abstract-target-element refusal: a field carries at most one, and this one holds in a source
-   * too. {@code starts} holds where each element's declaration ends its start tag; the branches of
-   * a substitution group share their reference's. Attributes are not looked at: two of one name in
-   * one complex type make the schema invalid (XSD 1.1 Part 1, ct-props-correct.4).
+   * ambiguous-field-path at that step's second declaration, in the file that declares it (ADR-0008
+   * Shape (#92)); the branches of a substitution group share their reference's declaration. A field
+   * carries at most one refusal: ambiguous-field-path, which holds in a source too, replaces
+   * interleaved-target-group (#94) and abstract-target-element (#95). Attributes are not looked at:
+   * two of one name in one complex type make the schema invalid (XSD 1.1 Part 1,
+   * ct-props-correct.4).
    */
-  private static List<Field> refused(List<Field> elements, List<Start> starts) {
+  private static List<Field> refused(List<Placed> elements) {
     Set<FieldPath.Step> seen = new HashSet<>();
-    Map<FieldPath.Step, Start> second = new HashMap<>();
-    for (int i = 0; i < elements.size(); i++) {
-      FieldPath.Step step = elements.get(i).step();
+    Map<FieldPath.Step, Placed> second = new HashMap<>();
+    for (Placed element : elements) {
+      FieldPath.Step step = element.field().step();
       if (!seen.add(step)) {
-        second.putIfAbsent(step, starts.get(i));
+        second.putIfAbsent(step, element);
       }
     }
     List<Field> fields = new ArrayList<>();
-    for (Field field : elements) {
-      Start at = second.get(field.step());
+    for (Placed element : elements) {
+      Field field = element.field();
+      Placed at = second.get(field.step());
       fields.add(
           at == null
               ? field
-              : new Field(
-                  field.step(),
-                  field.occurrence(),
-                  field.valueType(),
-                  field.nillable(),
-                  field.type(),
-                  Optional.of(
-                      new Refusal(
-                          Refusal.Reason.AMBIGUOUS_FIELD_PATH,
-                          at.file(),
-                          at.at().line(),
-                          at.at().column()))));
+              : refused(
+                  field,
+                  new Refusal(
+                      Refusal.Reason.AMBIGUOUS_FIELD_PATH,
+                      at.file(),
+                      at.at().line(),
+                      at.at().column())));
     }
     return fields;
+  }
+
+  /**
+   * {@code field} with {@code refusal}, which replaces any it had: interleaved-target-group
+   * replaces abstract-target-element, both refused in a target only.
+   */
+  private static Field refused(Field field, Refusal refusal) {
+    return new Field(
+        field.step(),
+        field.occurrence(),
+        field.valueType(),
+        field.nillable(),
+        field.type(),
+        Optional.of(refusal));
   }
 
   /**

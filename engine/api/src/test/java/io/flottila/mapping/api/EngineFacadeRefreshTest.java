@@ -209,9 +209,9 @@ class EngineFacadeRefreshTest {
   }
 
   /**
-   * A side whose bundle has two load errors (#93, a choice and a {@code block} attribute; #95
-   * opened the abstract element this fixture used before) keeps its fingerprint and gives both, in
-   * the order the structure load gives them.
+   * A side whose bundle has two load errors (#93, an assertion and a {@code block} attribute; #94
+   * opened the choice and #95 the abstract element this fixture used before) keeps its fingerprint
+   * and gives both, in the order the structure load gives them.
    */
   @Test
   void aSideWithTwoLoadErrorsGivesBoth() throws MalformedJsonException, IOException {
@@ -221,9 +221,9 @@ class EngineFacadeRefreshTest {
         <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="%s">
           <xs:element name="Order">
             <xs:complexType>
-              <xs:choice>
+              <xs:assert>
                 <xs:element name="OrderId" type="xs:string"/>
-              </xs:choice>
+              </xs:assert>
             </xs:complexType>
           </xs:element>
           <xs:element name="Other" block="#all" type="xs:string"/>

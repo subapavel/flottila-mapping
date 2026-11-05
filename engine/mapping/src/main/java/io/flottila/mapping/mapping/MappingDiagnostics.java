@@ -100,6 +100,16 @@ public final class MappingDiagnostics {
   public static final String AMBIGUOUS_FIELD_PATH = "ambiguous-field-path";
 
   /**
+   * A target field path through a field of a repeated group of two or more particles that is not a
+   * choice of single elements, which streamed output cannot interleave (ADR-0008 "Refused when a
+   * mapping uses the field", #94): at the target field mapping that names it, or, for such a field
+   * with {@code minOccurs > 0} that the walk would create and no mapping writes, at its absent
+   * member {@code /targetFieldMappings/<field path>}. A source may read the field. The message
+   * names the schema file, line and column of the repeated group's declaration.
+   */
+  public static final String INTERLEAVED_TARGET_GROUP = "interleaved-target-group";
+
+  /**
    * A target field mapping that writes an abstract element, an element of an abstract type, or a
    * field below one (ADR-0008 "Refused when a mapping uses the field", #95), at its authoring id;
    * or such an element with {@code minOccurs > 0} that the target walk would create and no mapping

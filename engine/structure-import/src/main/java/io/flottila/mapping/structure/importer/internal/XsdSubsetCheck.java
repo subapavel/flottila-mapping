@@ -2,6 +2,7 @@ package io.flottila.mapping.structure.importer.internal;
 
 import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import io.flottila.mapping.structure.importer.StructureLoadException;
+import io.flottila.mapping.structure.importer.internal.SchemaFile.Definition;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.FileReference;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.GlobalElement;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.NameUse;
@@ -16,6 +17,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,22 +45,28 @@ import org.xml.sax.helpers.NamespaceSupport;
  * <p>The XSD read (#93) is one {@code xs:schema} ({@code targetNamespace}, {@code
  * elementFormDefault}, {@code attributeFormDefault}) of {@code xs:import}s, {@code xs:include}s,
  * global {@code xs:element}s and {@code xs:attribute}s, and named {@code xs:complexType}s and
- * {@code xs:simpleType}s.
+ * {@code xs:simpleType}s; and, since #94, named {@code xs:group}s and {@code xs:attributeGroup}s.
  *
  * <ul>
- *   <li>A complex type, named or anonymous, holds an optional {@code xs:sequence} first and then
- *       {@code xs:attribute}s ({@code name}, {@code type}, {@code use}, {@code form}, {@code
- *       default}, {@code fixed}). An anonymous one below the root holds at least one of them. A
- *       named one may be {@code abstract} (#95).
+ *   <li>A complex type, named or anonymous, holds an optional content particle first: an {@code
+ *       xs:sequence}, {@code xs:choice} or {@code xs:all}, or an {@code xs:group} reference ({@code
+ *       ref}, {@code minOccurs}, {@code maxOccurs}). Then it holds {@code xs:attribute}s ({@code
+ *       name}, {@code type}, {@code use}, {@code form}, {@code default}, {@code fixed}) and {@code
+ *       xs:attributeGroup} references ({@code ref}). An anonymous one below the root holds at least
+ *       one of them. A named one may be {@code abstract} (#95).
  *   <li>Instead, a complex type may hold only an {@code xs:complexContent} with one {@code
  *       xs:extension} or {@code xs:restriction} of a named complex type ({@code base}), which holds
  *       what a complex type holds; or only an {@code xs:simpleContent} with one {@code
  *       xs:extension} or {@code xs:restriction} of a simple type or of a complex type with simple
- *       content ({@code base}), which holds {@code xs:attribute}s, and a restriction facets too
- *       (#95). An attribute's {@code use} may be {@code prohibited}, and then it needs no {@code
- *       type} and has no {@code default} or {@code fixed}.
- *   <li>A sequence holds local {@code xs:element}s, element references ({@code ref}, {@code
- *       minOccurs}, {@code maxOccurs}) and {@code xs:any}.
+ *       content ({@code base}), which holds what an attribute group holds, and a restriction facets
+ *       too (#95). An attribute's {@code use} may be {@code prohibited}, and then it needs no
+ *       {@code type} and has no {@code default} or {@code fixed}.
+ *   <li>A sequence or a choice ({@code minOccurs}, {@code maxOccurs}) holds local {@code
+ *       xs:element}s, element references ({@code ref}, {@code minOccurs}, {@code maxOccurs}),
+ *       sequences, choices, group references and {@code xs:any}. An {@code xs:all} ({@code
+ *       minOccurs}, {@code maxOccurs}) holds local elements and element references.
+ *   <li>A named group ({@code name}) holds one sequence, choice or all. A named attribute group
+ *       ({@code name}) holds attributes and attribute group references.
  *   <li>A global or local element has a {@code type} or one anonymous {@code xs:complexType}, or is
  *       a global one in a substitution group, which then has its head's type (#95). A local one is
  *       a leaf or structure field ({@code name}, {@code minOccurs}, {@code maxOccurs}, {@code
@@ -102,7 +110,6 @@ final class XsdSubsetCheck extends DefaultHandler {
       EnumSet.of(
           Role.COMPLEX_TYPE,
           Role.STRUCTURE_TYPE,
-          Role.SEQUENCE,
           Role.COMPLEX_CONTENT,
           Role.SIMPLE_CONTENT,
           Role.COMPLEX_DERIVATION,
@@ -149,7 +156,14 @@ final class XsdSubsetCheck extends DefaultHandler {
     // an xs:extension or xs:restriction of simple content
     SIMPLE_EXTENSION(Set.of("base"), Set.of("base")),
     SIMPLE_RESTRICTION(Set.of("base"), Set.of("base")),
-    SEQUENCE(Set.of(), Set.of()),
+    // an xs:sequence or an xs:choice: each holds the same particles (#94)
+    SEQUENCE(Set.of("minOccurs", "maxOccurs"), Set.of()),
+    ALL(Set.of("minOccurs", "maxOccurs"), Set.of()),
+    // a named group and a reference to one (#94)
+    GROUP(Set.of("name"), Set.of("name")),
+    GROUP_REF(Set.of("ref", "minOccurs", "maxOccurs"), Set.of("ref")),
+    ATTRIBUTE_GROUP(Set.of("name"), Set.of("name")),
+    ATTRIBUTE_GROUP_REF(Set.of("ref"), Set.of("ref")),
     // a local element is a leaf only when it has a type (child), so a leaf never lacks one
     LEAF(
         Set.of("name", "type", "minOccurs", "maxOccurs", "nillable", "form", "default", "fixed"),
@@ -195,10 +209,13 @@ final class XsdSubsetCheck extends DefaultHandler {
               case "attribute" -> GLOBAL_ATTRIBUTE;
               case "complexType" -> NAMED_COMPLEX_TYPE;
               case "simpleType" -> NAMED_SIMPLE_TYPE;
+              case "group" -> GROUP;
+              case "attributeGroup" -> ATTRIBUTE_GROUP;
               default -> null;
             };
         case GLOBAL -> name.equals("complexType") ? COMPLEX_TYPE : identityConstraint(name);
         case GLOBAL_TYPED, LEAF -> identityConstraint(name);
+        // a content particle, then what an attribute group holds
         case NAMED_COMPLEX_TYPE, COMPLEX_TYPE, STRUCTURE_TYPE ->
             switch (name) {
               case "complexContent" -> COMPLEX_CONTENT;
@@ -221,9 +238,19 @@ final class XsdSubsetCheck extends DefaultHandler {
             switch (name) {
               case "element" ->
                   attributes.getValue("", "ref") != null ? ELEMENT_REF : typed ? LEAF : STRUCTURE;
+              case "sequence", "choice" -> SEQUENCE;
+              case "group" -> GROUP_REF;
               case "any" -> NO_EFFECT;
               default -> null;
             };
+        case ALL -> name.equals("element") ? SEQUENCE.child(name, attributes) : null;
+        case GROUP ->
+            switch (name) {
+              case "sequence", "choice" -> SEQUENCE;
+              case "all" -> ALL;
+              default -> null;
+            };
+        case ATTRIBUTE_GROUP -> attribute(name, attributes);
         case STRUCTURE -> name.equals("complexType") ? STRUCTURE_TYPE : identityConstraint(name);
         case NAMED_SIMPLE_TYPE ->
             switch (name) {
@@ -239,6 +266,8 @@ final class XsdSubsetCheck extends DefaultHandler {
             ELEMENT_REF,
             ATTRIBUTE,
             PROHIBITED_ATTRIBUTE,
+            GROUP_REF,
+            ATTRIBUTE_GROUP_REF,
             NO_EFFECT ->
             null;
       };
@@ -248,15 +277,28 @@ final class XsdSubsetCheck extends DefaultHandler {
       return IDENTITY_CONSTRAINTS.contains(name) ? NO_EFFECT : null;
     }
 
-    /** The role of a complex type's content: an optional sequence first, then attributes. */
+    /**
+     * The role of a complex type's content, or a complex-content derivation's: a content particle
+     * first, then what an attribute group holds (#94).
+     */
     private static Role content(String name, Attributes attributes) {
-      return name.equals("sequence") ? SEQUENCE : attribute(name, attributes);
+      return switch (name) {
+        case "sequence", "choice" -> SEQUENCE;
+        case "all" -> ALL;
+        case "group" -> GROUP_REF;
+        default -> attribute(name, attributes);
+      };
     }
 
+    /**
+     * The role of what an attribute group holds: an attribute, one with {@code use="prohibited"}
+     * among them (#95), an attribute group reference (#94) or an {@code xs:anyAttribute}.
+     */
     private static Role attribute(String name, Attributes attributes) {
       return switch (name) {
         case "attribute" ->
             "prohibited".equals(attributes.getValue("", "use")) ? PROHIBITED_ATTRIBUTE : ATTRIBUTE;
+        case "attributeGroup" -> ATTRIBUTE_GROUP_REF;
         case "anyAttribute" -> NO_EFFECT;
         default -> null;
       };
@@ -281,9 +323,9 @@ final class XsdSubsetCheck extends DefaultHandler {
     boolean substitutes;
 
     /**
-     * Where the element particles of the sequence it holds or stands in go (#92): its own list for
-     * a global element, a named complex type and a local element of an anonymous type, its parent's
-     * otherwise.
+     * Where the particles it holds go (#92, #94): its own list for a global element, a named
+     * complex type, a named group, a local element of an anonymous type and a model group, its
+     * parent's otherwise.
      */
     List<Particle> particles;
 
@@ -299,12 +341,31 @@ final class XsdSubsetCheck extends DefaultHandler {
      */
     boolean derived;
 
+    /**
+     * Where the group or attribute group references it holds go (#94): its own set for a named
+     * group or attribute group, whose definition keeps it, and a fresh one for a local element,
+     * through which a reference is no use of the enclosing group; its parent's otherwise.
+     */
+    Set<QName> uses = new HashSet<>();
+
     Frame(Role role, Position start, List<Particle> particles) {
       this.role = role;
       this.start = start;
       this.particles = particles;
     }
   }
+
+  /** The particle a complex type or a group holds first, once (#94). */
+  private static final Set<Role> CONTENT = EnumSet.of(Role.SEQUENCE, Role.ALL, Role.GROUP_REF);
+
+  /** What holds one content particle, first (#94, #95). */
+  private static final Set<Role> HOLDS_CONTENT =
+      EnumSet.of(
+          Role.NAMED_COMPLEX_TYPE,
+          Role.COMPLEX_TYPE,
+          Role.STRUCTURE_TYPE,
+          Role.GROUP,
+          Role.COMPLEX_DERIVATION);
 
   /** A refused construct, at the parser's position or at a start tag read before. */
   static final class Refusal extends Exception {
@@ -473,9 +534,12 @@ final class XsdSubsetCheck extends DefaultHandler {
               + "> after xs:complexContent or xs:simpleContent is outside the XSD the reader"
               + " reads");
     }
-    // an element has one xs:complexType; a complex type's xs:sequence, xs:complexContent or
-    // xs:simpleContent comes once, first, and so does the one derivation of the latter two
-    if (earlier > 0 && FIRST.contains(role)) {
+    // an element has one xs:complexType; a complex type's xs:complexContent or xs:simpleContent
+    // comes once, first, and so does the one derivation of either (#95); a complex type's, a
+    // complex-content derivation's or a group's content particle comes once, first (#94)
+    if (earlier > 0
+        && (FIRST.contains(role)
+            || CONTENT.contains(role) && HOLDS_CONTENT.contains(parent.role))) {
       throw refusal(
           UNSUPPORTED, "<" + qName + "> after another child is outside the XSD the reader reads");
     }
@@ -498,7 +562,8 @@ final class XsdSubsetCheck extends DefaultHandler {
             "<" + qName + "> without " + name + " is outside the XSD the reader reads");
       }
     }
-    if (role == Role.LEAF || role == Role.STRUCTURE || role == Role.ELEMENT_REF) {
+    // a particle, an element or a group, is what may carry maxOccurs
+    if (role.attributes.contains("maxOccurs")) {
       checkOccurrence(attributes.getValue("", "minOccurs"), attributes.getValue("", "maxOccurs"));
     }
     checkValue(attributes, "nillable", BOOLEAN);
@@ -508,13 +573,14 @@ final class XsdSubsetCheck extends DefaultHandler {
     checkValue(attributes, "attributeFormDefault", FORM);
     checkValue(attributes, "form", FORM);
     Frame frame = new Frame(role, start, parent.particles);
+    frame.uses = parent.uses;
     record(role, attributes, frame, parent);
     return frame;
   }
 
   /**
-   * Records what {@link BundleCheck} needs of an element that stands where it may, and where an
-   * element particle is declared for {@link XsdReader} (#92).
+   * Records what {@link BundleCheck} needs of an element that stands where it may, and where a
+   * particle is declared for {@link XsdReader} (#92, #94).
    */
   private void record(Role role, Attributes attributes, Frame frame, Frame parent) throws Refusal {
     String name = attributes.getValue("", "name");
@@ -571,8 +637,35 @@ final class XsdSubsetCheck extends DefaultHandler {
         parent.particles.add(new Particle(start, List.of()));
       }
       case STRUCTURE -> {
+        // a group reference below it is reached through an element
+        frame.uses = new HashSet<>();
         frame.particles = new ArrayList<>();
         parent.particles.add(new Particle(start, frame.particles));
+      }
+      case SEQUENCE, ALL -> {
+        frame.particles = new ArrayList<>();
+        parent.particles.add(new Particle(start, frame.particles));
+      }
+      case GROUP -> {
+        frame.uses = new HashSet<>();
+        schema.groups.put(global(name), new Definition(start, frame.uses));
+        frame.particles = new ArrayList<>();
+        schema.groupParticles.put(global(name), frame.particles);
+      }
+      case GROUP_REF -> {
+        QName ref = qualified(attributes.getValue("", "ref"));
+        schema.groupRefs.add(new NameUse(ref, start));
+        frame.uses.add(ref);
+        parent.particles.add(new Particle(start, List.of()));
+      }
+      case ATTRIBUTE_GROUP -> {
+        frame.uses = new HashSet<>();
+        schema.attributeGroups.put(global(name), new Definition(start, frame.uses));
+      }
+      case ATTRIBUTE_GROUP_REF -> {
+        QName ref = qualified(attributes.getValue("", "ref"));
+        schema.attributeGroupRefs.add(new NameUse(ref, start));
+        frame.uses.add(ref);
       }
       case NAMED_COMPLEX_TYPE -> {
         schema.complexTypes.add(global(name));
@@ -619,7 +712,7 @@ final class XsdSubsetCheck extends DefaultHandler {
         QName base = typeName(attributes.getValue("", "base"), schema.simpleTypeRefs, start);
         schema.simpleTypes.put(simpleType, new SimpleType(base, start));
       }
-      case DOCUMENT, COMPLEX_TYPE, SEQUENCE, STRUCTURE_TYPE, NO_EFFECT -> {
+      case DOCUMENT, COMPLEX_TYPE, STRUCTURE_TYPE, NO_EFFECT -> {
         // nothing to record
       }
     }
@@ -710,9 +803,19 @@ final class XsdSubsetCheck extends DefaultHandler {
       refuse(
           new Refusal(
               UNSUPPORTED,
-              "an xs:element whose xs:complexType holds neither xs:sequence nor xs:attribute is"
-                  + " outside the XSD the reader reads",
+              "an xs:element whose xs:complexType holds neither a content particle nor an"
+                  + " attribute is outside the XSD the reader reads",
               open.element().start));
+    }
+    if (closed.role == Role.GROUP && closed.children == 0) {
+      refuse(
+          new Refusal(
+              UNSUPPORTED,
+              "<"
+                  + qName
+                  + "> without xs:sequence, xs:choice or xs:all is outside the XSD the reader"
+                  + " reads",
+              closed.start));
     }
   }
 

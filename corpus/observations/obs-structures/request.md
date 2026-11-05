@@ -17,21 +17,21 @@ Notation, what to return and the ESR / CPI naming: `../README.md`.
 
 Target wires: X1 -> `Choice/Pick/A`; X2 -> `Choice/Pick/B`.
 
-| Input | Question it decides | Tests |
+| Case | Input | Question it decides and the assumed reading (ADR-0008 Consequences, assumed reading 1) |
 | --- | --- | --- |
-| `ch1.xml` | Id `A`: `A` is written, `B` is SUPPRESS. Does the suppressed branch `B` (declared `minOccurs` 1) raise a shortfall? Assumed: no, a branch of a choice counts as optional. Output `<Pick><A>A</A></Pick>`. Record the error text if PO fails. | ADR-0008 bullet 1 |
-| `ch2.xml` | Id `B`: mirror of ch1. | ADR-0008 bullet 1 |
-| `ch3.xml` | Id `C`: both branches SUPPRESS. Assumed: no error from either branch, `Pick` is written empty. Record the output or the error. | ADR-0008 bullet 1 |
+| `target/choiceBranch/001` | `ch1.xml` | Id `A`: `A` is written, `B` is SUPPRESS. Does the suppressed branch `B` (declared `minOccurs` 1) raise a shortfall? Assumed: no, a branch of a choice counts as optional. Output `<Pick><A>A</A></Pick>`. Record the error text if PO fails. |
+| `target/choiceBranch/002` | `ch2.xml` | Id `B`: mirror of ch1. Assumed output `<Pick><B>B</B></Pick>`. |
+| `target/choiceBranch/003` | `ch3.xml` | Id `C`: both branches SUPPRESS. Assumed: no error from either branch, `Pick` is written empty. Record the output or the error. |
 
 ## Mapping str-choice-2 (same structures)
 
 Only X1 and its chain (C1, E1) are drawn; `Choice/Pick/B` stays unmapped. Target wire: X1 ->
 `Choice/Pick/A`.
 
-| Input | Question it decides | Tests |
+| Case | Input | Question it decides and the assumed reading (ADR-0008 Consequences, assumed reading 1) |
 | --- | --- | --- |
-| `ch1.xml` | Is an unmapped branch `B` (declared 1..1, inside a choice) a design-time error? Assumed: no, it counts as optional. Record the editor message, if any, and the run output. | ADR-0008 bullet 1 |
-| `ch2.xml` | Id `B`, `A` suppressed and `B` unmapped: output `<Pick/>`, or an error? | ADR-0008 bullet 1 |
+| `target/choiceBranch/004` | `ch1.xml` | Is an unmapped branch `B` (declared 1..1, inside a choice) a design-time error? Assumed: no, it counts as optional, and the run writes `<Pick><A>A</A></Pick>`. Record the editor message, if any, and the run output. |
+| `target/choiceBranch/005` | `ch2.xml` | Id `B`, `A` suppressed and `B` unmapped: output `<Pick/>`, or an error? Assumed: `<Pick/>`. |
 
 ## Mapping str-nil (source `src-nil.xsd`, root `Nil`; target `tgt-list.xsd`, root `Out`)
 

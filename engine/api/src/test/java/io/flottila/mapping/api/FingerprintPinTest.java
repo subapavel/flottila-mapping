@@ -77,7 +77,18 @@ class FingerprintPinTest {
               "sha256:7fa870df17665f949da9986b2036fc81a4299fe38c920afdd24b20ac29b17284"),
           entry(
               "derivation/order.xsd Q{urn:flottila:corpus:order}Receipt",
-              "sha256:f7b3d1697015e4f93e73caa19b269e7cbd44f8b19146ba6b50c49bdb7bfa5c84"));
+              "sha256:f7b3d1697015e4f93e73caa19b269e7cbd44f8b19146ba6b50c49bdb7bfa5c84"),
+          // #94: a choice (str-choice-1, -2), a repeated choice of elements, and a repeated
+          // sequence whose A and B are refused fields ending in " refused:interleaved-target-group"
+          entry(
+              "observations/tgt-choice.xsd Choice",
+              "sha256:49a6269dbb5b409cc061dc9e732e4e2142ecf725ba411e29a1949b0eea5048bf"),
+          entry(
+              "model-groups/picks.xsd Picks",
+              "sha256:f3ba6b25507a1013629b1aa81257e12ce4fc903aa0fac19f5a59fb3c66612ae2"),
+          entry(
+              "model-groups/pairs.xsd Pairs",
+              "sha256:aa69e5c99ad5d331ec99c143eb35502c33870cb818b29b4c974c97c11d37fdc2"));
 
   /**
    * WSDL roots (#96): by the bundle files under {@code corpus/structures/}, a space between, then
