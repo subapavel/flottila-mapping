@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Fixture (#93): beside a file that stopped, a name no bundle file declares, a reference into the
-     stopped file's namespace, a use of a type whose declaration is refused, and a refused local
-     element that declares no global name -->
+     stopped file's namespace (an element and a simple type), a use of a type whose declaration is
+     refused, and a refused local element that declares no global name -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:b="urn:flottila:corpus:broken"
            xmlns:u="urn:flottila:corpus:user"
@@ -17,6 +17,7 @@
         <xs:element name="Count" type="u:Missing"/>
         <xs:element name="Missing" type="xs:string" block="#all"/>
       </xs:sequence>
+      <xs:attribute name="code" type="b:Code"/>
     </xs:complexType>
   </xs:element>
 </xs:schema>
