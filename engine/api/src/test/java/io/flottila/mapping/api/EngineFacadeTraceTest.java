@@ -744,9 +744,34 @@ class EngineFacadeTraceTest {
    */
   private static final long RACE_DELAY_MILLIS = 5_000;
 
+  /** A clock descheduled for this long, inside the lock, in the pinned deschedule case. */
+  private static final long DESCHEDULE_MILLIS = 3_000;
+
   @Test
   @Timeout(60)
   void aTimeoutTraceIsAPrefixOfTheFullTrace() throws Exception {
+    timeoutTraceIsAPrefixOfTheFullTrace(0);
+  }
+
+  /** The race of #103: the fake clock is descheduled after it saw Row, while the run goes on. */
+  @Test
+  @Timeout(60)
+  void aTimeoutTraceIsAPrefixOfTheFullTraceWhenTheClockIsDescheduled() throws Exception {
+    timeoutTraceIsAPrefixOfTheFullTrace(DESCHEDULE_MILLIS);
+  }
+
+  /** Tracer's private lock; a renamed field fails the test here, naming it. */
+  private static Object tracerLock(Object tracer) {
+    try {
+      java.lang.reflect.Field field = tracer.getClass().getDeclaredField("lock");
+      field.setAccessible(true);
+      return field.get(tracer);
+    } catch (ReflectiveOperationException | RuntimeException e) {
+      throw new AssertionError("the fake clock needs the private field Tracer.lock: " + e, e);
+    }
+  }
+
+  private void timeoutTraceIsAPrefixOfTheFullTrace(long descheduleMillis) throws Exception {
     CompiledMapping mapping = tested(corpusMapping("nested-grp-row-val.mapping.json"), mappings());
     StringBuilder xml = new StringBuilder("<Orders>");
     for (int o = 1; o <= 20_000; o++) {
@@ -763,20 +788,26 @@ class EngineFacadeTraceTest {
     EngineFacade timed =
         new EngineFacade(
             (run, timeout, tracer) -> {
-              while (tracer.occurrences().stream().noneMatch(o -> o.field().equals(row))) {
-                Thread.sleep(RACE_DELAY_MILLIS); // test-only: a descheduled clock
-                if (run.isDone()) {
-                  // the run ended before Row reported: its result, which the test refuses
-                  return run.get();
+              Object lock = tracerLock(tracer);
+              while (true) {
+                // Row's report and the throw are one step under the tracer's lock, which the run
+                // needs for every report: the run is blocked at its next report, live inside
+                // ExecutableMapping.run, however the threads are scheduled. Once the monitor is
+                // left (the throw), the run may go on, even to its end, before the facade's
+                // cancel; every assertion holds then: the result is a RuntimeError because the
+                // clock threw, the trace is a prefix, T2 is in it, and the thread was found live.
+                synchronized (lock) {
+                  if (tracer.occurrences().stream().anyMatch(o -> o.field().equals(row))) {
+                    Thread.sleep(descheduleMillis); // 0, or a descheduled clock
+                    platformThreadsInAMapping().stream()
+                        .filter(thread -> !before.contains(thread))
+                        .findFirst()
+                        .ifPresent(timedOut::set);
+                    throw new TimeoutException("the fake clock reached the timeout");
+                  }
                 }
                 Thread.onSpinWait();
               }
-              // Row has reported, so the run is live inside ExecutableMapping.run
-              platformThreadsInAMapping().stream()
-                  .filter(thread -> !before.contains(thread))
-                  .findFirst()
-                  .ifPresent(timedOut::set);
-              throw new TimeoutException("the fake clock reached the timeout");
             });
 
     TestRunResult result = timed.testRun(mapping, input, Duration.ofSeconds(60), Integer.MAX_VALUE);
