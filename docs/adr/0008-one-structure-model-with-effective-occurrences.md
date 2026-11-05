@@ -90,6 +90,11 @@ Refined by the spec-4 grilling (2026-11-05):
     the analogue of the namespace rule.
   - When neither matches, the load fails with `schema-reference-outside-bundle` at the `$ref`
     keyword's file, line and column.
+  - json-sKema returns a whole schema or nothing (F-25). So a file's walk refusals are reported
+    only when nothing earlier in that file failed: a root that is not an object, an array of
+    arrays, two shapes, or a type-list member that is not a string. Earlier failures are a refused
+    `$schema`, `$dynamicRef`, a `$ref` outside the bundle, or a json-sKema problem. All of those
+    earlier errors are still reported together.
 - The engine does not compute a bundle's closure for the author.
 - The engine maps a reference written inside a schema to a bundle-listed reference by text,
   before any read, so the resolver reads only listed files (ADR-0014, #90).
@@ -126,7 +131,8 @@ Saxon-HE 12.5's `xml-to-json` normalises numbers (`1.50` → `1.5`, observed).
 
 One load reports every load-time error of the bundle: files in bundle order, each file in
 document order. A file that is not well-formed stops only that file (spec-4 grilling,
-2026-11-05).
+2026-11-05). `schema-root-not-found` is reported only when the bundle has no other load error, so a root
+in a file that stopped is not also reported as missing (#93).
 
 ## Refused when a mapping uses the field
 
