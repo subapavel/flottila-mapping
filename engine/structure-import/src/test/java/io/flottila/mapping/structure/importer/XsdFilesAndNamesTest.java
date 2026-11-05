@@ -186,11 +186,16 @@ class XsdFilesAndNamesTest {
     String invalid = "schema-invalid ";
     return Stream.of(
         Arguments.of(
-            "references outside the bundle: a file beside it, an escape, a namespace",
+            "references outside the bundle: a file beside it, an escape, a namespace; a name in"
+                + " none of their namespaces",
             "outside-bundle",
             List.of("a.xsd"),
             "{a}Doc",
-            List.of(outside + "a.xsd 5:86", outside + "a.xsd 6:53", outside + "a.xsd 7:55")),
+            List.of(
+                outside + "a.xsd 6:86",
+                outside + "a.xsd 7:53",
+                outside + "a.xsd 8:55",
+                invalid + "a.xsd 12:49")),
         Arguments.of(
             "the import of xml.xsd by URL, with no bundle file of its namespace",
             "import-xml",
@@ -248,6 +253,36 @@ class XsdFilesAndNamesTest {
                 invalid + "undeclared.xsd 18:38",
                 invalid + "undeclared.xsd 21:40")),
         Arguments.of(
+            "names are checked beside a file that stopped, but none into its namespace and none"
+                + " of a refused declaration",
+            "names-after-errors",
+            List.of("user.xsd", "broken.xsd"),
+            "{user}Doc",
+            List.of(
+                unsupported + "user.xsd 10:48",
+                invalid + "user.xsd 17:52",
+                unsupported + "user.xsd 18:67",
+                "schema-not-well-formed broken.xsd 8:3")),
+        Arguments.of(
+            "a root no file declares is not reported beside other load errors",
+            "names-after-errors",
+            List.of("user.xsd", "broken.xsd"),
+            "{user}Absent",
+            List.of(
+                unsupported + "user.xsd 10:48",
+                invalid + "user.xsd 17:52",
+                unsupported + "user.xsd 18:67",
+                "schema-not-well-formed broken.xsd 8:3")),
+        Arguments.of(
+            "a file never read may declare any name and namespace",
+            "names-after-errors",
+            List.of("user.xsd", "missing.xsd"),
+            "{user}Doc",
+            List.of(
+                unsupported + "user.xsd 10:48",
+                unsupported + "user.xsd 18:67",
+                "schema-unreadable missing.xsd 1:1")),
+        Arguments.of(
             "simple types that restrict each other",
             "simple-cycle",
             List.of("cycle.xsd"),
@@ -269,7 +304,8 @@ class XsdFilesAndNamesTest {
 
   /**
    * One load reports every load error (ADR-0008): files in bundle order, each in document order.
-   * The first is the exception's own code and position.
+   * The first is the exception's own code and position. Names are checked in every file, whatever
+   * load errors other files have; a name a stopped or unread file may declare is not reported.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("refusals")
@@ -322,7 +358,8 @@ class XsdFilesAndNamesTest {
                         "the schemaLocation \"../../../etc/passwd\" of this xs:include names no"
                             + " file of the schema bundle",
                         "no file of the schema bundle has the namespace"
-                            + " \"urn:flottila:corpus:nowhere\" this xs:import names"));
+                            + " \"urn:flottila:corpus:nowhere\" this xs:import names",
+                        "the type Q{}Missing is declared in no file of the schema bundle"));
     assertThat(resolver.calls).containsExactly("a.xsd");
   }
 

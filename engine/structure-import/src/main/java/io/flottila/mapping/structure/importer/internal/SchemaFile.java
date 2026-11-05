@@ -47,11 +47,20 @@ final class SchemaFile {
   /** The file as the schema bundle spells it. */
   final String name;
 
-  /** Its target namespace, {@code ""} for none; null until its {@code xs:schema} is read. */
+  /**
+   * Its target namespace, {@code ""} for none; null until its {@code xs:schema} is read, and for a
+   * file the host's resolver did not read.
+   */
   String targetNamespace;
 
   /** Its {@code xs:schema} start tag; null until it is read. */
   Position schemaTag;
+
+  /** Whether it stopped being well-formed: what it declares after that is unknown. */
+  boolean stopped;
+
+  /** Global names whose declarations are refused: declared, but not read. */
+  final Set<QName> refused = new HashSet<>();
 
   final List<FileReference> references = new ArrayList<>();
   final Map<QName, GlobalElement> elements = new LinkedHashMap<>();

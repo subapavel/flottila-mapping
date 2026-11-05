@@ -263,13 +263,16 @@ public final class EngineFacade {
     }
   }
 
-  /** The structure {@code ref} names, or empty once its load error is added to {@code refusals}. */
+  /**
+   * The structure {@code ref} names, or empty once every load error of its bundle is added to
+   * {@code refusals}.
+   */
   private static Optional<Structure> structure(
       ReferenceResolver resolver, StructureRef ref, List<Diagnostic> refusals) {
     return switch (Structures.load(resolver, ref.bundle(), ref.root())) {
       case StructureResult.Loaded(Structure structure) -> Optional.of(structure);
-      case StructureResult.Refused(Diagnostic diagnostic) -> {
-        refusals.add(diagnostic);
+      case StructureResult.Refused(List<Diagnostic> diagnostics) -> {
+        refusals.addAll(diagnostics);
         yield Optional.empty();
       }
     };

@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 
@@ -25,12 +26,17 @@ import javax.xml.namespace.QName;
  *       schemaLocation} is mapped to a bundle file by text, relative to the importing file's bundle
  *       name, with no file-system call (ADR-0014 "Reference resolver shape (#90)"). An import whose
  *       location names no bundle file, an absolute path or a URL among them, or that has no
- *       location, falls back to a bundle file with its namespace. Otherwise the reference is {@code
+ *       location, falls back to a bundle file with its namespace, or one whose namespace is unknown
+ *       because it was not read as far as its {@code xs:schema}. Otherwise the reference is {@code
  *       schema-reference-outside-bundle}.
- *   <li>Names are checked only once every file has read without a load error, because a refused or
- *       broken file's declarations are unknown: every name a file uses must be declared by a bundle
- *       file, a simple type must not derive from itself, and the root must be a global element of a
- *       complex type.
+ *   <li>Names are checked in every file, whatever load errors other files have: every name a file
+ *       uses must be declared by a bundle file, and a simple type must not derive from itself. A
+ *       name that may be declared where nothing was read is not reported, so one load error gives
+ *       no second: the name of a refused global declaration, any name in the namespace of a file
+ *       that stopped being well-formed or of a reference outside the bundle, and any name at all
+ *       once a file was not read as far as its {@code xs:schema}.
+ *   <li>The root must be a global element of a complex type. A missing root is reported only when
+ *       the bundle has no other load error.
  * </ul>
  */
 final class BundleCheck {
@@ -42,26 +48,32 @@ final class BundleCheck {
       List<SchemaFile> files,
       QName root,
       List<StructureLoadException> errors) {
-    // a file not read as far as its xs:schema adds null, which no import names
+    // a file not read as far as its xs:schema adds null: its namespace is unknown
     Set<String> namespaces = new HashSet<>();
     for (SchemaFile file : files) {
       namespaces.add(file.targetNamespace);
     }
+    // the namespaces of the files the references outside the bundle stand for
+    Set<String> unreachable = new HashSet<>();
     for (SchemaFile file : files) {
       for (FileReference reference : file.references) {
         boolean listed =
             reference.location() != null
                 && bundle.contains(located(file.name, reference.location()));
-        // an include has no namespace to fall back to
-        if (!listed
-            && (reference.namespace() == null || !namespaces.contains(reference.namespace()))) {
+        // an include has no namespace to fall back to; an import falls back to a file of its
+        // namespace, or to one whose namespace is unknown
+        boolean fallback =
+            reference.namespace() != null
+                && (namespaces.contains(reference.namespace()) || namespaces.contains(null));
+        if (!listed && !fallback) {
           errors.add(outside(file.name, reference));
+          // an included file has the including file's namespace
+          unreachable.add(
+              reference.namespace() == null ? file.targetNamespace : reference.namespace());
         }
       }
     }
-    if (errors.isEmpty()) {
-      names(files, root, errors);
-    }
+    names(files, root, unreachable, errors);
   }
 
   /**
@@ -109,28 +121,48 @@ final class BundleCheck {
   }
 
   private static void names(
-      List<SchemaFile> files, QName root, List<StructureLoadException> errors) {
+      List<SchemaFile> files,
+      QName root,
+      Set<String> unreachable,
+      List<StructureLoadException> errors) {
     Map<QName, GlobalElement> elements = new HashMap<>();
     Set<QName> complexTypes = new HashSet<>();
     Map<QName, SimpleType> simpleTypes = new HashMap<>();
+    Set<QName> refused = new HashSet<>();
+    // the namespaces of files that stopped, were never read or are outside the bundle, null for
+    // one never read as far as its xs:schema: what they declare is unknown
+    Set<String> unknown = new HashSet<>(unreachable);
     for (SchemaFile file : files) {
       elements.putAll(file.elements);
       complexTypes.addAll(file.complexTypes);
       simpleTypes.putAll(file.simpleTypes);
+      refused.addAll(file.refused);
+      if (file.stopped || file.targetNamespace == null) {
+        unknown.add(file.targetNamespace);
+      }
     }
+    // a name that a refused declaration, or a file whose declarations are unknown, may declare is
+    // never a second error
+    Predicate<QName> undeclared =
+        name ->
+            !refused.contains(name)
+                && !unknown.contains(name.getNamespaceURI())
+                && !unknown.contains(null);
     for (SchemaFile file : files) {
       for (NameUse use : file.elementRefs) {
-        if (!elements.containsKey(use.name())) {
+        if (!elements.containsKey(use.name()) && undeclared.test(use.name())) {
           errors.add(invalid(file, use, "the element " + eqName(use.name()) + " is declared"));
         }
       }
       for (NameUse use : file.elementTypes) {
-        if (!complexTypes.contains(use.name()) && !simpleTypes.containsKey(use.name())) {
+        if (!complexTypes.contains(use.name())
+            && !simpleTypes.containsKey(use.name())
+            && undeclared.test(use.name())) {
           errors.add(invalid(file, use, "the type " + eqName(use.name()) + " is declared"));
         }
       }
       for (NameUse use : file.simpleTypeRefs) {
-        if (!simpleTypes.containsKey(use.name())) {
+        if (!simpleTypes.containsKey(use.name()) && undeclared.test(use.name())) {
           errors.add(
               complexTypes.contains(use.name())
                   ? error(
@@ -161,6 +193,11 @@ final class BundleCheck {
     }
     GlobalElement rootElement = elements.get(root);
     if (rootElement == null) {
+      // the root selector picks among the global elements of a bundle that loads: beside another
+      // load error it is not looked up (and then every file has its xs:schema tag)
+      if (!errors.isEmpty()) {
+        return;
+      }
       SchemaFile first = files.getFirst();
       errors.add(
           error(

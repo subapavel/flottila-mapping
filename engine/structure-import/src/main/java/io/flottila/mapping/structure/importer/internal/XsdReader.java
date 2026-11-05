@@ -57,8 +57,11 @@ public final class XsdReader {
       QName root)
       throws StructureLoadException {
     List<SchemaFile> schemas = new ArrayList<>();
-    for (Map.Entry<String, byte[]> file : contents.entrySet()) {
-      schemas.add(XsdSubsetCheck.check(file.getKey(), file.getValue(), errors));
+    for (String file : files) {
+      byte[] content = contents.get(file);
+      // a file the resolver did not read declares what is unknown, in a namespace unknown
+      schemas.add(
+          content == null ? new SchemaFile(file) : XsdSubsetCheck.check(file, content, errors));
     }
     BundleCheck.check(files, schemas, root, errors);
     if (!errors.isEmpty()) {

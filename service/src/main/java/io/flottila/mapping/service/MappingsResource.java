@@ -345,7 +345,8 @@ public class MappingsResource {
   }
 
   /**
-   * The structure {@code choice} names, or empty once its load error is added to {@code refusals}.
+   * The structure {@code choice} names, or empty once every load error of its bundle is added to
+   * {@code refusals}.
    */
   private static Optional<StructureRef> structure(
       ReferenceResolver resolver, StructureChoice choice, List<Diagnostic> refusals)
@@ -355,8 +356,8 @@ public class MappingsResource {
     return switch (Structures.load(resolver, bundle, root)) {
       case StructureResult.Loaded(Structure structure) ->
           Optional.of(new StructureRef(bundle, root, structure.fingerprint()));
-      case StructureResult.Refused(Diagnostic diagnostic) -> {
-        refusals.add(diagnostic);
+      case StructureResult.Refused(List<Diagnostic> diagnostics) -> {
+        refusals.addAll(diagnostics);
         yield Optional.empty();
       }
     };

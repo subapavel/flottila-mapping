@@ -234,6 +234,7 @@ final class XsdSubsetCheck extends DefaultHandler {
       factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
       factory.newSAXParser().parse(new InputSource(new ByteArrayInputStream(content)), handler);
     } catch (SAXParseException e) {
+      schema.stopped = true;
       errors.add(
           new StructureLoadException(
               StructureImportDiagnostics.SCHEMA_NOT_WELL_FORMED,
@@ -283,6 +284,11 @@ final class XsdSubsetCheck extends DefaultHandler {
     } catch (Refusal refusal) {
       refuse(refusal);
       skipped = 1;
+      // a refused global declaration still declares its name: a use of it is no second error
+      String name = attributes.getValue("", "name");
+      if (open.element().role == Role.SCHEMA && name != null) {
+        schema.refused.add(global(name));
+      }
     }
   }
 

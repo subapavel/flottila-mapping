@@ -107,9 +107,11 @@ class StructuresTest {
             new SchemaBundle(List.of("broken.xsd")),
             new ElementRoot("Order"));
 
-    if (!(result instanceof StructureResult.Refused(Diagnostic diagnostic))) {
+    if (!(result instanceof StructureResult.Refused(List<Diagnostic> diagnostics))) {
       throw new AssertionError("expected Refused, got " + result);
     }
+    assertThat(diagnostics).hasSize(1);
+    Diagnostic diagnostic = diagnostics.getFirst();
     assertThat(diagnostic.severity()).isEqualTo(Severity.ERROR);
     assertThat(diagnostic.code()).isEqualTo("schema-not-well-formed");
     assertThat(diagnostic.message()).isNotBlank();
@@ -138,9 +140,16 @@ class StructuresTest {
     return new SchemaBundle(List.of(reference));
   }
 
+  /** The one diagnostic of a refused load. */
   private static Diagnostic refused(StructureResult result) {
-    if (result instanceof StructureResult.Refused(Diagnostic diagnostic)) {
-      return diagnostic;
+    List<Diagnostic> diagnostics = refusedAll(result);
+    assertThat(diagnostics).hasSize(1);
+    return diagnostics.getFirst();
+  }
+
+  private static List<Diagnostic> refusedAll(StructureResult result) {
+    if (result instanceof StructureResult.Refused(List<Diagnostic> diagnostics)) {
+      return diagnostics;
     }
     throw new AssertionError("expected Refused, got " + result);
   }
@@ -273,17 +282,19 @@ class StructuresTest {
     assertThat(directory.resolve("unlisted.xsd")).as("the witness: it is on disk").isRegularFile();
     RecordingResolver alone = fixture("outside-bundle", "a.xsd", "unlisted.xsd");
 
-    Diagnostic outside =
-        refused(
+    List<Diagnostic> outside =
+        refusedAll(
             Structures.load(
                 alone, bundle("a.xsd"), new ElementRoot("Q{urn:flottila:corpus:a}Doc")));
 
-    assertThat(outside)
+    // two more references outside the bundle, and a name no file declares (XsdFilesAndNamesTest)
+    assertThat(outside).hasSize(4);
+    assertThat(outside.getFirst())
         .isEqualTo(
             new Diagnostic(
                 Severity.ERROR,
                 "schema-reference-outside-bundle",
-                new AtFilePosition("a.xsd", 5, 86),
+                new AtFilePosition("a.xsd", 6, 86),
                 "the schemaLocation \"unlisted.xsd\" of this xs:import names no file of the schema"
                     + " bundle, and no bundle file has its namespace"
                     + " \"urn:flottila:corpus:unlisted\""));
@@ -331,23 +342,68 @@ class StructuresTest {
   }
 
   /**
-   * One load reports every load error (ADR-0008); a {@code Refused} result carries one diagnostic,
-   * so it shows the first: the first file in bundle order, at its first error in document order.
+   * One load reports every load error of the bundle (ADR-0008): files in bundle order, each file in
+   * document order, the bundle order kept even where the names sort the other way.
    */
   @Test
-  void refusalsInSeveralFilesShowTheFirstInBundleOrder() throws Exception {
+  void refusalsInSeveralFilesComeBackTogetherInBundleOrder() throws Exception {
     RecordingResolver resolver =
         fixture("all-at-once", "refused-z.xsd", "broken.xsd", "refused-a.xsd");
 
-    Diagnostic first =
-        refused(
+    List<Diagnostic> diagnostics =
+        refusedAll(
             Structures.load(
                 resolver,
                 new SchemaBundle(List.of("refused-z.xsd", "broken.xsd", "refused-a.xsd")),
                 new ElementRoot("Doc")));
 
-    assertThat(first.code()).isEqualTo("schema-construct-unsupported");
-    assertThat(first.location()).isEqualTo(new AtFilePosition("refused-z.xsd", 6, 18));
+    assertThat(diagnostics)
+        .extracting(StructuresTest::described)
+        .containsExactly(
+            "schema-construct-unsupported refused-z.xsd 6:18",
+            "schema-construct-unsupported refused-z.xsd 11:62",
+            "schema-construct-unsupported broken.xsd 4:23",
+            "schema-not-well-formed broken.xsd 6:3",
+            "schema-construct-unsupported refused-a.xsd 5:40");
+    assertThat(diagnostics)
+        .allSatisfy(
+            diagnostic -> {
+              assertThat(diagnostic.severity()).isEqualTo(Severity.ERROR);
+              assertThat(diagnostic.message()).isNotBlank();
+            });
     assertThat(resolver.calls()).containsExactly("refused-z.xsd", "broken.xsd", "refused-a.xsd");
+  }
+
+  /**
+   * A file that is not well-formed stops only that file (ADR-0008): the other file's names are
+   * still checked, and a reference into the namespace of the stopped file gives no diagnostic.
+   */
+  @Test
+  void aMalformedFileAndANameErrorInAnotherFileComeBackTogether() throws Exception {
+    RecordingResolver resolver = fixture("names-after-errors", "user.xsd", "broken.xsd");
+
+    List<Diagnostic> diagnostics =
+        refusedAll(
+            Structures.load(
+                resolver,
+                new SchemaBundle(List.of("user.xsd", "broken.xsd")),
+                new ElementRoot("Q{urn:flottila:corpus:user}Doc")));
+
+    assertThat(diagnostics)
+        .extracting(StructuresTest::described)
+        .containsExactly(
+            "schema-construct-unsupported user.xsd 10:48",
+            "schema-invalid user.xsd 17:52",
+            "schema-construct-unsupported user.xsd 18:67",
+            "schema-not-well-formed broken.xsd 8:3");
+    assertThat(diagnostics.get(1).message())
+        .isEqualTo(
+            "the type Q{urn:flottila:corpus:user}Missing is declared in no file of the schema"
+                + " bundle");
+  }
+
+  private static String described(Diagnostic diagnostic) {
+    AtFilePosition at = (AtFilePosition) diagnostic.location();
+    return diagnostic.code() + " " + at.file() + " " + at.line() + ":" + at.column();
   }
 }
