@@ -338,7 +338,8 @@ class StructuresResourceTest {
 
   /**
    * A $ref to a file the bundle does not list is a load error at the $ref (ADR-0008): a 200 {@code
-   * refused} with its file position, and the unlisted file is never read.
+   * refused} with its file position, and the unlisted file is never read: {@code
+   * WorkspaceTest.aJsonRefToAnUnlistedFileIsOutsideTheBundleAndNeverRead} observes the opens.
    */
   @Test
   void aJsonRefOutsideTheBundleIs200RefusedAtTheRef() throws IOException {
