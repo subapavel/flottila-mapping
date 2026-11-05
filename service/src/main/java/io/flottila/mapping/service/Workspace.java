@@ -206,8 +206,8 @@ public class Workspace {
    *       alone, before any file system call;
    *   <li>any other reference passes steps 1 to 3 as a bundle reference, or it is refused with a
    *       {@link WorkspaceEscapeException} before any file is opened;
-   *   <li>the checked file is read; any I/O error, a missing file or a directory among them, is
-   *       {@code UNREADABLE}.
+   *   <li>the checked real path is read; any I/O error, a directory or a missing file among them,
+   *       is {@code UNREADABLE}.
    * </ol>
    *
    * @param directory a real directory of the workspace, as {@link #directory} or {@link
@@ -234,20 +234,20 @@ public class Workspace {
 
   /**
    * Steps 1 to 3 for a bundle reference from {@code directory}: the real path of its file. A file
-   * inside the workspace that is missing passes: the path is its nearest existing ancestor's real
-   * path with the missing names after it, and reading it fails. That ancestor must lie inside the
-   * workspace by its real path. An ancestor whose real path does not resolve, a dangling link or a
-   * link loop, is refused as well: the check fails closed, because the link's target might appear
-   * outside later (ADR-0024).
+   * inside the workspace that is missing passes, and the path is then its nearest existing
+   * ancestor's: a directory, whose read fails, so the engine reports the file and no name that was
+   * missing at the check is ever opened. That ancestor must lie inside the workspace by its real
+   * path. An ancestor whose real path does not resolve, a dangling link or a link loop, is refused
+   * as well: the check fails closed, because the link's target might appear outside later
+   * (ADR-0024).
    */
   private Path bundleFile(Path directory, String reference) throws WorkspacePathException {
-    Path file = inside(directory, matching(reference, BUNDLE));
-    Path existing = file;
+    Path existing = inside(directory, matching(reference, BUNDLE));
     while (Files.notExists(existing, LinkOption.NOFOLLOW_LINKS)) {
       existing = existing.getParent();
     }
     try {
-      return real(existing, reference).resolve(existing.relativize(file));
+      return real(existing, reference);
     } catch (IOException noRealPath) {
       throw new WorkspacePathException(reference);
     }
