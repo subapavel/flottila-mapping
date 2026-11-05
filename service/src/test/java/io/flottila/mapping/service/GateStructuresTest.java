@@ -112,9 +112,9 @@ class GateStructuresTest {
         argumentSet(
             "purchase-order: three files, an include and an import",
             List.of(
+                "../structures/gate/purchase-order/common/common.xsd",
                 "../structures/gate/purchase-order/order.xsd",
-                "../structures/gate/purchase-order/types.xsd",
-                "../structures/gate/purchase-order/common/common.xsd"),
+                "../structures/gate/purchase-order/types.xsd"),
             "{\"element\": \"Q{urn:flottila:corpus:gate:po}PurchaseOrder\"}",
             "sha256:c7a83f28ce9966a4cb158317dc7a29a6e89c59ec6ed129bbd3317aa50a7293f3"),
         argumentSet(

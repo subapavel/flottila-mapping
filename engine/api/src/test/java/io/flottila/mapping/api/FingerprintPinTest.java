@@ -113,17 +113,18 @@ class FingerprintPinTest {
               "sha256:ee54dcfa5f2ce0e42c2cbae54b270f17d2a89877141513ca5a9b8a3944df7f5d"));
 
   /**
-   * Multi-file element roots (#100): by the bundle files under {@code corpus/structures/}, a space
-   * between, then {@code |} and the root element. The values are SHA-256 over the canonical text
-   * written by hand, as for {@link #PINNED}.
+   * Multi-file element roots (#100): by the bundle files under {@code corpus/structures/} in the
+   * order a canonical model stores them (sorted), a space between, then {@code |} and the root
+   * element. The values are SHA-256 over the canonical text written by hand, as for {@link
+   * #PINNED}.
    */
   private static final Map<String, String> PINNED_BUNDLES =
       Map.ofEntries(
           // an include, an import of a second namespace, named and anonymous types, an
           // extension, a choice, a substitution group and a simple-content leaf with attributes
           entry(
-              "gate/purchase-order/order.xsd gate/purchase-order/types.xsd"
-                  + " gate/purchase-order/common/common.xsd"
+              "gate/purchase-order/common/common.xsd gate/purchase-order/order.xsd"
+                  + " gate/purchase-order/types.xsd"
                   + " | Q{urn:flottila:corpus:gate:po}PurchaseOrder",
               "sha256:c7a83f28ce9966a4cb158317dc7a29a6e89c59ec6ed129bbd3317aa50a7293f3"),
           // a second namespace, an element reference across files and a recursive type
