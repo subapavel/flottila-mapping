@@ -188,6 +188,20 @@ class LoweringTest {
         .containsExactly(errorAtPointer("unmapped-mandatory-leaf", unmapped(ORDER_ID)));
   }
 
+  /**
+   * ADR-0008 "JSON as a target": a JSON target loads and shows, but a mapping with one does not
+   * compile, whatever it maps. The root selector decides, so the field link that lowers onto the
+   * skeleton (a mapping with an XML target) gives this one diagnostic and nothing else.
+   */
+  @Test
+  void aJsonTargetIsJsonTargetUnsupportedAtTarget() {
+    StructureRef jsonTarget = Models.jsonRoot(order().fingerprint(), "order.schema.json");
+
+    assertThat(lowered(lower(orderToOrder(fieldLink())))).isNotNull();
+    assertThat(refused(lower(model(ref(order()), jsonTarget, fieldLink(), Map.of()))))
+        .containsExactly(errorAtPointer("json-target-unsupported", "/target"));
+  }
+
   @Test
   void targetSlotsTakeTheEffectiveOccurrence() {
     TargetDocument document =

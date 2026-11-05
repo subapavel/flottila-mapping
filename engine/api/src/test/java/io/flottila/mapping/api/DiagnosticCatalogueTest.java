@@ -157,7 +157,9 @@ class DiagnosticCatalogueTest {
             // stage 3, an unmapped mandatory target leaf (#65)
             "unmapped-mandatory-leaf",
             // stage 3, a stored fingerprint that is not its bundle's (#91, ADR-0009)
-            "fingerprint-mismatch");
+            "fingerprint-mismatch",
+            // stage 3, a mapping with a JSON target (#97, ADR-0008)
+            "json-target-unsupported");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",
@@ -167,7 +169,9 @@ class DiagnosticCatalogueTest {
             "schema-unreadable",
             "root-selector-unsupported",
             // a package reference the host's resolver does not read (#90, ADR-0014)
-            "package-reference-unsupported");
+            "package-reference-unsupported",
+            // a schema's reference to a file the bundle does not list (#97, ADR-0008)
+            "schema-reference-outside-bundle");
     assertThat(all).filteredOn(KEBAB.negate()).as("codes that are not kebab-case").isEmpty();
     assertThat(all).as("codes across all modules").doesNotHaveDuplicates();
     // witness: the kebab check refuses what is not kebab-case
