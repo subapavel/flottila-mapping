@@ -1,7 +1,6 @@
 package io.flottila.mapping.service;
 
 import static io.flottila.mapping.service.Fixtures.FINGERPRINT;
-import static io.flottila.mapping.service.Fixtures.ORDER;
 import static io.flottila.mapping.service.Fixtures.assertBytes;
 import static io.flottila.mapping.service.Fixtures.bytes;
 import static io.flottila.mapping.service.Fixtures.corpusMapping;
@@ -13,23 +12,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.flottila.mapping.api.EngineFacade;
-import io.flottila.mapping.api.StructureResult;
-import io.flottila.mapping.api.Structures;
 import io.flottila.mapping.mapping.LoadResult;
 import io.flottila.mapping.mapping.Loaded;
 import io.flottila.mapping.mapping.MalformedJsonException;
 import io.flottila.mapping.mapping.MappingModel;
-import io.flottila.mapping.structure.ElementRoot;
-import io.flottila.mapping.structure.SchemaBundle;
-import io.flottila.mapping.structure.importer.ResolvedFile;
-import io.flottila.mapping.structure.importer.UnresolvedReferenceException;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -92,28 +83,27 @@ class RefreshResourceTest {
   }
 
   /**
-   * The fingerprint the engine's structure reader gives {@code file} under {@code Order}, read from
-   * the workspace directory {@code directory}: the oracle is the engine, never the service.
+   * The fingerprint of {@code order.xsd} with {@code OrderId} renamed {@code OrderNo}, under {@code
+   * Order} (ADR-0009): SHA-256 over this canonical text written by hand, the method that reproduces
+   * {@link Fixtures#FINGERPRINT} (df1714…) from the same text with {@code OrderId}. Each line ends
+   * in a line feed.
+   *
+   * <pre>
+   * root Q{urn:flottila:corpus:skeleton}Order 1..1 - /Q{urn:flottila:corpus:skeleton}Order
+   * type /Q{urn:flottila:corpus:skeleton}Order
+   * field @channel 0..1 xs:string -
+   * field OrderNo 1..1 xs:string -
+   * field Quantity 0..1 xs:integer -
+   * field Amount 0..1 xs:decimal -
+   * field Urgent 0..1 xs:boolean -
+   * field DeliveryDate 0..1 xs:date -
+   * field PickupTime 0..1 xs:time -
+   * field CreatedAt 0..1 xs:dateTime -
+   * field Note 0..unbounded xs:string -
+   * </pre>
    */
-  private static String fingerprintOf(String directory, String file) {
-    Path base = TempWorkspace.root().resolve(directory);
-    StructureResult result =
-        Structures.load(
-            reference -> {
-              try {
-                return new ResolvedFile(reference, Files.readAllBytes(base.resolve(reference)));
-              } catch (IOException e) {
-                throw new UnresolvedReferenceException(
-                    UnresolvedReferenceException.Reason.UNREADABLE, reference);
-              }
-            },
-            new SchemaBundle(List.of(file)),
-            new ElementRoot(ORDER));
-    assertThat(result)
-        .as("%s/%s loads", directory, file)
-        .isInstanceOf(StructureResult.Loaded.class);
-    return ((StructureResult.Loaded) result).structure().fingerprint();
-  }
+  private static final String RENAMED_FINGERPRINT =
+      "sha256:fa26a9a97445ebd6ebb4d69c404d39990927b2225e2e81d194d1ea89ce04b5c1";
 
   /**
    * The source schema renames the mapped field {@code OrderId} to {@code OrderNo}: the source side
@@ -129,8 +119,6 @@ class RefreshResourceTest {
     assertThat(renamed).as("order.xsd has OrderId to rename").isNotEqualTo(order);
     TempWorkspace.write("refreshing-renamed/renamed.xsd", bytes(renamed));
     TempWorkspace.write("refreshing-renamed/order.mapping.json", corpusMapping());
-    String fingerprint = fingerprintOf("refreshing-renamed", "renamed.xsd");
-    assertThat(fingerprint).isNotEqualTo(FINGERPRINT);
 
     JsonNode result =
         refreshed(
@@ -139,7 +127,7 @@ class RefreshResourceTest {
                 bytes(corpusWith("renamed.xsd", FINGERPRINT, FINGERPRINT))));
 
     assertThat(ordered(result.path("model")))
-        .isEqualTo(ordered(corpusWith("renamed.xsd", fingerprint, FINGERPRINT)));
+        .isEqualTo(ordered(corpusWith("renamed.xsd", RENAMED_FINGERPRINT, FINGERPRINT)));
     assertThat(described(result.path("diagnostics")))
         .containsExactly("error orphaned-reference at id a1");
     assertBytes(TempWorkspace.read("refreshing-renamed/order.mapping.json"), corpusMapping());
@@ -228,5 +216,27 @@ class RefreshResourceTest {
 
     assertThat(described(problem.path("diagnostics")))
         .containsExactly("error format-version-unsupported at pointer /formatVersion");
+  }
+
+  /** The id's directory locates the bundle references; a missing one is 404 {@code not-found}. */
+  @Test
+  void anIdWhoseDirectoryIsMissingIs404NotFound() {
+    assertThat(TempWorkspace.exists("refreshing-nowhere")).isFalse();
+
+    assertProblem(refresh("refreshing-nowhere/order", corpusMapping()), 404, "not-found");
+  }
+
+  @Test
+  void aBodyThatIsNoJsonDocumentIs400MalformedJson() {
+    assertProblem(refresh(CORPUS_ID, bytes("{\"formatVersion\": 1,}")), 400, "malformed-json");
+  }
+
+  @Test
+  void aBodyThatIsNotApplicationJsonIs415UnsupportedMediaType() {
+    assertProblem(
+        new Http(root)
+            .post("api/mappings/" + CORPUS_ID + "/refresh", "text/plain", corpusMapping()),
+        415,
+        "unsupported-media-type");
   }
 }

@@ -60,6 +60,12 @@ of the element that declares it. Sibling structure fields that share one step ge
 `path#2`, `path#3` in document order (#62). The suffix is part of the canonical text, so reordering
 such siblings changes the fingerprint; that is intended, because their order is what the compiler reads.
 
+A JSON Schema type id is `<bundle reference>#<JSON pointer>` (#97): it holds the file's reference as
+the bundle spells it, so renaming or moving a JSON bundle file changes the fingerprint even when
+its content does not. That is accepted. The bundle reference is what compile re-reads (ADR-0010),
+and a moved file is a refresh like any other schema change. XSD type ids are QNames or field paths
+and do not depend on the spelling.
+
 How the bundle sits inside the mapping model is decided by ADR-0010 (#6). The mapping refers to
 the bundle files by a path relative to the mapping file, or by a file in a shared package at a
 fixed version. A git commit and the pinned versions keep the bundle verbatim and the deploy

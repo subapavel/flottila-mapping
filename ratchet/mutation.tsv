@@ -1,7 +1,7 @@
-engine/api	98
-engine/ir	100
-engine/mapping	97
-engine/runtime	98
-engine/serializer	100
-engine/xdm	100
-engine/xslt-export	100
+engine/api	1	93
+engine/ir	0	61
+engine/mapping	11	486
+engine/runtime	5	569
+engine/serializer	0	57
+engine/xdm	0	483
+engine/xslt-export	0	84
