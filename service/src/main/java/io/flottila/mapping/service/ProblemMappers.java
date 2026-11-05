@@ -31,7 +31,7 @@ public class ProblemMappers {
   private static final String TYPE = "urn:flottila:mapping:problem:";
 
   /** A refused path, or a bundle reference the workspace's reference resolver refused (#90). */
-  @ServerExceptionMapper({WorkspacePathException.class, WorkspaceEscapeException.class})
+  @ServerExceptionMapper({WorkspacePathException.class, InvalidWorkspacePathException.class})
   public Response invalidWorkspacePath(Exception e) {
     return problem(400, "invalid-workspace-path", "Not a workspace path", e.getMessage());
   }

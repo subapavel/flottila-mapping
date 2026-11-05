@@ -205,7 +205,7 @@ public class Workspace {
    *   <li>a package reference is refused as {@code PACKAGE_REFERENCE_UNSUPPORTED} from its text
    *       alone, before any file system call;
    *   <li>any other reference passes steps 1 to 3 as a bundle reference, or it is refused with a
-   *       {@link WorkspaceEscapeException} before any file is opened;
+   *       {@link InvalidWorkspacePathException} before any file is opened;
    *   <li>the checked real path is read; any I/O error, a directory or a missing file among them,
    *       is {@code UNREADABLE}.
    * </ol>
@@ -221,8 +221,8 @@ public class Workspace {
       Path file;
       try {
         file = bundleFile(directory, reference);
-      } catch (WorkspacePathException escape) {
-        throw new WorkspaceEscapeException(escape);
+      } catch (WorkspacePathException refused) {
+        throw new InvalidWorkspacePathException(refused);
       }
       try (InputStream in = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS)) {
         return new ResolvedFile(reference, in.readAllBytes());

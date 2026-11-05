@@ -909,8 +909,8 @@ class WorkspaceTest {
   }
 
   /**
-   * The resolver refuses a workspace escape with an unchecked {@link WorkspaceEscapeException} that
-   * wraps the {@link WorkspacePathException} naming the reference as the bundle spells it, and
+   * The resolver refuses a workspace escape with an unchecked {@link InvalidWorkspacePathException}
+   * that wraps the {@link WorkspacePathException} naming the reference as the bundle spells it, and
    * opens no file on the way: {@link ObservedFileSystem} records every open. The witness: the same
    * resolver then reads a workspace path, and the observer sees that open.
    */
@@ -931,7 +931,7 @@ class WorkspaceTest {
 
     assertThatThrownBy(() -> resolver.resolve(reference))
         .as(reference)
-        .isInstanceOf(WorkspaceEscapeException.class)
+        .isInstanceOf(InvalidWorkspacePathException.class)
         .cause()
         .isInstanceOf(WorkspacePathException.class)
         .hasMessage("not a workspace path: \"" + reference + "\"");
@@ -988,13 +988,14 @@ class WorkspaceTest {
 
   /**
    * The resolver refuses a reference as a package reference ({@code package-reference-unsupported}
-   * from the engine) exactly when it has the ADR-0024 form, and anything else with an {@code @} is
-   * an escape. It decides from the text alone: the root is deleted before the first call, so a
-   * file-system call would show as {@code schema-unreadable} or a different exception. Candidates
-   * are {@code name@version:path} with parts from {@link #generate} and {@link #segment}.
+   * from the engine) exactly when it has the ADR-0024 form, and anything else with an {@code @} as
+   * an invalid workspace path. It decides from the text alone: the root is deleted before the first
+   * call, so a file-system call would show as {@code schema-unreadable} or a different exception.
+   * Candidates are {@code name@version:path} with parts from {@link #generate} and {@link
+   * #segment}.
    */
   @Test
-  void packageRegexAcceptsExactlyTheAdrForm() throws Exception {
+  void packageReferencePatternAcceptsExactlyTheAdrForm() throws Exception {
     ReferenceResolver resolver = workspace.resolver(root.resolve("a"));
     deleteTree(root);
     List<String> candidates =
@@ -1029,7 +1030,7 @@ class WorkspaceTest {
         refused++;
         assertThatThrownBy(() -> Structures.load(resolver, bundle(reference), ANY_ROOT))
             .as(printable(reference))
-            .isInstanceOf(WorkspaceEscapeException.class);
+            .isInstanceOf(InvalidWorkspacePathException.class);
       }
     }
     // both outcomes must come up, or the property holds vacuously
@@ -1078,7 +1079,7 @@ class WorkspaceTest {
   /**
    * Resolves each bundle reference from {@code directory} through the workspace's reference
    * resolver (#90): an escape throws the {@link WorkspacePathException} its {@link
-   * WorkspaceEscapeException} wraps; a file inside that cannot be read, a missing one, is no
+   * InvalidWorkspacePathException} wraps; a file inside that cannot be read, a missing one, is no
    * escape, so the engine reports it ({@code UNREADABLE}).
    */
   private void checkBundle(Path directory, List<String> bundle) throws Exception {
@@ -1086,8 +1087,8 @@ class WorkspaceTest {
     for (String reference : bundle) {
       try {
         resolver.resolve(reference);
-      } catch (WorkspaceEscapeException escape) {
-        throw (WorkspacePathException) escape.getCause();
+      } catch (InvalidWorkspacePathException invalid) {
+        throw (WorkspacePathException) invalid.getCause();
       } catch (UnresolvedReferenceException unreadable) {
         assertThat(unreadable.reason()).as(reference).isEqualTo(Reason.UNREADABLE);
       }
