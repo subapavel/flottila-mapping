@@ -11,7 +11,7 @@ queues see fields, not groups.
   graph of types. Fields resolve lazily by field path (ADR-0007), so recursion is never
   expanded. `children(path)` returns attributes first, then elements in output order.
 - A field has a kind (element, attribute, JSON property), an **effective occurrence**, an
-  optional value type, `nillable`, and display data. Display data (facets, default, fixed,
+  optional value type, `nillable`, an array marker (JSON properties only, #118), and display data. Display data (facets, default, fixed,
   enumeration, documentation) is shown in the editor and never read by the compiler.
 - Effective occurrence is the product of the occurrences of every enclosing particle. A branch
   of a choice with two or more branches has minimum 0. ADR-0006's rules for unmapped fields and
@@ -46,6 +46,9 @@ queues see fields, not groups.
 - JSON Schema is read in draft 2020-12 only. An absent `$schema` counts as 2020-12.
   - Properties keep their declared order, and `required` gives minimum 1.
   - An array property is one repeated field, with `minItems`/`maxItems`.
+  - Such a field records that it is an array property, apart from its occurrence (#118):
+    `"type": "array"`, `["array", "null"]` or `items` without `type`, whatever its `maxItems`.
+    `maxItems: 0` gives `0..0`. An array of arrays stays refused at `items`.
   - `$ref`/`$defs` resolve through named types.
   - `allOf` merges its subschemas. `oneOf`/`anyOf` give the union of the properties, each with
     minimum 0.
@@ -122,6 +125,10 @@ Decided in the spec-4 grilling (2026-11-05):
 - The input is never validated, as for XML. A value whose JSON kind does not fit its field reads
   as absent: an object or array for a leaf, a scalar for a structure field, a non-array for an
   array property. The export's path navigation over the `fn:` representation gives the same.
+- An array property reads each item of its array as one occurrence, by its array marker and
+  never by its maximum (#118). The input is not validated: `[1]` gives one occurrence even under
+  `maxItems: 0`, and `[]` none. `null` is no array, so it reads as absent even with `"null"` in
+  the type list; a `null` item reads as `""`.
 - PO message mappings have no JSON source, so JSON-specific corpus cases are
   `provenance: decided`. The reading "JSON `null` reads as `""`" stays an assumed row of
   `obs-structures` (#36).

@@ -89,6 +89,11 @@ The structure a mapping reads from / writes to.
 A node of a structure: an element, an attribute or a JSON property.
 _Avoid_: node (reserved for XDM), element (too narrow)
 
+**Array property**:
+A JSON property declared as an array: one field whose occurrences are the items of its array,
+whatever its `maxItems`. A value that is no array, `null` included, reads as absent (ADR-0008).
+_Avoid_: repeated property, list field
+
 **Structure field** / **Leaf field**:
 A field with child fields and no value of its own, whose queue holds one empty string per
 occurrence / a field with a value, whose queue holds that value. An element with a simple value

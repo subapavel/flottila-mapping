@@ -1,6 +1,6 @@
 # A mapping stores its schema bundle; the structure is re-derived and guarded by a fingerprint
 
-Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied); anonymous type ids since #62; amended by the spec-4 grilling (2026-11-05): what refresh reports, the compile check, fingerprint stability
+Status: accepted (2026-10-30, grilling #8); refined by ADR-0010 (the bundle is referenced, not copied); anonymous type ids since #62; amended by the spec-4 grilling (2026-11-05): what refresh reports, the compile check, fingerprint stability; array marker since #118
 
 A mapping stores three things for each side:
 
@@ -9,7 +9,7 @@ A mapping stores three things for each side:
 - the **root selector**: an XML root element, a WSDL operation with its direction (and fault),
   or the JSON root;
 - a **fingerprint**: SHA-256 over a canonical form of exactly what the compiler reads. That is
-  the field paths, kinds, effective occurrences, value types and order. It leaves out display
+  the field paths, kinds, effective occurrences, value types, array markers and order. It leaves out display
   data, prefixes and whitespace.
 
 Compiling at deploy re-reads the stored bundle and never a live schema, so a deploy is
@@ -43,6 +43,12 @@ A field's refusal (ADR-0008) is part of the canonical text (#92):
   keeps its line.
 - The refusal's file, line and column never enter it. As with whitespace, moving a declaration
   changes no fingerprint, and compile, which re-reads the bundle, names the current position.
+
+A JSON array property (ADR-0008, #118) is part of the canonical text:
+- Its line has ` array` after its child type, before any ` refused:<reason code>`. Every other
+  field keeps its line, so no XSD or WSDL fingerprint changes.
+- A JSON structure with an array property changes its fingerprint once, with #118. Those pins
+  were added in spec 4 and never reached `main`, so no released fingerprint changes.
 
 Extending the reader must not change
 the canonical text of a structure it already read: a test pins the fingerprints of the spec-2
