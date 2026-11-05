@@ -125,6 +125,11 @@ for-each over the source context".
   - A source attribute's `SourceQueue` sets `attribute`, and its default context is its element
     (ADR-0007). The export reads `@name` and writes `xsl:attribute`.
   - A simple-content leaf's content is its attributes, then its text.
+- Since #98 the IR names its input format: `TargetDocument.input` is an `InputFormat` (XML or
+  JSON), set by Lowering from the source structure's root selector (ADR-0008). A JSON
+  `SourceQueue` carries `arrays`, the depths (root = 1) of its path's steps that are array
+  properties, so the runtime
+  and the export read each array item as one occurrence.
 - Constructors are records per output format. Milestone 1 has the XML ones only. A JSON target
   adds records under the same `TargetSlots` / `TargetRepeat`; nothing existing changes.
 - An error after part of the output was written leaves the destination undefined. The API

@@ -115,6 +115,10 @@ Decided in the spec-4 grilling (2026-11-05):
   sit in the differential like any other.
 - A duplicate key is malformed input on both sides. The runtime refuses it as it refuses bad
   XML. The export calls `json-to-xml` with `map{'duplicates': 'reject'}` (FOJS0003).
+- Where `json-to-xml` gives U+FFFD, the runtime parser does too (#98): the escapes `\b`, `\f`
+  and other control-character escapes, an escaped U+FFFE or U+FFFF, and a lone surrogate
+  (observed in Saxon-HE 12.5, 2026-11-05). The output therefore stays well-formed XML on both
+  sides.
 - The input is never validated, as for XML. A value whose JSON kind does not fit its field reads
   as absent: an object or array for a leaf, a scalar for a structure field, a non-array for an
   array property. The export's path navigation over the `fn:` representation gives the same.
