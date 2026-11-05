@@ -10,6 +10,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
 
 /**
  * Classes planted under {@code io.flottila.mapping.structure.importer} that open a file the way
@@ -90,6 +91,19 @@ public final class PlantedFileReads {
 
     public static Object schema() throws IOException {
       return new RandomAccessFile("schema.xsd", "r");
+    }
+  }
+
+  /**
+   * {@code PosixFilePermissions.fromString}: a type of a {@code java.nio.file} subpackage only, so
+   * that the rule's subpackage clause has a fixture of its own.
+   */
+  public static final class PosixPermissionsFromString {
+
+    private PosixPermissionsFromString() {}
+
+    public static Object mode() {
+      return PosixFilePermissions.fromString("rw-r--r--");
     }
   }
 

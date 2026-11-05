@@ -209,7 +209,12 @@ class ArchitectureTest {
         planted(
             "new RandomAccessFile",
             PlantedFileReads.NewRandomAccessFile.class,
-            "<java.io.RandomAccessFile.<init>("));
+            "<java.io.RandomAccessFile.<init>("),
+        // a java.nio.file subpackage only: the fixture of the rule's subpackage clause
+        planted(
+            "PosixFilePermissions.fromString",
+            PlantedFileReads.PosixPermissionsFromString.class,
+            "<java.nio.file.attribute.PosixFilePermissions.fromString("));
   }
 
   private static Named<Planted> planted(String name, Class<?> fixture, String dependency) {
