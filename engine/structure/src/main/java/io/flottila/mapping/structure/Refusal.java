@@ -1,16 +1,31 @@
 package io.flottila.mapping.structure;
 
-// stub: #92 test-author. The type of the approved design, so that the #92 tests compile; the
-// implementer replaces this file.
+/**
+ * Why a mapping may not use a field that loads and shows (ADR-0008 "Refused when a mapping uses the
+ * field", GLOSSARY "Refused field"), and where the declaration that causes it stands. The reason
+ * enters the fingerprint; the position does not (ADR-0009, #92).
+ *
+ * @param reason why the field is refused
+ * @param file the schema file, as the bundle names it
+ * @param line the line of the declaration, where its start tag ends
+ * @param column the column of the declaration, where its start tag ends
+ */
 public record Refusal(Refusal.Reason reason, String file, int line, int column) {
 
-  // stub: #92 test-author
+  /** A reason a field is refused. */
   public enum Reason {
-    AMBIGUOUS_FIELD_PATH;
+    /** Two or more sibling declarations with one step, which no field path tells apart. */
+    AMBIGUOUS_FIELD_PATH("ambiguous-field-path");
 
-    // stub: #92 test-author
+    private final String code;
+
+    Reason(String code) {
+      this.code = code;
+    }
+
+    /** The reason's code: the diagnostic code a mapping that uses the field is refused with. */
     public String code() {
-      throw new UnsupportedOperationException("stub: #92 test-author");
+      return code;
     }
   }
 }

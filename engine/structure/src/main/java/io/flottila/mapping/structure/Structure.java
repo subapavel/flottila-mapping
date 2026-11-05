@@ -65,7 +65,8 @@ public record Structure(Field root, Map<String, StructureType> types) {
   /**
    * SHA-256 over a canonical form of what the compiler reads (ADR-0009): the root and every type in
    * id order, each field with its step, effective occurrence, value type and child type, in field
-   * order. Display data, prefixes and whitespace of the schema do not enter it.
+   * order, and a refused field with its refusal's reason (#92). Display data, prefixes and
+   * whitespace of the schema do not enter it, nor does a refusal's position.
    */
   public String fingerprint() {
     StringBuilder canonical = new StringBuilder("root ").append(canonical(root)).append('\n');
@@ -93,7 +94,9 @@ public record Structure(Field root, Map<String, StructureType> types) {
         + " "
         + field.valueType().map(ValueType::typeName).orElse("-")
         + " "
-        + field.type().orElse("-");
+        + field.type().orElse("-")
+        // a field without a refusal keeps the line it had before #92 (ADR-0009)
+        + field.refusal().map(refusal -> " refused:" + refusal.reason().code()).orElse("");
   }
 
   private List<Field> childFields(Field field) {

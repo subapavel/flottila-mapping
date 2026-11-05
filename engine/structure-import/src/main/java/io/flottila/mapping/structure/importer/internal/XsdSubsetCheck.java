@@ -6,7 +6,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.Serial;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
@@ -23,7 +27,8 @@ import org.xml.sax.helpers.NamespaceSupport;
 /**
  * Reads one XSD file with the JDK's SAX parser before XmlSchema sees it, and refuses every
  * construct outside the nested subset where it stands. XmlSchema 2.3.3 keeps no line or column on
- * its objects, so this pass gives every load error its position (ADR-0008).
+ * its objects, so this pass gives every load error its position (ADR-0008), and every refused field
+ * the position of the declaration that causes its refusal (#92).
  *
  * <p>The nested subset (#62, F-14) is the flat subset of spec #21 with structure fields at any
  * depth: one {@code xs:schema} ({@code targetNamespace}, {@code elementFormDefault}) of global
@@ -104,6 +109,13 @@ final class XsdSubsetCheck extends DefaultHandler {
   /** A position in the file: where SAX reports a start tag, at its end. */
   record Position(int line, int column) {}
 
+  /**
+   * What the pass reads for the reader: where the {@code xs:schema} start tag ends, and, by the
+   * name of each global element, where the start tags of the local elements below it end, in
+   * document order (#92).
+   */
+  record Positions(Position schema, Map<String, List<Position>> localElements) {}
+
   /** A refused construct, at the parser's position or at a start tag read before. */
   private static final class Refusal extends SAXParseException {
     @Serial private static final long serialVersionUID = 1L;
@@ -126,6 +138,10 @@ final class XsdSubsetCheck extends DefaultHandler {
   private boolean contextPushed;
   private Locator locator;
   private Position schema;
+  private final Map<String, List<Position>> localElements = new HashMap<>();
+
+  /** The local elements of the global element read last. */
+  private List<Position> underRoot;
 
   private XsdSubsetCheck() {
     // the document has no start tag
@@ -133,11 +149,11 @@ final class XsdSubsetCheck extends DefaultHandler {
   }
 
   /**
-   * @return the position of the {@code xs:schema} start tag
+   * @return the position of the {@code xs:schema} start tag, and those of the local elements
    * @throws StructureLoadException when the file is not well-formed XML, has a DOCTYPE, or holds a
    *     construct outside the nested subset
    */
-  static Position check(String file, byte[] content) throws StructureLoadException {
+  static Positions check(String file, byte[] content) throws StructureLoadException {
     XsdSubsetCheck handler = new XsdSubsetCheck();
     try {
       SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -159,7 +175,7 @@ final class XsdSubsetCheck extends DefaultHandler {
       // the JDK parser supports both features, and the input is in memory
       throw new IllegalStateException(e);
     }
-    return handler.schema;
+    return new Positions(handler.schema, handler.localElements);
   }
 
   @Override
@@ -220,11 +236,16 @@ final class XsdSubsetCheck extends DefaultHandler {
     if (role == Role.SCHEMA) {
       schema = start;
     }
+    if (role == Role.ROOT) {
+      underRoot = new ArrayList<>();
+      localElements.put(attributes.getValue("", "name"), underRoot);
+    }
     if (role == Role.LEAF || role == Role.ATTRIBUTE) {
       checkType(attributes.getValue("", "type"));
     }
     if (role == Role.LEAF || role == Role.STRUCTURE) {
       checkOccurrence(attributes.getValue("", "minOccurs"), attributes.getValue("", "maxOccurs"));
+      underRoot.add(start);
     }
     checkValue(attributes, "nillable", BOOLEAN);
     checkValue(attributes, "use", USE);
