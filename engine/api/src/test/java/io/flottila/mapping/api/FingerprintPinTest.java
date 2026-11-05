@@ -36,12 +36,21 @@ class FingerprintPinTest {
   /** By the bundle file under {@code corpus/structures/} and the root element, a space between. */
   private static final Map<String, String> PINNED =
       Map.ofEntries(
+          // #118: each JSON array property's canonical line has " array" after its child type
+          // (ADR-0009), so the two JSON pins of spec 4 change once; every XSD and WSDL pin keeps
+          // its literal. The values are SHA-256 over the canonical text written by hand, a method
+          // that reproduces the earlier literals 3489768… and c4c151c… from the unmarked text.
           entry(
               "json-schema/run-input.schema.json $",
-              "sha256:3489768361f8b16d79fcca7f687e5f669511108cb743826bfa741a2b643830c7"),
+              "sha256:105d98ae878bb024b38d0a0dd69e349b563ff00572ce7e5e3fa27bd88ac8afe9"),
           entry(
               "observations/nil.schema.json $",
-              "sha256:c4c151c16fe989cda60ff2ef006d0cac0768d05331ec0158e4ca6ab3ec5ad5a8"),
+              "sha256:88f31d654678c63609b0643c7175af239bb68f36962ffaee980d17722f045ef2"),
+          // #118: one, none, maybe and objs are array properties at 0..1, 0..0, 0..1 and 0..1,
+          // each line with " array"; plain and objs/sku keep their lines
+          entry(
+              "json-schema/short-arrays.schema.json $",
+              "sha256:46f3c45a7b2abea8d85365d26a2e2e3fae15a1c486b7b8062bbe6fe043ac8247"),
           entry(
               "observations/src-orders.xsd Orders",
               "sha256:5e9bdd3db3b284fc086f0233797ede5e4f3fb874bd696ba3f496dd30bffef9a7"),
