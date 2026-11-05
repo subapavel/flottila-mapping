@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Fixture (#94): xs:all keeps the declared order, and its own occurrence multiplies into its
-     elements (ADR-0008). -->
+     elements; the group Bag holds an xs:all (ADR-0008). -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:g="urn:flottila:corpus:groups"
            targetNamespace="urn:flottila:corpus:groups">
+  <xs:group name="Bag">
+    <xs:all>
+      <xs:element name="Sku" type="xs:string"/>
+    </xs:all>
+  </xs:group>
   <xs:element name="Doc">
     <xs:complexType>
       <xs:all minOccurs="0">
@@ -10,9 +16,7 @@
         <xs:element name="Alpha" type="xs:date" minOccurs="0"/>
         <xs:element name="Line">
           <xs:complexType>
-            <xs:all>
-              <xs:element name="Sku" type="xs:string"/>
-            </xs:all>
+            <xs:group ref="g:Bag"/>
             <xs:attribute name="no" type="xs:integer"/>
           </xs:complexType>
         </xs:element>

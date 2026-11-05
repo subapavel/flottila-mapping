@@ -18,6 +18,9 @@
     <xs:sequence/>
     <xs:choice/>
   </xs:group>
+  <xs:group name="Bare">
+    <xs:element name="E" type="xs:string"/>
+  </xs:group>
   <xs:group name="Refused" id="r"/>
   <xs:attributeGroup name="Self">
     <xs:attributeGroup ref="Self"/>

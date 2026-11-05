@@ -223,11 +223,11 @@ class XsdModelGroupsTest {
 
   /**
    * Load errors of model groups, each where it stands (ADR-0008: one load reports every load
-   * error): a group without a model group, two model groups in one group, a declaration or a
-   * reference with an attribute outside the subset, an occurrence that is no count, an xs:all
-   * inside a sequence and a choice inside an xs:all; a group or attribute group that refers to
-   * itself, at its declaration; a reference to a group or attribute group no bundle file declares.
-   * A reference to a refused declaration is no second error.
+   * error): a group without a model group, two model groups in one group, an element directly in a
+   * group, a declaration or a reference with an attribute outside the subset, an occurrence that is
+   * no count, an xs:all inside a sequence and a choice inside an xs:all; a group or attribute group
+   * that refers to itself, at its declaration; a reference to a group or attribute group no bundle
+   * file declares. A reference to a refused declaration is no second error.
    */
   @Test
   void every_load_error_of_a_model_group_is_reported_where_it_stands() {
@@ -254,13 +254,14 @@ class XsdModelGroupsTest {
                       invalid + "10:25",
                       invalid + "14:31",
                       unsupported + "19:17",
-                      unsupported + "21:36",
-                      invalid + "22:34",
-                      invalid + "29:40",
-                      unsupported + "30:18",
-                      unsupported + "31:40",
-                      unsupported + "35:27",
-                      invalid + "40:41");
+                      unsupported + "22:44",
+                      unsupported + "24:36",
+                      invalid + "25:34",
+                      invalid + "32:40",
+                      unsupported + "33:18",
+                      unsupported + "34:40",
+                      unsupported + "38:27",
+                      invalid + "43:41");
               assertThat(e.errors())
                   .extracting(Throwable::getMessage)
                   .contains(

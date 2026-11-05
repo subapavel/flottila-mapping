@@ -13,7 +13,7 @@
     "bundle": [
       "../structures/model-groups/picks.xsd"
     ],
-    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "fingerprint": "sha256:f3ba6b25507a1013629b1aa81257e12ce4fc903aa0fac19f5a59fb3c66612ae2",
     "root": {
       "element": "Picks"
     }

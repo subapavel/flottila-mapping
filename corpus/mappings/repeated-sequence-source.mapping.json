@@ -4,7 +4,7 @@
     "bundle": [
       "../structures/model-groups/pairs.xsd"
     ],
-    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "fingerprint": "sha256:aa69e5c99ad5d331ec99c143eb35502c33870cb818b29b4c974c97c11d37fdc2",
     "root": {
       "element": "Pairs"
     }

@@ -2,12 +2,15 @@ package io.flottila.mapping.structure.importer.internal;
 
 import io.flottila.mapping.structure.importer.StructureImportDiagnostics;
 import io.flottila.mapping.structure.importer.StructureLoadException;
+import io.flottila.mapping.structure.importer.internal.SchemaFile.Definition;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.FileReference;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.GlobalElement;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.NameUse;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.Position;
 import io.flottila.mapping.structure.importer.internal.SchemaFile.SimpleType;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,7 +38,9 @@ import javax.xml.namespace.QName;
  *       must not derive from itself. A name that may be declared where nothing was read is not
  *       reported, so one load error gives no second: the name of a refused global declaration, any
  *       name in the namespace of a file that stopped being well-formed or of a reference outside
- *       the bundle, and any name at all once a file was not read as far as its {@code xs:schema}.
+ *       the bundle, and any name at all once a file was not read as far as its {@code xs:schema}. A
+ *       named group or attribute group must not refer to itself other than through an element
+ *       (#94).
  *   <li>The root must be a global element of a complex type. A missing root, or a WSDL operation's
  *       message that leads to none, is reported only when the bundle has no other load error.
  * </ul>
@@ -143,6 +148,8 @@ final class BundleCheck {
     Set<QName> complexTypes = new HashSet<>();
     Map<QName, SimpleType> simpleTypes = new HashMap<>();
     Set<QName> messages = new HashSet<>();
+    Map<QName, Definition> groups = new HashMap<>();
+    Map<QName, Definition> attributeGroups = new HashMap<>();
     Set<QName> refused = new HashSet<>();
     // the namespaces of files that stopped, were never read or are outside the bundle, null for
     // one never read as far as its xs:schema: what they declare is unknown
@@ -152,6 +159,8 @@ final class BundleCheck {
       complexTypes.addAll(file.complexTypes);
       simpleTypes.putAll(file.simpleTypes);
       messages.addAll(file.messages);
+      groups.putAll(file.groups);
+      attributeGroups.putAll(file.attributeGroups);
       refused.addAll(file.refused);
       if (file.stopped || file.targetNamespace == null) {
         unknown.add(file.targetNamespace);
@@ -211,6 +220,15 @@ final class BundleCheck {
                   "the simple type " + eqName(type.getKey()) + " derives from itself"));
         }
       }
+      definitions(file, file.groupRefs, file.groups, groups, "group", undeclared, errors);
+      definitions(
+          file,
+          file.attributeGroupRefs,
+          file.attributeGroups,
+          attributeGroups,
+          "attribute group",
+          undeclared,
+          errors);
     }
     // a null root, a WSDL operation's that is not found, is no key
     GlobalElement rootElement = elements.get(root);
@@ -238,6 +256,49 @@ final class BundleCheck {
               "the root element "
                   + eqName(root)
                   + " has a simple type; a root element has a complex type"));
+    }
+  }
+
+  /**
+   * The checks of one kind of named group in {@code file} (#94): each of its references {@code
+   * uses} names one of {@code all}, the bundle's, unless a declaration that was not read may
+   * declare it; and none of its own {@code declared} refers to itself, directly or through others,
+   * other than through an element, because inlining it would never end.
+   *
+   * @param what the kind as messages name it, {@code group}
+   */
+  private static void definitions(
+      SchemaFile file,
+      List<NameUse> uses,
+      Map<QName, Definition> declared,
+      Map<QName, Definition> all,
+      String what,
+      Predicate<QName> undeclared,
+      List<StructureLoadException> errors) {
+    for (NameUse use : uses) {
+      if (!all.containsKey(use.name()) && undeclared.test(use.name())) {
+        errors.add(invalid(file, use, "the " + what + " " + eqName(use.name()) + " is declared"));
+      }
+    }
+    for (Map.Entry<QName, Definition> definition : declared.entrySet()) {
+      Set<QName> reached = new HashSet<>();
+      Deque<QName> next = new ArrayDeque<>(definition.getValue().uses());
+      while (!next.isEmpty()) {
+        QName name = next.pop();
+        Definition used = all.get(name);
+        // a name no file declares is reported above, or may be declared where nothing was read
+        if (used != null && reached.add(name)) {
+          next.addAll(used.uses());
+        }
+      }
+      if (reached.contains(definition.getKey())) {
+        errors.add(
+            error(
+                StructureImportDiagnostics.SCHEMA_INVALID,
+                file.name,
+                definition.getValue().at(),
+                "the " + what + " " + eqName(definition.getKey()) + " refers to itself"));
+      }
     }
   }
 

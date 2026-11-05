@@ -13,7 +13,7 @@
     "bundle": [
       "../structures/observations/tgt-choice.xsd"
     ],
-    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "fingerprint": "sha256:49a6269dbb5b409cc061dc9e732e4e2142ecf725ba411e29a1949b0eea5048bf",
     "root": {
       "element": "Choice"
     }
