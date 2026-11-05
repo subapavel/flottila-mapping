@@ -76,6 +76,13 @@ public final class XmlSerializer {
     startTagOpen = true;
   }
 
+  /** Writes an attribute of the element whose start tag is open (#102). */
+  // stub: #102 test-author
+  public void attribute(String prefix, String namespace, String localName, String value)
+      throws IOException {
+    throw new UnsupportedOperationException("stub: #102");
+  }
+
   /** Writes {@code text} as content of the open element; {@code ""} writes nothing. */
   public void text(String text) throws IOException {
     if (text.isEmpty()) {

@@ -103,6 +103,9 @@ public final class Interpreter {
       case ElementConstructor e ->
           new Node.Element(
               e.prefix(), e.name().namespace(), e.name().localName(), contents(e.content(), scope));
+      // stub: #102 test-author
+      case io.flottila.mapping.ir.AttributeConstructor a ->
+          throw new UnsupportedOperationException("stub: #102");
       case TextConstructor t -> text((Node.OfString) compile(t.value(), scope));
       case AtomicToQueue a -> atomicToQueue((Node.OfString) compile(a.value(), scope));
     };

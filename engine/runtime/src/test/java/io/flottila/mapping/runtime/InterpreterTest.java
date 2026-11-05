@@ -358,6 +358,78 @@ class InterpreterTest {
                 + ROOT_CLOSE);
   }
 
+  // --- source attributes (#102): an attribute's queue is its own, beside an element of its name
+
+  /** The queue of an attribute, by its element's steps and then its name. */
+  private static SourceQueue attributeQueue(List<Name> field, int contextDepth, String box) {
+    return new SourceQueue(field, contextDepth, false, true, id(box));
+  }
+
+  /**
+   * {@code /Order/code} and {@code /Order/@code} are two fields with two queues (ADR-0007): the
+   * element's text per occurrence, and the attribute's value in its element's context. The same
+   * local name in another namespace is a third field, and the attribute of a leaf element is read
+   * with the element's text.
+   */
+  @Test
+  void elementAndAttributeOfOneNameAreTwoQueues() throws Exception {
+    TargetDocument document =
+        document(
+            leaf("Elem", rootLeaf("code", "a1"), 0, UNBOUNDED, "t1"),
+            leaf(
+                "Attr", attributeQueue(List.of(ORDER, local("code")), 1, "a2"), 0, UNBOUNDED, "t2"),
+            leaf(
+                "Lang",
+                attributeQueue(List.of(ORDER, local("code"), local("lang")), 1, "a3"),
+                0,
+                UNBOUNDED,
+                "t3"));
+    String input =
+        "<s:Order xmlns:s=\""
+            + NS
+            + "\" xmlns:o=\"urn:other\" code=\"A\" o:code=\"other\">"
+            + "<code lang=\"en\">E1</code><code>E2</code><code lang=\"de\">E3</code>"
+            + "</s:Order>";
+    Tracer tracer = new Tracer();
+
+    byte[] out = run(document, true, utf8(input), tracer);
+
+    assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of("E1", "E2", "E3"));
+    assertThat(tracedOnce(tracer, "a2")).containsExactly(List.of("A"));
+    // lang in the root's context: one context, the second code adds nothing
+    assertThat(tracedOnce(tracer, "a3")).containsExactly(List.of("en", "de"));
+    assertThat(new String(out, UTF_8))
+        .isEqualTo(
+            DECLARATION
+                + ROOT_OPEN
+                + "<Elem>E1</Elem><Elem>E2</Elem><Elem>E3</Elem>"
+                + "<Attr>A</Attr>"
+                + "<Lang>en</Lang><Lang>de</Lang>"
+                + ROOT_CLOSE);
+  }
+
+  /**
+   * An attribute's default context is its element (ADR-0007, #2 §1): one context per occurrence of
+   * the element, and an element without the attribute gives an empty context, not a skipped one and
+   * not {@code ""}. A present empty attribute is the value {@code ""}.
+   */
+  @Test
+  void absentAttributeGivesEmptyContext() throws Exception {
+    SourceQueue ids = attributeQueue(List.of(ORDER, local("Item"), local("id")), 2, "a1");
+    TargetDocument document = document(leaf("Id", ids, 0, UNBOUNDED, "t1"));
+    String input =
+        sourceOrder("<Item id=\"1\"/><Item/><Item id=\"\"><id>no</id></Item><Item id=\"4\"/>");
+    Tracer tracer = new Tracer();
+
+    byte[] out = run(document, true, utf8(input), tracer);
+
+    assertThat(tracedOnce(tracer, "a1"))
+        .containsExactly(List.of("1"), List.of(), List.of(""), List.of("4"));
+    // the root's slot 1 reads context 1
+    assertThat(new String(out, UTF_8))
+        .isEqualTo(DECLARATION + ROOT_OPEN + "<Id>1</Id>" + ROOT_CLOSE);
+  }
+
   // --- tracing (ADR-0006, ADR-0021)
 
   @Test

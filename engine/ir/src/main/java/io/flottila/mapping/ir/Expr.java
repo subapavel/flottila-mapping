@@ -16,6 +16,7 @@ public sealed interface Expr
         TargetSlots,
         TargetRepeat,
         ElementConstructor,
+        AttributeConstructor, // stub: #102 test-author
         TextConstructor,
         AtomicToQueue {
 

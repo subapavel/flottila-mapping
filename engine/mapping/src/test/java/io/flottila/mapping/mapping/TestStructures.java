@@ -212,6 +212,37 @@ final class TestStructures {
         leaf("", "Free", 0, 1, ValueType.STRING));
   }
 
+  /**
+   * A structure with attributes wherever #102 lowers one, built by hand because the import subset
+   * puts attributes on the root's type only: the root {@code Doc} carries {@code code} 0..1 and
+   * {@code Q{urn:b}flag} 1..1; {@code Item} 0..unbounded carries {@code id} 0..1 and holds the leaf
+   * {@code Name} 0..1; {@code Q{urn:c}Note} 0..1 is a simple-content leaf with the attributes
+   * {@code lang} 0..1 and {@code Q{urn:d}ref} 0..1. Otherwise no namespace.
+   */
+  static Structure tagged() {
+    return structure(
+        "",
+        "Doc",
+        Map.of(
+            "/Doc/Item",
+            new StructureType(
+                "/Doc/Item",
+                List.of(attribute("", "id", 0, 1), leaf("", "Name", 0, 1, ValueType.STRING))),
+            "/Doc/Q{urn:c}Note",
+            new StructureType(
+                "/Doc/Q{urn:c}Note",
+                List.of(attribute("", "lang", 0, 1), attribute("urn:d", "ref", 0, 1)))),
+        attribute("", "code", 0, 1),
+        attribute("urn:b", "flag", 1, 1),
+        structureField("Item", 0, Occurrence.UNBOUNDED, "/Doc/Item"),
+        new Field(
+            new FieldPath.Step(FieldKind.ELEMENT, "urn:c", "Note"),
+            new Occurrence(0, 1),
+            Optional.of(ValueType.STRING),
+            false,
+            Optional.of("/Doc/Q{urn:c}Note")));
+  }
+
   static StructureRef ref(Structure structure) {
     FieldPath.Step root = structure.root().step();
     String element =
@@ -259,8 +290,12 @@ final class TestStructures {
   }
 
   private static Field attribute(String name, long min, long max) {
+    return attribute("", name, min, max);
+  }
+
+  private static Field attribute(String namespace, String name, long min, long max) {
     return new Field(
-        new FieldPath.Step(FieldKind.ATTRIBUTE, "", name),
+        new FieldPath.Step(FieldKind.ATTRIBUTE, namespace, name),
         new Occurrence(min, max),
         Optional.of(ValueType.STRING),
         false,

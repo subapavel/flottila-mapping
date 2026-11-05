@@ -359,6 +359,9 @@ public final class XsltExporter {
           line(out, depth, end);
         }
       }
+      // stub: #102 test-author
+      case io.flottila.mapping.ir.AttributeConstructor a ->
+          throw new UnsupportedOperationException("stub: #102");
       case TextConstructor t -> out.append(VALUE_OF.formatted(attribute(expression(t.value()))));
       case SourceQueue q -> throw misplaced(q, "content");
       case VarRef v -> throw misplaced(v, "content");
@@ -391,6 +394,9 @@ public final class XsltExporter {
       case TargetSlots s -> throw misplaced(s, "an expression");
       case TargetRepeat r -> throw misplaced(r, "an expression");
       case ElementConstructor e -> throw misplaced(e, "an expression");
+      // stub: #102 test-author
+      case io.flottila.mapping.ir.AttributeConstructor a ->
+          throw new UnsupportedOperationException("stub: #102");
       case TextConstructor t -> throw misplaced(t, "an expression");
       case AtomicToQueue a -> ATOMIC_TO_QUEUE.formatted(expression(a.value()));
     };

@@ -17,11 +17,21 @@ import java.util.List;
  * @param origin the source-field box
  */
 public record SourceQueue(
-    List<Name> field, int contextDepth, boolean structureField, AuthoringId origin)
+    List<Name> field,
+    int contextDepth,
+    boolean structureField,
+    boolean attribute, // stub: #102 test-author
+    AuthoringId origin)
     implements Expr {
 
   public SourceQueue {
     field = List.copyOf(field);
+  }
+
+  /** The queue of an element field. */
+  public SourceQueue(
+      List<Name> field, int contextDepth, boolean structureField, AuthoringId origin) {
+    this(field, contextDepth, structureField, false, origin); // stub: #102 test-author
   }
 
   /** The queue of a leaf field, which holds its text per occurrence. */

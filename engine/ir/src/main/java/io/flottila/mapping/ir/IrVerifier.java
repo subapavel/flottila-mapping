@@ -111,6 +111,8 @@ public final class IrVerifier {
         }
         yield Optional.empty();
       }
+      // stub: #102 test-author
+      case AttributeConstructor a -> throw new UnsupportedOperationException("stub: #102");
       case TextConstructor t -> {
         value(t, t.value(), AtomicType.STRING, scope, "its value");
         yield Optional.empty();
