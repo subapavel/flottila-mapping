@@ -1,6 +1,6 @@
-import { Alert, Button, Label, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
-import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Alert, AlertActionCloseButton, Button, Label, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
+import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient, type StoredMapping } from '../api/client';
 import type { AuthoringId, FieldPath } from '../generated/mapping-model';
@@ -14,8 +14,8 @@ import { Inspector } from './inspector/Inspector';
 import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
-import { isStatusFilter, type StatusFilter } from './structure-overview/field-status';
-import { StructureOverview, type Expanded } from './structure-overview/StructureOverview';
+import { isStatusFilter, orphanedBoxes, type StatusFilter } from './structure-overview/field-status';
+import { StructureOverview, useStructure, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
 
 export interface MappingEditorProps {
@@ -94,6 +94,27 @@ function OpenMapping({
   const save = useMutation({ mutationFn: () => store.getState().save() });
   const failure = save.isError ? describeError(save.error) : undefined;
 
+  // Refresh (ADR-0027): when a fingerprint changed, the notice names the orphaned references until it is closed.
+  const queryClient = useQueryClient();
+  const [notice, setNotice] = useState<number | null>(null);
+  const refresh = useMutation({
+    mutationFn: async () => {
+      const sent = store.getState().workingCopy;
+      const count = store.getState().applyRefresh(sent, await api.refresh(mappingId, sent));
+      if (count !== null) setNotice(count);
+    },
+  });
+  // The structures are refreshed when the mapping opens; "Refresh structures" also reloads the trees.
+  const startRefresh = refresh.mutate;
+  useEffect(() => startRefresh(), [startRefresh]);
+  const refreshStructures = () => refresh.mutate(undefined, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['structure'] }) });
+
+  // Orphaned references are marked live against the loaded source structure (spec #104, "Status derivation").
+  const model = useStore(store, (s) => s.workingCopy);
+  const sourceQuery = useStructure(mappingId, api, model.source);
+  const source = sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined;
+  const orphaned = useMemo(() => orphanedBoxes(model, source), [model, source]);
+
   const expandedKey = `mapping:${mappingId}:expanded`;
   const [expanded, setExpanded] = useState<Expanded>(() => (browserState.read(expandedKey) as Expanded | null | undefined) ?? {});
   const changeExpanded = (next: Expanded) => {
@@ -169,8 +190,24 @@ function OpenMapping({
         <Button onClick={() => save.mutate()} isDisabled={!unsaved || save.isPending} isLoading={save.isPending}>
           Save
         </Button>
+        <Button variant="secondary" onClick={refreshStructures} isLoading={refresh.isPending}>
+          Refresh structures
+        </Button>
         {unsaved && <Label color="orange">Unsaved</Label>}
       </div>
+      {notice !== null && (
+        <Alert
+          variant="info"
+          isInline
+          title="The structures changed"
+          actionClose={<AlertActionCloseButton onClose={() => setNotice(null)} />}
+        >
+          Orphaned references: {notice}
+        </Alert>
+      )}
+      {refresh.isError && (
+        <Alert variant="danger" isInline title={`The structures could not be refreshed: ${describeError(refresh.error).title}`} />
+      )}
       {failure && (
         <Alert variant="danger" isInline title={failure.title}>
           <p>{failure.detail}</p>
@@ -204,13 +241,13 @@ function OpenMapping({
       {/* the function editor, with the collapsible inspector on its right; below it when the two do not fit (ADR-0012) */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '0.5rem' }}>
         <div style={{ flex: '1 1 34rem', minWidth: 0 }}>
-          <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} />
+          <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} orphaned={orphaned} />
         </div>
         <div style={{ flex: 'none' }}>
           <Button variant="link" isInline aria-expanded={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}>
             {inspectorOpen ? 'Hide inspector' : 'Show inspector'}
           </Button>
-          {inspectorOpen && <Inspector api={api} store={store} targetField={selectedField} />}
+          {inspectorOpen && <Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} />}
         </div>
       </div>
       <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">

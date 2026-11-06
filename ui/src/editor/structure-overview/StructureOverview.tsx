@@ -5,6 +5,7 @@ import { useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, typ
 import { useStore } from 'zustand';
 import type { ApiClient } from '../../api/client';
 import type { FieldPath, StructureRef } from '../../generated/mapping-model';
+import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
 import {
   STATUS_FILTERS,
@@ -22,9 +23,6 @@ type Side = 'source' | 'target';
 
 /** The expanded branches of both trees, by field path; a side without an entry has only its root expanded. */
 export type Expanded = Partial<Record<Side, string[]>>;
-
-/** The drag data of a source row: its field path. */
-const SOURCE_FIELD = 'application/x-flottila-source-field';
 
 /** Every row has this height, so the virtualiser and the link gutter place rows by index alone. */
 const ROW_HEIGHT = 28;
@@ -68,7 +66,7 @@ const STATUS_COLOURS: Record<FieldStatus, string> = {
  * does Enter on a source row, then Enter on a target row. Clicking a target row, or Enter on it, selects that target
  * field; a source row never selects. Each target row carries its field status; the status filter shows the rows of
  * one status, and only the links to them. The orphaned target field mappings are listed below the trees under the
- * filters all and orphaned, and selecting one selects its target field.
+ * filters all and orphaned; selecting one selects its target field, and then offers to delete it.
  */
 export function StructureOverview({
   mappingId,
@@ -87,6 +85,7 @@ export function StructureOverview({
   const statuses = useMemo(() => fieldStatuses(model, diagnostics, source.structure), [model, diagnostics, source.structure]);
   const target = useTree(mappingId, api, model.target, expanded.target, statuses, statusFilter);
   const orphaned = useMemo(() => (target.structure ? orphanedMappings(model, target.structure) : []), [model, target.structure]);
+  const selectedOrphan = orphaned.find((path) => path === selectedField);
   const [picked, setPicked] = useState<string | null>(null);
 
   const links = useMemo(() => filteredLinks(fieldLinks(model), statuses, statusFilter), [model, statuses, statusFilter]);
@@ -131,7 +130,7 @@ export function StructureOverview({
             draggable: true,
             'aria-selected': picked === path,
             onDragStart: (e) => {
-              e.dataTransfer.setData(SOURCE_FIELD, path);
+              e.dataTransfer.setData(SOURCE_FIELD_DRAG, path);
               e.dataTransfer.effectAllowed = 'link';
             },
             onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
@@ -150,7 +149,7 @@ export function StructureOverview({
             },
             onDrop: (e) => {
               e.preventDefault();
-              linkTo(path, e.dataTransfer.getData(SOURCE_FIELD));
+              linkTo(path, e.dataTransfer.getData(SOURCE_FIELD_DRAG));
             },
             onClick: () => onSelectField?.(path),
             onKeyDown: (e) => {
@@ -179,6 +178,11 @@ export function StructureOverview({
               </li>
             ))}
           </ul>
+          {selectedOrphan !== undefined && (
+            <Button variant="secondary" isDanger onClick={() => store.getState().deleteTargetFieldMapping(selectedOrphan)}>
+              Delete the selected orphaned target field mapping
+            </Button>
+          )}
         </section>
       )}
     </div>
@@ -207,6 +211,12 @@ function activated(e: KeyboardEvent) {
   return true;
 }
 
+/** The structure of one side as the service loads it; the trees and the rest of the editor share its query. */
+export function useStructure(mappingId: string, api: ApiClient, ref: StructureRef) {
+  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
+  return useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+}
+
 /** The source tree's statuses: none, and the same map on every render so that its rows stay memoised. */
 const NO_STATUSES: ReadonlyMap<FieldPath, FieldStatus> = new Map();
 
@@ -222,8 +232,7 @@ function useTree(
   statuses: ReadonlyMap<FieldPath, FieldStatus> = NO_STATUSES,
   filter: StatusFilter = 'all',
 ) {
-  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
-  const query = useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+  const query = useStructure(mappingId, api, ref);
   const structure = query.data?.kind === 'loaded' ? query.data : undefined;
   const rootPath = structure ? `/${structure.root.step}` : '';
   // under the filter `all` a new status map must not walk the tree again
