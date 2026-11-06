@@ -363,7 +363,7 @@ describe('copy and paste', () => {
 
   test('the Copy and Paste buttons do the same by mouse, with boxes selected by Ctrl+click', async () => {
     render();
-    await expect.element(page.getByRole('button', { name: 'Copy' })).toBeDisabled();
+    await expect.element(page.getByRole('button', { name: 'Copy (0)' })).toBeDisabled();
     await expect.element(page.getByRole('button', { name: 'Paste' })).toBeDisabled();
     await box('a1').click();
     await userEvent.keyboard('{Control>}');
@@ -372,7 +372,7 @@ describe('copy and paste', () => {
     await expect.element(node('a1')).toHaveClass('selected');
     await expect.element(node('u1')).toHaveClass('selected');
 
-    await page.getByRole('button', { name: 'Copy' }).click();
+    await page.getByRole('button', { name: 'Copy (2)' }).click();
     await page.getByRole('button', { name: 'Paste' }).click();
 
     await expect.poll(boxIdsShown).toHaveLength(6);

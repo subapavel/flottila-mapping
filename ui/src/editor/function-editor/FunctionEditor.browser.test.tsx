@@ -117,14 +117,70 @@ describe('the canvas of the selected target field', () => {
     render();
 
     for (const id of ['a1', 'c1', 'f1', 'u1']) await expect.element(box(id)).toBeVisible();
-    await expect.element(box('f1')).toHaveTextContent('concatab');
-    await expect.element(box('a1')).toHaveTextContent('OrderId');
-    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toHaveTextContent('OrderId');
+    // a card's text: its caption, title, id, then the input slots (spec #135: the card shows caption and id too)
+    await expect.element(box('f1')).toMatchTextContent(/^fnconcat.*f1ab$/);
+    await expect.element(box('a1')).toMatchTextContent(/^source fieldOrderIda1/);
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toMatchTextContent(/^target fieldOrderId$/);
     await expect.poll(() => edges().elements().map((e) => e.dataset.testid).sort()).toEqual(
       ['rf__edge-a1->f1#0', 'rf__edge-a1->u1#0', 'rf__edge-c1->f1#1', 'rf__edge-f1->:sink'].sort(),
     );
     // opened without a kept zoom, the canvas fits the graph into view
     await expect.poll(viewportTransform).not.toBe('translate(0px, 0px) scale(1)');
+  });
+
+  test("a card shows its authoring id, and its parameter input is labelled by the parameter name", async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const withParam: MappingModel = {
+      ...graphMapping,
+      targetFieldMappings: {
+        [ORDER_ID]: {
+          ...target,
+          boxes: {
+            ...target.boxes,
+            n1: { kind: 'function', fn: 'formatNum', inputs: ['a1'], params: { pattern: '#,##0.00' } },
+            r1: { kind: 'unresolved', name: 'ByExample', origin: 'po', params: { table: { A: 'B', C: 'D' } } },
+            s1: { kind: 'source', field: ORDER },
+            s2: { kind: 'source', field: ORDER_ID, context: ORDER },
+          },
+        },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: withParam }) });
+
+    await expect.element(box('n1')).toMatchTextContent(/^fnformatNum.*n1/);
+    await expect.element(box('n1').getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
+    // a table param shows its size; a source card its context, a field with no ancestor its own name
+    await expect.element(box('r1')).toMatchTextContent(/^unresolvedByExample.*r1.*tabletable, 2 rows$/);
+    await expect.element(box('s1').getByRole('textbox', { name: 'read in' })).toHaveValue('Order');
+    await expect.element(box('s2').getByRole('textbox', { name: 'read in' })).toHaveValue('Order');
+    // a constant's value is its own mark, not a second input
+    await expect.element(box('c1').getByRole('textbox')).not.toBeInTheDocument();
+    await expect.element(page.getByTestId('value:c1')).toHaveTextContent('"-"');
+  });
+
+  test('a function card shows the fidelity badge of its entry, a deviation with its text', async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const api = fakeApiClient({
+      [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes: { ...target.boxes, d1: { kind: 'function', fn: 'divide' } } } } },
+    });
+    const { divide } = await api.getCatalogue();
+    expect(divide!.fidelity.level).toBe('deviation');
+    render({ api });
+
+    await expect.element(box('d1').getByTitle(divide!.fidelity.level === 'deviation' ? divide!.fidelity.text : '')).toHaveTextContent('deviation');
+  });
+
+  test('the toolbar shows the field, its mapping id and the quick-insert hint; Copy counts the selected boxes', async () => {
+    render();
+
+    const toolbar = page.getByRole('group', { name: 'Canvas of OrderId' });
+    await expect.element(toolbar.getByText('type or press / on the canvas to insert a function')).toBeVisible();
+    await expect.element(toolbar.getByText('t1', { exact: true })).toBeVisible();
+    await expect.element(toolbar.getByRole('button', { name: 'Copy (0)' })).toBeDisabled();
+
+    await userEvent.click(box('f1'));
+
+    await expect.element(toolbar.getByRole('button', { name: 'Copy (1)' })).toBeEnabled();
   });
 
   test('dims an unreachable box', async () => {
@@ -174,7 +230,8 @@ describe('positions and zoom (browser state, never the model)', () => {
 
   test('Arrange lays the graph out again and clears the kept positions, and keeps the zoom', async () => {
     const browserState = memoryBrowserState();
-    browserState.write(canvasKey(DRAFT, 't1'), { viewport: { x: 10, y: 20, zoom: 0.5 } });
+    // y keeps the sink clear of the pane's top edge, where a drag toward it would pan the viewport
+    browserState.write(canvasKey(DRAFT, 't1'), { viewport: { x: 10, y: 60, zoom: 0.5 } });
     render({ browserState });
     await expect.element(box('u1')).toBeVisible();
     const arranged = transformOf('u1');
@@ -184,7 +241,7 @@ describe('positions and zoom (browser state, never the model)', () => {
     await page.getByRole('button', { name: 'Arrange' }).click();
 
     await expect.poll(() => transformOf('u1')).toBe(arranged);
-    expect(canvasOf(browserState)).toEqual({ viewport: { x: 10, y: 20, zoom: 0.5 } });
+    expect(canvasOf(browserState)).toEqual({ viewport: { x: 10, y: 60, zoom: 0.5 } });
   });
 
   test('a new box appears next to the graph, the boxes already there keep their positions, and so does it', async () => {
@@ -308,6 +365,25 @@ describe('the palette', () => {
     await page.getByLabelText('Search functions').fill('arith');
     await expect.element(page.getByTestId('palette:toUpperCase')).not.toBeInTheDocument();
     await expect.element(page.getByTestId('palette:divide')).toBeVisible();
+  });
+
+  test('an entry of a context or queue function names its execution kind; a single-value one names none', async () => {
+    const api = fakeApiClient({ [DRAFT]: graphMapping });
+    const catalogue = await api.getCatalogue();
+    render({
+      api: {
+        ...api,
+        getCatalogue: async () => ({
+          ...catalogue,
+          abs: { ...catalogue.abs!, executionKind: 'context' },
+          divide: { ...catalogue.divide!, executionKind: 'queue' },
+        }),
+      },
+    });
+
+    await expect.element(page.getByTestId('palette:abs')).toMatchTextContent(/context$/);
+    await expect.element(page.getByTestId('palette:divide')).toMatchTextContent(/queue$/);
+    await expect.element(page.getByTestId('palette:toUpperCase')).not.toMatchTextContent(/single|context|queue/);
   });
 
   test('an entry that is not portable is described so to assistive technology', async () => {

@@ -1,6 +1,8 @@
 import type { FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, Box, BoxReference, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
+import { properAncestors } from '../../model/set-context';
+import { badges, type Badge } from './palette';
 
 /** The node id of the sink, the target field itself; no authoring id has a `:` (ADR-0010). */
 export const SINK = ':sink';
@@ -60,6 +62,50 @@ export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | und
   const view: BoxView = { title, slots: names ?? inputsOf(box).map((_, i) => String(i + 1)) };
   if (box.kind === 'function' && box.fn === 'constant') view.value = JSON.stringify(box.params?.value ?? '');
   return view;
+}
+
+/** A parameter of a box card: a text param's value, or a table param's size. */
+export interface CardParam {
+  name: string;
+  text: string;
+  table: boolean;
+}
+
+/** What a box card shows besides its `BoxView`: its caption, fidelity badges, parameters and a source field's context. */
+export interface CardView {
+  kind: Box['kind'];
+  caption: string;
+  /** The fidelity badges (assumed, deviation) of a function the catalogue knows. */
+  badges: Badge[];
+  params: CardParam[];
+  /** A source-field box's context: its step name, the parent's when the model leaves it out. */
+  context?: string;
+}
+
+/**
+ * The card of a box (spec #135): a caption by kind, the fidelity badges of its catalogue entry, its parameters as the
+ * model holds them (a constant's value is its `BoxView.value`, so not repeated), and a source-field box's context. A
+ * field without a proper ancestor shows its own name as its context.
+ */
+export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
+  if (box.kind === 'source') {
+    return { kind: 'source', caption: 'source field', badges: [], params: [], context: stepName(box.context ?? properAncestors(box.field)[0] ?? box.field) };
+  }
+  const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
+  const params =
+    box.kind === 'function' && box.fn === 'constant'
+      ? []
+      : Object.entries(box.params ?? {}).map(([name, value]): CardParam =>
+          typeof value === 'string'
+            ? { name, text: value, table: false }
+            : { name, text: `table, ${Object.keys(value).length} rows`, table: true },
+        );
+  return {
+    kind: box.kind,
+    caption: box.kind === 'function' ? 'fn' : box.kind === 'udf' ? 'UDF' : 'unresolved',
+    badges: entry === undefined ? [] : badges(entry).filter((badge) => badge.kind !== 'not-portable'),
+    params,
+  };
 }
 
 /** The live marks of a canvas (ADR-0013): whether `result` is `null`, and the input slots that read no box, by box. */

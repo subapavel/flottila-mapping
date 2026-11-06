@@ -152,6 +152,25 @@ describe('the inspector', () => {
     await expect.element(documentation.getByText('not portable')).not.toBeInTheDocument();
   });
 
+  test('names the kind of box with its authoring id, and a deviation next to the function name', async () => {
+    render();
+    const kind = (id: string) => inspector.getByText(id, { exact: true });
+
+    await inspect('x1');
+    await expect.element(kind('x1')).toBeVisible();
+    await expect.element(inspector).toMatchTextContent(/^function box · x1fixValuesMake/);
+    await expect.element(inspector.getByTestId('inspector:x1')).not.toMatchTextContent('deviation');
+
+    await inspect('d1');
+    await expect.element(inspector.getByTestId('inspector:d1')).toHaveTextContent('dividedeviation');
+    await inspect('s1');
+    await expect.element(inspector).toMatchTextContent(/^source-field box · s1/);
+    await inspect('u1');
+    await expect.element(inspector).toMatchTextContent(/^UDF box · u1/);
+    await inspect('r1');
+    await expect.element(inspector).toMatchTextContent(/^unresolved function · r1/);
+  });
+
   test('shows no box while the catalogue cannot be read, even when a diagnostic selects one', async () => {
     render(mapping, {
       getCatalogue: () => Promise.reject(new TypeError('Failed to fetch')),

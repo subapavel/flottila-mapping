@@ -9,6 +9,7 @@ import { stepName } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { BoxQueue, TargetFieldQueue, type LastTrace } from './DisplayQueue';
+import './inspector.css';
 import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames, type Badge, type Inspected, type TableRow } from './inspector-view';
 import { remapChoices } from './remap-choices';
 
@@ -45,7 +46,7 @@ export function Inspector({ api, store, targetField, orphaned, source, onRemap }
 
   return (
     // as wide as the editor's inspector pane, which its splitter sets (ADR-0012)
-    <aside aria-label="Inspector" style={{ padding: '0 0.5rem' }}>
+    <aside aria-label="Inspector" className="fm-inspector">
       {shown === undefined || catalogue.data === undefined ? (
         <>
           <p>Select a box to inspect it.</p>
@@ -87,8 +88,16 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource,
   const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
   return (
     <>
-      <h3 data-testid={`inspector:${id}`}>
-        {boxTitle(box)} <small>{id}</small>
+      <div className="fm-inspector__kind">
+        {KIND[box.kind]} · <code>{id}</code>
+      </div>
+      <h3 data-testid={`inspector:${id}`} className="fm-inspector__title">
+        {boxTitle(box)}
+        {entry !== undefined && badges(entry).some((badge) => badge.kind === 'deviation') && (
+          <Label isCompact color="orange">
+            deviation
+          </Label>
+        )}
       </h3>
       <ResultToggle store={store} targetField={targetField} shown={shown} />
       {box.kind === 'source' ? (
@@ -118,6 +127,8 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource,
     </>
   );
 }
+
+const KIND = { source: 'source-field box', function: 'function box', udf: 'UDF box', unresolved: 'unresolved function' } as const;
 
 /**
  * The keyboard path to the sink (spec story 3): the box becomes the target field mapping's `result`, or, when it is the
@@ -150,7 +161,7 @@ const EXECUTION_KIND = { single: 'single value', context: 'context', queue: 'que
 function Documentation({ entry }: { entry: FunctionCatalogue[string] }) {
   return (
     <section aria-label="Documentation">
-      <dl style={{ margin: 0 }}>
+      <dl className="fm-inspector__list">
         <dt>Family</dt>
         <dd>{entry.family}</dd>
         <dt>Execution kind</dt>
@@ -176,7 +187,7 @@ function BadgeView({ badge }: { badge: Badge }) {
       return <Label color="blue">assumed</Label>;
     case 'deviation':
       return (
-        <p>
+        <p className="fm-inspector__note">
           <Label color="orange">deviation</Label> {badge.text}
         </p>
       );
@@ -197,7 +208,7 @@ const onEnter = (commit: () => void) => (event: KeyboardEvent) => {
 function ParamEditor({ param, value, onSet }: { param: CatalogueParam; value: ParamValue; onSet: (value: ParamValue) => void }) {
   if (param.type === 'table') return <TableEditor name={param.name} table={value as Table} onSet={onSet} />;
   return (
-    <div>
+    <div className="fm-inspector__param">
       <span>{param.name}</span>
       {param.values ? (
         <FormSelect aria-label={param.name} value={value} onChange={(_event, next) => onSet(next)}>
@@ -252,10 +263,10 @@ function TableEditor({ name, table, onSet }: { name: string; table: Table; onSet
     setRows(rows.map((row, i) => (i === index ? { ...row, [part]: text } : row)));
 
   return (
-    <fieldset aria-label={name} style={{ border: 0, padding: 0, margin: 0 }}>
+    <fieldset aria-label={name} className="fm-inspector__table">
       <legend>{name}</legend>
       {rows.map((row, i) => (
-        <div key={i} style={{ display: 'flex', gap: '0.25rem' }}>
+        <div key={i} className="fm-inspector__table-row">
           <TextInput aria-label={`${name} key ${i + 1}`} value={row.key} onChange={(_event, text) => edit(i, 'key', text)} onBlur={() => commit()} onKeyDown={onEnter(commit)} />
           <TextInput aria-label={`${name} value ${i + 1}`} value={row.value} onChange={(_event, text) => edit(i, 'value', text)} onBlur={() => commit()} onKeyDown={onEnter(commit)} />
           <Button
@@ -285,7 +296,7 @@ function ReadOnlyParams({ note, params }: { note: string; params: Params | undef
   return (
     <section aria-label="Parameters">
       <p>{note}</p>
-      <dl style={{ margin: 0 }}>
+      <dl className="fm-inspector__list">
         {Object.entries(params ?? {}).map(([name, value]) => (
           <div key={name} data-testid={`param:${name}`}>
             <dt>{name}</dt>
@@ -346,7 +357,7 @@ function Inputs({ store, targetField, shown, names }: { store: WorkingCopyStore;
   return (
     <section aria-label="Inputs">
       {names.map((name, slot) => (
-        <div key={slot}>
+        <div key={slot} className="fm-inspector__input">
           <span>{name}</span>
           <FormSelect
             aria-label={`Input ${name}`}

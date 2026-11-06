@@ -11,7 +11,7 @@ export interface XY {
 export type Positions = Readonly<Record<string, XY>>;
 
 /** The size the layout gives every node, the sink included. */
-export const BOX = { width: 180, height: 64 } as const;
+export const BOX = { width: 180, height: 96 } as const;
 
 /** A new box's distance from its neighbour, left or right, and the step that moves it down off a taken spot. */
 const COLUMN = BOX.width + 64;

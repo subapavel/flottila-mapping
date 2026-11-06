@@ -1,0 +1,285 @@
+/*
+ * The function editor module's styles (spec #135, #138), imported by FunctionEditor.tsx: the palette, the canvas
+ * toolbar, the box cards and quick insert, after the prototype's .fbox, .fnode, .fid and .gc__* rules. Classes carry
+ * the fm- prefix; colours and spacing are PatternFly tokens; tints are a token mixed into the card background. Sizes
+ * set at run time (a box's width and height from the layout, its dimming) stay inline.
+ */
+.fm-function-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the canvas goes below the palette when the two do not fit side by side */
+.fm-function-editor__work {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.fm-function-editor__canvas {
+  flex: 1 1 24rem;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the flow itself keeps at least 16rem, below that the pane scrolls (ADR-0012, "splitter"; spec #135) */
+.fm-function-editor__flow {
+  flex: 1 1 0;
+  min-height: 16rem;
+}
+
+/* the canvas toolbar, after the prototype's .gc__toolbar */
+.fm-toolbar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
+  border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+.fm-toolbar__title {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fm-toolbar__id,
+.fm-toolbar__hint {
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.fm-toolbar__spacer {
+  flex: 1;
+}
+
+/* the palette, after the prototype's .gc__palette and .gc__pitem */
+.fm-palette {
+  width: 11rem;
+  flex: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: var(--pf-t--global--spacer--xs);
+  border-right: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+
+.fm-palette__family {
+  list-style: none;
+  margin: var(--pf-t--global--spacer--sm) 0 0;
+  padding: 0;
+}
+
+.fm-palette__family-name {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+.fm-palette__entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--xs);
+  margin: 1px 0;
+  padding: var(--pf-t--global--spacer--xs);
+  border: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  background-color: var(--pf-t--global--background--color--primary--default);
+  font-size: var(--pf-t--global--font--size--sm);
+  cursor: grab;
+}
+
+.fm-palette__kind {
+  margin-left: auto;
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  text-transform: uppercase;
+}
+
+/* the box cards, after the prototype's .fbox */
+.fm-card {
+  box-sizing: border-box;
+  border: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  background-color: var(--pf-t--global--background--color--primary--default);
+  box-shadow: var(--pf-t--global--box-shadow--sm);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+.fm-card--selected {
+  outline: 2px solid var(--pf-t--global--color--brand--default);
+}
+
+.fm-card--orphaned {
+  border-style: dashed;
+  border-color: var(--pf-t--global--color--nonstatus--orange--default);
+  background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--orange--default) 10%, var(--pf-t--global--background--color--primary--default));
+}
+
+.fm-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--xs);
+  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
+  border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small) var(--pf-t--global--border--radius--small) 0 0;
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+
+.fm-card--source .fm-card__head {
+  background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--blue--default) 15%, var(--pf-t--global--background--color--primary--default));
+}
+
+.fm-card--udf .fm-card__head {
+  background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--purple--default) 15%, var(--pf-t--global--background--color--primary--default));
+}
+
+.fm-card--unresolved .fm-card__head {
+  background-color: color-mix(in srgb, var(--pf-t--global--color--status--danger--default) 15%, var(--pf-t--global--background--color--primary--default));
+}
+
+.fm-card__kind {
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  text-transform: uppercase;
+}
+
+.fm-card__title {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+.fm-card__id {
+  display: block;
+  padding: 0 var(--pf-t--global--spacer--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--xs);
+}
+
+.fm-card__slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--xs);
+  padding: 0 var(--pf-t--global--spacer--md);
+}
+
+.fm-card__param {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--xs);
+  padding: 2px var(--pf-t--global--spacer--sm);
+}
+
+.fm-card__param > span:first-child {
+  min-width: 3.5rem;
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.fm-card__param input,
+.fm-card__param select {
+  width: 6rem;
+  font-size: var(--pf-t--global--font--size--xs);
+}
+
+.fm-card__value {
+  margin: 0 var(--pf-t--global--spacer--sm);
+}
+
+.fm-card__mark {
+  color: var(--pf-t--global--color--status--danger--default);
+}
+
+.fm-card__mark--block {
+  padding: 0 var(--pf-t--global--spacer--sm);
+}
+
+/* the fidelity badge of a function card, after the prototype's .fid */
+.fm-fid {
+  padding: 0 var(--pf-t--global--spacer--xs);
+  border: var(--pf-t--global--border--width--regular) solid;
+  border-radius: var(--pf-t--global--border--radius--small);
+  font-size: var(--pf-t--global--font--size--xs);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+.fm-fid--deviation {
+  border-color: var(--pf-t--global--color--nonstatus--orange--default);
+  background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--orange--default) 12%, var(--pf-t--global--background--color--primary--default));
+}
+
+.fm-fid--assumed {
+  border-color: var(--pf-t--global--color--nonstatus--purple--default);
+  background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--purple--default) 12%, var(--pf-t--global--background--color--primary--default));
+}
+
+/* the sink, after the prototype's .fnode--target: a green rounded card */
+.fm-sink {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
+  border: 2px solid var(--pf-t--global--color--status--success--default);
+  border-radius: var(--pf-t--global--spacer--md);
+  background-color: color-mix(in srgb, var(--pf-t--global--color--status--success--default) 12%, var(--pf-t--global--background--color--primary--default));
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+.fm-sink__caption {
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  text-transform: uppercase;
+}
+
+.fm-sink__name {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+/* quick insert, after the prototype's .qi */
+.fm-quick-insert {
+  position: absolute;
+  z-index: 10;
+  top: 2.5rem;
+  left: var(--pf-t--global--spacer--sm);
+  width: 14rem;
+  background-color: var(--pf-t--global--background--color--primary--default);
+  border: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--color--brand--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  box-shadow: var(--pf-t--global--box-shadow--sm);
+}
+
+.fm-quick-insert__input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fm-quick-insert__list {
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.fm-quick-insert__family {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--pf-t--global--spacer--xs);
+}
+
+.fm-quick-insert__family-name {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+.fm-quick-insert__option {
+  cursor: pointer;
+}
+
+.fm-quick-insert__option--active {
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
