@@ -18,6 +18,8 @@ test('at 1440 x 900 the editor fills the window without a page scroll, on the Ed
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeInViewport();
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeInViewport();
   await expect(page.getByTestId(`canvas:${ORDER_ID}`)).toBeInViewport();
+  // the function editor fits its pane: the canvas's bottom-left controls are fully shown, not scrolled away
+  await expect(page.getByRole('button', { name: 'Fit View' })).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeInViewport();
   expect(await verticalScroll(page)).toBe(0);
 
