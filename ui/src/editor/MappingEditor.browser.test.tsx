@@ -515,7 +515,8 @@ describe('the Diagnostics panel', () => {
 
     await expect
       .element(page.getByRole('list', { name: 'Working copy diagnostics' }))
-      .toHaveTextContent(`error unmapped-mandatory-leaf ${pointer}: ${unmappedOrderId.message}`);
+      .toHaveTextContent(`error unmapped-mandatory-leaf Order/OrderId: ${unmappedOrderId.message}`);
+    await expect.element(page.getByRole('button', { name: 'Order/OrderId' })).toHaveAttribute('title', pointer);
   });
 
   test('an edit compiles the working copy again and its diagnostics replace the previous ones', async () => {
@@ -541,7 +542,7 @@ describe('the Diagnostics panel', () => {
     await expect.element(targetRow(ORDER_ID)).not.toBeInTheDocument();
 
     await diagnosticsTab().click();
-    await page.getByRole('button', { name: pointer }).click();
+    await page.getByRole('button', { name: 'Order/OrderId' }).click();
 
     await expect.element(targetRow(ORDER_ID)).toHaveFocus();
     await expect.element(sourceRow(ORDER_ID)).toBeVisible();
@@ -596,12 +597,12 @@ describe('the Diagnostics panel', () => {
     );
 
     await diagnosticsTab().click();
-    await page.getByRole('button', { name: NOTE }).click();
+    await page.getByRole('button', { name: 'Order/Note' }).click();
     await expect.element(sourceRow(NOTE)).toHaveFocus();
     expect(onSelectField).not.toHaveBeenCalled();
     // the link opened the Editor tab: the next one is back on the Diagnostics tab
     await diagnosticsTab().click();
-    await page.getByRole('button', { name: pointer }).click();
+    await page.getByRole('button', { name: 'Order/OrderId' }).click();
 
     await expect.element(targetRow(ORDER_ID)).toHaveFocus();
     expect(onSelectField.mock.calls).toEqual([[ORDER_ID]]);

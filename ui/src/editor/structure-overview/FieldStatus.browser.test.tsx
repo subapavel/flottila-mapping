@@ -192,7 +192,7 @@ describe('the status filter (spec #104, story 39)', () => {
     await expect.poll(shownTargets).toEqual([ORDER, QUANTITY]);
 
     await page.getByRole('tab', { name: /^Diagnostics/ }).click();
-    await page.getByRole('button', { name: pointerTo(ORDER_ID) }).click();
+    await page.getByRole('button', { name: 'Order/OrderId' }).click();
 
     await expect.element(targetRow(ORDER_ID)).toHaveFocus();
     await expect.element(filter('All')).toHaveAttribute('aria-pressed', 'true');
