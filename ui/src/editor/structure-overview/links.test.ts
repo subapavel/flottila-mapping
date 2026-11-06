@@ -69,6 +69,34 @@ describe('the field links of a model (ADR-0012, "Field links")', () => {
       { source: CHANNEL, target: CHANNEL, boxes: 1 },
     ]);
   });
+
+  test('mark a link when a reached source-field box behind it has a context that is not the parent (ADR-0012)', () => {
+    const SKU = `${ITEM}/Sku`;
+    const links = fieldLinks(
+      model({
+        [ORDER_ID]: {
+          id: 't1',
+          result: 'f1',
+          boxes: {
+            f1: fn(['a1', 'a2', 'a3']),
+            a1: source(SKU),
+            a2: { ...source(SKU), context: ORDER },
+            // a context equal to the parent, written out by hand, is the parent
+            a3: { ...source(CHANNEL), context: ORDER },
+            // an unreachable box marks nothing
+            a4: { ...source(`${ORDER}/OrderId`), context: '/Q{http://a/b}Elsewhere' },
+          },
+        },
+        [CHANNEL]: { id: 't2', result: 'a5', boxes: { a5: { ...source(SKU), context: ITEM } } },
+      }),
+    );
+
+    expect(links.map((l) => [l.source, l.target, l.contextChanged])).toEqual([
+      [SKU, ORDER_ID, true],
+      [CHANNEL, ORDER_ID, undefined],
+      [SKU, CHANNEL, undefined],
+    ]);
+  });
 });
 
 describe('where a field link ends in a tree', () => {
@@ -191,5 +219,11 @@ describe('the link gutter (ADR-0012)', () => {
     const gutter = linkGutter([link(1, 1, { boxes: 3 })], view(0), view(0), ROW, null);
 
     expect(gutter.lines[0]!.boxes).toBe(3);
+  });
+
+  test('keeps the mark of a link with a changed context', () => {
+    const gutter = linkGutter([link(1, 1, { contextChanged: true }), link(2, 2)], view(0), view(0), ROW, null);
+
+    expect(gutter.lines.map((l) => l.contextChanged)).toEqual([true, undefined]);
   });
 });

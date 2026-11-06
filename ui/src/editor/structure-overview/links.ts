@@ -1,5 +1,6 @@
 import type { StructureLoaded } from '../../api/client';
 import type { FieldPath, MappingModel } from '../../generated/mapping-model';
+import { properAncestors } from '../../model/set-context';
 import { reachedSourceBoxes, type TreeRow } from './rows';
 
 /** A field link (ADR-0012): one per pair of source field and target field. */
@@ -8,6 +9,8 @@ export interface FieldLink {
   target: FieldPath;
   /** How many source-field boxes reading `source` the target field mapping's `result` reaches; the fx count. */
   boxes: number;
+  /** One of those boxes has a context that is not the parent: the link is marked (ADR-0012). */
+  contextChanged?: true;
 }
 
 /** The row a field link ends at: the field's own row, or its nearest visible ancestor's, dashed. */
@@ -49,11 +52,16 @@ const STEP = /(?:\{[^}]*\}|[^/{])+/g;
 
 /**
  * The field links of a model: per target field mapping, one per source field that its `result` reaches, in the order
- * of the model's target field mappings and then the walk from `result`.
+ * of the model's target field mappings and then the walk from `result`. A link is marked when one of the reached
+ * source-field boxes behind it has a context that is not its field's parent.
  */
 export function fieldLinks(model: MappingModel): FieldLink[] {
   return Object.entries(model.targetFieldMappings ?? {}).flatMap(([target, mapping]) =>
-    [...reachedSourceBoxes(mapping)].map(([source, boxes]) => ({ source, target, boxes })),
+    [...reachedSourceBoxes(mapping)].map(([source, boxes]): FieldLink => {
+      const link: FieldLink = { source, target, boxes: boxes.length };
+      if (boxes.some((box) => box.context !== undefined && box.context !== properAncestors(box.field)[0])) link.contextChanged = true;
+      return link;
+    }),
   );
 }
 
@@ -118,6 +126,7 @@ export function linkGutter(
       source: link.source,
       target: link.target,
       boxes: link.boxes,
+      contextChanged: link.contextChanged,
       y1: from.y,
       y2: to.y,
       sourceEdge: from.edge,
