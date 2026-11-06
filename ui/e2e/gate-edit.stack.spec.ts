@@ -99,6 +99,33 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
   expect(problems).toEqual(['Failed to load resource: the server responded with a status of 409 (Conflict)']);
 });
 
+test('@stack a schema changed on disk: opening the mapping refreshes it, marks the orphaned reference, and a remap fixes it', async ({ page }) => {
+  const problems = collectProblems(page);
+  // e2e-refresh is order-id-copy (box a1 reads OrderId) over a source schema of its own; OrderId becomes OrderNumber
+  const schema = join(stackWorkspace, 'structures', 'e2e-refresh', 'order.xsd');
+  writeFileSync(schema, readFileSync(schema, 'utf8').replace('name="OrderId"', 'name="OrderNumber"'));
+  await open(page, 'mappings/e2e-refresh');
+
+  await expect(page.getByRole('heading', { name: /The structures changed/ })).toBeVisible();
+  await expect(page.getByText('Orphaned references: 1')).toBeVisible();
+  await expect(page.getByText('Unsaved')).toBeVisible();
+  await page.getByTestId(`target-field:${ORDER_ID}`).click();
+  await expect(page.getByTestId('orphaned:a1')).toBeVisible();
+
+  // a source row dropped on the orphaned box remaps it; the box keeps its id and its place in the graph. An HTML drag
+  // that scrolls the page on its way is lost, so the page is made tall enough to hold the tree and the canvas.
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  await page.getByTestId(`source-field:${ORDER}/OrderNumber`).dragTo(page.getByTestId('box:a1'));
+  await expect(page.getByTestId('orphaned:a1')).toBeHidden();
+  await expect(page.getByTestId('box:a1')).toContainText('OrderNumber');
+
+  const input = readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8').replaceAll('OrderId>', 'OrderNumber>');
+  await page.getByRole('textbox', { name: 'Input message' }).fill(input);
+  await page.getByRole('button', { name: 'Run test' }).click();
+  await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711</OrderId>');
+  expect(problems).toEqual([]);
+});
+
 test('@stack an attribute source field and an attribute target field map by drag and drop and run (#102)', async ({ page }) => {
   const problems = collectProblems(page);
   await open(page, 'mappings/e2e-attribute');
