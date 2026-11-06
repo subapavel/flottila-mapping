@@ -1,8 +1,12 @@
 import { createStore } from 'zustand/vanilla';
 import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type StoredMapping } from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
-import { link, type Refusal } from '../../model/link';
+import type { CommandResult, Refusal } from '../../model/command';
+import { deleteBox } from '../../model/delete-box';
+import { insertBox } from '../../model/insert-box';
+import { link } from '../../model/link';
 import { sameModel } from '../../model/same-model';
+import { setResult, unwire, wire } from '../../model/wire';
 
 /** How many edits undo keeps (ADR-0013: at least 100); an older one is dropped. */
 export const UNDO_DEPTH = 100;
@@ -45,6 +49,16 @@ export interface WorkingCopyState {
   compileFailure: string | null;
   /** Links a source field to a target field (the link command in `model/`). */
   link: (sourceField: FieldPath, targetField: FieldPath) => void;
+  /** Inserts a box of standard function `fn` into the target field's mapping, with fresh ids. */
+  insertBox: (targetField: FieldPath, fn: string) => void;
+  /** Wires box `source`'s output into input slot `slot` of box `target`. */
+  wire: (targetField: FieldPath, source: AuthoringId, target: AuthoringId, slot: number) => void;
+  /** Removes the wire into input slot `slot` of box `target`. */
+  unwire: (targetField: FieldPath, target: AuthoringId, slot: number) => void;
+  /** Connects a box to the target field's sink, or disconnects it with `null`. */
+  setResult: (targetField: FieldPath, box: AuthoringId | null) => void;
+  /** Deletes a box; the selection is cleared when it was that box. */
+  deleteBox: (box: AuthoringId) => void;
   undo: () => void;
   redo: () => void;
   select: (selection: AuthoringId | null) => void;
@@ -86,14 +100,27 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
   };
 
   const store = createStore<WorkingCopyState>()((set, get) => {
-    /** An edit: one undo step, and redo is gone. */
-    const edit = (model: MappingModel) =>
-      set((state) => ({
-        workingCopy: model,
-        refusal: null,
-        past: [...state.past, state.workingCopy].slice(-UNDO_DEPTH),
-        future: [],
-      }));
+    /**
+     * A command's result: an applied command is one undo step and redo is gone, unless it changed nothing; a refused
+     * one leaves the working copy and records why. Returns whether it applied.
+     */
+    const apply = (result: CommandResult): boolean => {
+      if (result.kind === 'refused') {
+        set({ refusal: { code: result.code, id: result.id } });
+        return false;
+      }
+      set((state) =>
+        result.model === state.workingCopy
+          ? { refusal: null }
+          : {
+              workingCopy: result.model,
+              refusal: null,
+              past: [...state.past, state.workingCopy].slice(-UNDO_DEPTH),
+              future: [],
+            },
+      );
+      return true;
+    };
 
     return {
       baseline: opened.model,
@@ -107,10 +134,22 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       diagnostics: [],
       compileFailure: null,
 
-      link: (sourceField, targetField) => {
-        const result = link(get().workingCopy, { sourceField, targetField, boxId: ports.newId(), mappingId: ports.newId() });
-        if (result.kind === 'applied') edit(result.model);
-        else set({ refusal: { code: result.code, id: result.id } });
+      link: (sourceField, targetField) =>
+        void apply(link(get().workingCopy, { sourceField, targetField, boxId: ports.newId(), mappingId: ports.newId() })),
+
+      insertBox: (targetField, fn) =>
+        void apply(
+          insertBox(get().workingCopy, { targetField, box: { kind: 'function', fn }, boxId: ports.newId(), mappingId: ports.newId() }),
+        ),
+
+      wire: (targetField, source, target, slot) => void apply(wire(get().workingCopy, { targetField, source, target, slot })),
+
+      unwire: (targetField, target, slot) => void apply(unwire(get().workingCopy, { targetField, target, slot })),
+
+      setResult: (targetField, box) => void apply(setResult(get().workingCopy, { targetField, box })),
+
+      deleteBox: (box) => {
+        if (apply(deleteBox(get().workingCopy, { box })) && get().selection === box) set({ selection: null });
       },
 
       undo: () =>
