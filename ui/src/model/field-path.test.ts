@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { fieldPathSteps, localPath, stepName } from './field-path';
+import { fieldPathSteps, localPath, proseSegments, stepName } from './field-path';
 
 describe('the local path of a field path', () => {
   test('is the local names of a namespaced element path, joined by /', () => {
@@ -78,5 +78,50 @@ describe('the name of a field path’s last step', () => {
     expect(stepName('/$/a%41')).toBe('a%41');
     expect(stepName('/$/50%')).toBe('50%');
     expect(stepName('/$/a%2f')).toBe('a%2f');
+  });
+});
+
+describe('the field paths found in a message', () => {
+  const PO = '/Q{urn:flottila:corpus:gate:po}PurchaseOrder/Q{urn:flottila:corpus:gate:po}Buyer/Q{urn:flottila:corpus:gate:common}Name';
+
+  test('a path ends at whitespace or a parenthesis', () => {
+    expect(proseSegments(`the target leaf ${PO} (1..1) has no target field mapping`)).toEqual([
+      { text: 'the target leaf ' },
+      { text: 'PurchaseOrder/Buyer/Name', path: PO },
+      { text: ' (1..1) has no target field mapping' },
+    ]);
+    expect(proseSegments(`leaf ${PO}(1..1)`)).toEqual([{ text: 'leaf ' }, { text: 'PurchaseOrder/Buyer/Name', path: PO }, { text: '(1..1)' }]);
+  });
+
+  test('an attribute step keeps its @', () => {
+    const path = '/Q{urn:a}Order/Q{urn:a}Item/@Q{urn:x}id';
+    expect(proseSegments(`bad ${path} here`)).toEqual([{ text: 'bad ' }, { text: 'Order/Item/@id', path }, { text: ' here' }]);
+    expect(proseSegments('bad /Q{urn:a}Order/@no')).toEqual([{ text: 'bad ' }, { text: 'Order/@no', path: '/Q{urn:a}Order/@no' }]);
+  });
+
+  test("a slash inside an EQName's namespace does not end the path (ADR-0007)", () => {
+    const path = '/Q{http://a/b}Order/@Q{urn:x/y}code';
+    expect(proseSegments(`at ${path} now`)).toEqual([{ text: 'at ' }, { text: 'Order/@code', path }, { text: ' now' }]);
+  });
+
+  test('two paths in one message', () => {
+    expect(proseSegments('/Q{urn:a}A/Q{urn:a}B is not /Q{urn:a}C')).toEqual([
+      { text: 'A/B', path: '/Q{urn:a}A/Q{urn:a}B' },
+      { text: ' is not ' },
+      { text: 'C', path: '/Q{urn:a}C' },
+    ]);
+  });
+
+  test('a $-rooted path shows its root', () => {
+    expect(proseSegments('field /$/order/items missing')).toEqual([
+      { text: 'field ' },
+      { text: '$/order/items', path: '/$/order/items' },
+      { text: ' missing' },
+    ]);
+  });
+
+  test('a message with no path stays as it is, a slash inside a word included', () => {
+    expect(proseSegments('the input and/or output is missing')).toEqual([{ text: 'the input and/or output is missing' }]);
+    expect(proseSegments('')).toEqual([]);
   });
 });

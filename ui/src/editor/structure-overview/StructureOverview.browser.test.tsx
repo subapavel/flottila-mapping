@@ -274,7 +274,8 @@ describe('refused fields (ADR-0027, stories 43 and 44)', () => {
     await page.getByRole('tab', { name: 'Diagnostics (1)' }).click();
     await expect
       .element(page.getByRole('list', { name: 'Working copy diagnostics' }))
-      .toHaveTextContent(`error ambiguous-field-path S1: ${ambiguous.message}`);
+      // the list shows a path in a message as its local path (#142)
+      .toHaveTextContent(`error ambiguous-field-path S1: ${ambiguous.message.replace('/Doc/Note', 'Doc/Note')}`);
   });
 });
 

@@ -124,6 +124,24 @@ describe('the Diagnostics panel', () => {
     await expect.element(link).toHaveAttribute('title', NOTE);
   });
 
+  test('a field path in a message shows as its local path, the full path in its title; other text stays', async () => {
+    const path = '/Q{urn:flottila:corpus:gate:po}PurchaseOrder/Q{urn:flottila:corpus:gate:po}Buyer/Q{urn:flottila:corpus:gate:common}Name';
+    render([
+      {
+        severity: 'error',
+        code: 'unmapped-mandatory-leaf',
+        message: `the target leaf ${path} (1..1) has no target field mapping`,
+        location: { kind: 'authoring-id', authoringId: 'gone' },
+      },
+    ]);
+
+    const shown = item('unmapped-mandatory-leaf').getByText('PurchaseOrder/Buyer/Name');
+    await expect.element(shown).toHaveAttribute('title', path);
+    await expect
+      .element(item('unmapped-mandatory-leaf'))
+      .toHaveTextContent('error unmapped-mandatory-leaf gone: the target leaf PurchaseOrder/Buyer/Name (1..1) has no target field mapping');
+  });
+
   test('a {side, fieldPath} location selects that tree row', async () => {
     const onSelectField = render([
       {
