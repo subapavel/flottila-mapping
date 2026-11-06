@@ -1,10 +1,20 @@
 import { createStore } from 'zustand/vanilla';
-import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type FunctionCatalogue, type StoredMapping } from '../../api/client';
+import {
+  ApiProblem,
+  describeError,
+  isSaveConflict,
+  type Diagnostic,
+  type FunctionCatalogue,
+  type RefreshResponse,
+  type StoredMapping,
+} from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
-import type { CommandResult, Refusal } from '../../model/command';
+import { applied, type CommandResult, type Refusal } from '../../model/command';
 import { deleteBox } from '../../model/delete-box';
+import { deleteTargetFieldMapping } from '../../model/delete-target-field-mapping';
 import { insertBox } from '../../model/insert-box';
 import { link } from '../../model/link';
+import { remap } from '../../model/remap';
 import { sameModel } from '../../model/same-model';
 import { setContext } from '../../model/set-context';
 import { setInput } from '../../model/set-input';
@@ -16,6 +26,9 @@ export const UNDO_DEPTH = 100;
 
 /** How long after the last edit the working copy is compiled (ADR-0013). */
 export const COMPILE_DELAY_MS = 500;
+
+/** The code of a field path the structure no longer has (GLOSSARY: Orphaned reference). */
+const ORPHANED_REFERENCE = 'orphaned-reference';
 
 /** The ports of one open mapping's store. */
 export interface WorkingCopyPorts {
@@ -46,7 +59,7 @@ export interface WorkingCopyState {
   refusal: Refusal | null;
   /** A save answered that the file changed on disk: the author chooses Reload or Keep editing (ADR-0027). */
   conflict: boolean;
-  /** The latest diagnostics of the working copy: the last compile's, or a refused save's until the next compile. */
+  /** The latest diagnostics of the working copy: the last compile's, or a refresh's or a refused save's until the next compile. */
   diagnostics: Diagnostic[];
   /** The title of the transport error the last compile failed with; `null` once a compile answers. */
   compileFailure: string | null;
@@ -68,6 +81,17 @@ export interface WorkingCopyState {
   setContext: (targetField: FieldPath, box: AuthoringId, context: FieldPath) => void;
   /** Wires input slot `slot` of box `target` from box `source`, or leaves it unconnected with `null`. */
   setInput: (targetField: FieldPath, target: AuthoringId, slot: number, source: AuthoringId | null) => void;
+  /** Points source-field box `box` at the source field `field`, keeping its id and wires (GLOSSARY: Remap). */
+  remap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
+  /** Removes the target field mapping of `targetField` with all its boxes, such as an orphaned one. */
+  deleteTargetFieldMapping: (targetField: FieldPath) => void;
+  /**
+   * Takes the answer of a refresh of the working copy `sent` (ADR-0027); its diagnostics become the set. When one of
+   * its fingerprints differs from the working copy's, its model replaces the working copy as one undo step, or, when
+   * the working copy changed since `sent`, only its source and target references replace the working copy's, so that
+   * the edit stays. Returns the number of `orphaned-reference` diagnostics then, and `null` when no fingerprint changed.
+   */
+  applyRefresh: (sent: MappingModel, answer: RefreshResponse) => number | null;
   undo: () => void;
   redo: () => void;
   select: (selection: AuthoringId | null) => void;
@@ -167,6 +191,19 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       setContext: (targetField, box, context) => void apply(setContext(get().workingCopy, { targetField, box, context })),
 
       setInput: (targetField, target, slot, source) => void apply(setInput(get().workingCopy, { targetField, target, slot, source })),
+
+      remap: (targetField, box, field) => void apply(remap(get().workingCopy, { targetField, box, field })),
+
+      deleteTargetFieldMapping: (targetField) => void apply(deleteTargetFieldMapping(get().workingCopy, { targetField })),
+
+      applyRefresh: (sent, answer) => {
+        const current = get().workingCopy;
+        set({ diagnostics: answer.diagnostics });
+        const { source, target } = answer.model;
+        if (source.fingerprint === current.source.fingerprint && target.fingerprint === current.target.fingerprint) return null;
+        apply(applied(current === sent ? answer.model : { ...current, source, target }));
+        return answer.diagnostics.filter((d) => d.code === ORPHANED_REFERENCE).length;
+      },
 
       undo: () =>
         set((state) =>
