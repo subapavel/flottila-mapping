@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import corpusMappingText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import { ApiProblem, type ApiClient, type Diagnostic } from '../../api/client';
@@ -94,6 +94,12 @@ function unmount() {
   host?.remove();
   root = undefined;
 }
+
+// The split view (ADR-0012) gives the function editor a pane of the bottom half: at Vitest's default 414 x 896 the
+// palette wraps above a canvas that the pane cannot show at once with it, and an HTML drag that has to scroll to its
+// target is lost. A desktop viewport that shows the whole split view.
+beforeAll(() => page.viewport(1280, 1100));
+afterAll(() => page.viewport(414, 896));
 
 beforeEach(() => {
   consoleError = vi.spyOn(console, 'error');

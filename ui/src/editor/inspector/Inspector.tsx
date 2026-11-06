@@ -44,7 +44,8 @@ export function Inspector({ api, store, targetField, orphaned, source, onRemap }
   const mapping = targetField === null ? undefined : model.targetFieldMappings?.[targetField];
 
   return (
-    <aside aria-label="Inspector" style={{ width: '18rem', flex: 'none' }}>
+    // as wide as the editor's inspector pane, which its splitter sets (ADR-0012)
+    <aside aria-label="Inspector" style={{ padding: '0 0.5rem' }}>
       {shown === undefined || catalogue.data === undefined ? (
         <>
           <p>Select a box to inspect it.</p>
