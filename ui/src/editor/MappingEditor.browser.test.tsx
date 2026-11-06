@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -606,6 +607,71 @@ describe('the Diagnostics panel', () => {
 
     await expect.element(targetRow(ORDER_ID)).toHaveFocus();
     expect(onSelectField.mock.calls).toEqual([[ORDER_ID]]);
+  });
+
+  test('a target link clears the target search that hides its field, and a source link clears the source search', async () => {
+    const answer: Diagnostic[] = [
+      { severity: 'error', code: 'orphaned-reference', message: 'target', location: { kind: 'field-path', side: 'target', fieldPath: NOTE } },
+      { severity: 'error', code: 'orphaned-reference', message: 'source', location: { kind: 'field-path', side: 'source', fieldPath: NOTE } },
+    ];
+    // the host owns the selected field
+    function Host() {
+      const [selected, setSelected] = useState<string | null>(null);
+      return (
+        <MappingEditor
+          mappingId="mappings/order-unmapped"
+          api={fakeApiClient(undefined, { compile: { 'mappings/order-unmapped': answer } })}
+          browserState={memoryBrowserState()}
+          selectedField={selected}
+          onSelectField={setSelected}
+        />
+      );
+    }
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    root.render(<Host />);
+    const searchBox = (side: 'source' | 'target') => page.getByRole('textbox', { name: `Search ${side} fields` });
+    const link = (message: string) => page.getByRole('listitem').filter({ hasText: message }).getByRole('button', { name: 'Order/Note' });
+
+    await userEvent.fill(searchBox('target'), 'OrderId');
+    await expect.element(targetRow(NOTE)).not.toBeInTheDocument();
+    await diagnosticsTab().click();
+    await link('target').click();
+
+    await expect.element(targetRow(NOTE)).toHaveFocus();
+    await expect.element(targetRow(NOTE)).toHaveAttribute('aria-selected', 'true');
+    await expect.element(searchBox('target')).toHaveValue('');
+
+    await userEvent.fill(searchBox('source'), 'OrderId');
+    await expect.element(sourceRow(NOTE)).not.toBeInTheDocument();
+    await diagnosticsTab().click();
+    await link('source').click();
+
+    await expect.element(sourceRow(NOTE)).toHaveFocus();
+    await expect.element(searchBox('source')).toHaveValue('');
+  });
+
+  test("a refused save's Show link clears the target search that hides its row", async () => {
+    const refused = new ApiProblem({
+      type: 'urn:flottila:mapping:problem:model-refused',
+      title: 'Model refused',
+      status: 422,
+      detail: 'the mapping model is refused by validation stage 1 or 2',
+      diagnostics: [{ severity: 'error', code: 'box-cycle', message: 'a cycle', location: { kind: 'authoring-id', authoringId: 't1' } }],
+    });
+    // the corpus mapping has t1 at OrderId; a link to Note makes it unsaved
+    render('mappings/order-id-copy', { ...fakeApiClient(), saveMapping: () => Promise.reject(refused) });
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(NOTE));
+    await page.getByRole('button', { name: 'Save' }).click();
+    const searchBox = page.getByRole('textbox', { name: 'Search target fields' });
+    await userEvent.fill(searchBox, 'Note');
+    await expect.element(targetRow(ORDER_ID)).not.toBeInTheDocument();
+
+    await page.getByRole('button', { name: 'Show t1' }).click();
+
+    await expect.element(searchBox).toHaveValue('');
+    await expect.element(targetRow(ORDER_ID)).toBeVisible();
   });
 
   test('a diagnostic at the root leads to the root row and leaves the root expanded', async () => {
