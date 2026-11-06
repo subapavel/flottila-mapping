@@ -72,6 +72,7 @@ function Host({ api, browserState, field }: { api: ApiClient; browserState: Brow
   return (
     <>
       <button onClick={() => setSelected(NOTE)}>Host: open Note</button>
+      <button onClick={() => setSelected(null)}>Host: select none</button>
       <MappingEditor mappingId={DRAFT} api={api} browserState={browserState} selectedField={selected} onSelectField={setSelected} />
     </>
   );
@@ -363,7 +364,8 @@ describe('the canvas of the selected target field', () => {
   });
 
   test('without a selected target field it asks for one, and a field without a mapping says so', async () => {
-    render({ field: null });
+    // a mapping with no target field mapping opens on no field (spec #145, "Opening selection")
+    render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: {} } }), field: null });
     await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
     unmount();
 
@@ -484,6 +486,9 @@ describe('selection', () => {
       ],
     });
     render({ api: { ...fakeApiClient({ [DRAFT]: graphMapping }), saveMapping: () => Promise.reject(refused) }, field: null });
+    // the opening selection (spec #145) selects OrderId; the host clears it, so that no field is selected before Show
+    await expect.element(node('c1')).toBeVisible();
+    await page.getByRole('button', { name: 'Host: select none' }).click();
     await userEvent.dragAndDrop(sourceRow(NOTE), targetRow(NOTE));
     await page.getByRole('button', { name: 'Save' }).click();
 
