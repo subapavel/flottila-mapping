@@ -74,6 +74,10 @@ Take hand-backs in the order they arrive; refill a freed slot from the frontier 
 6. **Carry or ticket** — a point a review leaves open is carried to the spec review only when it
    is a judgement call. One that gives invalid output, contradicts an ADR, or names a test that
    cannot fail is a ticket (or a finding, `docs/WORKFLOW.md` §7) now, before the next merge.
+   Reviewers label each non-blocking observation `carry` (a judgement call) or `ticket` (meets
+   the criteria above). File every `ticket` point before the next merge; carry only `carry`
+   points. If you disagree with a label, say why in the ticket's evidence comment; do not
+   drop it silently.
 
 ## 3. Finish the spec
 
