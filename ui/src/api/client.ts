@@ -11,6 +11,8 @@ export type StructureResponse = Schemas['StructureResponse'];
 export type StructureLoaded = Schemas['StructureLoaded'];
 export type FieldDto = Schemas['FieldDto'];
 export type TestResult = Schemas['TestResult'];
+/** One entry of a test run's trace, by its `kind`: a queue, an atomic value or a target field's occurrences (ADR-0015). */
+export type TraceEntry = Schemas['TraceEntryDto'];
 export type MappingSummary = Schemas['MappingSummary'];
 export type CreateMappingRequest = Schemas['CreateMappingRequest'];
 export type RootSelector = Schemas['rootSelector'];
