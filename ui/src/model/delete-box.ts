@@ -33,3 +33,23 @@ export function deleteBox(model: MappingModel, command: DeleteBoxCommand): Comma
     }),
   );
 }
+
+/** Removes several boxes at once, wherever they are. */
+export interface DeleteBoxesCommand {
+  boxes: readonly AuthoringId[];
+}
+
+/**
+ * Removes each box in turn as the delete box command does, so that the edit is one model change. An id that names no
+ * box, also one named twice, refuses the whole command as `unknown-box-reference` and no box is removed. No ids give
+ * back the model itself.
+ */
+export function deleteBoxes(model: MappingModel, command: DeleteBoxesCommand): CommandResult {
+  let next = model;
+  for (const box of command.boxes) {
+    const result = deleteBox(next, { box });
+    if (result.kind === 'refused') return result;
+    next = result.model;
+  }
+  return applied(next);
+}
