@@ -767,13 +767,23 @@ describe("the prototype's canvas detail", () => {
       ...graphMapping,
       udfs: { shout: { executionKind: 'single', inputs: ['text'], source: 'udf/Shout.java#shout' } },
       targetFieldMappings: {
-        [ORDER_ID]: { ...target, boxes: { ...target.boxes, s1: { kind: 'udf', udf: 'shout', inputs: ['a1'] }, r1: { kind: 'unresolved', name: 'ByExample', origin: 'po' } } },
+        // a1 into r1 into s1, which with c1 feeds f1, the result: every one is reached, so no head is the muted one (F-31)
+        [ORDER_ID]: {
+          ...target,
+          boxes: {
+            a1: { kind: 'source', field: ORDER_ID },
+            r1: { kind: 'unresolved', name: 'ByExample', origin: 'po', inputs: ['a1'] },
+            s1: { kind: 'udf', udf: 'shout', inputs: ['r1'] },
+            c1: { kind: 'function', fn: 'constant', params: { value: '-' } },
+            f1: { kind: 'function', fn: 'concat', inputs: ['s1', 'c1'] },
+          },
+        },
       },
     };
     render({ api: fakeApiClient({ [DRAFT]: kinds }) });
     for (const id of ['a1', 'c1', 'f1', 's1', 'r1']) await expect.element(box(id)).toBeVisible();
+    for (const id of ['a1', 'c1', 'f1', 's1', 'r1']) await expect.element(box(id)).not.toHaveAttribute('title');
 
-    // f1 is reached, so its head is the function tint and not the unreachable one
     const backgrounds = ['f1', 'a1', 'c1', 's1', 'r1'].map((id) => styleOf(headOf(id)).backgroundColor);
     expect(backgrounds[0]).not.toBe(backgrounds[1]);
     expect(new Set(backgrounds).size).toBe(5);
@@ -812,10 +822,10 @@ describe("the prototype's canvas detail", () => {
     await page.getByRole('tab', { name: 'Editor' }).click();
 
     await expect.element(strip).toHaveTextContent('Display queueA-');
-    await expect.element(editor.getByText('result (what the target field reads)')).toBeVisible();
+    await expect.element(editor.getByText(/^result \(what the target field reads\) f1$/)).toBeVisible();
     await box('c1').click();
     await expect.element(strip).toHaveTextContent('Display queue- xs:string');
-    await expect.element(editor.getByText('selected box')).toBeVisible();
+    await expect.element(editor.getByText(/^selected box c1$/)).toBeVisible();
 
     // under the canvas, the palette beside it, and 130 px high
     const canvas = page.getByRole('group', { name: /^Canvas of / }).element().getBoundingClientRect();

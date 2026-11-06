@@ -1,4 +1,4 @@
-import { Label, SearchInput } from '@patternfly/react-core';
+import { SearchInput } from '@patternfly/react-core';
 import { useId, useState, type KeyboardEvent } from 'react';
 import type { FunctionCatalogue } from '../../api/client';
 import { FUNCTION_DRAG, paletteGroups, type Badge } from './palette';
@@ -63,8 +63,14 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
               }}
               className="fm-palette__entry"
             >
-              {fn} {badges.map((badge) => <BadgeView key={badge.kind} id={badgeId(fn, badge)} badge={badge} />)}
-              {catalogue[fn]!.executionKind !== 'single' && <span className="fm-palette__kind">{catalogue[fn]!.executionKind}</span>}
+              {fn}{' '}
+              {/* the badges and the execution kind at the entry's right, as in the prototype's .gc__pitem */}
+              <span className="fm-palette__marks">
+                {badges.map((badge) => (
+                  <BadgeView key={badge.kind} id={badgeId(fn, badge)} badge={badge} />
+                ))}
+                {catalogue[fn]!.executionKind !== 'single' && <span className="fm-palette__kind">{catalogue[fn]!.executionKind}</span>}
+              </span>
             </li>
           ))}
         </ul>
@@ -74,24 +80,22 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
 }
 
 /**
- * A badge, its words under `id` for the entry's description; a deviation's text is its hover title and, for assistive
- * technology, part of its description.
+ * A badge, after the prototype's 9 px .fid, its words under `id` for the entry's description; a deviation's text is its
+ * hover title and, for assistive technology, part of its description.
  */
 function BadgeView({ id, badge }: { id: string; badge: Badge }) {
   switch (badge.kind) {
     case 'assumed':
       return (
-        <Label id={id} isCompact color="blue">
+        <span id={id} className="fm-fid fm-fid--assumed">
           assumed
-        </Label>
+        </span>
       );
     case 'deviation':
       return (
         <>
-          <span title={badge.text}>
-            <Label isCompact color="orange">
-              deviation
-            </Label>
+          <span title={badge.text} className="fm-fid fm-fid--deviation">
+            deviation
           </span>
           <span id={id} hidden>
             deviation: {badge.text}
@@ -100,9 +104,9 @@ function BadgeView({ id, badge }: { id: string; badge: Badge }) {
       );
     case 'not-portable':
       return (
-        <Label id={id} isCompact color="grey">
+        <span id={id} className="fm-fid fm-fid--not-portable">
           not portable
-        </Label>
+        </span>
       );
   }
 }
