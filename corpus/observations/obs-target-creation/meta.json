@@ -32,6 +32,12 @@
     "CPI matches PO 7.5 on every output (a1, b1, b2, d1, d2, d3) and on every failure (a2, a3, c1). No divergence.",
     "a2/a3: same exception class com.sap.aii.mappingtool.tf7.IllegalInstanceException; CPI wording differs ('Cannot produce target element ... Queue has not enough values in context ...').",
     "c1: CPI saves the mapping (red Req, 'Target has 1 errors' on the target root) but refuses Simulate: 'Mapping has validation errors. Please fix them before you simulate.' PO 7.5 cancels activation.",
-    "Display queue: gray rows are context changes on both systems (CPI also sets them in italics). For an empty context CPI shows '[ ]' where PO shows '<null>'."
+    "Display queue: gray rows are context changes on both systems (CPI also sets them in italics). For an empty context CPI shows '[ ]' where PO shows '<null>'.",
+    "Spec-2 part (#61), PO 7.50 SP33 and CPI 6.84.77, 2026-11-05/06. CPI cannot copy a mapping, so spec2-create-if-row, spec2-nested-grp-row-remove-contexts and spec2-create-if-item were built on CPI by editing create-a, spec2-nested-grp-row-val and create-d in place.",
+    "createIf (both systems): 'no', 'skip' and '' throw 'Cannot cast ... to boolean'; true/1 (any case) create, false/0 give SUPPRESS. max-002.xml, a2.xml and suppress-001.xml therefore fail before their question is reached. Owner probes in probes/ (probe-bool-a..d) record the accepted values and answer max/002 (probe b, = a1) and suppress/001 (probe d: V 10 then 30). minOccurs/002 is answered by a2 of create-a.",
+    "max-003: confirmed on both, Grp 2's Row reads slot 4 (Val 4).",
+    "minOccurs-004 CONTRADICTS the assumed reading on both: Grp 2 reads a context the Row queue lacks and gets one Row with the last value b; no po:MINOCCURS.",
+    "Side observation (PO and CPI): a complex target node with a mapped value and no mapped child gets the value as text (<Row>a</Row>).",
+    "Skipped on CPI as already decided by PO and the CPI probes: a2.xml and suppress-001.xml with 'no'/'skip', probe-bool-b."
   ]
 }
