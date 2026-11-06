@@ -1,11 +1,12 @@
-import { Alert, Button, Label } from '@patternfly/react-core';
+import { Alert, Button, Label, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient, type StoredMapping } from '../api/client';
 import type { AuthoringId, FieldPath } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
 import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
+import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
 import { locate } from './function-editor/graph';
 import { RefusedMapping } from './RefusedMapping';
@@ -79,12 +80,14 @@ function OpenMapping({
       newId: () => newAuthoringId(),
       save: (model, etag) => api.saveMapping(mappingId, model, etag),
       load: () => api.getMapping(mappingId),
+      compile: (model, signal) => api.compile(mappingId, model, signal).then((compiled) => compiled.diagnostics),
     }),
   );
   useEffect(() => (onUnsavedChange ? watchUnsaved(store, onUnsavedChange) : undefined), [store, onUnsavedChange]);
   const unsaved = useStore(store, selectUnsaved);
   const canUndo = useStore(store, (s) => s.past.length > 0);
   const canRedo = useStore(store, (s) => s.future.length > 0);
+  const diagnosticCount = useStore(store, (s) => s.diagnostics.length);
   const save = useMutation({ mutationFn: () => store.getState().save() });
   const failure = save.isError ? describeError(save.error) : undefined;
 
@@ -94,6 +97,29 @@ function OpenMapping({
     setExpanded(next);
     browserState.write(expandedKey, next);
   };
+
+  // The working copy is compiled on open, then after every change of it (ADR-0013).
+  useEffect(() => {
+    store.getState().scheduleCompile();
+    return () => store.getState().cancelCompile();
+  }, [store]);
+
+  // A field the Diagnostics panel leads to: its branch is expanded, then its row takes the focus; a target field is
+  // also selected for the function editor.
+  const editor = useRef<HTMLDivElement>(null);
+  const [focused, setFocused] = useState<{ testId: string } | null>(null);
+  const selectTreeField = (side: 'source' | 'target', fieldPath: FieldPath) => {
+    const paths = pathsDownTo(fieldPath);
+    const open = new Set([...(expanded[side] ?? [paths[0]!]), ...paths.slice(0, -1)]);
+    changeExpanded({ ...expanded, [side]: [...open] });
+    setFocused({ testId: `${side}-field:${fieldPath}` });
+    if (side === 'target') onSelectField?.(fieldPath);
+  };
+  useEffect(() => {
+    if (focused === null) return;
+    const rows = editor.current!.querySelectorAll<HTMLElement>('[data-testid]');
+    [...rows].find((row) => row.dataset.testid === focused.testId)?.focus();
+  }, [focused]);
 
   const onKeyDown = (event: KeyboardEvent) => {
     const step = undoKey(event);
@@ -116,7 +142,7 @@ function OpenMapping({
   }));
 
   return (
-    <div onKeyDown={onKeyDown}>
+    <div ref={editor} onKeyDown={onKeyDown}>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <Button variant="secondary" onClick={() => store.getState().undo()} isDisabled={!canUndo}>
           Undo
@@ -162,7 +188,20 @@ function OpenMapping({
         onSelectBox={setSelectedBox}
         canvasState={canvasState}
       />
-      <TestPanel mappingId={mappingId} api={api} store={store} />
+      <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">
+        <Tab eventKey="test" title={<TabTitleText>Test</TabTitleText>}>
+          <TestPanel mappingId={mappingId} api={api} store={store} />
+        </Tab>
+        <Tab eventKey="diagnostics" title={<TabTitleText>Diagnostics ({diagnosticCount})</TabTitleText>}>
+          <DiagnosticsPanel store={store} onSelectField={selectTreeField} />
+        </Tab>
+      </Tabs>
     </div>
   );
+}
+
+/** The field paths from the root down to `fieldPath`, itself last; a step's `{namespace}` may hold a `/` (ADR-0007). */
+function pathsDownTo(fieldPath: FieldPath): FieldPath[] {
+  const steps = [...fieldPath.matchAll(/(?:\{[^}]*\}|[^/{])+/g)].map((step) => step[0]);
+  return steps.map((_, i) => `/${steps.slice(0, i + 1).join('/')}`);
 }

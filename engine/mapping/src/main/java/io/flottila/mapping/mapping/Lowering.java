@@ -29,8 +29,10 @@ import io.flottila.mapping.structure.Occurrence;
 import io.flottila.mapping.structure.Refusal;
 import io.flottila.mapping.structure.Structure;
 import io.flottila.mapping.xdm.TableText;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -217,6 +219,52 @@ public final class Lowering {
                 resolve(target, path)
                     .ifPresent(named -> occurrences.put(mapping.id(), named.field().occurrence())));
     return Map.copyOf(occurrences);
+  }
+
+  /**
+   * The {@code unreachable-box} warnings of a model that passed stages 1 and 2 (ADR-0011,
+   * ADR-0013): one at each box that its target field mapping's {@code result} does not reach
+   * through the boxes' inputs, so at every box of a target field mapping whose {@code result} is
+   * {@code null}. Lowering neither checks nor lowers such a box, and a warning never refuses the
+   * model. The order is the caller's to fix.
+   */
+  public static List<Diagnostic> unreachable(MappingModel model) {
+    List<Diagnostic> warnings = new ArrayList<>();
+    for (TargetFieldMapping mapping : model.targetFieldMappings().values()) {
+      Set<AuthoringId> reached = new HashSet<>();
+      Deque<AuthoringId> pending = new ArrayDeque<>();
+      mapping.result().ifPresent(pending::push);
+      while (!pending.isEmpty()) {
+        AuthoringId id = pending.pop();
+        // a box that feeds several inputs is followed once
+        if (reached.add(id)) {
+          inputs(mapping.boxes().get(id)).forEach(input -> input.ifPresent(pending::push));
+        }
+      }
+      for (AuthoringId box : mapping.boxes().keySet()) {
+        if (!reached.contains(box)) {
+          warnings.add(
+              new Diagnostic(
+                  Severity.WARNING,
+                  MappingDiagnostics.UNREACHABLE_BOX,
+                  new AtAuthoringId(box),
+                  "the result of the target field mapping "
+                      + mapping.id().value()
+                      + " does not reach this box, so compile ignores it"));
+        }
+      }
+    }
+    return List.copyOf(warnings);
+  }
+
+  /** The input slots of {@code box}; a source-field box has none. */
+  private static List<Optional<AuthoringId>> inputs(Box box) {
+    return switch (box) {
+      case SourceFieldBox _ -> List.of();
+      case StandardFunctionBox f -> f.inputs();
+      case UdfBox u -> u.inputs();
+      case UnresolvedFunctionBox x -> x.inputs();
+    };
   }
 
   private LowerResult lower() {

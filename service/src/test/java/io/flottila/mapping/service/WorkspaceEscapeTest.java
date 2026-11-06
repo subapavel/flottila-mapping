@@ -246,6 +246,20 @@ class WorkspaceEscapeTest {
         attack(
             "refresh through id ..%2Foutside%2Fevil",
             "POST", "api/mappings/..%2Foutside%2Fevil/refresh", exfilModel("evil.xsd")),
+        // #105: compile loads both sides' bundles through the same resolver
+        attack(
+            "compile with an escaping bundle",
+            "POST",
+            "api/mappings/mappings/order-id-copy/compile",
+            exfilModel("../../outside/evil.xsd")),
+        attack(
+            "compile with a symlinked bundle",
+            "POST",
+            "api/mappings/mappings/order-id-copy/compile",
+            exfilModel("../links/out.xsd")),
+        attack(
+            "compile through id ..%2Foutside%2Fevil",
+            "POST", "api/mappings/..%2Foutside%2Fevil/compile", exfilModel("evil.xsd")),
         // #93: an escape in a multi-file bundle is refused as in a one-file bundle, after a
         // listed file is read as well as before
         attack(

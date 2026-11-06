@@ -169,7 +169,9 @@ class DiagnosticCatalogueTest {
             // the field")
             "abstract-target-element",
             // stage 3, a mapping with a JSON target (#97, ADR-0008)
-            "json-target-unsupported");
+            "json-target-unsupported",
+            // a warning at a box that result does not reach (#105, ADR-0011, ADR-0013, ADR-0027)
+            "unreachable-box");
     assertThat(catalogue.get(IMPORT))
         .containsExactlyInAnyOrder(
             "schema-not-well-formed",

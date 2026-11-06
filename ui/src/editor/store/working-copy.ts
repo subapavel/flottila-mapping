@@ -1,11 +1,14 @@
 import { createStore } from 'zustand/vanilla';
-import { isSaveConflict, type StoredMapping } from '../../api/client';
+import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type StoredMapping } from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
 import { link, type Refusal } from '../../model/link';
 import { sameModel } from '../../model/same-model';
 
 /** How many edits undo keeps (ADR-0013: at least 100); an older one is dropped. */
 export const UNDO_DEPTH = 100;
+
+/** How long after the last edit the working copy is compiled (ADR-0013). */
+export const COMPILE_DELAY_MS = 500;
 
 /** The ports of one open mapping's store. */
 export interface WorkingCopyPorts {
@@ -15,6 +18,8 @@ export interface WorkingCopyPorts {
   save: (model: MappingModel, etag: string) => Promise<StoredMapping>;
   /** Reads the mapping file from disk. */
   load: () => Promise<StoredMapping>;
+  /** Compiles a model and resolves to its diagnostics (ADR-0015, ADR-0027); `signal` aborts the call. */
+  compile: (model: MappingModel, signal: AbortSignal) => Promise<Diagnostic[]>;
 }
 
 export interface WorkingCopyState {
@@ -34,6 +39,10 @@ export interface WorkingCopyState {
   refusal: Refusal | null;
   /** A save answered that the file changed on disk: the author chooses Reload or Keep editing (ADR-0027). */
   conflict: boolean;
+  /** The latest diagnostics of the working copy: the last compile's, or a refused save's until the next compile. */
+  diagnostics: Diagnostic[];
+  /** The title of the transport error the last compile failed with; `null` once a compile answers. */
+  compileFailure: string | null;
   /** Links a source field to a target field (the link command in `model/`). */
   link: (sourceField: FieldPath, targetField: FieldPath) => void;
   undo: () => void;
@@ -41,13 +50,21 @@ export interface WorkingCopyState {
   select: (selection: AuthoringId | null) => void;
   /**
    * Sends the working copy with the baseline's ETag; what the service wrote becomes the baseline, and the history
-   * stays. A save conflict opens `conflict`; any other error rejects.
+   * stays. A save conflict opens `conflict`; any other error rejects, and a refusal with diagnostics (422
+   * `model-refused`) replaces the diagnostics first.
    */
   save: () => Promise<void>;
   /** Drops the working copy and its history and loads the file from disk as the baseline. Rejects with the port's error. */
   reload: () => Promise<void>;
   /** Closes a save conflict and keeps the working copy. */
   keepEditing: () => void;
+  /**
+   * Compiles the working copy `COMPILE_DELAY_MS` from now, cancelling a compile already scheduled or under way. Every
+   * change of the working copy calls it: an edit, undo, redo, a save's canonical model and a reload.
+   */
+  scheduleCompile: () => void;
+  /** Cancels a compile scheduled or under way; its answer is dropped. */
+  cancelCompile: () => void;
 }
 
 export type WorkingCopyStore = ReturnType<typeof createWorkingCopyStore>;
@@ -57,7 +74,18 @@ export const selectUnsaved = (state: WorkingCopyState): boolean => !sameModel(st
 
 /** One store per open mapping (ADR-0013). Its actions only call the pure commands of `model/`. */
 export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopyPorts) {
-  return createStore<WorkingCopyState>()((set, get) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let running: AbortController | undefined;
+  /** Counts the compiles scheduled and cancelled: only the answer of the current one is kept. */
+  let generation = 0;
+
+  const cancel = () => {
+    generation++;
+    clearTimeout(timer);
+    running?.abort();
+  };
+
+  const store = createStore<WorkingCopyState>()((set, get) => {
     /** An edit: one undo step, and redo is gone. */
     const edit = (model: MappingModel) =>
       set((state) => ({
@@ -76,6 +104,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       selection: null,
       refusal: null,
       conflict: false,
+      diagnostics: [],
+      compileFailure: null,
 
       link: (sourceField, targetField) => {
         const result = link(get().workingCopy, { sourceField, targetField, boxId: ports.newId(), mappingId: ports.newId() });
@@ -105,9 +135,12 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
         try {
           stored = await ports.save(sent, get().etag);
         } catch (error) {
-          if (!isSaveConflict(error)) throw error;
-          set({ conflict: true });
-          return;
+          if (isSaveConflict(error)) {
+            set({ conflict: true });
+            return;
+          }
+          if (error instanceof ApiProblem && 'diagnostics' in error.problem) set({ diagnostics: error.problem.diagnostics });
+          throw error;
         }
         // An edit made while the save was under way stays in the working copy.
         set((state) => ({
@@ -131,8 +164,31 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       },
 
       keepEditing: () => set({ conflict: false }),
+
+      scheduleCompile: () => {
+        cancel();
+        const current = generation;
+        timer = setTimeout(() => {
+          running = new AbortController();
+          ports.compile(get().workingCopy, running.signal).then(
+            (diagnostics) => {
+              if (current === generation) set({ diagnostics, compileFailure: null });
+            },
+            (error: unknown) => {
+              if (current === generation) set({ compileFailure: describeError(error).title });
+            },
+          );
+        }, COMPILE_DELAY_MS);
+      },
+
+      cancelCompile: cancel,
     };
   });
+
+  store.subscribe((state, previous) => {
+    if (state.workingCopy !== previous.workingCopy) state.scheduleCompile();
+  });
+  return store;
 }
 
 /** Tells `listener` each time the working copy starts or stops differing from the baseline; returns the unsubscribe. */
