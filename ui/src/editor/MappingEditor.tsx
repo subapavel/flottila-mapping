@@ -13,6 +13,7 @@ import { locate } from './function-editor/graph';
 import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
+import { isStatusFilter, type StatusFilter } from './structure-overview/field-status';
 import { StructureOverview, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
 
@@ -98,6 +99,15 @@ function OpenMapping({
     setExpanded(next);
     browserState.write(expandedKey, next);
   };
+  const statusFilterKey = `mapping:${mappingId}:status-filter`;
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const kept = browserState.read(statusFilterKey);
+    return isStatusFilter(kept) ? kept : 'all';
+  });
+  const changeStatusFilter = (next: StatusFilter) => {
+    setStatusFilter(next);
+    browserState.write(statusFilterKey, next);
+  };
 
   // The working copy is compiled on open, then after every change of it (ADR-0013).
   useEffect(() => {
@@ -106,7 +116,7 @@ function OpenMapping({
   }, [store]);
 
   // A field the Diagnostics panel leads to: its branch is expanded, then its row takes the focus; a target field is
-  // also selected for the function editor.
+  // also selected for the function editor, and the status filter shows all rows again so that a filter never hides it.
   const editor = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState<{ testId: string } | null>(null);
   const selectTreeField = (side: 'source' | 'target', fieldPath: FieldPath) => {
@@ -114,7 +124,10 @@ function OpenMapping({
     const open = new Set([...(expanded[side] ?? [paths[0]!]), ...paths.slice(0, -1)]);
     changeExpanded({ ...expanded, [side]: [...open] });
     setFocused({ testId: `${side}-field:${fieldPath}` });
-    if (side === 'target') onSelectField?.(fieldPath);
+    if (side === 'target') {
+      changeStatusFilter('all');
+      onSelectField?.(fieldPath);
+    }
   };
   useEffect(() => {
     if (focused === null) return;
@@ -183,6 +196,8 @@ function OpenMapping({
         onExpandedChange={changeExpanded}
         selectedField={selectedField}
         onSelectField={onSelectField}
+        statusFilter={statusFilter}
+        onStatusFilterChange={changeStatusFilter}
       />
       <FunctionEditor
         api={api}
