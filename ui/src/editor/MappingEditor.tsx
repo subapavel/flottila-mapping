@@ -10,6 +10,7 @@ import { canvasKey, type BrowserStateStore } from './browser-state/browser-state
 import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
 import { locate } from './function-editor/graph';
+import { Inspector } from './inspector/Inspector';
 import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
@@ -150,6 +151,7 @@ function OpenMapping({
     onSelectField?.(where.field);
     store.getState().select(where.box);
   };
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [canvasState] = useState(() => ({
     read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
     write: (tfm: AuthoringId, state: CanvasState) => browserState.write(canvasKey(mappingId, tfm), state),
@@ -199,12 +201,18 @@ function OpenMapping({
         statusFilter={statusFilter}
         onStatusFilterChange={changeStatusFilter}
       />
-      <FunctionEditor
-        api={api}
-        store={store}
-        targetField={selectedField}
-        canvasState={canvasState}
-      />
+      {/* the function editor, with the collapsible inspector on its right; below it when the two do not fit (ADR-0012) */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '0.5rem' }}>
+        <div style={{ flex: '1 1 34rem', minWidth: 0 }}>
+          <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} />
+        </div>
+        <div style={{ flex: 'none' }}>
+          <Button variant="link" isInline aria-expanded={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}>
+            {inspectorOpen ? 'Hide inspector' : 'Show inspector'}
+          </Button>
+          {inspectorOpen && <Inspector api={api} store={store} targetField={selectedField} />}
+        </div>
+      </div>
       <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">
         <Tab eventKey="test" title={<TabTitleText>Test</TabTitleText>}>
           <TestPanel mappingId={mappingId} api={api} store={store} />

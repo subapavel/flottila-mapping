@@ -333,7 +333,8 @@ function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
 
 /**
  * The link gutter (ADR-0012): a line per field link, dashed when it ends at a collapsed row's ancestor, with the fx
- * count when several source-field boxes stand behind it, and per side the ↑n and ↓n of the ends scrolled away.
+ * count when several source-field boxes stand behind it, a ctx mark at its source end when one of them has a context
+ * that is not the parent, and per side the ↑n and ↓n of the ends scrolled away.
  */
 function LinkGutter({ gutter }: { gutter: Gutter }) {
   const mid = GUTTER_WIDTH / 2;
@@ -372,6 +373,12 @@ function LinkGutter({ gutter }: { gutter: Gutter }) {
             {l.boxes > 1 && (
               <text data-testid={`link-fx:${key}`} x={mid} y={(l.y1 + l.y2) / 2 - 2} textAnchor="middle" fontSize={10}>
                 fx {l.boxes}
+              </text>
+            )}
+            {l.contextChanged && (
+              <text data-testid={`link-context:${key}`} x={2} y={l.y1 - 3} fontSize={10}>
+                <title>Read in a context other than its parent</title>
+                ctx
               </text>
             )}
           </g>

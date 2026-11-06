@@ -1,11 +1,14 @@
 import { createStore } from 'zustand/vanilla';
-import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type StoredMapping } from '../../api/client';
-import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
+import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type FunctionCatalogue, type StoredMapping } from '../../api/client';
+import type { AuthoringId, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
 import type { CommandResult, Refusal } from '../../model/command';
 import { deleteBox } from '../../model/delete-box';
 import { insertBox } from '../../model/insert-box';
 import { link } from '../../model/link';
 import { sameModel } from '../../model/same-model';
+import { setContext } from '../../model/set-context';
+import { setInput } from '../../model/set-input';
+import { setParam } from '../../model/set-param';
 import { setResult, unwire, wire } from '../../model/wire';
 
 /** How many edits undo keeps (ADR-0013: at least 100); an older one is dropped. */
@@ -59,6 +62,12 @@ export interface WorkingCopyState {
   setResult: (targetField: FieldPath, box: AuthoringId | null) => void;
   /** Deletes a box; the selection is cleared when it was that box. */
   deleteBox: (box: AuthoringId) => void;
+  /** Sets box parameter `name` of a standard function box, checked against `catalogue`; the default is left out. */
+  setParam: (targetField: FieldPath, box: AuthoringId, name: string, value: ParamValue, catalogue: FunctionCatalogue) => void;
+  /** Sets a source-field box's context to a proper ancestor of its field; the parent is left out. */
+  setContext: (targetField: FieldPath, box: AuthoringId, context: FieldPath) => void;
+  /** Wires input slot `slot` of box `target` from box `source`, or leaves it unconnected with `null`. */
+  setInput: (targetField: FieldPath, target: AuthoringId, slot: number, source: AuthoringId | null) => void;
   undo: () => void;
   redo: () => void;
   select: (selection: AuthoringId | null) => void;
@@ -151,6 +160,13 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       deleteBox: (box) => {
         if (apply(deleteBox(get().workingCopy, { box })) && get().selection === box) set({ selection: null });
       },
+
+      setParam: (targetField, box, name, value, catalogue) =>
+        void apply(setParam(get().workingCopy, { targetField, box, name, value }, catalogue)),
+
+      setContext: (targetField, box, context) => void apply(setContext(get().workingCopy, { targetField, box, context })),
+
+      setInput: (targetField, target, slot, source) => void apply(setInput(get().workingCopy, { targetField, target, slot, source })),
 
       undo: () =>
         set((state) =>

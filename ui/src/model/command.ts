@@ -2,7 +2,16 @@ import type { AuthoringId, BoxReference, FieldPath, MappingModel, TargetFieldMap
 
 /** Why a command was refused, by the model check's codes (ADR-0011, ADR-0013). */
 export interface Refusal {
-  code: 'duplicate-authoring-id' | 'cross-target-field-reference' | 'unknown-box-reference' | 'box-cycle' | 'wrong-arity';
+  code:
+    | 'duplicate-authoring-id'
+    | 'cross-target-field-reference'
+    | 'unknown-box-reference'
+    | 'box-cycle'
+    | 'wrong-arity'
+    | 'context-not-ancestor'
+    | 'unknown-parameter'
+    | 'wrong-parameter-type'
+    | 'invalid-parameter-value';
   id: AuthoringId;
 }
 
@@ -26,6 +35,14 @@ export function describeRefusal({ code, id }: Refusal): string {
       return `There is no box ${id}.`;
     case 'wrong-arity':
       return `Box ${id} has no input slot there.`;
+    case 'context-not-ancestor':
+      return `That context is not a proper ancestor of the field box ${id} reads.`;
+    case 'unknown-parameter':
+      return `Box ${id} has no such parameter to set.`;
+    case 'wrong-parameter-type':
+      return `That value has the wrong type for the parameter of box ${id}.`;
+    case 'invalid-parameter-value':
+      return `That value is not one the parameter of box ${id} takes.`;
   }
 }
 

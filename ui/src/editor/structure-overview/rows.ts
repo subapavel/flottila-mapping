@@ -1,5 +1,5 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
-import type { BoxReference, FieldPath, TargetFieldMapping } from '../../generated/mapping-model';
+import type { BoxReference, FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
 
 /** One visible row of a structure tree. */
 export interface TreeRow {
@@ -51,16 +51,16 @@ export function reachedSourceFields(mapping: TargetFieldMapping | undefined): Fi
   return [...reachedSourceBoxes(mapping).keys()];
 }
 
-/** The reached source fields of `reachedSourceFields`, each with how many reached source-field boxes read it. */
-export function reachedSourceBoxes(mapping: TargetFieldMapping | undefined): Map<FieldPath, number> {
-  const fields = new Map<FieldPath, number>();
+/** The reached source fields of `reachedSourceFields`, each with the reached source-field boxes that read it. */
+export function reachedSourceBoxes(mapping: TargetFieldMapping | undefined): Map<FieldPath, SourceFieldBox[]> {
+  const fields = new Map<FieldPath, SourceFieldBox[]>();
   const met = new Set<string>();
   const visit = (ref: BoxReference) => {
     if (ref === null || met.has(ref)) return;
     met.add(ref);
     const box = mapping!.boxes[ref];
     if (box === undefined) return;
-    if (box.kind === 'source') fields.set(box.field, (fields.get(box.field) ?? 0) + 1);
+    if (box.kind === 'source') fields.set(box.field, [...(fields.get(box.field) ?? []), box]);
     else box.inputs?.forEach(visit);
   };
   if (mapping) visit(mapping.result);
