@@ -1,0 +1,43 @@
+/* The splitter handle (spec #145, "Splitters"): 8 px, grey, light blue on hover, a centred grip between two buttons. */
+.fm-splitter {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pf-t--global--spacer--sm, 6px);
+  background: var(--pf-t--global--background--color--secondary--default, #e6e6e6);
+  touch-action: none;
+  user-select: none;
+}
+.fm-splitter--horizontal {
+  height: 8px;
+  flex-direction: row;
+  cursor: row-resize;
+}
+.fm-splitter--vertical {
+  width: 8px;
+  flex-direction: column;
+  cursor: col-resize;
+}
+.fm-splitter:hover {
+  background: var(--pf-t--color--blue--20, #bee1f4);
+}
+.fm-splitter__grip {
+  width: 36px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--pf-t--global--icon--color--subtle, #8a8d90);
+}
+.fm-splitter--vertical > .fm-splitter__grip {
+  width: 3px;
+  height: 36px;
+}
+.fm-splitter__button {
+  border: 0;
+  background: transparent;
+  font-size: 8px;
+  line-height: 8px;
+  padding: 0 4px;
+  cursor: pointer;
+  color: var(--pf-t--global--text--color--subtle, #4f5255);
+}
