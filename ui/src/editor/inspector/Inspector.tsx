@@ -26,7 +26,8 @@ export interface InspectorProps {
 }
 
 /**
- * The inspector (ADR-0012, GLOSSARY): the selected box's catalogue documentation and badges, its box parameters as
+ * The inspector (ADR-0012, GLOSSARY): the selected box, which can be made the result or cleared as the result, its
+ * catalogue documentation and badges, its box parameters as
  * editors, the context of a source-field box and, when it is orphaned, a remap picker, one picker per input slot, and
  * its display queue. The params of a `udf` and an `unresolved` box, and of a function the catalogue lacks, are shown
  * read-only. With no box shown, the selected target field's display queue, when it has a mapping and a test run left a
@@ -89,6 +90,7 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource,
       <h3 data-testid={`inspector:${id}`}>
         {boxTitle(box)} <small>{id}</small>
       </h3>
+      <ResultToggle store={store} targetField={targetField} shown={shown} />
       {box.kind === 'source' ? (
         <>
           {remapSource && <RemapPicker box={box} source={remapSource} onRemap={onRemap} />}
@@ -114,6 +116,19 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource,
       <Inputs store={store} targetField={targetField} shown={shown} names={slotNames(box, catalogue, udfs)} />
       <BoxQueue id={id} last={last} />
     </>
+  );
+}
+
+/**
+ * The keyboard path to the sink (spec story 3): the box becomes the target field mapping's `result`, or, when it is the
+ * result, `result` is cleared, as a wire into or off the sink does on the canvas.
+ */
+function ResultToggle({ store, targetField, shown }: { store: WorkingCopyStore; targetField: FieldPath; shown: Inspected }) {
+  const isResult = shown.mapping.result === shown.id;
+  return (
+    <Button variant="secondary" onClick={() => store.getState().setResult(targetField, isResult ? null : shown.id)}>
+      {isResult ? 'Clear result' : 'Make this the result'}
+    </Button>
   );
 }
 

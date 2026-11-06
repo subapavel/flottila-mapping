@@ -306,6 +306,14 @@ describe('the palette', () => {
     await expect.element(page.getByTestId('palette:toUpperCase')).not.toBeInTheDocument();
     await expect.element(page.getByTestId('palette:divide')).toBeVisible();
   });
+
+  test('an entry that is not portable is described so to assistive technology', async () => {
+    const api = fakeApiClient({ [DRAFT]: graphMapping });
+    const catalogue = await api.getCatalogue();
+    render({ api: { ...api, getCatalogue: async () => ({ ...catalogue, abs: { ...catalogue.abs!, portable: false } }) } });
+
+    await expect.element(page.getByTestId('palette:abs')).toHaveAccessibleDescription('not portable');
+  });
 });
 
 describe('editing on the canvas', () => {

@@ -356,3 +356,28 @@ describe('the input slot pickers', () => {
     await expect.element(key).toHaveValue('s1');
   });
 });
+
+describe('the result', () => {
+  test('a selected box is made the result and cleared again by keyboard, as the wire into the sink does', async () => {
+    const api = render();
+    await inspect('n1');
+    const make = inspector.getByRole('button', { name: 'Make this the result' });
+    await expect.element(inspector.getByRole('button', { name: 'Clear result' })).not.toBeInTheDocument();
+
+    (make.element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+
+    await expect.element(page.getByTestId('rf__edge-n1->:sink')).toBeInTheDocument();
+    await expect.element(page.getByTestId('rf__edge-f1->:sink')).not.toBeInTheDocument();
+    const clear = inspector.getByRole('button', { name: 'Clear result' });
+    await expect.element(make).not.toBeInTheDocument();
+    expect((await saved(api)).result).toBe('n1');
+
+    (clear.element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+
+    await expect.element(page.getByTestId('unconnected:sink')).toBeVisible();
+    await expect.element(inspector.getByRole('button', { name: 'Make this the result' })).toBeVisible();
+    expect((await saved(api)).result).toBeNull();
+  });
+});

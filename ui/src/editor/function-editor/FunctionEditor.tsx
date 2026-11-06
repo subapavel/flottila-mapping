@@ -60,7 +60,7 @@ export interface FunctionEditorProps {
  * working copy.
  *
  * The canvas takes the focus and its keys: `/` or a typed character opens quick insert, Delete deletes the selected
- * box, Ctrl+C copies the selected boxes and Ctrl+V pastes them. A key typed into a field inside the canvas, quick
+ * boxes as one undo step, Ctrl+C copies the selected boxes and Ctrl+V pastes them. A key typed into a field inside the canvas, quick
  * insert's own, is the field's.
  */
 export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap }: FunctionEditorProps) {
@@ -68,8 +68,10 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   const mapping = useStore(store, (s) => (targetField === null ? undefined : s.workingCopy.targetFieldMappings?.[targetField]));
   const udfs = useStore(store, (s) => s.workingCopy.udfs);
   const selection = useStore(store, (s) => s.selection);
+  const selected = useStore(store, (s) => s.selected);
   // the store's selection may be a box of another target field mapping: it is not on this canvas
   const selectedBox = mapping !== undefined && selection !== null && Object.hasOwn(mapping.boxes, selection) ? selection : null;
+  const selectedBoxes = mapping === undefined ? [] : selected.filter((id) => Object.hasOwn(mapping.boxes, id));
   const canvas = useRef<HTMLDivElement>(null);
   /** The search quick insert opened with; `null` while it is closed. */
   const [quickInsert, setQuickInsert] = useState<string | null>(null);
@@ -83,9 +85,9 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
     const key = event.key.toLowerCase();
     if (event.ctrlKey && key === 'c') store.getState().copy(field);
     else if (event.ctrlKey && key === 'v') store.getState().paste(field);
-    else if (event.key === 'Delete' && selectedBox !== null) {
-      store.getState().deleteBox(selectedBox);
-      // the deleted box may have had the focus
+    else if (event.key === 'Delete' && selectedBoxes.length > 0) {
+      store.getState().deleteBoxes(selectedBoxes);
+      // a deleted box may have had the focus
       canvas.current!.focus();
     } else if (event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey) {
       setQuickInsert(event.key === '/' ? '' : event.key);
@@ -105,7 +107,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
       ) : (
         // the canvas goes below the palette when the two do not fit side by side
         <div style={{ flex: '1 0 auto', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <PaletteView catalogue={catalogue.data} />
+          <PaletteView catalogue={catalogue.data} onInsert={(fn) => store.getState().insertBox(targetField, fn)} />
           <div
             ref={canvas}
             data-testid={`canvas:${targetField}`}
@@ -152,6 +154,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
                 orphaned={orphaned}
                 onRemap={onRemap}
                 selectedBox={selectedBox}
+                chosen={selectedBoxes}
               />
             )}
           </div>
@@ -177,15 +180,14 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
   udfs: Udfs | undefined;
   /** The store's selection when it is a box of this canvas. */
   selectedBox: AuthoringId | null;
+  /** The selected boxes of this canvas, in the order selected. */
+  chosen: readonly AuthoringId[];
 }
 
-function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox }: CanvasProps) {
+function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox, chosen }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
   const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions) : arrange(mapping)));
   const [measured, setMeasured] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
-  const selected = useStore(store, (s) => s.selected);
-  // the selected boxes of this canvas, in the order selected
-  const chosen = selected.filter((id) => Object.hasOwn(mapping.boxes, id));
   const canPaste = useStore(store, (s) => s.clipboard?.targetField === targetField);
 
   // A box added or removed since the last render: place it and keep the others (ADR-0012, "Layout").

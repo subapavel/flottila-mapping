@@ -160,7 +160,7 @@ describe('editing the function graph', () => {
     expect(mapping()?.result).toBe('f1');
     s.getState().unwire(ORDER_ID, 'f1', 0);
     expect(mapping()?.boxes.f1).toEqual({ kind: 'function', fn: 'toUpperCase', inputs: [null] });
-    s.getState().deleteBox('f1');
+    s.getState().deleteBoxes(['f1']);
     expect(mapping()).toEqual({ id: 't1', result: null, boxes: { c1: { kind: 'function', fn: 'constant' } } });
 
     expect(s.getState().past).toHaveLength(6);
@@ -189,10 +189,10 @@ describe('editing the function graph', () => {
     s.getState().insertBox(ORDER_ID, 'toUpperCase');
     s.getState().select('c1');
 
-    s.getState().deleteBox('f1');
+    s.getState().deleteBoxes(['f1']);
     expect(s.getState().selection).toBe('c1');
 
-    s.getState().deleteBox('c1');
+    s.getState().deleteBoxes(['c1']);
     expect(s.getState().selection).toBeNull();
     expect(s.getState().workingCopy).toEqual(baseline);
   });
@@ -201,7 +201,7 @@ describe('editing the function graph', () => {
     const s = store();
     s.getState().select('zz');
 
-    s.getState().deleteBox('zz');
+    s.getState().deleteBoxes(['zz']);
 
     expect(s.getState().refusal).toEqual({ code: 'unknown-box-reference', id: 'zz' });
     expect(s.getState().selection).toBe('zz');

@@ -74,11 +74,36 @@ describe('selecting several boxes', () => {
     const s = store();
     s.getState().selectBoxes(['a1', 'c1', 'f1']);
 
-    s.getState().deleteBox('c1');
+    s.getState().deleteBoxes(['c1']);
     expect(s.getState()).toMatchObject({ selected: ['a1', 'f1'], selection: 'f1' });
 
-    s.getState().deleteBox('f1');
+    s.getState().deleteBoxes(['f1']);
     expect(s.getState()).toMatchObject({ selected: ['a1'], selection: 'a1' });
+  });
+
+  test('deleting several selected boxes removes them all as one undo step and unselects them; undo brings them back', () => {
+    const s = store();
+    s.getState().selectBoxes(['n1', 'a1', 'c1', 'f1']);
+
+    s.getState().deleteBoxes(['c1', 'f1']);
+
+    expect(Object.keys(boxesOf(s, ORDER_ID)!)).toEqual(['a1']);
+    expect(s.getState().past).toEqual([graph]);
+    expect(s.getState()).toMatchObject({ selected: ['n1', 'a1'], selection: 'a1' });
+
+    s.getState().undo();
+    expect(s.getState().workingCopy).toBe(graph);
+  });
+
+  test('a delete of several boxes with one unknown id deletes none of them and keeps the selection', () => {
+    const s = store();
+    s.getState().selectBoxes(['c1', 'f1']);
+
+    s.getState().deleteBoxes(['c1', 'zz', 'f1']);
+
+    expect(s.getState().workingCopy).toBe(graph);
+    expect(s.getState().refusal).toEqual({ code: 'unknown-box-reference', id: 'zz' });
+    expect(s.getState()).toMatchObject({ selected: ['c1', 'f1'], selection: 'f1' });
   });
 
   test('Reload unselects every box and keeps the clipboard', async () => {
@@ -119,7 +144,7 @@ describe('copy and paste', () => {
     const s = store(ids('t8', 'p1', 't9', 'p2'));
     s.getState().select('c1');
     s.getState().copy(ORDER_ID);
-    s.getState().deleteBox('c1');
+    s.getState().deleteBoxes(['c1']);
 
     s.getState().paste(ORDER_ID);
     s.getState().paste(ORDER_ID);
