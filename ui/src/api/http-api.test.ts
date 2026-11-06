@@ -97,6 +97,42 @@ describe('the HTTP ApiClient', () => {
     expect((error as ApiProblem).problem).toEqual(changed);
   });
 
+  test('lists the workspace mappings by GET on /api/mappings', async () => {
+    const list = [{ id: 'mappings/order-id-copy', name: 'order-id-copy' }];
+    const port = fakeFetch(() => json(list));
+
+    expect(await httpApiClient('', port.fetch).listMappings()).toEqual(list);
+    expect(port.calls).toEqual([{ url: '/api/mappings', method: 'GET', contentType: null, body: undefined }]);
+  });
+
+  test('creates a mapping by POST of the request to /api/mappings, and returns the new model with its ETag', async () => {
+    const port = fakeFetch(() => json(model, 201, 'application/json', TAG));
+    const request = {
+      id: 'mappings/new',
+      source: { bundle: ['order.xsd'], root: { element: 'Q{urn:a}Order' } },
+      target: { bundle: ['order.json'], root: { json: '$' as const } },
+    };
+
+    expect(await httpApiClient('', port.fetch).createMapping(request)).toEqual({ model, etag: TAG });
+    expect(port.calls).toEqual([{ url: '/api/mappings', method: 'POST', contentType: 'application/json', body: request }]);
+  });
+
+  test('a 409 mapping-exists answer to a create is an ApiProblem with the problem', async () => {
+    const exists = {
+      type: 'urn:flottila:mapping:problem:mapping-exists',
+      title: 'Mapping exists',
+      status: 409,
+      detail: 'a mapping with this id exists',
+    };
+    const port = fakeFetch(() => json(exists, 409, 'application/problem+json'));
+    const side = { bundle: ['a.xsd'], root: { element: 'a' } };
+
+    const error = await httpApiClient('', port.fetch).createMapping({ id: 'm/one', source: side, target: side }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiProblem);
+    expect((error as ApiProblem).problem).toEqual(exists);
+  });
+
   test('loads a structure by POST to /api/structures', async () => {
     const refused = { kind: 'refused', diagnostics: [] };
     const port = fakeFetch(() => json(refused));

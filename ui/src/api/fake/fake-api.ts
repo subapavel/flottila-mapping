@@ -9,9 +9,11 @@ import {
   type Diagnostic,
   type FunctionCatalogue,
   type StoredMapping,
+  type StructureLoaded,
   type StructureResponse,
   type TestResult,
 } from '../client';
+import { TREE_BUNDLE, TREE_FIELDS, TREE_FILE, TREE_MAPPING, TREE_SEED, generatedMapping, generatedStructure } from './generated-tree';
 import { orderStructure } from './order-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
@@ -19,15 +21,59 @@ const PROBLEM = 'urn:flottila:mapping:problem:';
 // The corpus file is a valid model: the engine's corpus case loads it.
 const orderIdCopy = JSON.parse(orderIdCopyText) as MappingModel;
 
-/** The corpus mappings, and the same mapping without its target field mappings, the thin path's start. */
+/** The generated tree of the `ui/tree-20128/scroll` scenario, built on first use. */
+let tree: { structure: StructureLoaded; mapping: MappingModel } | undefined;
+function generatedTree() {
+  if (!tree) {
+    const structure = generatedStructure(TREE_SEED, TREE_FIELDS);
+    tree = { structure, mapping: generatedMapping(structure, TREE_BUNDLE) };
+  }
+  return tree;
+}
+
+/**
+ * The corpus mappings, the same mapping without its target field mappings (the thin path's start), and the generated
+ * tree's mapping with every leaf field linked.
+ */
 function corpusMappings(): Record<string, MappingModel> {
   const unmapped = { ...orderIdCopy };
   delete unmapped.targetFieldMappings;
-  return { 'mappings/order-id-copy': orderIdCopy, 'mappings/order-unmapped': unmapped };
+  return { 'mappings/order-id-copy': orderIdCopy, 'mappings/order-unmapped': unmapped, [TREE_MAPPING]: generatedTree().mapping };
 }
 
 /** The structures the fake knows, by workspace path of the bundle's one file. */
-const structures: Record<string, StructureResponse> = { 'structures/skeleton/order.xsd': orderStructure };
+const structures: Record<string, () => StructureResponse> = {
+  'structures/skeleton/order.xsd': () => orderStructure,
+  [TREE_FILE]: () => generatedTree().structure,
+};
+
+/** The structure of a bundle resolved against the directory `base`, or the refusal of a bundle the fake does not know. */
+function structureOf(base: string, bundle: string[]): StructureResponse {
+  const files = bundle.map((file) => resolve(base, file)).join(', ');
+  return (
+    structures[files]?.() ?? {
+      kind: 'refused',
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'schema-unreadable',
+          message: `the fake API has no structure for ${files}`,
+          location: { kind: 'file-position', file: bundle.join(', '), line: 1, column: 1 },
+        },
+      ],
+    }
+  );
+}
+
+// A mapping id as the service's workspace accepts it (ADR-0024): 1 to 16 segments, the last one not reserved.
+const SEGMENT = '[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}';
+const WORKSPACE_ID = new RegExp(`^${SEGMENT}(/${SEGMENT}){0,15}$`);
+const RESERVED = new Set(['test', 'compile', 'refresh', 'udfs']);
+
+/** The directory of a mapping id, against which its bundle references resolve. */
+function directoryOf(id: string): string {
+  return id.split('/').slice(0, -1).join('/');
+}
 
 /** The test runs the fake knows: the corpus case's mapping, input and output (`link/direct-copy/001`). */
 const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput }];
@@ -58,6 +104,43 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
   };
 
   return {
+    listMappings: async () =>
+      [...mappings.keys()].sort().map((id) => ({ id, name: id.slice(id.lastIndexOf('/') + 1) })),
+
+    createMapping: async ({ id, source, target }) => {
+      if (!WORKSPACE_ID.test(id) || RESERVED.has(id.slice(id.lastIndexOf('/') + 1))) {
+        throw new ApiProblem({
+          type: `${PROBLEM}invalid-workspace-path`,
+          title: 'Not a workspace path',
+          status: 400,
+          detail: `not a workspace path: "${id}"`,
+        });
+      }
+      if (mappings.has(id)) {
+        throw new ApiProblem({ type: `${PROBLEM}mapping-exists`, title: 'Mapping exists', status: 409, detail: 'a mapping with this id exists' });
+      }
+      const base = directoryOf(id);
+      const [sourceStructure, targetStructure] = [structureOf(base, source.bundle), structureOf(base, target.bundle)];
+      if (sourceStructure.kind === 'refused' || targetStructure.kind === 'refused') {
+        throw new ApiProblem({
+          type: `${PROBLEM}model-refused`,
+          title: 'Model refused',
+          status: 422,
+          detail: 'a structure of the new mapping cannot be loaded',
+          diagnostics: [sourceStructure, targetStructure].flatMap((s) => (s.kind === 'refused' ? s.diagnostics : [])),
+        });
+      }
+      mappings.set(
+        id,
+        written({
+          formatVersion: 1,
+          source: { bundle: source.bundle as [string, ...string[]], fingerprint: sourceStructure.fingerprint, root: source.root },
+          target: { bundle: target.bundle as [string, ...string[]], fingerprint: targetStructure.fingerprint, root: target.root },
+        }),
+      );
+      return structuredClone(stored(id));
+    },
+
     getMapping: async (id) => structuredClone(stored(id)),
 
     saveMapping: async (id, model, etag) => {
@@ -73,22 +156,7 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
       return structuredClone(stored(id));
     },
 
-    loadStructure: async ({ base, bundle }) => {
-      const files = bundle.map((file) => resolve(base, file)).join(', ');
-      return (
-        structures[files] ?? {
-          kind: 'refused',
-          diagnostics: [
-            {
-              severity: 'error',
-              code: 'schema-unreadable',
-              message: `the fake API has no structure for ${files}`,
-              location: { kind: 'file-position', file: bundle.join(', '), line: 1, column: 1 },
-            },
-          ],
-        }
-      );
-    },
+    loadStructure: async ({ base, bundle }) => structureOf(base, bundle),
 
     runTest: async (_id, { model, input }): Promise<TestResult> => {
       const known = cases.find((c) => c.input === input && c.links === links(model));
