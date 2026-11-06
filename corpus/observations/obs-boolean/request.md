@@ -11,6 +11,10 @@ only the exact text `true` true, and are results written `true` / `false`? Assum
 what PO writes if it differs (for example `TRUE`, `1` or the empty string read as true, or a
 result written `1` / `0`). The `ifWithoutElse` mappings (#78) draw their own wires and contexts;
 `obs-ifwithoutelse` (#35) asks the related `concat(counter, ifWithoutElse(...))` question.
+Since F-29 (#31): PO's `createIf` casts with `flib7.Bool.toBoolean` and ends the run with
+"Cannot cast 'no' to boolean" on any value but `true` / `false` (any case), `1`, `0`. If a run
+here ends with that error, return its exact text: it answers the run's cases (one failing value
+stops the whole run, so note which value it names).
 
 ## Mapping boolean-and
 

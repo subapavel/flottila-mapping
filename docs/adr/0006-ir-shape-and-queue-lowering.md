@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-29 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-30 marks the `min` check of a missing context contradicted (#134)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -89,8 +89,14 @@ for-each over the source context".
     `0 < minOccurs < maxOccurs` it stays `unsupported-field`, because PO needs a mapping there.
   - `min` is checked before the first occurrence of context p is written. A context the queue
     lacks counts as empty (assumed for the `min` check; #31 d1 observed only that an optional field
-    gets no occurrence there). `po:MINOCCURS` is raised at the target field
-    mapping (`TargetSlots.origin`). Nothing is padded up to `min`.
+    gets no occurrence there). **Contradicted** by #31 `minOccurs-004` (F-30): PO gives a `Row`
+    (1..2) under the parent occurrence whose context the queue lacks one occurrence with the
+    queue's last value. The rule stays as written until `obs-target-creation-2` (#134) separates
+    the readings; `target/minOccurs/004` keeps its expectation and says so. `po:MINOCCURS` is
+    raised at the target field mapping (`TargetSlots.origin`). Nothing is padded up to `min`.
+  - Observed (#31, PO and CPI, no finding yet): a complex target node with a mapped value and no
+    mapped child is written with the value as its text (`<Row>a</Row>`); with a mapped child
+    (`max-003`) it carries no text. #134 asks again.
   - The export is `po:at-least(po:slots(queue, p, max), min, authoringId)`; `po:slots` gives
     `[slot number, value]` per created occurrence, and `po:at-least` is written only when
     `min > 0`. Its third argument, the target field mapping's id, names the field in the
@@ -190,8 +196,16 @@ for-each over the source context".
     generating function; its children are numbered `(p − 1) · copies + j`;
   - an unmapped target leaf with `minOccurs > 0` is a design-time error.
 - Assumed readings since #51, until observed cases confirm them (ADR-0002, #61): a shorter input
-  whose last value is SUPPRESS gives SUPPRESS when reused (#32 lift-3); `createIf` is true for `1`
-  or `true` in any case, and anything else, `""` and SUPPRESS included, gives SUPPRESS.
+  whose last value is SUPPRESS gives SUPPRESS when reused (#32 lift-3).
+- `createIf` casts each value as PO's `Bool.toBoolean` does (observed, #31 spec-2 part, F-29;
+  amended with #133, replacing the assumed reading of #51): `true` in any case and `1` give `""`,
+  `false` and `0` give SUPPRESS; any other value, `""` included, raises `po:CREATEIF` at the
+  `createIf` box (`Cannot cast '<value>' to boolean`), in the runtime and the export. Assumed until
+  `obs-target-creation-2` (#134) answers: `false` in any case (only `false` was observed); no
+  trimming (` true` raises); a SUPPRESS slot gives SUPPRESS; an empty context gives none.
+  Open: whether the boolean family's single-value functions (`and`, `or`, `not`, `if`, ...) and
+  `ifWithoutElse` cast the same way, or read only the exact text `true` as ADR-0025's family
+  assumes; `obs-boolean` decides (an exception there is an answer).
 - SUPPRESS through the context functions since #51 (`assumed` unless marked). The seeded
   agreement test `SuppressContextFunctionsAgreementTest` pins each reading on both back ends;
   corpus cases cover those a root-level target can show, and the numeric-key error gets its
