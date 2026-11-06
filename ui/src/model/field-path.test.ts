@@ -1,5 +1,28 @@
 import { describe, expect, test } from 'vitest';
-import { fieldPathSteps, stepName } from './field-path';
+import { fieldPathSteps, localPath, stepName } from './field-path';
+
+describe('the local path of a field path', () => {
+  test('is the local names of a namespaced element path, joined by /', () => {
+    expect(localPath('/Q{urn:po}PurchaseOrder/Q{urn:po}Buyer/Q{urn:common}Name')).toBe('PurchaseOrder/Buyer/Name');
+  });
+
+  test('keeps the @ of an attribute step', () => {
+    expect(localPath('/Q{urn:a}Order/Item/@Q{urn:x}id')).toBe('Order/Item/@id');
+  });
+
+  test('drops the ~n occurrence and slot suffixes of a target field mapping path', () => {
+    expect(localPath('/Q{urn:a}Order/Q{urn:a}Item~1/Q{urn:a}Name~12/@id~2')).toBe('Order/Item/Name/@id');
+  });
+
+  test("a slash inside an EQName's namespace does not split a step (ADR-0007)", () => {
+    expect(localPath('/Q{http://a/b}Order/@Q{urn:x/y}code')).toBe('Order/@code');
+  });
+
+  test('a JSON path shows its escaped names decoded, and a path with no step shows itself', () => {
+    expect(localPath('/$/order/a%2Fb')).toBe('$/order/a/b');
+    expect(localPath('')).toBe('');
+  });
+});
 
 describe('the steps of a field path (ADR-0007)', () => {
   test('are the texts between its slashes, an EQName with its namespace and an attribute with its @', () => {
