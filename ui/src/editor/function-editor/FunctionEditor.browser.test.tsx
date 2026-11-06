@@ -214,9 +214,10 @@ describe('selection', () => {
     await box('c1').click();
     await expect.element(node('c1')).toHaveClass('selected');
 
-    // the sink is the target field, not a box: it never becomes the selection
+    // the sink is the target field, not a box: clicking it leaves the selected box selected
     await page.getByTestId(`sink:${ORDER_ID}`).click();
     await expect.element(node(':sink')).not.toHaveClass('selected');
+    await expect.element(node('c1')).toHaveClass('selected');
 
     await userEvent.click(page.getByTestId('rf__wrapper'), { position: { x: 5, y: 5 } });
     await expect.element(node('c1')).not.toHaveClass('selected');
