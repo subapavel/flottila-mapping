@@ -25,8 +25,8 @@ export default defineConfig([
   boundary(['src/api/*.{ts,tsx}'], String.raw`^(?!\./|\.\./generated/)`, 'api imports only generated.'),
   boundary(
     ['src/api/fake/**'],
-    String.raw`^(?!\./|\.\./[^./]|\.\./\.\./generated/|\.\./\.\./\.\./\.\./corpus/)`,
-    'The fake ApiClient imports only api, generated and corpus/ fixtures.',
+    String.raw`^(?!\./|\.\./[^./]|\.\./\.\./generated/|\.\./\.\./\.\./\.\./(corpus|contract)/)`,
+    'The fake ApiClient imports only api, generated, corpus/ fixtures and contract/ files.',
   ),
   boundary(
     ['src/editor/*.{ts,tsx}'],

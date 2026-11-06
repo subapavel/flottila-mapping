@@ -1,0 +1,116 @@
+import { describe, expect, test } from 'vitest';
+import type { FunctionCatalogue } from '../../api/client';
+import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
+import { boxIds, boxView, locate, reachable, SINK, wires } from './graph';
+
+const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
+const ORDER_ID = `${ORDER}/OrderId`;
+
+/** OrderId and a constant into concat, which is the result; toUpperCase reads OrderId but feeds nothing. */
+const mapping: TargetFieldMapping = {
+  id: 't1',
+  result: 'f1',
+  boxes: {
+    u1: { kind: 'function', fn: 'toUpperCase', inputs: ['a1'] },
+    f1: { kind: 'function', fn: 'concat', inputs: ['a1', 'c1'] },
+    c1: { kind: 'function', fn: 'constant', params: { value: '-' } },
+    a1: { kind: 'source', field: ORDER_ID },
+  },
+};
+
+const catalogue: FunctionCatalogue = {
+  concat: {
+    family: 'text',
+    executionKind: 'single',
+    portable: true,
+    fidelity: { level: 'assumed' },
+    inputs: [{ name: 'a' }, { name: 'b' }],
+  },
+};
+
+describe('the function graph of a target field mapping', () => {
+  test('lists the boxes in sorted authoring id order', () => {
+    expect(boxIds(mapping)).toEqual(['a1', 'c1', 'f1', 'u1']);
+    expect(boxIds(undefined)).toEqual([]);
+  });
+
+  test('has one wire per used input slot and one from result into the sink', () => {
+    expect(wires(mapping)).toEqual([
+      { id: 'a1->f1#0', source: 'a1', target: 'f1', slot: 0 },
+      { id: 'c1->f1#1', source: 'c1', target: 'f1', slot: 1 },
+      { id: 'a1->u1#0', source: 'a1', target: 'u1', slot: 0 },
+      { id: `f1->${SINK}`, source: 'f1', target: SINK },
+    ]);
+  });
+
+  test('an unconnected input slot and a null result have no wire', () => {
+    const unfinished: TargetFieldMapping = { id: 't1', result: null, boxes: { f1: { kind: 'function', fn: 'concat', inputs: [null, 'a1'] }, a1: { kind: 'source', field: ORDER_ID } } };
+
+    expect(wires(unfinished)).toEqual([{ id: 'a1->f1#1', source: 'a1', target: 'f1', slot: 1 }]);
+    expect(wires(undefined)).toEqual([]);
+  });
+
+  test('reaches the boxes that feed result, each once, and not an unreachable box', () => {
+    expect([...reachable(mapping)].sort()).toEqual(['a1', 'c1', 'f1']);
+  });
+
+  test('the walk ends in a cycle of a hand-written model and skips an empty slot and a reference to no box', () => {
+    const cyclic: TargetFieldMapping = {
+      id: 't1',
+      result: 'x',
+      boxes: { x: { kind: 'function', fn: 'concat', inputs: ['y', null] }, y: { kind: 'function', fn: 'concat', inputs: ['x', 'toString'] } },
+    };
+
+    expect([...reachable(cyclic)].sort()).toEqual(['x', 'y']);
+  });
+
+  test('a null result reaches no box', () => {
+    expect(reachable({ ...mapping, result: null }).size).toBe(0);
+    expect(reachable(undefined).size).toBe(0);
+  });
+});
+
+describe('the view of a box', () => {
+  test('a source-field box shows its field step and has no input slot', () => {
+    expect(boxView({ kind: 'source', field: `${ORDER}/@Q{urn:x/y}channel` }, catalogue, undefined)).toEqual({ title: '@channel', slots: [] });
+  });
+
+  test('a function box shows its function and the catalogue names of its input slots', () => {
+    expect(boxView({ kind: 'function', fn: 'concat', inputs: ['a1'] }, catalogue, undefined)).toEqual({ title: 'concat', slots: ['a', 'b'] });
+  });
+
+  test('a function box the catalogue lacks numbers the slots its model has', () => {
+    expect(boxView({ kind: 'function', fn: 'gone', inputs: ['a1', null] }, catalogue, undefined)).toEqual({ title: 'gone', slots: ['1', '2'] });
+    expect(boxView({ kind: 'function', fn: 'gone' }, catalogue, undefined)).toEqual({ title: 'gone', slots: [] });
+  });
+
+  test('a udf box takes its slot names from the declaration, an unresolved box shows its name', () => {
+    const udfs = { trim2: { executionKind: 'single' as const, inputs: ['text'], source: 'x' } };
+
+    expect(boxView({ kind: 'udf', udf: 'trim2', inputs: [null] }, catalogue, udfs)).toEqual({ title: 'trim2', slots: ['text'] });
+    expect(boxView({ kind: 'udf', udf: 'other', inputs: [null] }, catalogue, udfs)).toEqual({ title: 'other', slots: ['1'] });
+    expect(boxView({ kind: 'unresolved', name: 'ns:fn', origin: 'po', inputs: ['a1'] }, catalogue, udfs)).toEqual({ title: 'ns:fn', slots: ['1'] });
+  });
+});
+
+describe('locating an authoring id', () => {
+  const model: MappingModel = {
+    formatVersion: 1,
+    source: { bundle: ['order.xsd'], fingerprint: 'sha256:00', root: { element: 'Q{urn:a}Order' } },
+    target: { bundle: ['order.xsd'], fingerprint: 'sha256:00', root: { element: 'Q{urn:a}Order' } },
+    targetFieldMappings: { [ORDER_ID]: mapping },
+  };
+
+  test('a box id names its target field and the box', () => {
+    expect(locate(model, 'c1')).toEqual({ field: ORDER_ID, box: 'c1' });
+  });
+
+  test('a target field mapping id names its target field and no box', () => {
+    expect(locate(model, 't1')).toEqual({ field: ORDER_ID, box: null });
+  });
+
+  test('an id the model lacks names nothing', () => {
+    expect(locate(model, 'zz')).toBeUndefined();
+    expect(locate({ ...model, targetFieldMappings: undefined }, 'c1')).toBeUndefined();
+  });
+});

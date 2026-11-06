@@ -9,9 +9,25 @@ if [ $# -ne 1 ]; then
   echo "usage: scripts/check-trailers.sh <range>" >&2
   exit 2
 fi
+case "$1" in
+  *..*) ;;
+  *)
+    echo "usage: scripts/check-trailers.sh <range>; '$1' has no '..' and would check the whole history" >&2
+    exit 2
+    ;;
+esac
+cd "$(dirname "$0")/.." || exit 2
+if ! shas=$(git rev-list "$1"); then
+  echo "cannot resolve range $1 in $(pwd)" >&2
+  exit 1
+fi
+if [ -z "$shas" ]; then
+  echo "checked 0 commits in $1: the range is empty, nothing was verified" >&2
+  exit 1
+fi
 rc=0
 n=0
-for sha in $(git rev-list "$1"); do
+for sha in $shas; do
   msg=$(git log -1 --format=%B "$sha")
   subject=$(printf '%s\n' "$msg" | head -n 1)
   if [[ "$subject" =~ ^Merge\ [0-9a-f]{40}\ into\ [0-9a-f]{40}$ ]]; then

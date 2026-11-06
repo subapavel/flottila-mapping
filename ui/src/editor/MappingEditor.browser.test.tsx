@@ -26,11 +26,16 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 let consoleError: ReturnType<typeof vi.spyOn>;
 
-function render(mappingId: string, api: ApiClient, browserState: BrowserStateStore = memoryBrowserState()) {
+function render(
+  mappingId: string,
+  api: ApiClient,
+  browserState: BrowserStateStore = memoryBrowserState(),
+  onUnsavedChange?: (unsaved: boolean) => void,
+) {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  root.render(<MappingEditor mappingId={mappingId} api={api} browserState={browserState} />);
+  root.render(<MappingEditor mappingId={mappingId} api={api} browserState={browserState} onUnsavedChange={onUnsavedChange} />);
 }
 
 function unmount() {
@@ -166,7 +171,7 @@ describe('linking, unsaved and save', () => {
 
     await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
     await expect.element(page.getByRole('button', { name: 'Save' })).toBeDisabled();
-    const saved = await api.getMapping('mappings/order-unmapped');
+    const saved = (await api.getMapping('mappings/order-unmapped')).model;
     const mapping = saved.targetFieldMappings?.[ORDER_ID];
     expect(mapping?.result).not.toBeNull();
     expect(mapping?.boxes[mapping.result!]).toEqual({ kind: 'source', field: ORDER_ID });
@@ -196,6 +201,188 @@ describe('linking, unsaved and save', () => {
     render('mappings/missing', fakeApiClient());
 
     await expect.element(page.getByRole('heading', { name: /Not found/ })).toBeVisible();
+  });
+});
+
+describe('undo, redo and the unsaved flag', () => {
+  const linked = (path: string) => targetRow(path).getByText('← OrderId');
+
+  test('Save, Undo and Redo are disabled on an unchanged mapping', async () => {
+    render('mappings/order-id-copy', fakeApiClient());
+
+    await expect.element(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await expect.element(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    await expect.element(page.getByRole('button', { name: 'Redo' })).toBeDisabled();
+  });
+
+  test('Undo and Redo step through the edits, and the host hears each flip of the unsaved flag', async () => {
+    const onUnsavedChange = vi.fn();
+    render('mappings/order-unmapped', fakeApiClient(), memoryBrowserState(), onUnsavedChange);
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+    expect(onUnsavedChange.mock.calls).toEqual([[true]]);
+
+    await page.getByRole('button', { name: 'Undo' }).click();
+
+    await expect.element(linked(ORDER_ID)).not.toBeInTheDocument();
+    await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
+    await expect.element(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await expect.element(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(onUnsavedChange.mock.calls).toEqual([[true], [false]]);
+
+    await page.getByRole('button', { name: 'Redo' }).click();
+
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+    await expect.element(page.getByRole('button', { name: 'Redo' })).toBeDisabled();
+    expect(onUnsavedChange.mock.calls).toEqual([[true], [false], [true]]);
+  });
+
+  test('a host that passes a new onUnsavedChange is told through the new one only', async () => {
+    const api = fakeApiClient();
+    const browserState = memoryBrowserState();
+    const first = vi.fn();
+    const second = vi.fn();
+    render('mappings/order-unmapped', api, browserState, first);
+    await expect.element(targetRow(ORDER_ID)).toBeVisible();
+
+    root!.render(<MappingEditor mappingId="mappings/order-unmapped" api={api} browserState={browserState} onUnsavedChange={second} />);
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+    expect(second.mock.calls).toEqual([[true]]);
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  test('Ctrl+Z undoes and Ctrl+Shift+Z redoes; z alone, Ctrl+Y and Ctrl+Z in a text field do neither', async () => {
+    render('mappings/order-unmapped', fakeApiClient());
+    await userEvent.click(sourceRow(ORDER_ID));
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(targetRow(ORDER_ID));
+    await userEvent.keyboard('{Enter}');
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+
+    await userEvent.keyboard('z');
+    await userEvent.keyboard('{Control>}y{/Control}');
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+
+    await userEvent.keyboard('{Control>}z{/Control}');
+    await expect.element(linked(ORDER_ID)).not.toBeInTheDocument();
+
+    // with Shift held a keyboard reports the key as a capital Z
+    await userEvent.keyboard('{Control>}{Shift>}Z{/Shift}{/Control}');
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+
+    await userEvent.click(page.getByRole('textbox', { name: 'Input message' }));
+    await userEvent.keyboard('{Control>}z{/Control}');
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+  });
+});
+
+describe('a save conflict', () => {
+  const MAPPING = 'mappings/order-unmapped';
+  const linked = (path: string) => targetRow(path).getByText('← OrderId');
+
+  /** The editor with OrderId linked, and the file on disk changed behind it to link Note instead. */
+  async function conflicted(api: ApiClient = fakeApiClient()) {
+    render(MAPPING, api);
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+    const onDisk = await api.getMapping(MAPPING);
+    const noteLinked: MappingModel = {
+      ...onDisk.model,
+      targetFieldMappings: { [NOTE]: { id: 'd1', result: 'd2', boxes: { d2: { kind: 'source', field: ORDER_ID } } } },
+    };
+    await api.saveMapping(MAPPING, noteLinked, onDisk.etag);
+
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect.element(page.getByRole('dialog', { name: 'Save conflict' })).toBeVisible();
+  }
+
+  test('Keep editing closes the dialog and keeps the working copy; the next Save meets the conflict again', async () => {
+    await conflicted();
+
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+    await expect.element(page.getByText('Unsaved')).toBeVisible();
+    await expect.element(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect.element(page.getByRole('dialog', { name: 'Save conflict' })).toBeVisible();
+  });
+
+  test('Reload drops the working copy and the undo history and shows the file on disk', async () => {
+    const api = fakeApiClient();
+    await conflicted(api);
+
+    await page.getByRole('button', { name: 'Reload' }).click();
+
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+    await expect.element(linked(NOTE)).toBeVisible();
+    await expect.element(linked(ORDER_ID)).not.toBeInTheDocument();
+    await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
+    await expect.element(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    await expect.element(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    // the reloaded tag is the disk's: the next edit saves
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
+    expect(Object.keys((await api.getMapping(MAPPING)).model.targetFieldMappings ?? {}).sort()).toEqual([NOTE, ORDER_ID].sort());
+  });
+
+  test('a Reload that fails shows its problem in the dialog, and Keep editing clears it', async () => {
+    const fake = fakeApiClient();
+    let offline = false;
+    await conflicted({
+      ...fake,
+      getMapping: (id) => (offline ? Promise.reject(new TypeError('Failed to fetch')) : fake.getMapping(id)),
+    });
+    offline = true;
+
+    await page.getByRole('button', { name: 'Reload' }).click();
+
+    await expect.element(page.getByRole('dialog').getByRole('heading', { name: /Failed to fetch/ })).toBeVisible();
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect.element(page.getByRole('dialog', { name: 'Save conflict' })).toBeVisible();
+    await expect.element(page.getByRole('dialog').getByRole('heading', { name: /Failed to fetch/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('a mapping the service refuses', () => {
+  test('opens read-only with its diagnostics and no edit control, and Retry opens it once it loads', async () => {
+    const refused = new ApiProblem({
+      type: 'urn:flottila:mapping:problem:model-refused',
+      title: 'Model refused',
+      status: 422,
+      detail: 'the mapping model is refused by validation stage 1 or 2',
+      diagnostics: [
+        { severity: 'error', code: 'unknown-member', message: 'extra is not allowed', location: { kind: 'pointer', pointer: '/extra' } },
+      ],
+    });
+    const fake = fakeApiClient();
+    let calls = 0;
+    render('mappings/order-id-copy', {
+      ...fake,
+      getMapping: (id) => (++calls === 1 ? Promise.reject(refused) : fake.getMapping(id)),
+    });
+
+    await expect.element(page.getByRole('heading', { name: /Model refused/ })).toBeVisible();
+    await expect
+      .element(page.getByRole('list', { name: 'Load diagnostics' }))
+      .toHaveTextContent('error unknown-member: extra is not allowed');
+    await expect.element(page.getByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    await expect.element(page.getByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    await expect.element(page.getByRole('tree')).not.toBeInTheDocument();
+
+    await page.getByRole('button', { name: 'Retry' }).click();
+
+    await expect.element(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
+    await expect.element(page.getByRole('heading', { name: /Model refused/ })).not.toBeInTheDocument();
   });
 });
 

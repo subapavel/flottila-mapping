@@ -58,7 +58,7 @@ describe('the generated mapping', () => {
 
   test('is served by the fake API with its generated structure', async () => {
     const api = fakeApiClient();
-    const model = await api.getMapping(TREE_MAPPING);
+    const { model } = await api.getMapping(TREE_MAPPING);
     const structure = await api.loadStructure({ base: 'mappings', bundle: model.source.bundle, root: model.source.root });
 
     expect(structure).toEqual(generatedStructure(TREE_SEED, TREE_FIELDS));
