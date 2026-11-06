@@ -200,10 +200,13 @@ function OpenMapping({
 
   // A field the Diagnostics panel leads to opens the Editor tab: the field's branch is expanded, then its row takes the
   // focus, or the tab's panel when the trees show no such row; a target field is also selected for the function
-  // editor, and the status filter shows all rows again so that a filter never hides it.
+  // editor, and the status filter shows all rows again so that a filter never hides it. The search of the field's own
+  // tree is cleared, so that it never hides the row or its ancestors either.
   const editorPanel = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState<{ testId: string } | null>(null);
+  const [search, setSearch] = useState({ source: '', target: '' });
   const selectTreeField = (side: 'source' | 'target', fieldPath: FieldPath) => {
+    setSearch({ ...search, [side]: '' });
     const paths = pathsDownTo(fieldPath);
     const open = new Set([...(expanded[side] ?? [paths[0]!]), ...paths.slice(0, -1)]);
     changeExpanded({ ...expanded, [side]: [...open] });
@@ -236,6 +239,7 @@ function OpenMapping({
     const where = locate(store.getState().workingCopy, id);
     if (!where) return;
     changeTab('editor');
+    setSearch({ ...search, target: '' });
     onSelectField?.(where.field);
     store.getState().select(where.box);
   };
@@ -326,6 +330,8 @@ function OpenMapping({
               onSelectField={onSelectField}
               statusFilter={statusFilter}
               onStatusFilterChange={changeStatusFilter}
+              search={search}
+              onSearchChange={setSearch}
               sides={sides}
               splitter={splitter}
             />

@@ -46,6 +46,9 @@ export interface StructureOverviewProps {
   /** The target rows shown: all, or those of one field status. */
   statusFilter: StatusFilter;
   onStatusFilterChange: (filter: StatusFilter) => void;
+  /** Each tree's search text, as typed: the host keeps it so that it can clear a search that hides a field it leads to. */
+  search: Record<Side, string>;
+  onSearchChange: (search: Record<Side, string>) => void;
   /** How the two trees share the width; the host keeps it and draws `splitter` between them (ADR-0012). */
   sides: Sides;
   /** The splitter between the source tree and the link gutter. */
@@ -83,7 +86,7 @@ const counted = (n: number, noun: string) => `${n.toLocaleString('en-US')} ${nou
  *
  * Each tree has a toolbar (spec #135): a search that shows the fields whose local name matches and their ancestors,
  * and only the links to rows it shows; Expand all and Collapse; and the field count and the visible-row count. The
- * search is this view's own state and the expansion the host's browser state: neither is an undo step.
+ * search is view state the host keeps and the expansion the host's browser state: neither is an undo step.
  */
 export function StructureOverview({
   mappingId,
@@ -95,12 +98,13 @@ export function StructureOverview({
   onSelectField,
   statusFilter,
   onStatusFilterChange,
+  search,
+  onSearchChange: setSearch,
   sides,
   splitter,
 }: StructureOverviewProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const diagnostics = useStore(store, (s) => s.diagnostics);
-  const [search, setSearch] = useState<Record<Side, string>>({ source: '', target: '' });
   const source = useTree(mappingId, api, model.source, expanded.source, 'source', search.source);
   const statuses = useMemo(() => fieldStatuses(model, diagnostics, source.structure), [model, diagnostics, source.structure]);
   const target = useTree(mappingId, api, model.target, expanded.target, 'target', search.target, statuses, statusFilter);
