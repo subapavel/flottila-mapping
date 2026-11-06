@@ -215,7 +215,7 @@ const KIND = { source: 'source-field box', function: 'function box', udf: 'UDF b
 function ResultToggle({ store, targetField, shown }: { store: WorkingCopyStore; targetField: FieldPath; shown: Inspected }) {
   const isResult = shown.mapping.result === shown.id;
   return (
-    <Button variant="secondary" onClick={() => store.getState().setResult(targetField, isResult ? null : shown.id)}>
+    <Button variant="secondary" size="sm" className="fm-inspector__result" onClick={() => store.getState().setResult(targetField, isResult ? null : shown.id)}>
       {isResult ? 'Clear result' : 'Make this the result'}
     </Button>
   );

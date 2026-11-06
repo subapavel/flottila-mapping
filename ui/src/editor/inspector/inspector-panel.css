@@ -61,6 +61,11 @@
   color: #6a6e73;
 }
 
+/* the result toggle: as wide as its text, not the pane */
+.fm-inspector__result {
+  align-self: flex-start;
+}
+
 /* the fidelity line, after the prototype's one line of SAP name, execution kind and portability */
 .fm-inspector__fidelity {
   margin: 0;
