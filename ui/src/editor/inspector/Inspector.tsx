@@ -6,7 +6,8 @@ import type { ApiClient, FunctionCatalogue } from '../../api/client';
 import type { CatalogueParam } from '../../generated/function-catalogue';
 import type { FieldPath, ParamValue, Params, SourceFieldBox, Table, Udfs } from '../../generated/mapping-model';
 import { properAncestors } from '../../model/set-context';
-import type { WorkingCopyStore } from '../store/working-copy';
+import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
+import { BoxQueue, TargetFieldQueue, type LastTrace } from './DisplayQueue';
 import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames, stepName, type Badge, type Inspected, type TableRow } from './inspector';
 
 export interface InspectorProps {
@@ -19,22 +20,38 @@ export interface InspectorProps {
 
 /**
  * The inspector (ADR-0012, GLOSSARY): the selected box's catalogue documentation and badges, its box parameters as
- * editors, the context of a source-field box, and one picker per input slot. The params of a `udf` and an
- * `unresolved` box, and of a function the catalogue lacks, are shown read-only.
+ * editors, the context of a source-field box, one picker per input slot, and its display queue. The params of a `udf`
+ * and an `unresolved` box, and of a function the catalogue lacks, are shown read-only. With no box shown, the selected
+ * target field's display queue, when it has a mapping and a test run left a trace.
  */
 export function Inspector({ api, store, targetField }: InspectorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const model = useStore(store, (s) => s.workingCopy);
   const selection = useStore(store, (s) => s.selection);
+  const trace = useStore(store, selectTrace);
+  const stale = useStore(store, selectTraceStale);
+  const last = { trace, stale };
   const shown = inspected(model, targetField, selection);
+  const mapping = targetField === null ? undefined : model.targetFieldMappings?.[targetField];
 
   return (
     <aside aria-label="Inspector" style={{ width: '18rem', flex: 'none' }}>
       {shown === undefined || catalogue.data === undefined ? (
-        <p>Select a box to inspect it.</p>
+        <>
+          <p>Select a box to inspect it.</p>
+          {mapping !== undefined && trace !== undefined && <TargetFieldQueue field={targetField!} mapping={mapping} last={last} />}
+        </>
       ) : (
         // a box of its own: no draft of one box's editors is left in the next box's
-        <BoxInspector key={shown.id} store={store} targetField={targetField!} shown={shown} catalogue={catalogue.data} udfs={model.udfs} />
+        <BoxInspector
+          key={shown.id}
+          store={store}
+          targetField={targetField!}
+          shown={shown}
+          catalogue={catalogue.data}
+          udfs={model.udfs}
+          last={last}
+        />
       )}
     </aside>
   );
@@ -46,9 +63,10 @@ interface BoxInspectorProps {
   shown: Inspected;
   catalogue: FunctionCatalogue;
   udfs: Udfs | undefined;
+  last: LastTrace;
 }
 
-function BoxInspector({ store, targetField, shown, catalogue, udfs }: BoxInspectorProps) {
+function BoxInspector({ store, targetField, shown, catalogue, udfs, last }: BoxInspectorProps) {
   const { id, box } = shown;
   const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
   return (
@@ -76,6 +94,7 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs }: BoxInspect
         <ReadOnlyParams note={readOnlyNote(box.kind === 'unresolved' ? box.origin : box.kind)} params={box.params} />
       )}
       <Inputs store={store} targetField={targetField} shown={shown} names={slotNames(box, catalogue, udfs)} />
+      <BoxQueue id={id} last={last} />
     </>
   );
 }
