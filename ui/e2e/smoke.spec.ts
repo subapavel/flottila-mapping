@@ -12,6 +12,6 @@ test('the dev host loads without console errors', async ({ page }) => {
   await page.goto('/?api=fake');
 
   await expect(page.getByRole('heading', { name: 'Flottila Mapping' })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Mappings' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Mappings' })).toBeVisible();
   expect(problems).toEqual([]);
 });

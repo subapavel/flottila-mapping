@@ -18,7 +18,7 @@ test('the author path: list, open, link by drag and drop, a function, a constant
   const problems = collectProblems(page);
   await page.goto('/?api=fake');
 
-  await page.getByRole('list', { name: 'Mappings' }).getByRole('button', { name: 'mappings/order-unmapped' }).click();
+  await page.getByRole('table', { name: 'Mappings' }).getByRole('button', { name: 'mappings/order-unmapped' }).click();
   await expect(page.getByRole('heading', { name: 'mappings/order-unmapped' })).toBeVisible();
   await page.getByTestId(`source-field:${ORDER_ID}`).dragTo(page.getByTestId(`target-field:${ORDER_ID}`));
   await expect(page.getByTestId(`target-field:${ORDER_ID}`)).toContainText('← OrderId');
