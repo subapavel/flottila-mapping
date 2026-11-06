@@ -27,6 +27,11 @@ base=${3:-}
 
 cd "$(dirname "$0")/.."
 mkdir -p .logs ui/.logs
+# the console output, stderr included, also goes to .logs/<ticket>-gate.log under this root, whatever the caller's
+# directory (#125). On exit, close it and wait for tee, so the log is complete when the script returns.
+exec > >(tee ".logs/${ticket}-gate.log") 2>&1
+tee_pid=$!
+trap 'exec >&- 2>&-; wait "$tee_pid"' EXIT
 status=0
 
 # step <name> <log> <command...>: run, send all output to the log, print the evidence word

@@ -13,6 +13,9 @@ Follow the command rules in `AGENTS.md` (Command rules); hand back only after ev
 
 - Every command's output to `.logs/<ticket>-<check>.log` or `ui/.logs/<ticket>-<check>.log`;
   read only the tail and the failing section (`tail`, `grep -n`, `sed -n`).
+- Run a gate as one plain command by absolute path, `/…/verify-<ticket>/scripts/gate-ticket.sh
+  <args>` (or `gate-spec.sh`), with no `bash -c`, `cd` or redirect: it writes its own
+  `.logs/<ticket>-gate.log` (`.logs/<spec>-spec-gate.log`) in the worktree it lives in.
 - When the architect asks you to remove a worktree, write the hand-back first: its logs are
   removed with it.
 - One run per check unless asked by exact command to repeat.
@@ -20,7 +23,7 @@ Follow the command rules in `AGENTS.md` (Command rules); hand back only after ev
   platform thread reported by a detector is a failure even with exit 0; quote the line.
 - Ratchet regeneration (only when asked, only on an integration branch): run the regeneration
   command, commit `ratchet/` alone (`git commit -F`, trailers of `docs/WORKFLOW.md` §11) with message `chore(ratchet): regenerate after #<ticket>`,
-  push, report the diff summary (what rose, what fell).
+  push with `scripts/push-retry.sh <repo-dir> <refspec>`, report the diff summary (what rose, what fell).
 
 Report, at most 40 lines plus one block per failure:
 `<check>: <VERIFIED_PASS|EXECUTED_FAIL|NOT_RUN|ENVIRONMENT_BLOCKED> · exit <code> · <counts line> · <log path>`
