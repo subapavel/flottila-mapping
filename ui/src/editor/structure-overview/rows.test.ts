@@ -82,9 +82,9 @@ describe('the rows of a structure tree', () => {
 });
 
 describe('a refused field in the tree (ADR-0008, ADR-0027)', () => {
-  const ambiguousNote = { code: 'ambiguous-field-path', file: 'r.xsd', line: 8, column: 65 };
-  const ambiguousPart = { code: 'ambiguous-field-path', file: 'r.xsd', line: 20, column: 53 };
-  const abstractBox = { code: 'abstract-target-element', file: 'r.xsd', line: 12, column: 40 };
+  const ambiguousNote = { code: 'ambiguous-field-path', side: 'both' as const, file: 'r.xsd', line: 8, column: 65 };
+  const ambiguousPart = { code: 'ambiguous-field-path', side: 'both' as const, file: 'r.xsd', line: 20, column: 53 };
+  const abstractBox = { code: 'abstract-target-element', side: 'target' as const, file: 'r.xsd', line: 12, column: 40 };
 
   /**
    * Doc holds Id, Note twice (same-step siblings), and Box, refused in a target only; Box holds Sku and Part twice,
@@ -153,6 +153,17 @@ describe('a refused field in the tree (ADR-0008, ADR-0027)', () => {
     ['/Other/Id', 'target', undefined],
   ] as const)('the refusal at %s in a %s tree, whatever the rows show', (path, side, refusal) => {
     expect(refusalAt(refused, path, side)).toEqual(refusal);
+  });
+
+  test('which side a refusal holds on comes from its side, never from its code', () => {
+    const later = { code: 'a-later-target-reason', side: 'target' as const, file: 'r.xsd', line: 3, column: 4 };
+    const targetOnlyId: StructureLoaded = {
+      ...refused,
+      types: { ...refused.types, doc: [field('Id', 1, 1, { valueType: 'xs:string', refusal: later })] },
+    };
+
+    expect(refusalAt(targetOnlyId, '/Doc/Id', 'source')).toBeUndefined();
+    expect(refusalAt(targetOnlyId, '/Doc/Id', 'target')).toEqual(later);
   });
 
   test('the root carries its own refusal', () => {

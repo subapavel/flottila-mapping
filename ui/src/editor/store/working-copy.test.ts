@@ -119,7 +119,7 @@ describe('the working-copy store', () => {
   test.each(['source', 'target'] as const)(
     'a link with a refused %s field is refused with that refusal and is no undo step (ADR-0027)',
     (side) => {
-      const refusal = { code: 'ambiguous-field-path', file: 'order.xsd', line: 14, column: 65 };
+      const refusal = { code: 'ambiguous-field-path', side: 'both' as const, file: 'order.xsd', line: 14, column: 65 };
       const s = store({ newId: ids('b1', 'm1') });
 
       s.getState().link(NOTE, ORDER_ID, { [side]: refusal });

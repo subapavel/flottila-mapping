@@ -103,8 +103,8 @@ describe('the link command', () => {
   });
 
   describe('refuses a refused field (ADR-0027) with its refusal, and leaves the model as it was', () => {
-    const ambiguous = { code: 'ambiguous-field-path', file: 'order.xsd', line: 14, column: 56 };
-    const abstract = { code: 'abstract-target-element', file: 'types.xsd', line: 3, column: 40 };
+    const ambiguous = { code: 'ambiguous-field-path', side: 'both' as const, file: 'order.xsd', line: 14, column: 56 };
+    const abstract = { code: 'abstract-target-element', side: 'target' as const, file: 'types.xsd', line: 3, column: 40 };
     const ids = { boxId: 'a1', mappingId: 't1' };
 
     test('a refused source field', () => {

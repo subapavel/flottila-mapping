@@ -20,12 +20,12 @@ export interface TreeRow {
 /** The steps of a field path: an EQName's braces may hold a `/` (ADR-0007). */
 export const STEP = /(?:\{[^}]*\}|[^/{])+/g;
 
-/** The codes of the refusals that hold in a target only: a source reads the field (ADR-0008, #94, #95). */
-const TARGET_ONLY = new Set(['interleaved-target-group', 'abstract-target-element']);
-
-/** A field's own refusal, when it refuses the field on `side`. */
+/**
+ * A field's own refusal, when it refuses the field on `side`: a refusal whose side is `target` holds in a target only,
+ * and a source reads the field (ADR-0008, #94, #95).
+ */
 const refusing = (field: FieldDto, side: Side): FieldRefusal | undefined =>
-  side === 'target' || !TARGET_ONLY.has(field.refusal?.code ?? '') ? field.refusal : undefined;
+  side === 'target' || field.refusal?.side !== 'target' ? field.refusal : undefined;
 
 /**
  * The refusal that refuses the field at `path` on `side`, as compile reports it (ADR-0008 Shape, ADR-0027): the

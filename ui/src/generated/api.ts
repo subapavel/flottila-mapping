@@ -673,6 +673,8 @@ export interface components {
         };
         RefusalDto: {
             code: string;
+            /** @enum {string} */
+            side: "both" | "target";
             file: string;
             /** Format: int32 */
             line: number;

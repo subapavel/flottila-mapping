@@ -241,10 +241,14 @@
       },
       "RefusalDto" : {
         "type" : "object",
-        "required" : [ "code", "file", "line", "column" ],
+        "required" : [ "code", "side", "file", "line", "column" ],
         "properties" : {
           "code" : {
             "type" : "string"
+          },
+          "side" : {
+            "type" : "string",
+            "enum" : [ "both", "target" ]
           },
           "file" : {
             "type" : "string"

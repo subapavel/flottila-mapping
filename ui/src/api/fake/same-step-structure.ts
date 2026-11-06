@@ -2,6 +2,7 @@ import type { FieldDto, StructureLoaded } from '../client';
 
 const ambiguous = (line: number, column: number) => ({
   code: 'ambiguous-field-path',
+  side: 'both' as const,
   file: '../structures/refused/same-step.xsd',
   line,
   column,

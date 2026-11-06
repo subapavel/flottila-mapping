@@ -438,6 +438,53 @@ class StructuresResourceTest {
     }
   }
 
+  /**
+   * A refusal's {@code side} is {@code target} for a reason that holds in a target only, here
+   * {@code interleaved-target-group} on the fields of a repeated sequence (#94), and {@code both}
+   * for {@code ambiguous-field-path} (ADR-0027, #116): the editor reads it, never a list of codes.
+   */
+  @Test
+  void aRefusalNamesTheSideItHoldsOn() {
+    TempWorkspace.write(
+        "structures/refused-sides/sides.xsd",
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="Doc">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:sequence maxOccurs="unbounded">
+                  <xs:element name="A" type="xs:string"/>
+                  <xs:element name="B" type="xs:string"/>
+                </xs:sequence>
+                <xs:element name="Note" type="xs:string" minOccurs="0"/>
+                <xs:element name="Note" type="xs:string" minOccurs="0"/>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>
+        """
+            .getBytes(StandardCharsets.UTF_8));
+
+    Http.Reply reply = structure("structures/refused-sides", "sides.xsd", "Doc");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    List<String> sides = new ArrayList<>();
+    for (JsonNode f : reply.json().path("types").path("/Doc")) {
+      sides.add(
+          f.path("localName").textValue()
+              + " "
+              + f.path("refusal").path("code").textValue()
+              + " "
+              + f.path("refusal").path("side").textValue());
+    }
+    assertThat(sides)
+        .containsExactly(
+            "A interleaved-target-group target",
+            "B interleaved-target-group target",
+            "Note ambiguous-field-path both",
+            "Note ambiguous-field-path both");
+  }
+
   /** Each field as {@code localName code file line:column}, or {@code localName -} without one. */
   private static List<String> refusals(JsonNode fields) {
     List<String> described = new ArrayList<>();

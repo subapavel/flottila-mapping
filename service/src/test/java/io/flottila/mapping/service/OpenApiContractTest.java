@@ -86,7 +86,7 @@ class OpenApiContractTest {
               "kind localName max min namespace nillable refusal step type valueType"
                   + " | kind localName min namespace nillable step"),
           // ADR-0027 "Refused fields on the wire" (#116)
-          Map.entry("RefusalDto", "code column file line | code column file line"),
+          Map.entry("RefusalDto", "code column file line side | code column file line side"),
           Map.entry(
               "DiagnosticDto", "code location message severity | code location message severity"),
           Map.entry("PointerLocation", "kind pointer | kind pointer"),

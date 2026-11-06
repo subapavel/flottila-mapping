@@ -54,7 +54,7 @@ describe('the insert box command', () => {
   });
 
   describe('refuses a refused target field (ADR-0027), before it looks at ids, and leaves the model as it was', () => {
-    const ambiguous = { code: 'ambiguous-field-path', file: 'order.xsd', line: 14, column: 56 };
+    const ambiguous = { code: 'ambiguous-field-path', side: 'both' as const, file: 'order.xsd', line: 14, column: 56 };
 
     test.each([
       ['a field without a mapping', unmapped, ORDER_ID],
