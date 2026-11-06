@@ -23,6 +23,10 @@ describe('the generated structure (ui/tree-20128)', () => {
     expect(Object.keys(structure.types).sort()).toEqual([...typed].sort());
   });
 
+  test('reaches its size whatever the seed, as the last open structure field always gets a structure child', () => {
+    for (let seed = 0; seed < 300; seed++) expect(fieldsOf(generatedStructure(seed, 40))).toHaveLength(40);
+  });
+
   test('lists a structure field’s attributes before its elements, and gives a leaf a value type', () => {
     for (const children of Object.values(generatedStructure(3, 2000).types)) {
       const kinds = children.map((c) => c.kind).join(' ');

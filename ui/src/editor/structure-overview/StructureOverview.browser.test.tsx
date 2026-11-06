@@ -174,5 +174,7 @@ describe('the link gutter', () => {
     render(DRAFT, fakeApiClient({ [DRAFT]: model }), expandedState(DRAFT));
 
     await expect.element(page.getByTestId(`link-fx:${first}->${first}`)).toHaveTextContent('fx 2');
+    await expect.element(fieldLink(leaves[1]!, leaves[1]!)).toBeInTheDocument();
+    await expect.element(page.getByTestId(`link-fx:${leaves[1]}->${leaves[1]}`)).not.toBeInTheDocument();
   });
 });
