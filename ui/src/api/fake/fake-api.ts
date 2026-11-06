@@ -2,7 +2,8 @@ import caseOutput from '../../../../corpus/cases/link/direct-copy/001/expected.x
 import caseInput from '../../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import orderIdCopyText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem, type ApiClient, type StructureResponse, type TestResult } from '../client';
+import { ApiProblem, type ApiClient, type StructureLoaded, type StructureResponse, type TestResult } from '../client';
+import { TREE_BUNDLE, TREE_FIELDS, TREE_FILE, TREE_MAPPING, TREE_SEED, generatedMapping, generatedStructure } from './generated-tree';
 import { orderStructure } from './order-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
@@ -10,15 +11,31 @@ const PROBLEM = 'urn:flottila:mapping:problem:';
 // The corpus file is a valid model: the engine's corpus case loads it.
 const orderIdCopy = JSON.parse(orderIdCopyText) as MappingModel;
 
-/** The corpus mappings, and the same mapping without its target field mappings, the thin path's start. */
+/** The generated tree of the `ui/tree-20128/scroll` scenario, built on first use. */
+let tree: { structure: StructureLoaded; mapping: MappingModel } | undefined;
+function generatedTree() {
+  if (!tree) {
+    const structure = generatedStructure(TREE_SEED, TREE_FIELDS);
+    tree = { structure, mapping: generatedMapping(structure, TREE_BUNDLE) };
+  }
+  return tree;
+}
+
+/**
+ * The corpus mappings, the same mapping without its target field mappings (the thin path's start), and the generated
+ * tree's mapping with every leaf field linked.
+ */
 function corpusMappings(): Record<string, MappingModel> {
   const unmapped = { ...orderIdCopy };
   delete unmapped.targetFieldMappings;
-  return { 'mappings/order-id-copy': orderIdCopy, 'mappings/order-unmapped': unmapped };
+  return { 'mappings/order-id-copy': orderIdCopy, 'mappings/order-unmapped': unmapped, [TREE_MAPPING]: generatedTree().mapping };
 }
 
 /** The structures the fake knows, by workspace path of the bundle's one file. */
-const structures: Record<string, StructureResponse> = { 'structures/skeleton/order.xsd': orderStructure };
+const structures: Record<string, () => StructureResponse> = {
+  'structures/skeleton/order.xsd': () => orderStructure,
+  [TREE_FILE]: () => generatedTree().structure,
+};
 
 /** The test runs the fake knows: the corpus case's mapping, input and output (`link/direct-copy/001`). */
 const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput }];
@@ -49,7 +66,7 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
     loadStructure: async ({ base, bundle }) => {
       const files = bundle.map((file) => resolve(base, file)).join(', ');
       return (
-        structures[files] ?? {
+        structures[files]?.() ?? {
           kind: 'refused',
           diagnostics: [
             {
