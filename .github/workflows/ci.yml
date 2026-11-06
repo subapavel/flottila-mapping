@@ -35,6 +35,7 @@ jobs:
           scripts/test/pit-summary-test.sh
           scripts/test/gate-spec-default-test.sh
           scripts/test/gate-log-test.sh
+          scripts/test/push-retry-test.sh
       - name: Commit trailers
         env:
           EVENT: ${{ github.event_name }}
