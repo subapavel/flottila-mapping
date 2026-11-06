@@ -27,6 +27,10 @@ git -C "$r" worktree add -q --detach "$w/agent-stale" "$c2"
 git -C "$w/agent-stale" read-tree "$c1"
 git -C "$r" worktree add -q --detach "$w/agent-new" "$c2"
 echo fresh > "$w/agent-new/new-work.txt"
+git -C "$r" worktree add -q --detach "$w/agent-staged" "$c2"
+echo staged > "$w/agent-staged/staged-only.txt"
+git -C "$w/agent-staged" add staged-only.txt
+rm "$w/agent-staged/staged-only.txt"
 git -C "$r" worktree add -q --detach "$w/verify-locked" "$c2"
 git -C "$r" worktree lock "$w/verify-locked"
 git -C "$r" checkout -q -b side
@@ -44,13 +48,16 @@ check "rc" "$rc" 0
 [ ! -e "$w/verify-locked" ]; check "locked clean removed" "$?" 0
 [ -e "$w/agent-new/new-work.txt" ]; check "new work kept" "$?" 0
 [ -e "$w/agent-unmerged" ]; check "unmerged kept" "$?" 0
+[ -e "$w/agent-staged" ]; check "staged-only file kept" "$?" 0
+printf '%s\n' "$out" | grep "agent-staged" | grep -q "staged-only.txt"
+check "staged-only path printed" "$?" 0
 printf '%s\n' "$out" | grep "agent-new" | grep -q "new-work.txt"
 check "new path printed" "$?" 0
 printf '%s\n' "$out" | grep "agent-unmerged" | grep -q "not merged"
 check "unmerged reported" "$?" 0
 printf '%s\n' "$out" | grep "agent-stale" | grep -q "forced"
 check "stale reports force" "$?" 0
-[ "$(printf '%s\n' "$out" | grep -c 'agent-\|verify-')" = 5 ]
+[ "$(printf '%s\n' "$out" | grep -c 'agent-\|verify-')" = 6 ]
 check "one line per worktree" "$?" 0
 
 exit "$fails"
