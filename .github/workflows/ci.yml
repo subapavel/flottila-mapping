@@ -31,6 +31,7 @@ jobs:
       - name: Script tests
         run: |
           scripts/test/trailers-test.sh
+          scripts/test/trailers-root-test.sh
           scripts/test/pit-summary-test.sh
       - name: Commit trailers
         env:

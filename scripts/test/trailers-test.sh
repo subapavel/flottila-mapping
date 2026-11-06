@@ -12,6 +12,9 @@ repo=$tmp/repo
 mkdir "$repo"
 g() { git -C "$repo" "$@"; }
 g init -q -b main
+# the script works in the repository it lives in (#122), so the throwaway repo holds its own copy
+mkdir "$repo/scripts"
+cp "$tool" "$repo/scripts/check-trailers.sh"
 g config user.email a@b.c
 g config user.name t
 good() { printf '%s\n\nTicket: #1\nCo-authored-by: Claude <noreply@anthropic.com>\nSigned-off-by: o <o@x.y>\n' "$1" > "$tmp/msg"; }
@@ -19,7 +22,7 @@ commit() { g commit -q --allow-empty -F "$tmp/msg"; }
 g commit -q --allow-empty -m base
 base=$(g rev-parse HEAD)
 
-run() { (cd "$repo" && "$tool" "$base..HEAD" > "$tmp/out" 2>&1; echo $?); }
+run() { (cd "$repo" && scripts/check-trailers.sh "$base..HEAD" > "$tmp/out" 2>&1; echo $?); }
 
 good "feat: ok"
 commit
