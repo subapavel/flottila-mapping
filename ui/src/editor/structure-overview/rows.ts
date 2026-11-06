@@ -68,6 +68,56 @@ export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<strin
   return rows;
 }
 
+/**
+ * The rows of every field `keep` holds for, and of each of its ancestors, in tree order, whatever is expanded. Below a
+ * field whose type is already on its path the walk stops, so that a recursive type (ADR-0008) ends there. A row with
+ * rows below it is shown expanded, any other collapsed. Each row carries the refusal `treeRows` gives it (ADR-0027).
+ */
+function keptRows(structure: StructureLoaded, side: Side, keep: (field: FieldDto) => boolean): TreeRow[] {
+  const rows: TreeRow[] = [];
+  const visit = (field: FieldDto, path: string, depth: number, above: FieldRefusal | undefined, types: ReadonlySet<string>) => {
+    const refusal = rowRefusal(field, side, above);
+    const at = rows.length;
+    rows.push({ path, depth, field, expandable: field.type !== undefined, expanded: false, ...(refusal && { refusal }) });
+    if (field.type !== undefined && !types.has(field.type)) {
+      const below = new Set(types).add(field.type);
+      for (const child of structure.types[field.type] ?? []) visit(child, `${path}/${child.step}`, depth + 1, refusal, below);
+    }
+    if (rows.length > at + 1) rows[at]!.expanded = true;
+    else if (!keep(field)) rows.pop();
+  };
+  visit(structure.root, `/${structure.root.step}`, 0, undefined, new Set());
+  return rows;
+}
+
+/**
+ * The field paths Expand all opens (spec #135): every structure field that has child fields, down to a field whose type
+ * is already on its path, which stays collapsed so that a recursive type ends.
+ */
+export function expandAllPaths(structure: StructureLoaded): string[] {
+  return keptRows(structure, 'source', () => true)
+    .filter((row) => row.expanded)
+    .map((row) => row.path);
+}
+
+/** A tree's field count (spec #135): the rows Expand all shows, so a recursive type counts as deep as it opens. */
+export function fieldCount(structure: StructureLoaded): number {
+  return keptRows(structure, 'source', () => true).length;
+}
+
+/** Whether a field's local name holds the search `query`, ignoring case; the namespace and the attribute mark do not count. */
+export function nameMatches(field: FieldDto, query: string): boolean {
+  return field.localName.toLowerCase().includes(query.toLowerCase());
+}
+
+/**
+ * The rows of a search (spec #135): every field whose local name matches `query` (`nameMatches`), and each of its
+ * ancestors, as far down as Expand all opens. An ancestor is shown expanded; a match with no match below it collapsed.
+ */
+export function searchRows(structure: StructureLoaded, query: string, side: Side): TreeRow[] {
+  return keptRows(structure, side, (field) => nameMatches(field, query));
+}
+
 /** A field's effective occurrence, `min..max`, with `unbounded` for an absent max. */
 export function occurrenceText(field: FieldDto): string {
   return `${field.min}..${field.max ?? 'unbounded'}`;

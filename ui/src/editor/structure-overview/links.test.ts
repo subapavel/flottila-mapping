@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type AnchoredLink, type FieldLink } from './links';
-import { treeRows } from './rows';
+import { searchRows, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
 type StructureLoaded = components['schemas']['StructureLoaded'];
@@ -122,6 +122,18 @@ describe('where a field link ends in a tree', () => {
     expect(at(`${ITEM}/Sku/Deeper`)).toBeUndefined();
     expect(at('/Q{http://a/b}Invoice/OrderId')).toBeUndefined();
     expect(at('')).toBeUndefined();
+  });
+
+  test('under a search, is the field’s own row only: a link to a row the search hides is not drawn (spec #135)', () => {
+    const searched = rowAnchors(structure, searchRows(structure, 'sku', 'source'), true);
+
+    expect(searched(`${ITEM}/Sku`)).toEqual({ index: 2, dashed: false });
+    expect(searched(ITEM)).toEqual({ index: 1, dashed: false });
+    expect(searched(ORDER_ID)).toBeUndefined();
+    expect(searched(`${ITEM}/Item/Sku`)).toBeUndefined();
+    // a search that matches nothing hides the root too
+    expect(rowAnchors(structure, searchRows(structure, 'zzz', 'source'), true)(ORDER)).toBeUndefined();
+    expect(rowAnchors(structure, [], false)(ORDER)).toEqual({ index: 0, dashed: false });
   });
 
   test('is none below a structure field whose type lists no fields', () => {

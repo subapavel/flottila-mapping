@@ -106,6 +106,7 @@ describe('the virtualised trees', () => {
     await expect.element(sourceRow(ROOT)).toBeVisible();
     expect(expandedOrder).toHaveLength(TREE_FIELDS);
     expect(rowsIn('Source')).toBeLessThanOrEqual(100);
+    await expect.element(tree('Source')).toHaveAccessibleDescription('Source structure: 20,128 fields, 20,128 visible rows');
 
     await scrollTo('Source', expandedOrder[10_000]!);
     expect(rowsIn('Source')).toBeLessThanOrEqual(100);
@@ -156,6 +157,18 @@ describe('the link gutter', () => {
 
     await expect.element(page.getByTestId('link-count:source:above')).toMatchTextContent(/^↑[1-9]\d*$/);
     await expect.element(page.getByTestId('link-count:target:below')).toMatchTextContent(/^↓[1-9]\d*$/);
+  });
+
+  test('marks a link’s target end with fx while that end is on screen (spec #135)', async () => {
+    render(TREE_MAPPING, fakeApiClient(), expandedState(TREE_MAPPING));
+    const first = leaves[0]!;
+    await expect.element(page.getByTestId(`link-mark:${first}->${first}`)).toBeInTheDocument();
+
+    await scrollTo('Target', expandedOrder[expandedOrder.indexOf(first) + 1]!);
+
+    await expect.element(page.getByTestId('link-count:target:above')).toBeInTheDocument();
+    await expect.element(fieldLink(first, first)).toBeInTheDocument();
+    await expect.element(page.getByTestId(`link-mark:${first}->${first}`)).not.toBeInTheDocument();
   });
 
   test('dashes a link to a collapsed row to its nearest visible ancestor', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
 import type { TargetFieldMapping } from '../../generated/mapping-model';
-import { occurrenceText, reachedSourceFields, refusalAt, treeRows } from './rows';
+import { expandAllPaths, fieldCount, occurrenceText, reachedSourceFields, refusalAt, searchRows, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
 type StructureLoaded = components['schemas']['StructureLoaded'];
@@ -78,6 +78,57 @@ describe('the rows of a structure tree', () => {
     const empty: StructureLoaded = { ...structure, types: {} };
 
     expect(treeRows(empty, new Set([ORDER]), 'target').map((r) => r.path)).toEqual([ORDER]);
+  });
+});
+
+describe('Expand all and the field count (spec #135, stories 16 and 17)', () => {
+  test('expand every structure field down to one whose type is already on its path, so a recursive type ends', () => {
+    expect(expandAllPaths(structure)).toEqual([ORDER, `${ORDER}/Item`]);
+    expect(describeRows(expandAllPaths(structure))).toEqual([
+      `${ORDER} -`,
+      `  ${ORDER}/@channel`,
+      `  ${ORDER}/OrderId`,
+      `  ${ORDER}/Item -`,
+      `    ${ORDER}/Item/Sku`,
+      `    ${ORDER}/Item/Item +`,
+    ]);
+  });
+
+  test('count the rows Expand all shows', () => {
+    expect(fieldCount(structure)).toBe(6);
+    expect(fieldCount({ ...structure, types: {} })).toBe(1);
+  });
+});
+
+describe('the rows of a search (spec #135, story 15)', () => {
+  const searched = (query: string) =>
+    searchRows(structure, query, 'target').map((r) => `${'  '.repeat(r.depth)}${r.path}${r.expandable ? (r.expanded ? ' -' : ' +') : ''}`);
+
+  test('are the fields whose local name holds the search, ignoring case, with their ancestors expanded', () => {
+    expect(searched('SKU')).toEqual([`${ORDER} -`, `  ${ORDER}/Item -`, `    ${ORDER}/Item/Sku`]);
+    expect(searched('chan')).toEqual([`${ORDER} -`, `  ${ORDER}/@channel`]);
+  });
+
+  test('match the local name, not the namespace, the attribute mark or the path', () => {
+    expect(searched('urn')).toEqual([]);
+    expect(searched('@')).toEqual([]);
+    expect(searched('order/')).toEqual([]);
+    expect(searched('order')).toEqual([`${ORDER} -`, `  ${ORDER}/OrderId`]);
+  });
+
+  test('end a recursive type where Expand all ends it, a matching field there collapsed', () => {
+    expect(searched('item')).toEqual([`${ORDER} -`, `  ${ORDER}/Item -`, `    ${ORDER}/Item/Item +`]);
+  });
+
+  test('carry the refusal nearest the root on their path', () => {
+    const refusal = { code: 'abstract-target-element', side: 'target' as const, file: 'r.xsd', line: 3, column: 4 };
+    const refusedItem: StructureLoaded = {
+      ...structure,
+      types: { ...structure.types, '/Q{urn:a}Order': [field('Item', 0, undefined, { type: 'item', refusal })] },
+    };
+
+    expect(searchRows(refusedItem, 'sku', 'target').map((r) => r.refusal?.code)).toEqual([undefined, 'abstract-target-element', 'abstract-target-element']);
+    expect(searchRows(refusedItem, 'sku', 'source').map((r) => r.refusal?.code)).toEqual([undefined, undefined, undefined]);
   });
 });
 
