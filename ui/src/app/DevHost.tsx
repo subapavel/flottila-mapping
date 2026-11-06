@@ -1,16 +1,5 @@
-import {
-  Alert,
-  Button,
-  DataList,
-  DataListCell,
-  DataListItem,
-  DataListItemCells,
-  DataListItemRow,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-} from '@patternfly/react-core';
+import { Alert, Button, Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core';
+import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { describeError, type ApiClient } from '../api/client';
@@ -112,25 +101,31 @@ function MappingList({ api, onOpen }: { api: ApiClient; onOpen: (id: string) => 
       );
     }
     if (mappings.data.length === 0) return <p>The workspace has no mappings.</p>;
+    // One row per mapping, its name the row's header cell; a name equal to the id is left out, the id says it. PatternFly
+    // gives a Table the role grid by default, but this one has no grid keyboard navigation: it is a plain table.
     return (
-      <DataList aria-label="Mappings" className="fm-host__list">
-        {mappings.data.map((m) => (
-          <DataListItem key={m.id} aria-labelledby={`fm-mapping-${m.id}`}>
-            <DataListItemRow>
-              <DataListItemCells
-                dataListCells={[
-                  ...(m.name === m.id ? [] : [<DataListCell key="name">{m.name}</DataListCell>]),
-                  <DataListCell key="id">
-                    <Button id={`fm-mapping-${m.id}`} variant="link" isInline onClick={() => onOpen(m.id)}>
-                      {m.id}
-                    </Button>
-                  </DataListCell>,
-                ]}
-              />
-            </DataListItemRow>
-          </DataListItem>
-        ))}
-      </DataList>
+      <Table aria-label="Mappings" role="table" variant="compact" className="fm-host__list">
+        <Thead>
+          <Tr>
+            <Th>Name</Th>
+            <Th>Mapping id</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {mappings.data.map((m) => (
+            <Tr key={m.id}>
+              <Th scope="row" dataLabel="Name">
+                {m.name === m.id ? '' : m.name}
+              </Th>
+              <Td dataLabel="Mapping id">
+                <Button variant="link" isInline onClick={() => onOpen(m.id)}>
+                  {m.id}
+                </Button>
+              </Td>
+            </Tr>
+          ))}
+        </Tbody>
+      </Table>
     );
   };
 
