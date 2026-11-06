@@ -1,6 +1,8 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
-import type { BoxReference, FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
+import type { FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
 import type { FieldRefusal } from '../../model/command';
+import { fieldPathSteps } from '../../model/field-path';
+import { reachedBoxes } from '../../model/reached';
 
 type Side = 'source' | 'target';
 
@@ -16,9 +18,6 @@ export interface TreeRow {
   /** The refusal that refuses the row's field in its tree, nearest the root (`refusalAt`); absent when none does. */
   refusal?: FieldRefusal;
 }
-
-/** The steps of a field path: an EQName's braces may hold a `/` (ADR-0007). */
-export const STEP = /(?:\{[^}]*\}|[^/{])+/g;
 
 /**
  * A field's own refusal, when it refuses the field on `side`: a refusal whose side is `target` holds in a target only,
@@ -42,7 +41,7 @@ export const rowRefusal = (field: FieldDto, side: Side, above: FieldRefusal | un
  * same-step sibling: same-step siblings all carry one `ambiguous-field-path`, so the walk ends there anyway.
  */
 export function refusalAt(structure: StructureLoaded, path: FieldPath, side: Side): FieldRefusal | undefined {
-  const steps = path.match(STEP) ?? [];
+  const steps = fieldPathSteps(path);
   let field: FieldDto | undefined = steps[0] === structure.root.step ? structure.root : undefined;
   for (const step of steps.slice(1)) {
     if (field === undefined || refusing(field, side)) break;
@@ -69,15 +68,6 @@ export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<strin
   return rows;
 }
 
-/**
- * The name a row shows for the last step of a field path: its local name, `@` before an attribute's, and a JSON
- * property's name as the schema spells it, its `% / @ { }` decoded (ADR-0007); a JSON root is `$`.
- */
-export function stepName(path: string): string {
-  const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)?.[0] ?? path;
-  return decodeURIComponent(last.replace(/^(@?)Q\{[^}]*\}/, '$1'));
-}
-
 /** A field's effective occurrence, `min..max`, with `unbounded` for an absent max. */
 export function occurrenceText(field: FieldDto): string {
   return `${field.min}..${field.max ?? 'unbounded'}`;
@@ -85,8 +75,8 @@ export function occurrenceText(field: FieldDto): string {
 
 /**
  * The source fields read by the source-field boxes that a target field mapping's `result` reaches (ADR-0013), each
- * once, in the order a walk from `result` through the boxes' inputs meets them. An unreachable box adds none, so a
- * mapping whose `result` is null has none. The walk stops at an empty input slot, a box it has met, and a missing box.
+ * once, in the order `reachedBoxes` meets those boxes. An unreachable box adds none, so a mapping whose `result` is
+ * null has none.
  */
 export function reachedSourceFields(mapping: TargetFieldMapping | undefined): FieldPath[] {
   return [...reachedSourceBoxes(mapping).keys()];
@@ -95,15 +85,9 @@ export function reachedSourceFields(mapping: TargetFieldMapping | undefined): Fi
 /** The reached source fields of `reachedSourceFields`, each with the reached source-field boxes that read it. */
 export function reachedSourceBoxes(mapping: TargetFieldMapping | undefined): Map<FieldPath, SourceFieldBox[]> {
   const fields = new Map<FieldPath, SourceFieldBox[]>();
-  const met = new Set<string>();
-  const visit = (ref: BoxReference) => {
-    if (ref === null || met.has(ref)) return;
-    met.add(ref);
-    const box = mapping!.boxes[ref];
-    if (box === undefined) return;
+  for (const id of reachedBoxes(mapping)) {
+    const box = mapping!.boxes[id]!;
     if (box.kind === 'source') fields.set(box.field, [...(fields.get(box.field) ?? []), box]);
-    else box.inputs?.forEach(visit);
-  };
-  if (mapping) visit(mapping.result);
+  }
   return fields;
 }

@@ -17,9 +17,11 @@ import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
+import { reachedBoxes } from '../../model/reached';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { boxIds, boxView, liveMarks, reachable, SINK, stepName, wires, type BoxView } from './graph';
+import { boxIds, boxView, liveMarks, SINK, wires, type BoxView } from './graph';
 import { arrange, BOX, place, type Positions } from './layout';
 import { FUNCTION_DRAG } from './palette';
 import { PaletteView } from './PaletteView';
@@ -191,7 +193,7 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
   if (shown !== positions) setPositions(shown);
 
   const keep = (state: CanvasState) => canvasState.write(mapping.id, { ...canvasState.read(mapping.id), ...state });
-  const reached = reachable(mapping);
+  const reached = new Set(reachedBoxes(mapping));
   const marks = liveMarks(mapping, catalogue, udfs);
   const nodes: (BoxNode | SinkNode)[] = [
     ...boxIds(mapping).map(

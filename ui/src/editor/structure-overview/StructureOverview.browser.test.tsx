@@ -9,8 +9,8 @@ import { fakeApiClient } from '../../api/fake/fake-api';
 import { TREE_FIELDS, TREE_MAPPING, TREE_SEED, generatedStructure, structurePaths } from '../../api/fake/generated-tree';
 import type { MappingModel } from '../../generated/mapping-model';
 import type { BrowserStateStore } from '../browser-state/browser-state';
+import { stepName } from '../../model/field-path';
 import { MappingEditor } from '../index';
-import { stepName } from './rows';
 
 // The virtualised trees and the link gutter over the generated tree of 20,128 fields (ADR-0012, #111).
 const structure: StructureLoaded = generatedStructure(TREE_SEED, TREE_FIELDS);

@@ -1,7 +1,8 @@
 import type { StructureLoaded } from '../../api/client';
 import type { FieldPath, MappingModel } from '../../generated/mapping-model';
+import { fieldPathSteps } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
-import { reachedSourceBoxes, STEP, type TreeRow } from './rows';
+import { reachedSourceBoxes, type TreeRow } from './rows';
 
 /** A field link (ADR-0012): one per pair of source field and target field. */
 export interface FieldLink {
@@ -69,7 +70,7 @@ export function fieldLinks(model: MappingModel): FieldLink[] {
 export function rowAnchors(structure: StructureLoaded, rows: readonly TreeRow[]): (path: FieldPath) => Anchor | undefined {
   const index = new Map(rows.map((row, i) => [row.path, i]));
   return (path) => {
-    const steps = path.match(STEP) ?? [];
+    const steps = fieldPathSteps(path);
     if (steps[0] !== structure.root.step) return undefined;
     let field = structure.root;
     let prefix = `/${steps[0]}`;

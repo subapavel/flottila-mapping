@@ -24,7 +24,7 @@ import { setInput } from '../../model/set-input';
 import { setParam } from '../../model/set-param';
 import { setResult, unwire, wire } from '../../model/wire';
 
-/** How many edits undo keeps (ADR-0013: at least 100); an older one is dropped. */
+/** How many edits undo keeps (spec #104, story 51: at least 100); an older one is dropped. */
 export const UNDO_DEPTH = 100;
 
 /** How long after the last edit the working copy is compiled (ADR-0013). */
