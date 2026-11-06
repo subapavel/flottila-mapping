@@ -42,6 +42,10 @@ const shownText = () => modelJson.element().textContent;
 
 describe('the Model JSON tab (spec #135)', () => {
   test('shows the working copy in canonical form, read-only: the corpus file it opened, byte for byte', async () => {
+    // behind another tab the working copy is not serialised at all
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByRole('region', { name: 'Working copy in canonical form', includeHidden: true })).not.toBeInTheDocument();
+
     await tab('Model JSON').click();
 
     await expect.element(modelJson).toBeVisible();
