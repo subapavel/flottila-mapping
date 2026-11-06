@@ -39,6 +39,9 @@ class CatalogueResourceTest {
   /** The catalogue's contract, in {@code contract/} (ADR-0026). */
   private static final String SCHEMA = "function-catalogue.schema.json";
 
+  /** The packed catalogue as the build writes it into {@code contract/} (ADR-0027). */
+  private static final String CONTRACT_FILE = "function-catalogue.json";
+
   @TestHTTPResource URI root;
 
   private static byte[] packed() throws IOException {
@@ -61,6 +64,22 @@ class CatalogueResourceTest {
     assertThat(reply.contentType()).startsWith("application/json");
     assertBytes(reply.body(), packed);
     assertThat(reply.header("ETag")).as("the ETag of the catalogue").isEmpty();
+  }
+
+  /**
+   * The packed catalogue is contract (ADR-0027): the build writes {@code
+   * contract/function-catalogue.json}, and it holds exactly the bytes {@code GET /api/catalogue}
+   * serves, so the UI reads the palette without a Java build.
+   */
+  @Test
+  void theContractFileHoldsTheServedBytes() throws IOException {
+    byte[] committed =
+        Files.readAllBytes(Fixtures.repositoryRoot().resolve("contract").resolve(CONTRACT_FILE));
+
+    Http.Reply reply = new Http(root).get("api/catalogue");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    assertBytes(committed, reply.body());
   }
 
   /**
