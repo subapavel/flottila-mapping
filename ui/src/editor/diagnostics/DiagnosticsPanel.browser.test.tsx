@@ -92,9 +92,36 @@ describe('the Diagnostics panel', () => {
       { severity: 'error', code: 'unmapped-mandatory-leaf', message: 'unmapped', location: { kind: 'pointer', pointer } },
     ]);
 
-    await item('unmapped-mandatory-leaf').getByRole('button', { name: pointer }).click();
+    const link = item('unmapped-mandatory-leaf').getByRole('button', { name: 'Order/Note' });
+    await expect.element(link).toHaveAttribute('title', pointer);
+    await link.click();
 
     expect(onSelectField.mock.calls).toEqual([['target', NOTE]]);
+  });
+
+  test('a pointer below a target field mapping keeps what it says below the local path', async () => {
+    const pointer = '/targetFieldMappings/~1Q{urn:flottila:corpus:skeleton}Order~1Note/boxes/a1';
+    render([{ severity: 'error', code: 'box-cycle', message: 'a cycle', location: { kind: 'pointer', pointer } }]);
+
+    const link = item('box-cycle').getByRole('button', { name: 'Order/Note/boxes/a1' });
+    await expect.element(link).toHaveAttribute('title', pointer);
+  });
+
+  test("a pointer's escaped key is read as a field path: ~1 is a slash, and an attribute keeps its @", async () => {
+    const pointer = '/targetFieldMappings/~1Q{urn:flottila:corpus:gate:po}PurchaseOrder~1Q{urn:flottila:corpus:gate:po}Line~1@no';
+    render([{ severity: 'error', code: 'unmapped-mandatory-leaf', message: 'unmapped', location: { kind: 'pointer', pointer } }]);
+
+    const link = item('unmapped-mandatory-leaf').getByRole('button', { name: 'PurchaseOrder/Line/@no' });
+    await expect.element(link).toHaveAttribute('title', pointer);
+  });
+
+  test('a field path shows as its local path, the full path in its title', async () => {
+    render([
+      { severity: 'error', code: 'orphaned-reference', message: 'gone', location: { kind: 'field-path', side: 'source', fieldPath: NOTE } },
+    ]);
+
+    const link = item('orphaned-reference').getByRole('button', { name: 'Order/Note' });
+    await expect.element(link).toHaveAttribute('title', NOTE);
   });
 
   test('a {side, fieldPath} location selects that tree row', async () => {
@@ -107,7 +134,7 @@ describe('the Diagnostics panel', () => {
       },
     ]);
 
-    await item('orphaned-reference').getByRole('button', { name: NOTE }).click();
+    await item('orphaned-reference').getByRole('button', { name: 'Order/Note' }).click();
 
     expect(onSelectField.mock.calls).toEqual([['source', NOTE]]);
   });
