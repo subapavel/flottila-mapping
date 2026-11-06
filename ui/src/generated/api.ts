@@ -615,6 +615,7 @@ export interface components {
             valueType?: string;
             nillable: boolean;
             type?: string;
+            refusal?: components["schemas"]["RefusalDto"];
         };
         FieldPathLocation: {
             /**
@@ -669,6 +670,14 @@ export interface components {
         RefreshResponse: {
             model: components["schemas"]["mapping-model.schema"];
             diagnostics: components["schemas"]["DiagnosticDto"][];
+        };
+        RefusalDto: {
+            code: string;
+            file: string;
+            /** Format: int32 */
+            line: number;
+            /** Format: int32 */
+            column: number;
         };
         RefusedProblem: {
             /** Format: uri */

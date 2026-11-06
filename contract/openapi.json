@@ -94,6 +94,9 @@
           },
           "type" : {
             "type" : "string"
+          },
+          "refusal" : {
+            "$ref" : "#/components/schemas/RefusalDto"
           }
         }
       },
@@ -233,6 +236,26 @@
             "items" : {
               "$ref" : "#/components/schemas/DiagnosticDto"
             }
+          }
+        }
+      },
+      "RefusalDto" : {
+        "type" : "object",
+        "required" : [ "code", "file", "line", "column" ],
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "file" : {
+            "type" : "string"
+          },
+          "line" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "column" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         }
       },

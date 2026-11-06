@@ -14,10 +14,12 @@ import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -353,6 +355,107 @@ class StructuresResourceTest {
         .containsExactly(
             "error schema-reference-outside-bundle at file order.schema.json 7:16",
             "error schema-reference-outside-bundle at file order.schema.json 8:17");
+  }
+
+  /**
+   * ADR-0027 "Refused fields on the wire" (#116): same-step siblings each carry the structure's
+   * refusal (#92), {@code ambiguous-field-path} at the step's second declaration, here {@code Note}
+   * at line 14 and {@code Ref} at line 19 of {@code corpus/structures/refused/same-step.xsd}; an
+   * ordinary field carries none.
+   */
+  @Test
+  void sameStepSiblingsCarryTheirRefusalAndAnOrdinaryFieldNone() throws IOException {
+    TempWorkspace.write(
+        "structures/refused/same-step.xsd",
+        Files.readAllBytes(
+            Fixtures.repositoryRoot().resolve("corpus/structures/refused/same-step.xsd")));
+
+    Http.Reply reply = structure("structures/refused", "same-step.xsd", "Doc");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode loaded = reply.json();
+    assertThat(loaded.path("kind").textValue()).as("%s", reply).isEqualTo("loaded");
+    assertThat(refusals(loaded.path("types").path(loaded.path("root").path("type").textValue())))
+        .containsExactly(
+            "Id -",
+            "Note ambiguous-field-path same-step.xsd 14:65",
+            "Code -",
+            "Note ambiguous-field-path same-step.xsd 14:65",
+            "Head -");
+    assertThat(refusals(loaded.path("types").path("/Doc/Head")))
+        .containsExactly(
+            "Ref ambiguous-field-path same-step.xsd 19:56",
+            "Ref ambiguous-field-path same-step.xsd 19:56");
+    assertThat(loaded.path("root").has("refusal")).as("the root is an ordinary field").isFalse();
+  }
+
+  /**
+   * Same-step structure fields: both {@code Part}s carry {@code ambiguous-field-path} at the second
+   * one (line 11). A type's fields are shared by every field of that type (ADR-0015, a graph), so a
+   * child of a refused field carries only its own refusal on the wire, here none; the editor's tree
+   * gives the row below a refused field the refusal nearest the root (ADR-0027, {@code rows.ts}).
+   */
+  @Test
+  void aChildOfARefusedFieldCarriesItsOwnRefusalOnlyOnTheGraph() {
+    TempWorkspace.write(
+        "structures/refused-parts/parts.xsd",
+        """
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+          <xs:element name="Body">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="Part">
+                  <xs:complexType>
+                    <xs:sequence><xs:element name="A" type="xs:string"/></xs:sequence>
+                  </xs:complexType>
+                </xs:element>
+                <xs:element name="Part" maxOccurs="2">
+                  <xs:complexType>
+                    <xs:sequence><xs:element name="B" type="xs:string"/></xs:sequence>
+                  </xs:complexType>
+                </xs:element>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>
+        """
+            .getBytes(StandardCharsets.UTF_8));
+
+    Http.Reply reply = structure("structures/refused-parts", "parts.xsd", "Body");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode types = reply.json().path("types");
+    JsonNode parts = types.path(reply.json().path("root").path("type").textValue());
+    assertThat(refusals(parts))
+        .containsExactly(
+            "Part ambiguous-field-path parts.xsd 10:47", "Part ambiguous-field-path parts.xsd 10:47");
+    for (JsonNode part : parts) {
+      assertThat(refusals(types.path(part.path("type").textValue())))
+          .as("the child type %s", part.path("type"))
+          .singleElement(InstanceOfAssertFactories.STRING)
+          .endsWith(" -");
+    }
+  }
+
+  /** Each field as {@code localName code file line:column}, or {@code localName -} without one. */
+  private static List<String> refusals(JsonNode fields) {
+    List<String> described = new ArrayList<>();
+    for (JsonNode f : fields) {
+      JsonNode refusal = f.path("refusal");
+      described.add(
+          f.path("localName").textValue()
+              + (refusal.isMissingNode()
+                  ? " -"
+                  : " "
+                      + refusal.path("code").textValue()
+                      + " "
+                      + refusal.path("file").textValue()
+                      + " "
+                      + refusal.path("line").asInt()
+                      + ":"
+                      + refusal.path("column").asInt()));
+    }
+    return described;
   }
 
   /**
