@@ -127,6 +127,8 @@ describe('the field status of a target row (ADR-0012, spec #104 stories 38 and 4
         error('unsupported-field', { kind: 'pointer', pointer: '/target' }),
         error('model-invalid', { kind: 'pointer', pointer: '/targetFieldMappings' }),
         error('model-invalid', { kind: 'pointer', pointer: '' }),
+        error('model-invalid', { kind: 'pointer', pointer: `x${pointerTo(ORDER_ID)}` }),
+        error('model-invalid', { kind: 'pointer', pointer: pointerTo(ORDER_ID).replace('targetFieldMappings', 'udfs') }),
       ],
       structure,
     );
