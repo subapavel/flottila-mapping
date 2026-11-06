@@ -3,6 +3,7 @@ import {
   ApiProblem,
   type ApiClient,
   type Problem,
+  type StoredMapping,
   type StructureRequest,
   type StructureResponse,
   type TestRequest,
@@ -13,23 +14,34 @@ import {
 export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, init) => fetch(input, init)): ApiClient {
   const mapping = (id: string) => `${baseUrl}/api/mappings/${id.split('/').map(encodeURIComponent).join('/')}`;
 
-  async function call<T>(url: string, method: string, body?: unknown): Promise<T> {
+  async function send(url: string, method: string, body?: unknown, headers: Record<string, string> = {}): Promise<Response> {
     const init: RequestInit = { method };
     if (body !== undefined) {
-      init.headers = { 'content-type': 'application/json' };
+      init.headers = { 'content-type': 'application/json', ...headers };
       init.body = JSON.stringify(body);
     }
     const response = await fetchPort(url, init);
-    if (response.ok) return (await response.json()) as T;
+    if (response.ok) return response;
     throw new ApiProblem(await problemOf(response));
   }
 
+  async function call<T>(url: string, method: string, body?: unknown): Promise<T> {
+    return (await (await send(url, method, body)).json()) as T;
+  }
+
   return {
-    getMapping: (id) => call<MappingModel>(mapping(id), 'GET'),
-    saveMapping: (id, model) => call<MappingModel>(mapping(id), 'PUT', model),
+    getMapping: async (id) => storedOf(await send(mapping(id), 'GET')),
+    saveMapping: async (id, model, etag) => storedOf(await send(mapping(id), 'PUT', model, { 'if-match': etag })),
     loadStructure: (request: StructureRequest) => call<StructureResponse>(`${baseUrl}/api/structures`, 'POST', request),
     runTest: (id, request: TestRequest) => call<TestResult>(`${mapping(id)}/test`, 'POST', request),
   };
+}
+
+/** A model answer: the canonical model and its ETag, which a later save sends back (ADR-0024, ADR-0027). */
+async function storedOf(response: Response): Promise<StoredMapping> {
+  const etag = response.headers.get('etag');
+  if (etag === null) throw new Error('the service answered a mapping with no ETag');
+  return { model: (await response.json()) as MappingModel, etag };
 }
 
 async function problemOf(response: Response): Promise<Problem> {
