@@ -3,7 +3,8 @@
 state: RUNNING — spec #135 "the editor looks like the chosen prototype", integration branch `spec/135-editor-look` from main 4ad242e (2026-11-06).
 spec #135 tickets: #136 skeleton (B, frontier) · #140 diagnostics paths (A, frontier) · #137 trees (B), #138 function editor + inspector (A), #139 Test tab + Model JSON (B), #141 mapping list (A) — all blocked by #136.
 spec #135 origin: owner ran spec 5 locally; the look of the prototype (#10, branch prototype/mapping-editor @ 3a5ed86) was never carried into ADR-0012 or spec 5. Owner decisions 2026-11-06: page tabs Editor/Test/Diagnostics/Model JSON, header bar, tree search, Model JSON, mapping list, local paths in diagnostics, screenshots + review as the visual check.
-in flight: none yet.
+merged: #136 bd64f76 · #140 5d0a457 · #139 a097ba3. Findings F-29 (styling convention, ADR-0013 silent) and F-30 (display-only client canonical serialiser vs ADR-0013).
+in flight: #137 `t/137-trees` · #138 `t/138-canvas-look` (fix round: editable card params/context, unreachable boxes by dashed border not opacity) · #141 `t/141-mapping-list` (DataList, no new dependency). Waiting: #142 (prose paths in diagnostics, class A).
 previous: SPEC_DONE — spec 5 (#104) merged in PR #130 (86a3515); Windows case-collision fix #131 in PR #132 (4ad242e). Status comment 6673105155.
 spec gate on 7fb5576 VERIFIED_PASS (JMH NOT_RUN, spec 6); ratchet deb5ad8. 20 tickets merged (#105-#117, #121-#127).
 review: round 1 FAIL both axes (#104 comment 6683228224) → fixes field-path d0dfe19, keyboard 20a17a8, layout 213cd6c; round 2 spec PASS, standards FAIL on test witnesses → fix/104-tests f478380; round 3 PASS.
