@@ -1,7 +1,9 @@
 # Handoff
 
-state: READY — spec 4 (#89) merged to main 8052dc1 (PR #119, 2026-11-05). Spec 5 (#104, "the mapping editor in full") is grilled and not started.
-next action: `/run-spec #104`. Its tickets are #105-#117 (sub-issues of #104, with blocking edges). Before that, the owner may run `/retro` for spec 4.
+state: RUNNING — spec 5 (#104) on `spec/104-mapping-editor` from main 54be243 (2026-11-06). Status comment 6673105155.
+in flight: #105 `t/105-compile-diagnostics` @54be243 · #106 `t/106-canvas` @54be243 · #109 `t/109-undo-save` @54be243 (implementers, class B).
+next action: on a hand-back, ticket gate → merge → record; refill from the frontier (#111, #121, #122, #123 next). A ticket assigned with no merge into the integration branch is in flight: resume from its pushed branch.
+spec 5 tickets: #105-#117 (editor) and #121-#127 (spec-4 retro process tickets).
 grilling (spec 5, 2026-11-05): 26 decisions in 3 rounds, all recommendations accepted. Recorded in ADR-0027 (conditional save with If-Match and 409 mapping-changed, PUT without the header unconditional, no Overwrite; refusals on /api/structures; the compile endpoint with unreachable-box; refresh on open as one undo step; the packed function catalogue committed in contract/). ADR-0027 refines ADR-0008, 0010, 0015, 0024 and 0026 without amending them. GLOSSARY: Palette, Quick insert, Field status, Orphaned target field mapping, Remap, Diagnostics panel, Stale trace, Save conflict.
 blocked chain: none
 spec 4 (#89): 15 tickets (#86, #87, #90-#100, #102, #103, #118). Spec gate 2 on 44fd349 VERIFIED_PASS except JMH NOT_RUN (spec 6); ratchet add0ca7. Review round 1 FAIL on every axis (comment 6670934613), 3 fix branches; round 2 PASS (comment 6671857589). Carried judgement calls are in those two comments and in the per-ticket evidence comments (#90, #92, #94-#98, #100, #102, #118). Spec 5 owns: /api/structures does not show the array marker (#118).
