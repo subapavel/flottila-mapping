@@ -25,3 +25,17 @@ test('the dev host lists the mappings on the fake API, opens one and goes back t
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeHidden();
   expect(problems).toEqual([]);
 });
+
+test('the start parameters open a mapping with a target field selected', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') problems.push(message.text());
+  });
+  page.on('pageerror', (error) => problems.push(error.message));
+
+  await page.goto(`/?mapping=mappings/order-id-copy&field=${encodeURIComponent(ORDER_ID)}&api=fake`);
+
+  await expect(page.getByRole('heading', { name: 'mappings/order-id-copy' })).toBeVisible();
+  await expect(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
+  expect(problems).toEqual([]);
+});

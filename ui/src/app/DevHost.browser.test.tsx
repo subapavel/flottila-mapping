@@ -4,7 +4,7 @@ import { page, userEvent } from 'vitest/browser';
 import { ApiProblem, type ApiClient, type RootSelector } from '../api/client';
 import { fakeApiClient } from '../api/fake/fake-api';
 import type { BrowserStateStore } from '../editor';
-import { DevHost } from './DevHost';
+import { DevHost, type DevHostProps } from './DevHost';
 
 const ORDER = 'Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `/${ORDER}/OrderId`;
@@ -31,11 +31,11 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 let consoleError: ReturnType<typeof vi.spyOn>;
 
-function render(api: ApiClient, initialMapping?: string) {
+function render(api: ApiClient, start?: DevHostProps['start']) {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  root.render(<DevHost api={api} browserState={memoryBrowserState()} initialMapping={initialMapping} />);
+  root.render(<DevHost api={api} browserState={memoryBrowserState()} start={start} />);
 }
 
 /** Whether the page asks before it unloads: a `beforeunload` listener cancelled the event. */
@@ -81,10 +81,45 @@ describe('the mapping list', () => {
   });
 
   test('a mapping named at start opens directly', async () => {
-    render(fakeApiClient(), 'mappings/order-id-copy');
+    render(fakeApiClient(), { mapping: 'mappings/order-id-copy' });
 
     await expect.element(page.getByRole('heading', { name: 'mappings/order-id-copy' })).toBeVisible();
     await expect.element(targetRow(ORDER_ID)).toMatchTextContent(/← OrderId/);
+  });
+
+  test("a mapping and a field named at start open with the field's function graph", async () => {
+    render(fakeApiClient(), { mapping: 'mappings/order-id-copy', field: ORDER_ID });
+
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
+  });
+
+  test('going back forgets the selected field: the next mapping opens with none', async () => {
+    render(fakeApiClient(), { mapping: 'mappings/order-id-copy', field: ORDER_ID });
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
+
+    await back().click();
+    await page.getByRole('button', { name: 'mappings/order-id-copy' }).click();
+
+    await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).not.toBeInTheDocument();
+  });
+
+  test('the host selects the field the editor asks for', async () => {
+    const refused = {
+      type: 'urn:flottila:mapping:problem:model-refused',
+      title: 'Model refused',
+      status: 422,
+      detail: 'the mapping model is refused by validation stage 1 or 2',
+      diagnostics: [{ severity: 'error' as const, code: 'unknown-function', message: 'no such function', location: { kind: 'authoring-id' as const, authoringId: 't1' } }],
+    };
+    render({ ...fakeApiClient(), saveMapping: () => Promise.reject(new ApiProblem(refused)) }, { mapping: 'mappings/order-id-copy' });
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(`/${ORDER}/Note`));
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Show t1' }).click();
+
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
   });
 
   test('an empty workspace says so', async () => {
@@ -246,7 +281,7 @@ describe('the New mapping form', () => {
 
 describe('the unsaved-changes guard', () => {
   test('going back with no unsaved change asks nothing', async () => {
-    render(fakeApiClient(), 'mappings/order-unmapped');
+    render(fakeApiClient(), { mapping: 'mappings/order-unmapped' });
     await expect.element(targetRow(ORDER_ID)).toBeVisible();
 
     await back().click();
@@ -256,7 +291,7 @@ describe('the unsaved-changes guard', () => {
   });
 
   test('going back with unsaved changes asks; Cancel stays with the working copy', async () => {
-    render(fakeApiClient(), 'mappings/order-unmapped');
+    render(fakeApiClient(), { mapping: 'mappings/order-unmapped' });
     await drawLink();
 
     await back().click();
@@ -270,7 +305,7 @@ describe('the unsaved-changes guard', () => {
   });
 
   test('Escape closes the question as Cancel does', async () => {
-    render(fakeApiClient(), 'mappings/order-unmapped');
+    render(fakeApiClient(), { mapping: 'mappings/order-unmapped' });
     await drawLink();
 
     await back().click();
@@ -283,7 +318,7 @@ describe('the unsaved-changes guard', () => {
   });
 
   test('Discard changes goes back to the list, and the mapping reopens as stored', async () => {
-    render(fakeApiClient(), 'mappings/order-unmapped');
+    render(fakeApiClient(), { mapping: 'mappings/order-unmapped' });
     await drawLink();
 
     await back().click();
@@ -297,7 +332,7 @@ describe('the unsaved-changes guard', () => {
   });
 
   test('the page asks before unloading only while the working copy has unsaved changes', async () => {
-    render(fakeApiClient(), 'mappings/order-unmapped');
+    render(fakeApiClient(), { mapping: 'mappings/order-unmapped' });
     await expect.element(targetRow(ORDER_ID)).toBeVisible();
     expect(asksBeforeUnload()).toBe(false);
 

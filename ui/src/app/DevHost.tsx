@@ -8,8 +8,11 @@ import { NewMappingForm } from './NewMappingForm';
 export interface DevHostProps {
   api: ApiClient;
   browserState: BrowserStateStore;
-  /** The mapping to open at start, from `?mapping=`; without it the host starts at the list. */
-  initialMapping?: string;
+  /**
+   * The mapping to open at start, from `?mapping=`, with the target field to select in it, from `?field=`. Without
+   * it the host starts at the list.
+   */
+  start?: { mapping: string; field?: string };
 }
 
 /**
@@ -25,8 +28,10 @@ export function DevHost(props: DevHostProps) {
   );
 }
 
-function Host({ api, browserState, initialMapping }: DevHostProps) {
-  const [open, setOpen] = useState(initialMapping);
+function Host({ api, browserState, start }: DevHostProps) {
+  const [open, setOpen] = useState(start?.mapping);
+  // The selected target field is the host's controlled state (ADR-0013).
+  const [selectedField, setSelectedField] = useState(start?.field ?? null);
   const [unsaved, setUnsaved] = useState(false);
   const [asking, setAsking] = useState(false);
 
@@ -37,10 +42,11 @@ function Host({ api, browserState, initialMapping }: DevHostProps) {
     return () => window.removeEventListener('beforeunload', ask);
   }, [unsaved]);
 
-  // The editor reports no change when it closes, so the host forgets the flag itself.
+  // The editor reports no change when it closes, so the host forgets the flag itself, and the field with the mapping.
   const toList = () => {
     setAsking(false);
     setUnsaved(false);
+    setSelectedField(null);
     setOpen(undefined);
   };
 
@@ -51,7 +57,15 @@ function Host({ api, browserState, initialMapping }: DevHostProps) {
         All mappings
       </Button>
       <h2>{open}</h2>
-      <MappingEditor key={open} mappingId={open} api={api} browserState={browserState} onUnsavedChange={setUnsaved} />
+      <MappingEditor
+        key={open}
+        mappingId={open}
+        api={api}
+        browserState={browserState}
+        onUnsavedChange={setUnsaved}
+        selectedField={selectedField}
+        onSelectField={setSelectedField}
+      />
       <Modal variant="small" isOpen={asking} onClose={() => setAsking(false)} aria-labelledby="unsaved-guard-title">
         <ModalHeader title="Unsaved changes" labelId="unsaved-guard-title" />
         <ModalBody>The working copy of {open} has unsaved changes. Leaving it discards them.</ModalBody>
