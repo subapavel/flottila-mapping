@@ -1,11 +1,12 @@
-import { Alert, Button, Label } from '@patternfly/react-core';
+import { Alert, Button, Label, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../api/client';
 import type { MappingModel } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
 import type { BrowserStateStore } from './browser-state/browser-state';
+import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { createWorkingCopyStore, selectUnsaved } from './store/working-copy';
 import { StructureOverview, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
@@ -59,6 +60,7 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
     }),
   );
   const unsaved = useStore(store, selectUnsaved);
+  const diagnosticCount = useStore(store, (s) => s.diagnostics.length);
   const save = useMutation({ mutationFn: () => store.getState().save() });
   const failure = save.isError ? describeError(save.error) : undefined;
 
@@ -69,8 +71,29 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
     browserState.write(expandedKey, next);
   };
 
+  // The working copy is compiled on open, then after every edit (ADR-0013).
+  useEffect(() => {
+    store.getState().scheduleCompile();
+    return () => store.getState().cancelCompile();
+  }, [store]);
+
+  // A field the Diagnostics panel leads to: its branch is expanded, then its row takes the focus.
+  const editor = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<{ testId: string } | null>(null);
+  const selectField = (side: 'source' | 'target', fieldPath: string) => {
+    const paths = pathsDownTo(fieldPath);
+    const open = new Set([...(expanded[side] ?? [paths[0]!]), ...paths.slice(0, -1)]);
+    changeExpanded({ ...expanded, [side]: [...open] });
+    setSelected({ testId: `${side}-field:${fieldPath}` });
+  };
+  useEffect(() => {
+    if (selected === null) return;
+    const rows = editor.current!.querySelectorAll<HTMLElement>('[data-testid]');
+    [...rows].find((row) => row.dataset.testid === selected.testId)?.focus();
+  }, [selected]);
+
   return (
-    <div>
+    <div ref={editor}>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <Button onClick={() => save.mutate()} isDisabled={!unsaved || save.isPending} isLoading={save.isPending}>
           Save
@@ -96,7 +119,20 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
         expanded={expanded}
         onExpandedChange={changeExpanded}
       />
-      <TestPanel mappingId={mappingId} api={api} store={store} />
+      <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">
+        <Tab eventKey="test" title={<TabTitleText>Test</TabTitleText>}>
+          <TestPanel mappingId={mappingId} api={api} store={store} />
+        </Tab>
+        <Tab eventKey="diagnostics" title={<TabTitleText>Diagnostics ({diagnosticCount})</TabTitleText>}>
+          <DiagnosticsPanel store={store} onSelectField={selectField} />
+        </Tab>
+      </Tabs>
     </div>
   );
+}
+
+/** The field paths from the root down to `fieldPath`, itself last; a step's `{namespace}` may hold a `/` (ADR-0007). */
+function pathsDownTo(fieldPath: string): string[] {
+  const steps = [...fieldPath.matchAll(/(?:\{[^}]*\}|[^/{])+/g)].map((step) => step[0]);
+  return steps.map((_, i) => `/${steps.slice(0, i + 1).join('/')}`);
 }

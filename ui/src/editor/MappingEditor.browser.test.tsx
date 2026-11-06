@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import caseInput from '../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import corpusMappingText from '../../../corpus/mappings/order-id-copy.mapping.json?raw';
-import { ApiProblem, type ApiClient } from '../api/client';
+import { ApiProblem, type ApiClient, type Diagnostic } from '../api/client';
 import { fakeApiClient } from '../api/fake/fake-api';
 import type { MappingModel } from '../generated/mapping-model';
 import type { BrowserStateStore } from './browser-state/browser-state';
@@ -234,5 +234,122 @@ describe('the test panel', () => {
     await page.getByRole('button', { name: 'Run test' }).click();
 
     await expect.element(page.getByRole('heading', { name: /Invalid request/ })).toBeVisible();
+  });
+});
+
+describe('the Diagnostics panel', () => {
+  /** What the engine answers for an unmapped OrderId (1..1): `unmapped-mandatory-leaf` at its absent member. */
+  const pointer = '/targetFieldMappings/~1Q{urn:flottila:corpus:skeleton}Order~1OrderId';
+  const unmappedOrderId: Diagnostic = {
+    severity: 'error',
+    code: 'unmapped-mandatory-leaf',
+    message: 'the mandatory target leaf has no target field mapping',
+    location: { kind: 'pointer', pointer },
+  };
+  const diagnosticsTab = () => page.getByRole('tab', { name: /^Diagnostics/ });
+
+  test('the working copy is compiled on open, and the drawer tab lists its diagnostics', async () => {
+    render('mappings/order-unmapped', fakeApiClient(undefined, { compile: { 'mappings/order-unmapped': [unmappedOrderId] } }));
+
+    await expect.element(diagnosticsTab()).toHaveTextContent('Diagnostics (1)');
+    await diagnosticsTab().click();
+
+    await expect
+      .element(page.getByRole('list', { name: 'Working copy diagnostics' }))
+      .toHaveTextContent(`error unmapped-mandatory-leaf ${pointer}: ${unmappedOrderId.message}`);
+  });
+
+  test('an edit compiles the working copy again and its diagnostics replace the previous ones', async () => {
+    const compiled: MappingModel[] = [];
+    render('mappings/order-unmapped', {
+      ...fakeApiClient(),
+      compile: async (_id, model) => {
+        compiled.push(model);
+        return { diagnostics: model.targetFieldMappings?.[ORDER_ID] ? [] : [unmappedOrderId] };
+      },
+    });
+    await expect.element(diagnosticsTab()).toHaveTextContent('Diagnostics (1)');
+
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+
+    await expect.element(diagnosticsTab()).toHaveTextContent('Diagnostics (0)');
+    expect(compiled).toHaveLength(2);
+  });
+
+  test('a pointer leads to its target row, expanding a collapsed branch, and the row takes the focus', async () => {
+    render('mappings/order-unmapped', fakeApiClient(undefined, { compile: { 'mappings/order-unmapped': [unmappedOrderId] } }));
+    await page.getByRole('button', { name: 'Collapse target Order' }).click();
+    await expect.element(targetRow(ORDER_ID)).not.toBeInTheDocument();
+
+    await diagnosticsTab().click();
+    await page.getByRole('button', { name: pointer }).click();
+
+    await expect.element(targetRow(ORDER_ID)).toHaveFocus();
+    await expect.element(sourceRow(ORDER_ID)).toBeVisible();
+  });
+
+  test("an authoring id leads to its target field mapping's row", async () => {
+    const unfinished = structuredClone(corpusMapping);
+    unfinished.targetFieldMappings![ORDER_ID]!.result = null;
+    // what the service answers for it (CompileResourceTest)
+    const answer: Diagnostic[] = [
+      { severity: 'warning', code: 'unreachable-box', message: 'not reached', location: { kind: 'authoring-id', authoringId: 'a1' } },
+      { severity: 'error', code: 'unconnected-target-field', message: 'not connected', location: { kind: 'authoring-id', authoringId: 't1' } },
+    ];
+    render('drafts/unfinished', fakeApiClient({ 'drafts/unfinished': unfinished }, { compile: { 'drafts/unfinished': answer } }));
+
+    await diagnosticsTab().click();
+    await page.getByRole('button', { name: 'a1' }).click();
+
+    await expect.element(targetRow(ORDER_ID)).toHaveFocus();
+  });
+
+  test('a target field the structure lacks leads nowhere, and the focus stays on the link', async () => {
+    const orphaned = structuredClone(corpusMapping);
+    orphaned.targetFieldMappings = { [`${ORDER}/Missing`]: orphaned.targetFieldMappings![ORDER_ID]! };
+    const answer: Diagnostic[] = [
+      { severity: 'error', code: 'orphaned-reference', message: 'no such field', location: { kind: 'authoring-id', authoringId: 't1' } },
+    ];
+    render('drafts/orphaned', fakeApiClient({ 'drafts/orphaned': orphaned }, { compile: { 'drafts/orphaned': answer } }));
+
+    await diagnosticsTab().click();
+    const link = page.getByRole('button', { name: 't1' });
+    await link.click();
+
+    await expect.element(link).toHaveFocus();
+  });
+
+  test('a diagnostic at the root leads to the root row and leaves the root expanded', async () => {
+    const atRoot = structuredClone(corpusMapping);
+    atRoot.targetFieldMappings = { [ORDER]: atRoot.targetFieldMappings![ORDER_ID]! };
+    const answer: Diagnostic[] = [
+      { severity: 'error', code: 'unsupported-field', message: 'the root', location: { kind: 'authoring-id', authoringId: 't1' } },
+    ];
+    render('drafts/at-root', fakeApiClient({ 'drafts/at-root': atRoot }, { compile: { 'drafts/at-root': answer } }));
+
+    await diagnosticsTab().click();
+    await page.getByRole('button', { name: 't1' }).click();
+
+    await expect.element(targetRow(ORDER)).toHaveFocus();
+    await expect.element(targetRow(ORDER_ID)).toBeVisible();
+  });
+
+  test("a refused save's diagnostics replace the panel's until the next compile", async () => {
+    const refused = new ApiProblem({
+      type: 'urn:flottila:mapping:problem:model-refused',
+      title: 'Model refused',
+      status: 422,
+      detail: 'the mapping model is refused by validation stage 1 or 2',
+      diagnostics: [{ severity: 'error', code: 'box-cycle', message: 'a cycle', location: { kind: 'authoring-id', authoringId: 't1' } }],
+    });
+    render('mappings/order-unmapped', { ...fakeApiClient(), saveMapping: () => Promise.reject(refused) });
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+
+    await page.getByRole('button', { name: 'Save' }).click();
+    await diagnosticsTab().click();
+
+    await expect
+      .element(page.getByRole('list', { name: 'Working copy diagnostics' }))
+      .toHaveTextContent('error box-cycle t1: a cycle');
   });
 });
