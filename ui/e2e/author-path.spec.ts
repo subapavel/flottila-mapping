@@ -48,11 +48,13 @@ test('the author path: list, open, link by drag and drop, a function, a constant
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Unsaved')).toBeHidden();
 
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(input);
   await page.getByRole('button', { name: 'Run test' }).click();
   await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711</OrderId>');
 
-  // the display queue of the function box, then of the target field once no box is selected
+  // the display queue of the function box, then of the target field once no box is selected, back on the Editor tab
+  await page.getByRole('tab', { name: 'Editor' }).click();
   await page.getByTestId(`box:${substring}`).click();
   const boxQueue = page.getByRole('region', { name: 'Display queue', exact: true });
   await expect(boxQueue).toContainText('Not evaluated in the last test run.');

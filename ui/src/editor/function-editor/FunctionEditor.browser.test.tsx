@@ -202,8 +202,9 @@ describe('positions and zoom (browser state, never the model)', () => {
     const added = page.getByTestId(/^box:/).elements().map((e) => e.dataset.testid!.slice('box:'.length)).find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
     const placed = transformOf(added);
 
-    // the new box went below the graph; moving another box further down must not move it again
-    await dragBox('u1', page.getByRole('button', { name: 'Run test' }));
+    // the new box went below the graph; moving another box further down (to the canvas's bottom-left controls) must
+    // not move it again
+    await dragBox('u1', page.getByRole('button', { name: 'Fit View' }));
 
     await expect.poll(() => transformOf('u1')).not.toBe(dragged);
     expect(transformOf(added)).toBe(placed);
@@ -280,6 +281,8 @@ describe('a diagnostic in the Diagnostics panel', () => {
     await expect.element(node('c1')).toHaveClass('selected');
     await expect.element(node('f1')).not.toHaveClass('selected');
 
+    // the c1 link opened the Editor tab: the t1 link is back on the Diagnostics tab
+    await page.getByRole('tab', { name: /^Diagnostics/ }).click();
     await page.getByRole('button', { name: 't1', exact: true }).click();
 
     await expect.element(node('c1')).not.toHaveClass('selected');
@@ -319,6 +322,10 @@ describe('the palette', () => {
 describe('editing on the canvas', () => {
   test('a constant from the palette dropped on a field without a mapping creates the mapping with the box as result', async () => {
     render({ field: NOTE });
+    // the editor fills the window below the host's button, so its canvas ends below the viewport: an HTML drag that
+    // scrolls on its way is lost, so the page is scrolled first
+    await expect.element(page.getByTestId(`canvas:${NOTE}`)).toBeVisible();
+    page.getByTestId(`canvas:${NOTE}`).element().scrollIntoView({ block: 'end' });
 
     await userEvent.dragAndDrop(page.getByTestId('palette:constant'), page.getByTestId(`canvas:${NOTE}`));
 

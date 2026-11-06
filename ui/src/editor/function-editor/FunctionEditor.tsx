@@ -96,7 +96,8 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   };
 
   return (
-    // the canvas fills the height the editor gives it, and never goes below its basis (ADR-0012, "splitter")
+    // the canvas fills the height the editor gives it and shrinks with its pane, down to 16rem; below that the pane
+    // scrolls (ADR-0012, "splitter"; spec #135)
     <section aria-label="Function editor" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {targetField === null ? (
         <p>Select a target field to see its function graph.</p>
@@ -106,7 +107,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
         <p role="alert">{catalogue.error.message}</p>
       ) : (
         // the canvas goes below the palette when the two do not fit side by side
-        <div style={{ flex: '1 0 auto', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           <PaletteView catalogue={catalogue.data} onInsert={(fn) => store.getState().insertBox(targetField, fn)} />
           <div
             ref={canvas}
@@ -279,7 +280,7 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
           Paste
         </Button>
       </div>
-      <div style={{ flex: '1 0 24rem' }}>
+      <div style={{ flex: '1 1 0', minHeight: '16rem' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

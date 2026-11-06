@@ -13,7 +13,9 @@ async function open(page: Page, mapping: string) {
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
 }
 
+/** Runs a test on the Test tab (spec #135), which stays open. */
 async function run(page: Page, input: string) {
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus(input), 'utf8'));
   await page.getByRole('button', { name: 'Run test' }).click();
 }
@@ -40,6 +42,7 @@ test('@stack GATE 3: a test run of the unsaved working copy, and the display que
   expect(readFileSync(join(stackWorkspace, `${mapping}.mapping.json`)).equals(readFileSync(corpus(`${mapping}.mapping.json`)))).toBe(true);
 
   // the function box: one context, with createIf's SUPPRESS of line 2 and the kept SUPPRESS of line 3
+  await page.getByRole('tab', { name: 'Editor' }).click();
   const boxQueue = page.getByRole('region', { name: 'Display queue', exact: true });
   await expect(boxQueue.getByRole('list', { name: 'Contexts' }).getByRole('listitem')).toHaveText(['""SUPPRESSSUPPRESS""']);
 
