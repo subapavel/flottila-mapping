@@ -151,8 +151,8 @@ describe('the canvas of the selected target field', () => {
     await expect.element(box('n1').getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
     // a table param shows its size; a source card its context, a field with no ancestor its own name
     await expect.element(box('r1')).toMatchTextContent(/^unresolvedByExample.*r1.*tabletable, 2 rows$/);
-    await expect.element(box('s1').getByRole('textbox', { name: 'read in' })).toHaveValue('Order');
-    await expect.element(box('s2').getByRole('textbox', { name: 'read in' })).toHaveValue('Order');
+    await expect.element(box('s1').getByRole('combobox', { name: 'read in' })).toHaveValue(ORDER);
+    await expect.element(box('s2').getByRole('combobox', { name: 'read in' })).toHaveValue(ORDER);
     // a constant's value is its own mark, not a second input
     await expect.element(box('c1').getByRole('textbox')).not.toBeInTheDocument();
     await expect.element(page.getByTestId('value:c1')).toHaveTextContent('"-"');
@@ -183,11 +183,62 @@ describe('the canvas of the selected target field', () => {
     await expect.element(toolbar.getByRole('button', { name: 'Copy (1)' })).toBeEnabled();
   });
 
-  test('dims an unreachable box', async () => {
+  test('marks an unreachable box, by a class and a description rather than by fading it', async () => {
     render();
 
-    await expect.element(box('u1')).toHaveStyle({ opacity: '0.4' });
-    for (const id of ['a1', 'c1', 'f1']) await expect.element(box(id)).toHaveStyle({ opacity: '1' });
+    await expect.element(box('u1')).toHaveClass('fm-card--unreached');
+    await expect.element(box('u1')).toHaveAttribute('title', 'Not reached by the result');
+    for (const id of ['a1', 'c1', 'f1']) {
+      await expect.element(box(id)).not.toHaveClass('fm-card--unreached');
+      await expect.element(box(id)).not.toHaveAttribute('title');
+    }
+    // the text keeps its contrast: no whole-card opacity
+    expect(getComputedStyle(box('u1').element()).opacity).toBe('1');
+  });
+
+  describe('editing on the card', () => {
+    const pattern = () => box('n1').getByRole('textbox', { name: 'pattern' });
+    const inspector = () => page.getByRole('complementary', { name: 'Inspector' });
+    const withFormatNum = () => {
+      const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+      const boxes: typeof target.boxes = { ...target.boxes, n1: { kind: 'function', fn: 'formatNum', inputs: ['a1'], params: { pattern: '#,##0.00' } } };
+      return fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } });
+    };
+
+    test("a text param typed on the card is the inspector's edit: it shows there, and one Undo restores it", async () => {
+      render({ api: withFormatNum() });
+      await expect.element(pattern()).toHaveValue('#,##0.00');
+
+      await pattern().fill('0.0');
+      await userEvent.tab();
+      await userEvent.click(box('n1').getByText('formatNum', { exact: true }));
+
+      await expect.element(inspector().getByRole('textbox', { name: 'pattern' })).toHaveValue('0.0');
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await expect.element(pattern()).toHaveValue('#,##0.00');
+      await expect.element(inspector().getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
+    });
+
+    test('Enter commits a text param on the card', async () => {
+      render({ api: withFormatNum() });
+
+      await pattern().fill('0.0');
+      await userEvent.keyboard('{Enter}');
+
+      await expect.element(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+    });
+
+    test('typing a letter in a card input neither opens quick insert nor drags the node', async () => {
+      render({ api: withFormatNum() });
+      await expect.element(pattern()).toHaveClass('nodrag');
+      await expect.element(pattern()).toHaveClass('nokey');
+
+      await pattern().click();
+      await userEvent.keyboard('{End}x');
+
+      await expect.element(pattern()).toHaveValue('#,##0.00x');
+      await expect.element(page.getByRole('combobox', { name: 'Quick insert' })).not.toBeInTheDocument();
+    });
   });
 
   test('without a selected target field it asks for one, and a field without a mapping says so', async () => {
@@ -428,7 +479,7 @@ describe('editing on the canvas', () => {
 
     await expect.poll(boxCount).toBe(5);
     const added = boxIdsShown().find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
-    await expect.element(box(added)).toHaveStyle({ opacity: '0.4' });
+    await expect.element(box(added)).toHaveClass('fm-card--unreached');
     await expect.element(page.getByTestId(`unconnected:${added}#0`)).toBeVisible();
     expect(edgeIds()).toContain('f1->:sink');
   });
@@ -457,8 +508,8 @@ describe('editing on the canvas', () => {
 
     await expect.poll(edgeIds).toContain('u1->:sink');
     expect(edgeIds()).not.toContain('f1->:sink');
-    await expect.element(box('u1')).toHaveStyle({ opacity: '1' });
-    await expect.element(box('f1')).toHaveStyle({ opacity: '0.4' });
+    await expect.element(box('u1')).not.toHaveClass('fm-card--unreached');
+    await expect.element(box('f1')).toHaveClass('fm-card--unreached');
 
     await userEvent.dragAndDrop(handle('out:c1'), handle('in:u1#0'));
 

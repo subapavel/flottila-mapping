@@ -187,9 +187,8 @@ function BadgeView({ badge }: { badge: Badge }) {
       return <Label color="blue">assumed</Label>;
     case 'deviation':
       return (
-        <p className="fm-inspector__note">
-          <Label color="orange">deviation</Label> {badge.text}
-        </p>
+        // the catalogue has no deviation code to put in bold before the text; the badge is in the title
+        <p className="fm-inspector__note">{badge.text}</p>
       );
     case 'not-portable':
       return <Label color="grey">not portable</Label>;

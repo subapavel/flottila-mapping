@@ -64,11 +64,22 @@ export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | und
   return view;
 }
 
-/** A parameter of a box card: a text param's value, or a table param's size. */
+/**
+ * A parameter of a box card: a text param's value, or a table param's size. `editable` is a text param of a catalogue
+ * function, as in the inspector; `values` are the choices of a param that takes only those.
+ */
 export interface CardParam {
   name: string;
   text: string;
   table: boolean;
+  editable: boolean;
+  values?: string[];
+}
+
+/** A source-field box's context: the value shown, and the choices, the parent first (as the inspector offers them). */
+export interface CardContext {
+  value: string;
+  choices: { path: string; label: string }[];
 }
 
 /** What a box card shows besides its `BoxView`: its caption, fidelity badges, parameters and a source field's context. */
@@ -78,8 +89,8 @@ export interface CardView {
   /** The fidelity badges (assumed, deviation) of a function the catalogue knows. */
   badges: Badge[];
   params: CardParam[];
-  /** A source-field box's context: its step name, the parent's when the model leaves it out. */
-  context?: string;
+  /** A source-field box's context; the parent's when the model leaves it out. */
+  context?: CardContext;
 }
 
 /**
@@ -89,17 +100,22 @@ export interface CardView {
  */
 export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
   if (box.kind === 'source') {
-    return { kind: 'source', caption: 'source field', badges: [], params: [], context: stepName(box.context ?? properAncestors(box.field)[0] ?? box.field) };
+    const ancestors = properAncestors(box.field);
+    const choices = (ancestors.length > 0 ? ancestors : [box.field]).map((path, i) => ({
+      path,
+      label: i === 0 ? `${stepName(path)} (parent)` : stepName(path),
+    }));
+    return { kind: 'source', caption: 'source field', badges: [], params: [], context: { value: box.context ?? choices[0]!.path, choices } };
   }
   const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
   const params =
     box.kind === 'function' && box.fn === 'constant'
       ? []
-      : Object.entries(box.params ?? {}).map(([name, value]): CardParam =>
-          typeof value === 'string'
-            ? { name, text: value, table: false }
-            : { name, text: `table, ${Object.keys(value).length} rows`, table: true },
-        );
+      : Object.entries(box.params ?? {}).map(([name, value]): CardParam => {
+          if (typeof value !== 'string') return { name, text: `table, ${Object.keys(value).length} rows`, table: true, editable: false };
+          const param = entry?.params?.find((p) => p.name === name);
+          return { name, text: value, table: false, editable: param !== undefined, values: param?.type === 'string' ? param.values : undefined };
+        });
   return {
     kind: box.kind,
     caption: box.kind === 'function' ? 'fn' : box.kind === 'udf' ? 'UDF' : 'unresolved',

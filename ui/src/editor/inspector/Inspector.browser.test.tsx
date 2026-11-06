@@ -148,7 +148,7 @@ describe('the inspector', () => {
     const deviation = catalogue.divide!.fidelity;
     expect(deviation.level).toBe('deviation');
     await expect.element(documentation).toMatchTextContent(/^FamilyarithmeticExecution kindsingle valueInputsdividend, divisorFidelitydeviationPortableyes/);
-    await expect.element(documentation.getByRole('paragraph')).toHaveTextContent(`deviation ${deviation.level === 'deviation' ? deviation.text : ''}`);
+    await expect.element(documentation.getByRole('paragraph')).toHaveTextContent(deviation.level === 'deviation' ? deviation.text : '');
     await expect.element(documentation.getByText('not portable')).not.toBeInTheDocument();
   });
 
@@ -193,6 +193,45 @@ describe('the inspector', () => {
 
     await expect.element(inspector.getByText('not portable')).toBeVisible();
     await expect.element(inspector.getByRole('region', { name: 'Documentation' })).toMatchTextContent('Portableno');
+  });
+});
+
+describe('editing on the box cards', () => {
+  const card = (id: string) => page.getByTestId(`box:${id}`);
+
+  test("a source card's context select is the inspector's edit: it shows there, and one Undo restores it", async () => {
+    render();
+    const context = card('s1').getByRole('combobox', { name: 'read in' });
+    await expect.element(context).toHaveValue(LINE);
+
+    await userEvent.selectOptions(context, ITEM);
+    await inspect('s1');
+
+    await expect.element(inspector.getByRole('combobox', { name: 'Context' })).toHaveValue(ITEM);
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect.element(context).toHaveValue(LINE);
+    await expect.element(inspector.getByRole('combobox', { name: 'Context' })).toHaveValue(LINE);
+  });
+
+  test("a param with values, picked on the card, is the inspector's edit: it shows there, and one Undo restores it", async () => {
+    render();
+    const missing = card('x1').getByRole('combobox', { name: 'missing' });
+    await expect.element(missing).toHaveValue('error');
+
+    await userEvent.selectOptions(missing, 'default');
+    await inspect('x1');
+
+    await expect.element(inspector.getByRole('combobox', { name: 'missing' })).toHaveValue('default');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect.element(missing).toHaveValue('error');
+    await expect.element(inspector.getByRole('combobox', { name: 'missing' })).toHaveValue('error');
+  });
+
+  test('the params of a UDF and an unresolved box stay read-only on the card', async () => {
+    render();
+
+    await expect.element(card('u1').getByRole('textbox', { name: 'loud' })).toHaveAttribute('readonly');
+    await expect.element(card('r1')).toMatchTextContent('tabletable, 1 rows');
   });
 });
 

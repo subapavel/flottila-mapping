@@ -147,6 +147,19 @@
   background-color: color-mix(in srgb, var(--pf-t--global--color--status--danger--default) 15%, var(--pf-t--global--background--color--primary--default));
 }
 
+/* a box `result` does not reach: a dashed border and a muted head with a caption, the text keeps its contrast */
+.fm-card--unreached {
+  border-style: dashed;
+}
+
+.fm-card--unreached .fm-card__head {
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+
+.fm-card--unreached .fm-card__kind::after {
+  content: ' · not reached';
+}
+
 .fm-card__kind {
   font-size: var(--pf-t--global--font--size--xs);
   color: var(--pf-t--global--text--color--subtle);

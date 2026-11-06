@@ -84,7 +84,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   };
 
   const onKeyDown = (event: KeyboardEvent, field: FieldPath) => {
-    if (event.target instanceof HTMLInputElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
     const key = event.key.toLowerCase();
     if (event.ctrlKey && key === 'c') store.getState().copy(field);
     else if (event.ctrlKey && key === 'v') store.getState().paste(field);
@@ -169,7 +169,18 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
 }
 
 /** A box node's data; `remap` points an orphaned source-field box at a dropped source field, and is absent otherwise. */
-type BoxNode = Node<{ view: BoxView; card: CardView; reachable: boolean; unconnected: number[]; remap?: (field: FieldPath) => void }, 'box'>;
+type BoxNode = Node<
+  {
+    view: BoxView;
+    card: CardView;
+    reachable: boolean;
+    unconnected: number[];
+    /** The card's edits: the same store commands as the inspector's, so a change is one undo step. */
+    edit: { param: (name: string, value: string) => void; context: (context: FieldPath) => void };
+    remap?: (field: FieldPath) => void;
+  },
+  'box'
+>;
 type SinkNode = Node<{ field: FieldPath; connected: boolean }, 'sink'>;
 
 const nodeTypes = { box: BoxNodeView, sink: SinkNodeView };
@@ -213,6 +224,10 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
           view: boxView(mapping.boxes[id]!, catalogue, udfs),
           card: cardView(mapping.boxes[id]!, catalogue),
           reachable: reached.has(id),
+          edit: {
+            param: (name, value) => store.getState().setParam(targetField, id, name, value, catalogue),
+            context: (context) => store.getState().setContext(targetField, id, context),
+          },
           unconnected: marks.unconnectedInputs[id] ?? [],
           remap: orphaned.has(id) ? (field) => onRemap(targetField, id, field) : undefined,
         },
@@ -346,9 +361,10 @@ function BoxNodeView({ id, data, selected }: NodeProps<BoxNode>) {
           remap(event.dataTransfer.getData(SOURCE_FIELD_DRAG));
         })
       }
-      // the width is the layout's; the dimming is the reach of `result`
-      style={{ width: BOX.width, opacity: data.reachable ? 1 : 0.4 }}
-      className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}`}
+      // the width is the layout's; a box `result` does not reach is marked by class, not faded
+      style={{ width: BOX.width }}
+      title={data.reachable ? undefined : 'Not reached by the result'}
+      className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreached'}`}
     >
       <div className="fm-card__head">
         <span className="fm-card__kind">{data.card.caption}</span>
@@ -388,17 +404,63 @@ function BoxNodeView({ id, data, selected }: NodeProps<BoxNode>) {
       {data.card.context !== undefined && (
         <label className="fm-card__param">
           <span>read in</span>
-          <input className="nodrag" readOnly value={data.card.context} />
+          <select className="nodrag nokey" value={data.card.context.value} onChange={(event) => data.edit.context(event.target.value)}>
+            {data.card.context.choices.map((choice) => (
+              <option key={choice.path} value={choice.path}>
+                {choice.label}
+              </option>
+            ))}
+          </select>
         </label>
       )}
       {data.card.params.map((param) => (
         <label key={param.name} className="fm-card__param">
           <span>{param.name}</span>
-          {param.table ? <span title={param.text}>{param.text}</span> : <input className="nodrag" readOnly value={param.text} />}
+          {param.table ? (
+            <span title={param.text}>{param.text}</span>
+          ) : !param.editable ? (
+            <input className="nodrag nokey" readOnly value={param.text} />
+          ) : param.values ? (
+            <select className="nodrag nokey" value={param.text} onChange={(event) => data.edit.param(param.name, event.target.value)}>
+              {param.values.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <CardText value={param.text} onSet={(value) => data.edit.param(param.name, value)} />
+          )}
         </label>
       ))}
       <Handle type="source" position={Position.Right} data-testid={`out:${id}`} />
     </div>
+  );
+}
+
+/**
+ * A text param on a card: the author's draft is kept until the field loses the focus or Enter is pressed, as in the
+ * inspector; a model change under it (undo, the inspector) shows the model's value. Neither a drag of the node nor a
+ * canvas key starts from it.
+ */
+function CardText({ value, onSet }: { value: string; onSet: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    setShown(value);
+    setDraft(value);
+  }
+  const commit = () => onSet(draft);
+  return (
+    <input
+      className="nodrag nokey"
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') commit();
+      }}
+    />
   );
 }
 

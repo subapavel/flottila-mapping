@@ -89,7 +89,7 @@ describe('quick insert', () => {
     await expect.element(option('toUpperCase')).toBeVisible();
     await expect.element(option('abs')).not.toBeInTheDocument();
     await userEvent.fill(quickInsert(), 'statistic');
-    await expect.poll(() => page.getByRole('option').elements().map((e) => e.textContent)).toEqual(['average', 'count', 'counter', 'index', 'sum']);
+    await expect.poll(() => page.getByRole('listbox', { name: 'Functions' }).getByRole('option').elements().map((e) => e.textContent)).toEqual(['average', 'count', 'counter', 'index', 'sum']);
     await expect.element(page.getByRole('group', { name: 'statistic' }).getByRole('option', { name: 'sum' })).toBeVisible();
 
     await userEvent.keyboard('{Escape}');

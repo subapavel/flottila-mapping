@@ -98,16 +98,38 @@ describe('the card of a box (spec #135)', () => {
     ...catalogue,
     divide: { family: 'arithmetic', executionKind: 'single', portable: true, fidelity: { level: 'deviation', text: 'scale' } },
     abs: { family: 'arithmetic', executionKind: 'single', portable: false, fidelity: { level: 'exact' } },
+    formatNum: {
+      family: 'text',
+      executionKind: 'single',
+      portable: true,
+      fidelity: { level: 'exact' },
+      params: [
+        { name: 'pattern', type: 'string', default: '0' },
+        { name: 'mode', type: 'string', default: 'a', values: ['a', 'b'] },
+        { name: 'map', type: 'table', default: {} },
+      ],
+    },
   };
 
   test('a source-field box is captioned and shows its context: the parent, or the one the model names', () => {
-    expect(cardView({ kind: 'source', field: ORDER_ID }, cards)).toEqual({ kind: 'source', caption: 'source field', badges: [], params: [], context: 'Order' });
-    expect(cardView({ kind: 'source', field: `${ORDER}/A/B`, context: `${ORDER}` }, cards).context).toBe('Order');
-    expect(cardView({ kind: 'source', field: `${ORDER}/A/B` }, cards).context).toBe('A');
+    expect(cardView({ kind: 'source', field: ORDER_ID }, cards)).toEqual({
+      kind: 'source',
+      caption: 'source field',
+      badges: [],
+      params: [],
+      context: { value: ORDER, choices: [{ path: ORDER, label: 'Order (parent)' }] },
+    });
+    const deep = cardView({ kind: 'source', field: `${ORDER}/A/B` }, cards).context!;
+    expect(deep.value).toBe(`${ORDER}/A`);
+    expect(deep.choices).toEqual([
+      { path: `${ORDER}/A`, label: 'A (parent)' },
+      { path: ORDER, label: 'Order' },
+    ]);
+    expect(cardView({ kind: 'source', field: `${ORDER}/A/B`, context: ORDER }, cards).context!.value).toBe(ORDER);
   });
 
-  test('a field with no proper ancestor shows its own name as its context', () => {
-    expect(cardView({ kind: 'source', field: ORDER }, cards).context).toBe('Order');
+  test('a field with no proper ancestor offers itself as its context', () => {
+    expect(cardView({ kind: 'source', field: ORDER }, cards).context).toEqual({ value: ORDER, choices: [{ path: ORDER, label: 'Order (parent)' }] });
   });
 
   test('a function box shows the fidelity badges of its entry, but not "not portable"', () => {
@@ -123,9 +145,11 @@ describe('the card of a box (spec #135)', () => {
   });
 
   test('its params are text, or a table by its size; a constant leaves its value to the box', () => {
-    expect(cardView({ kind: 'function', fn: 'formatNum', params: { pattern: '0', map: { A: 'B', C: 'D' } } }, cards).params).toEqual([
-      { name: 'pattern', text: '0', table: false },
-      { name: 'map', text: 'table, 2 rows', table: true },
+    expect(cardView({ kind: 'function', fn: 'formatNum', params: { pattern: '0', mode: 'b', extra: 'x', map: { A: 'B', C: 'D' } } }, cards).params).toEqual([
+      { name: 'pattern', text: '0', table: false, editable: true, values: undefined },
+      { name: 'mode', text: 'b', table: false, editable: true, values: ['a', 'b'] },
+      { name: 'extra', text: 'x', table: false, editable: false, values: undefined },
+      { name: 'map', text: 'table, 2 rows', table: true, editable: false },
     ]);
     expect(cardView({ kind: 'function', fn: 'constant', params: { value: '-' } }, cards).params).toEqual([]);
   });
@@ -135,7 +159,7 @@ describe('the card of a box (spec #135)', () => {
       kind: 'udf',
       caption: 'UDF',
       badges: [],
-      params: [{ name: 'loud', text: 'yes', table: false }],
+      params: [{ name: 'loud', text: 'yes', table: false, editable: false, values: undefined }],
     });
     expect(cardView({ kind: 'unresolved', name: 'x', origin: 'po' }, cards)).toEqual({ kind: 'unresolved', caption: 'unresolved', badges: [], params: [] });
   });
