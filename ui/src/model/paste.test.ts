@@ -64,8 +64,7 @@ describe('the paste command', () => {
   });
 
   test('into a target field without a mapping creates {id, result: null, boxes}', () => {
-    const { [ORDER_ID]: _gone, ...rest } = graph.targetFieldMappings!;
-    const emptied: MappingModel = { ...graph, targetFieldMappings: rest };
+    const emptied: MappingModel = { ...graph, targetFieldMappings: { [NOTE]: graph.targetFieldMappings![NOTE]! } };
 
     const result = paste(emptied, { targetField: ORDER_ID, boxes: { c1, f1 }, freshId: primed, mappingId: 't2' });
 
@@ -74,7 +73,7 @@ describe('the paste command', () => {
       result: null,
       boxes: { pc1: c1, pf1: { kind: 'function', fn: 'concat', inputs: [null, 'pc1'] } },
     });
-    const { targetFieldMappings: _none, ...unmapped } = graph;
+    const unmapped: MappingModel = { formatVersion: 1, source: structure, target: structure };
     expect(paste(unmapped, { targetField: NOTE, boxes: { c1 }, freshId: primed, mappingId: 't2' })).toEqual({
       kind: 'applied',
       model: { ...unmapped, targetFieldMappings: { [NOTE]: { id: 't2', result: null, boxes: { pc1: c1 } } } },
