@@ -57,6 +57,14 @@ describe('a splitter by pointer', () => {
     expect(dragged(open(0.5), 0.02, INSPECTOR)).toEqual(open(0.1));
     expect(dragged(open(0.5), 0.97, { initial: 0.5, collapsible: ['start'] })).toEqual(open(0.9));
   });
+
+  test('dropped at exactly the smallest share, or the largest, stops there and collapses nothing', () => {
+    expect(dragged(open(0.5), 0.1, HALVES)).toEqual(open(0.1));
+    expect(dragged(open(0.5), 0.9, HALVES)).toEqual(open(0.9));
+    // a step that lands on the edge share, after rounding, is a drag to it
+    expect(keyed(open(0.15), 'ArrowUp', HALVES, 'horizontal')).toEqual(open(0.1));
+    expect(keyed(open(0.85), 'ArrowDown', HALVES, 'horizontal')).toEqual(open(0.9));
+  });
 });
 
 describe('the share shown', () => {
@@ -71,6 +79,13 @@ describe('a kept splitter read back', () => {
   test('is taken as kept', () => {
     expect(readSplit({ ratio: 0.3, collapsed: 'end' }, HALVES)).toEqual({ ratio: 0.3, collapsed: 'end' });
     expect(readSplit({ ratio: 0.3, collapsed: null }, INSPECTOR)).toEqual(open(0.3));
+  });
+
+  test('at exactly the smallest or the largest share is taken as kept, as Home on the inspector splitter keeps it', () => {
+    const home = keyed(open(0.7), 'Home', INSPECTOR, 'vertical')!;
+    expect(home).toEqual(open(0.1));
+    expect(readSplit(home, INSPECTOR)).toEqual(open(0.1));
+    expect(readSplit({ ratio: 0.9, collapsed: null }, INSPECTOR)).toEqual(open(0.9));
   });
 
   test('falls back to the initial ratio when it is missing, malformed or out of range', () => {

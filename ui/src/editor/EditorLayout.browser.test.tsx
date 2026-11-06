@@ -166,6 +166,30 @@ describe('the editor layout', () => {
     await expect.element(halves).toHaveAttribute('aria-valuenow', '50');
   });
 
+  test('dragging a vertical splitter follows the pointer across, not down, and the ratio is kept', async () => {
+    render();
+    await expect.element(sides).toBeVisible();
+    await expect.element(inspectorSplit).toBeVisible();
+    const dragAcross = (splitter: Locator, fraction: number) => {
+      const separator = splitter.element() as HTMLElement;
+      const area = separator.parentElement!.getBoundingClientRect();
+      separator.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      // the pointer's height is mid-area: a splitter that read it would land on 50
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: area.left + fraction * area.width, clientY: area.top + area.height / 2 }));
+      window.dispatchEvent(new PointerEvent('pointerup'));
+    };
+
+    dragAcross(sides, 0.3);
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '30');
+    dragAcross(inspectorSplit, 0.8);
+    await expect.element(inspectorSplit).toHaveAttribute('aria-valuenow', '80');
+    await expect.element(inspector).toBeVisible();
+
+    reload();
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '30');
+    await expect.element(inspectorSplit).toHaveAttribute('aria-valuenow', '80');
+  });
+
   test('a drag cut off by closing the editor leaves no listener behind to change the kept ratio', async () => {
     render();
     await expect.element(halves).toBeVisible();

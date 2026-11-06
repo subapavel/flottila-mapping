@@ -114,6 +114,10 @@ describe('the delete boxes command', () => {
     expect(deleteBoxes(model, { boxes: ['a1', 'zz', 'f1'] })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 'zz' });
   });
 
+  test('an id named twice refuses the whole command: the second time it names no box', () => {
+    expect(deleteBoxes(model, { boxes: ['a1', 'f1', 'a1'] })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 'a1' });
+  });
+
   test('no ids leave the very same model, so that the store records no undo step', () => {
     const result = deleteBoxes(model, { boxes: [] });
 

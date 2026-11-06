@@ -276,6 +276,23 @@ describe('the palette by keyboard', () => {
     await expect.element(entry('average')).toHaveFocus();
   });
 
+  test('Tab leaves the palette from a later entry, and Shift+Tab comes back to that entry, not the first', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+    await userEvent.fill(page.getByLabelText('Search functions'), 'statistic');
+    await expect.element(entry('sum')).toBeVisible();
+    await tabTo('palette:average');
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+    await expect.element(entry('sum')).toHaveFocus();
+
+    await userEvent.tab();
+    await expect.element(canvas(ORDER_ID)).toHaveFocus();
+    await userEvent.tab({ shift: true });
+
+    await expect.element(entry('sum')).toHaveFocus();
+    await expect.element(entry('average')).toHaveAttribute('tabindex', '-1');
+  });
+
   test('a search that leaves out the entry moved to puts the first entry it lists in the tab order', async () => {
     render();
     await expect.element(box('u1')).toBeVisible();
