@@ -19,5 +19,18 @@ export function fieldPathSteps(path: string): string[] {
  */
 export function stepName(path: string): string {
   const last = fieldPathSteps(path).at(-1) ?? path;
-  return last.replace(/^(@?)Q\{[^}]*\}/, '$1').replace(ESCAPE, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+  return decodeName(last);
+}
+
+/**
+ * A field path as its steps' local names joined by `/`, for display: each as `stepName` shows it.
+ * A path with no step shows itself.
+ */
+export function localPath(path: string): string {
+  const steps = fieldPathSteps(path);
+  return steps.length === 0 ? path : steps.map(decodeName).join('/');
+}
+
+function decodeName(step: string): string {
+  return step.replace(/^(@?)Q\{[^}]*\}/, '$1').replace(ESCAPE, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
 }

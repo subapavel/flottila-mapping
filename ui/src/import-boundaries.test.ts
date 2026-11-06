@@ -36,6 +36,7 @@ describe('import boundaries (ADR-0013)', () => {
     ['src/editor/inspector/Inspector.tsx', '../../model/set-context'],
     ['src/editor/inspector/Inspector.tsx', '../../api/client'],
     ['src/editor/MappingEditor.tsx', './inspector/Inspector'],
+    ['src/editor/model-json/ModelJson.tsx', '../../model/canonical-json'],
     ['src/app/main.tsx', '../editor'],
     ['src/app/main.tsx', '../api/fake/fake-api'],
   ])('%s may import %s', async (file, specifier) => {
