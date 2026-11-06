@@ -27,8 +27,8 @@ type Side = 'source' | 'target';
 /** The expanded branches of both trees, by field path; a side without an entry has only its root expanded. */
 export type Expanded = Partial<Record<Side, string[]>>;
 
-/** Every row has this height, so the virtualiser and the link gutter place rows by index alone. */
-const ROW_HEIGHT = 28;
+/** Every row has this height, so the virtualiser and the link gutter place rows by index alone (the prototype's ROW_H). */
+const ROW_HEIGHT = 26;
 const GUTTER_WIDTH = 120;
 /** The width of an fx mark at a link's target end. */
 const FX_WIDTH = 17;
@@ -413,7 +413,8 @@ function TreePane({ side, id, hidden, tree, search, onSearch, onExpanded, tools,
                 data-testid={`${side}-field:${r.path}`}
                 tabIndex={0}
                 className="fm-tree__row"
-                style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)`, paddingLeft: `${r.depth * 1.25}rem` }}
+                // the prototype's indent: 4px, then 14px a level
+                style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)`, paddingLeft: 4 + r.depth * 14 }}
                 {...row(r.path)}
               >
                 {r.expandable && onToggle ? (

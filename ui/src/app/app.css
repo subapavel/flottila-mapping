@@ -1,28 +1,36 @@
 /*
- * The app module's styles (spec #135), imported by DevHost.tsx: the list page's header bar with the product name,
- * styled as the editor's header bar, over the list. Classes carry the fm- prefix; colours and spacing are PatternFly
- * tokens. The file is named after its module: a CSS file beside DevHost.tsx would share its path once the extension
- * is ignored (file-names.test.ts, #131).
+ * The app module's styles (spec #135), imported by DevHost.tsx: the page's body text, and the list page's header bar
+ * with the product name, styled as the editor's header bar, over the list. Classes carry the fm- prefix. Sizes and
+ * colours are the prototype's (prototype.css @ 3a5ed86, spec #145, ticket #146): a PatternFly token where one has the
+ * value, the prototype's value where none does. The file is named after its module: a CSS file beside DevHost.tsx would
+ * share its path once the extension is ignored (file-names.test.ts, #131).
  */
+
+/* the prototype's body text; PatternFly's base sets 14px under :where(body), which this outranks */
+body {
+  font-size: 13px;
+}
+
+/* .proto-header */
 .fm-host__header {
   display: flex;
   align-items: center;
-  gap: var(--pf-t--global--spacer--sm);
-  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--md);
-  border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
-  background-color: var(--pf-t--global--background--color--secondary--default);
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #d2d2d2;
+  background-color: #fafafa;
 }
 
 .fm-host__title {
   margin: 0;
-  font-size: var(--pf-t--global--font--size--md);
-  font-weight: var(--pf-t--global--font--weight--body--bold);
+  font-size: inherit;
+  font-weight: 700;
 }
 
 .fm-host__main {
-  padding: var(--pf-t--global--spacer--md);
+  padding: var(--pf-t--global--spacer--sm) 12px;
 }
 
 .fm-host__list {
-  margin-block: var(--pf-t--global--spacer--md);
+  margin-block: var(--pf-t--global--spacer--sm);
 }
