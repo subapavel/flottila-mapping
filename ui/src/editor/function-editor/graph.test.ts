@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
-import type { TargetFieldMapping } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
-import { boxIds, boxView, cardView, liveMarks, SINK, wires } from './graph';
+import type { Box, TargetFieldMapping } from '../../generated/mapping-model';
+import { localPath } from '../../model/field-path';
+import { boxIds, boxView, CARD_HEIGHT, cardHeights, cardView, liveMarks, SINK, wires } from './graph';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -53,15 +53,17 @@ describe('the function graph of a target field mapping', () => {
 });
 
 describe('the view of a box', () => {
-  test('a source-field box shows its field step and has no input slot', () => {
-    expect(boxView({ kind: 'source', field: `${ORDER}/@Q{urn:x/y}channel` }, catalogue, undefined)).toEqual({ title: '@channel', slots: [] });
+  test('a source-field box shows its field as a local path, the full path as its tooltip, and has no input slot', () => {
+    const field = `${ORDER}/@Q{urn:x/y}channel`;
+
+    expect(boxView({ kind: 'source', field }, catalogue, undefined)).toEqual({ title: 'Order/@channel', path: field, slots: [] });
   });
 
-  test('a source-field box reading an escaped JSON property shows its name as the source tree does', () => {
+  test('a source-field box reading an escaped JSON property shows its names as the source tree does', () => {
     const field = '/$/order/a%2Fb%25%40%7B%7D';
 
-    expect(boxView({ kind: 'source', field }, catalogue, undefined).title).toBe('a/b%@{}');
-    expect(boxView({ kind: 'source', field }, catalogue, undefined).title).toBe(stepName(field));
+    expect(boxView({ kind: 'source', field }, catalogue, undefined).title).toBe('$/order/a/b%@{}');
+    expect(boxView({ kind: 'source', field }, catalogue, undefined).title).toBe(localPath(field));
   });
 
   test('a function box shows its function and the catalogue names of its input slots', () => {
@@ -162,6 +164,37 @@ describe('the card of a box (spec #135)', () => {
       params: [{ name: 'loud', text: 'yes', table: false, editable: false, values: undefined }],
     });
     expect(cardView({ kind: 'unresolved', name: 'x', origin: 'po' }, cards)).toEqual({ kind: 'unresolved', caption: 'unresolved', badges: [], params: [] });
+  });
+});
+
+describe("a card's height for the layout (spec #135), one term at a time", () => {
+  const deviating: FunctionCatalogue = { divide: { family: 'arithmetic', executionKind: 'single', portable: true, fidelity: { level: 'deviation', text: 'scale' } } };
+  const { base, row, context, value, slack } = CARD_HEIGHT;
+  const heightOf = (box: Box, orphaned: ReadonlySet<string> = new Set()) => cardHeights({ id: 't1', result: null, boxes: { b1: box } }, deviating, undefined, orphaned).b1;
+
+  test('a card with only its head and id is the base and the slack', () => {
+    expect(heightOf({ kind: 'unresolved', name: 'x', origin: 'po' })).toBe(base + slack);
+  });
+
+  test('each input slot and each param is a row', () => {
+    expect(heightOf({ kind: 'unresolved', name: 'x', origin: 'po', inputs: [null, null], params: { p: 'x' } })).toBe(base + 3 * row + slack);
+  });
+
+  test("a source card's context select is its own term", () => {
+    expect(heightOf({ kind: 'source', field: ORDER_ID })).toBe(base + context + slack);
+  });
+
+  test("a constant's value is its own term", () => {
+    expect(heightOf({ kind: 'function', fn: 'constant', params: { value: '-' } })).toBe(base + value + slack);
+  });
+
+  test('fidelity badges add no height: they share the head, which keeps to one line', () => {
+    expect(cardView({ kind: 'function', fn: 'divide' }, deviating).badges).toEqual([{ kind: 'deviation', text: 'scale' }]);
+    expect(heightOf({ kind: 'function', fn: 'divide' })).toBe(base + slack);
+  });
+
+  test('an orphaned box has a row for its Orphaned mark', () => {
+    expect(heightOf({ kind: 'source', field: ORDER_ID }, new Set(['b1']))).toBe(base + context + row + slack);
   });
 });
 

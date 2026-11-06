@@ -35,6 +35,18 @@
   color: var(--pf-t--global--text--color--subtle);
 }
 
+/* the fidelity line, after the prototype's one line of SAP name, execution kind and portability */
+.fm-inspector__fidelity {
+  margin: 0;
+}
+
+/* the Inputs and Parameters headings, after the prototype's .insp h4 */
+.fm-inspector__heading {
+  margin: 0 0 var(--pf-t--global--spacer--xs);
+  font-size: var(--pf-t--global--font--size--sm);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
 /* the deviation note box, after .insp__fid--deviation */
 .fm-inspector__note {
   margin: 0;

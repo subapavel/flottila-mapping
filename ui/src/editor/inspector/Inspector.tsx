@@ -1,16 +1,16 @@
 import { Button, FormSelect, FormSelectOption, Label, TextInput } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue, StructureLoaded } from '../../api/client';
 import type { CatalogueParam } from '../../generated/function-catalogue';
 import type { AuthoringId, FieldPath, ParamValue, Params, SourceFieldBox, Table, Udfs } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
+import { localPath, stepName } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { BoxQueue, TargetFieldQueue, type LastTrace } from './DisplayQueue';
 import './inspector-panel.css';
-import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames, type Badge, type Inspected, type TableRow } from './inspector-view';
+import { boxTitle, duplicateKey, inspected, slotChoices, slotNames, type Inspected, type TableRow } from './inspector-view';
 import { remapChoices } from './remap-choices';
 
 export interface InspectorProps {
@@ -27,12 +27,13 @@ export interface InspectorProps {
 }
 
 /**
- * The inspector (ADR-0012, GLOSSARY): the selected box, which can be made the result or cleared as the result, its
- * catalogue documentation and badges, its box parameters as
- * editors, the context of a source-field box and, when it is orphaned, a remap picker, one picker per input slot, and
- * its display queue. The params of a `udf` and an `unresolved` box, and of a function the catalogue lacks, are shown
- * read-only. With no box shown, the selected target field's display queue, when it has a mapping and a test run left a
- * trace.
+ * The inspector (ADR-0012, GLOSSARY), laid out as the prototype's e-inspector-deviation: the selected box's kind and
+ * authoring id, its name with the deviation badge, its catalogue documentation as one fidelity line and the deviation
+ * note, the toggle that makes it the result or clears it as the result, then the context of a source-field box and,
+ * when it is orphaned, a remap picker, or the Inputs (one picker per input slot) and the Parameters (as editors), and
+ * last its display queue. The params of a `udf` and an `unresolved` box, and of a function the catalogue lacks, are
+ * shown read-only; a catalogue function without params has no Parameters. With no box shown, the selected target
+ * field's display queue, when it has a mapping and a test run left a trace.
  */
 export function Inspector({ api, store, targetField, orphaned, source, onRemap }: InspectorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
@@ -93,38 +94,55 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource,
       </div>
       <h3 data-testid={`inspector:${id}`} className="fm-inspector__title">
         {boxTitle(box)}
-        {entry !== undefined && badges(entry).some((badge) => badge.kind === 'deviation') && (
+        {entry?.fidelity.level === 'deviation' && (
           <Label isCompact color="orange">
             deviation
           </Label>
         )}
       </h3>
+      {entry !== undefined && <Documentation entry={entry} />}
       <ResultToggle store={store} targetField={targetField} shown={shown} />
       {box.kind === 'source' ? (
         <>
           {remapSource && <RemapPicker box={box} source={remapSource} onRemap={onRemap} />}
           <ContextPicker store={store} targetField={targetField} id={id} box={box} />
         </>
-      ) : box.kind === 'function' && entry !== undefined ? (
-        <>
-          <Documentation entry={entry} />
-          <section aria-label="Parameters">
-            {(entry.params ?? []).map((param) => (
-              <ParamEditor
-                key={param.name}
-                param={param}
-                value={box.params?.[param.name] ?? param.default}
-                onSet={(value) => store.getState().setParam(targetField, id, param.name, value, catalogue)}
-              />
-            ))}
-          </section>
-        </>
       ) : (
-        <ReadOnlyParams note={readOnlyNote(box.kind === 'unresolved' ? box.origin : box.kind)} params={box.params} />
+        <>
+          <Inputs store={store} targetField={targetField} shown={shown} names={slotNames(box, catalogue, udfs)} />
+          {box.kind === 'function' && entry !== undefined ? (
+            (entry.params ?? []).length > 0 && (
+              <Section title="Parameters">
+                {entry.params!.map((param) => (
+                  <ParamEditor
+                    key={param.name}
+                    param={param}
+                    value={box.params?.[param.name] ?? param.default}
+                    onSet={(value) => store.getState().setParam(targetField, id, param.name, value, catalogue)}
+                  />
+                ))}
+              </Section>
+            )
+          ) : (
+            <ReadOnlyParams note={readOnlyNote(box.kind === 'unresolved' ? box.origin : box.kind)} params={box.params} />
+          )}
+        </>
       )}
-      <Inputs store={store} targetField={targetField} shown={shown} names={slotNames(box, catalogue, udfs)} />
       <BoxQueue id={id} last={last} />
     </>
+  );
+}
+
+/** A part of the inspector under a visible heading, which names it (the prototype's Inputs and Parameters). */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  const heading = useId();
+  return (
+    <section aria-labelledby={heading}>
+      <h4 id={heading} className="fm-inspector__heading">
+        {title}
+      </h4>
+      {children}
+    </section>
   );
 }
 
@@ -157,42 +175,32 @@ function readOnlyNote(kind: 'udf' | 'function' | 'po' | 'cpi' | 'editor'): strin
 
 const EXECUTION_KIND = { single: 'single value', context: 'context', queue: 'queue' } as const;
 
-/** The catalogue entry (ADR-0026): family, execution kind, inputs, fidelity and portability, with their badges. */
+/**
+ * The catalogue entry (ADR-0026) as the prototype's one fidelity line: family, execution kind, fidelity and
+ * portability, with every detail, the inputs too, in its title. A deviation's text follows as a note.
+ */
 function Documentation({ entry }: { entry: FunctionCatalogue[string] }) {
+  const kind = EXECUTION_KIND[entry.executionKind];
+  const details = [
+    `Family: ${entry.family}`,
+    `Execution kind: ${kind}`,
+    `Inputs: ${(entry.inputs ?? []).map((input) => input.name).join(', ')}`,
+    `Fidelity: ${entry.fidelity.level}`,
+    `Portable: ${entry.portable ? 'yes' : 'no'}`,
+  ].join('\n');
   return (
     <section aria-label="Documentation">
-      <dl className="fm-inspector__list">
-        <dt>Family</dt>
-        <dd>{entry.family}</dd>
-        <dt>Execution kind</dt>
-        <dd>{EXECUTION_KIND[entry.executionKind]}</dd>
-        <dt>Inputs</dt>
-        <dd>{(entry.inputs ?? []).map((input) => input.name).join(', ')}</dd>
-        <dt>Fidelity</dt>
-        <dd>{entry.fidelity.level}</dd>
-        <dt>Portable</dt>
-        <dd>{entry.portable ? 'yes' : 'no'}</dd>
-      </dl>
-      {badges(entry).map((badge) => (
-        <BadgeView key={badge.kind} badge={badge} />
-      ))}
+      <p className="fm-inspector__fidelity" title={details}>
+        {entry.family} · execution kind {kind} · fidelity {entry.fidelity.level} · {entry.portable ? 'portable' : 'not portable'}
+      </p>
+      {entry.fidelity.level === 'deviation' && (
+        // the catalogue has no deviation code to put in bold before the text; the badge is in the title
+        <p role="note" aria-label="Deviation" className="fm-inspector__note">
+          {entry.fidelity.text}
+        </p>
+      )}
     </section>
   );
-}
-
-/** A deviation badge shows its text next to it. */
-function BadgeView({ badge }: { badge: Badge }) {
-  switch (badge.kind) {
-    case 'assumed':
-      return <Label color="blue">assumed</Label>;
-    case 'deviation':
-      return (
-        // the catalogue has no deviation code to put in bold before the text; the badge is in the title
-        <p className="fm-inspector__note">{badge.text}</p>
-      );
-    case 'not-portable':
-      return <Label color="grey">not portable</Label>;
-  }
 }
 
 /** Enter in a text field commits it. */
@@ -293,7 +301,7 @@ function TableEditor({ name, table, onSet }: { name: string; table: Table; onSet
 /** The params of a box the inspector does not edit, as they are in the model. */
 function ReadOnlyParams({ note, params }: { note: string; params: Params | undefined }) {
   return (
-    <section aria-label="Parameters">
+    <Section title="Parameters">
       <p>{note}</p>
       <dl className="fm-inspector__list">
         {Object.entries(params ?? {}).map(([name, value]) => (
@@ -309,7 +317,7 @@ function ReadOnlyParams({ note, params }: { note: string; params: Params | undef
           </div>
         ))}
       </dl>
-    </section>
+    </Section>
   );
 }
 
@@ -318,7 +326,7 @@ function ContextPicker({ store, targetField, id, box }: { store: WorkingCopyStor
   const ancestors = properAncestors(box.field);
   return (
     <section aria-label="Context">
-      <p title={box.field}>Reads {stepName(box.field)}</p>
+      <p title={box.field}>Reads {localPath(box.field)}</p>
       <FormSelect aria-label="Context" value={box.context ?? ancestors[0]} onChange={(_event, context) => store.getState().setContext(targetField, id, context)}>
         {ancestors.map((ancestor, i) => (
           <FormSelectOption key={ancestor} value={ancestor} label={i === 0 ? `${stepName(ancestor)} (parent)` : stepName(ancestor)} />
@@ -336,7 +344,7 @@ function RemapPicker({ box, source, onRemap }: { box: SourceFieldBox; source: St
   const choices = useMemo(() => remapChoices(source), [source]);
   return (
     <section aria-label="Remap">
-      <p title={box.field}>The source structure has no field {stepName(box.field)}.</p>
+      <p title={box.field}>The source structure has no field {localPath(box.field)}.</p>
       <FormSelect aria-label="Remap to" value="" onChange={(_event, field) => onRemap(field)}>
         <FormSelectOption value="" label="Choose a source field" isPlaceholder isDisabled />
         {choices.map((choice) => (
@@ -354,7 +362,7 @@ function Inputs({ store, targetField, shown, names }: { store: WorkingCopyStore;
   const choices = slotChoices(mapping, id);
   if (names.length === 0) return null;
   return (
-    <section aria-label="Inputs">
+    <Section title="Inputs">
       {names.map((name, slot) => (
         <div key={slot} className="fm-inspector__input">
           <span>{name}</span>
@@ -370,6 +378,6 @@ function Inputs({ store, targetField, shown, names }: { store: WorkingCopyStore;
           </FormSelect>
         </div>
       ))}
-    </section>
+    </Section>
   );
 }

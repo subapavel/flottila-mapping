@@ -95,7 +95,7 @@ describe('cards of different heights never overlap (spec #135)', () => {
       f1: { kind: 'function', fn: 'concat', inputs: ['d1', 'd2'] },
     },
   };
-  const heights = cardHeights(graph, tall, undefined);
+  const heights = cardHeights(graph, tall, undefined, new Set());
 
   test('a tall card is taller than a source card', () => {
     expect(heights.d1).toBeGreaterThan(BOX.height + 16);

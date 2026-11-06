@@ -180,7 +180,7 @@ describe('the keyboard-only path', () => {
     for (const type of ['pointerdown', 'mousedown', 'click']) document.addEventListener(type, record, true);
     try {
       render(corpusMapping, NOTE);
-      await expect.element(page.getByText('Note has no function graph yet.')).toBeVisible();
+      await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
 
       await tabTo(`canvas:${NOTE}`);
       await userEvent.keyboard('/concat');
@@ -311,7 +311,7 @@ describe('the palette by keyboard', () => {
     for (const type of ['pointerdown', 'mousedown', 'click']) document.addEventListener(type, record, true);
     try {
       render(corpusMapping, NOTE);
-      await expect.element(page.getByText('Note has no function graph yet.')).toBeVisible();
+      await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
       await tabTo('palette:abs');
 
       await userEvent.keyboard('{Enter}');
@@ -377,7 +377,8 @@ describe('copy and paste', () => {
 
     await expect.poll(boxIdsShown).toHaveLength(6);
     const pasted = boxIdsShown().filter((id) => !['a1', 'c1', 'f1', 'u1'].includes(id));
-    const source = pasted.find((id) => titleOf(id) === 'OrderId')!;
+    // a source card is titled by its field's local path (spec #135)
+    const source = pasted.find((id) => titleOf(id) === 'Order/OrderId')!;
     const upper = pasted.find((id) => titleOf(id) === 'toUpperCase')!;
     expect(edgeIds()).toContain(`${source}->${upper}#0`);
   });
