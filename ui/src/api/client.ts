@@ -1,4 +1,5 @@
 import type { components } from '../generated/api';
+import type { FunctionCatalogue } from '../generated/function-catalogue';
 import type { MappingModel } from '../generated/mapping-model';
 
 type Schemas = components['schemas'];
@@ -11,11 +12,8 @@ export type StructureLoaded = Schemas['StructureLoaded'];
 export type FieldDto = Schemas['FieldDto'];
 export type TestResult = Schemas['TestResult'];
 
-/**
- * The answer of `GET /api/catalogue`, typed by json-schema-to-typescript from the contract's catalogue schema
- * (ADR-0026). `ApiClient` gets no method for it until spec 5.
- */
-export type { FunctionCatalogue } from '../generated/function-catalogue';
+/** The answer of `GET /api/catalogue`, typed by json-schema-to-typescript from the contract's catalogue schema (ADR-0026). */
+export type { FunctionCatalogue };
 
 /**
  * The test request with the model typed by json-schema-to-typescript, as ADR-0015 asks of `ApiClient`.
@@ -55,4 +53,6 @@ export interface ApiClient {
   loadStructure(request: StructureRequest): Promise<StructureResponse>;
   /** Runs the working copy in the request on its input message. */
   runTest(id: string, request: TestRequest): Promise<TestResult>;
+  /** The packed function catalogue, keyed by function id (ADR-0026, ADR-0027). */
+  getCatalogue(): Promise<FunctionCatalogue>;
 }

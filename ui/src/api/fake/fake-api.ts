@@ -1,8 +1,9 @@
 import caseOutput from '../../../../corpus/cases/link/direct-copy/001/expected.xml?raw';
 import caseInput from '../../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import orderIdCopyText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
+import catalogueText from '../../../../contract/function-catalogue.json?raw';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem, type ApiClient, type StructureResponse, type TestResult } from '../client';
+import { ApiProblem, type ApiClient, type FunctionCatalogue, type StructureResponse, type TestResult } from '../client';
 import { orderStructure } from './order-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
@@ -24,7 +25,8 @@ const structures: Record<string, StructureResponse> = { 'structures/skeleton/ord
 const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput }];
 
 /**
- * An in-memory `ApiClient` over synthetic fixtures from `corpus/` (ADR-0013), for component tests, the e2e suite
+ * An in-memory `ApiClient` over synthetic fixtures from `corpus/` and the catalogue of `contract/` (ADR-0013,
+ * ADR-0027), for component tests, the e2e suite
  * and `?api=fake`. It runs no engine: a test run answers only a corpus case, and refuses an unconnected result as
  * the engine does. `seed` replaces the corpus mappings.
  */
@@ -86,6 +88,9 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
         detail: 'the fake API has no corpus case for this working copy and input',
       });
     },
+
+    // The committed packed catalogue (ADR-0027): the bytes GET /api/catalogue serves.
+    getCatalogue: async () => JSON.parse(catalogueText) as FunctionCatalogue,
   };
 }
 

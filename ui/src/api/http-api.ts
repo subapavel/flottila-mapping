@@ -2,6 +2,7 @@ import type { MappingModel } from '../generated/mapping-model';
 import {
   ApiProblem,
   type ApiClient,
+  type FunctionCatalogue,
   type Problem,
   type StructureRequest,
   type StructureResponse,
@@ -29,6 +30,7 @@ export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, in
     saveMapping: (id, model) => call<MappingModel>(mapping(id), 'PUT', model),
     loadStructure: (request: StructureRequest) => call<StructureResponse>(`${baseUrl}/api/structures`, 'POST', request),
     runTest: (id, request: TestRequest) => call<TestResult>(`${mapping(id)}/test`, 'POST', request),
+    getCatalogue: () => call<FunctionCatalogue>(`${baseUrl}/api/catalogue`, 'GET'),
   };
 }
 

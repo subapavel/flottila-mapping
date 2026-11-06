@@ -77,6 +77,16 @@ describe('the HTTP ApiClient', () => {
     expect(port.calls).toEqual([{ url: '/api/structures', method: 'POST', contentType: 'application/json', body: request }]);
   });
 
+  test('reads the function catalogue by GET on /api/catalogue', async () => {
+    const catalogue = {
+      constant: { family: 'constant', executionKind: 'single', portable: true, fidelity: { level: 'exact' } },
+    };
+    const port = fakeFetch(() => json(catalogue));
+
+    expect(await httpApiClient('http://svc', port.fetch).getCatalogue()).toEqual(catalogue);
+    expect(port.calls).toEqual([{ url: 'http://svc/api/catalogue', method: 'GET', contentType: null, body: undefined }]);
+  });
+
   test('runs a test by POST of the working copy and the input to the mapping test path', async () => {
     const output = { kind: 'output', output: '<a/>', diagnostics: [], trace: {} };
     const port = fakeFetch(() => json(output));
