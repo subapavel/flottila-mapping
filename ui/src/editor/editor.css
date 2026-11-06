@@ -1,44 +1,55 @@
 /*
  * The editor module's styles (spec #135), imported by MappingEditor.tsx. The editor page is a flex column at the
  * window's height: the header bar, the page tabs, then the active tab's panel, which takes the rest. Classes carry
- * the fm- prefix; colours and spacing are PatternFly tokens. Sizes set at run time (splitter grows, virtualiser
- * offsets, canvas positions) stay inline.
+ * the fm- prefix. Sizes and colours are the prototype's (prototype.css @ 3a5ed86, spec #145, ticket #146): a
+ * PatternFly token where one has the value, the prototype's value where none does. Sizes set at run time (splitter
+ * grows, virtualiser offsets, canvas positions) stay inline.
  */
 .fm-editor {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* the prototype's body text; the editor carries it, so it keeps it inside any host */
+  font-size: 13px;
 }
 
-/* the header bar, after the prototype's .proto-header */
+/* the header bar: .proto-header */
 .fm-editor__header {
   flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--pf-t--global--spacer--sm);
-  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--md);
-  border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
-  background-color: var(--pf-t--global--background--color--secondary--default);
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #d2d2d2;
+  background-color: #fafafa;
 }
 
+/* the prototype's <strong> title, at the body size */
 .fm-editor__title {
   margin: 0;
-  font-size: var(--pf-t--global--font--size--md);
-  font-weight: var(--pf-t--global--font--weight--body--bold);
+  font-size: inherit;
+  font-weight: 700;
 }
 
+/* the summary: .muted */
 .fm-editor__summary {
-  color: var(--pf-t--global--text--color--subtle);
-  font-size: var(--pf-t--global--font--size--sm);
+  color: #6a6e73;
+  font-size: var(--pf-t--global--font--size--xs);
 }
 
 .fm-editor__spacer {
   flex: 1;
 }
 
-.fm-editor__tabs {
+/* compact page tabs: the tab's padding cut to 4px and its text at the body size */
+.fm-editor__tabs.pf-v6-c-tabs {
   flex: none;
+  --pf-v6-c-tabs__item--PaddingBlockStart: 0;
+  --pf-v6-c-tabs__item--PaddingBlockEnd: 0;
+  --pf-v6-c-tabs__link--PaddingBlockStart: var(--pf-t--global--spacer--xs);
+  --pf-v6-c-tabs__link--PaddingBlockEnd: var(--pf-t--global--spacer--xs);
+  --pf-v6-c-tabs__link--FontSize: 13px;
 }
 
 /* the panels share the rest of the column, one on top of the other */
@@ -67,9 +78,10 @@
   visibility: hidden;
 }
 
+/* the Test, Diagnostics and Model JSON panels: .lower__scroll */
 .fm-editor__panel--scroll {
   overflow: auto;
-  padding: var(--pf-t--global--spacer--md);
+  padding: var(--pf-t--global--spacer--sm) 12px;
 }
 
 /* the split view of ADR-0012: its panes' sizes are set at run time, the rest is here */
