@@ -179,6 +179,8 @@ function OpenMapping({
         store={store}
         expanded={expanded}
         onExpandedChange={changeExpanded}
+        selectedField={selectedField}
+        onSelectField={onSelectField}
       />
       <FunctionEditor
         api={api}
