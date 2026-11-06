@@ -18,7 +18,7 @@ Report, quoting the spec line for each:
 spec names that the diff does not run or does not make green.
 
 Verdict first: `review: PASS` or `review: FAIL — <one line per blocking reason>`, then at most 10
-lines of non-blocking observations. Under 400 words.
+lines of non-blocking observations. Label each with `carry` or `ticket` at the end of its line; the criteria are those of `run-spec` §2 step 6 (`.claude/skills/run-spec/SKILL.md`), not restated here. Under 400 words.
 
 Memory (`.claude/agent-memory/reviewer-spec/MEMORY.md`, read first; new facts go in the hand-back's `Worth recording:` block): spec patterns that were misread twice.
 Under 120 lines.
