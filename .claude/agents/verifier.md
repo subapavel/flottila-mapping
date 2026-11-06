@@ -20,7 +20,7 @@ Follow the command rules in `AGENTS.md` (Command rules); hand back only after ev
   platform thread reported by a detector is a failure even with exit 0; quote the line.
 - Ratchet regeneration (only when asked, only on an integration branch): run the regeneration
   command, commit `ratchet/` alone (`git commit -F`, trailers of `docs/WORKFLOW.md` §11) with message `chore(ratchet): regenerate after #<ticket>`,
-  push, report the diff summary (what rose, what fell).
+  push with `scripts/push-retry.sh <repo-dir> <refspec>`, report the diff summary (what rose, what fell).
 
 Report, at most 40 lines plus one block per failure:
 `<check>: <VERIFIED_PASS|EXECUTED_FAIL|NOT_RUN|ENVIRONMENT_BLOCKED> · exit <code> · <counts line> · <log path>`
