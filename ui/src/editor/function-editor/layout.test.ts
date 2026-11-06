@@ -112,6 +112,19 @@ describe('the stable layout after open', () => {
     expect(place(added, kept).n1).toEqual({ x: 0, y: 400 + BOX.height + 16 });
   });
 
+  test('a new box without a placed neighbour goes left of the selected box; a selected box not placed counts as none', () => {
+    const added: TargetFieldMapping = { ...mapping, boxes: { ...mapping.boxes, n1: { kind: 'function', fn: 'trim' } } };
+
+    expect(place(added, kept, 'f1').n1).toEqual({ x: kept.f1!.x - (BOX.width + 64), y: kept.f1!.y });
+    expect(place(added, kept, 'n9').n1).toEqual({ x: 0, y: 400 + BOX.height + 16 });
+  });
+
+  test('a new box with a placed neighbour goes next to it, not to the selected box', () => {
+    const added: TargetFieldMapping = { ...mapping, boxes: { ...mapping.boxes, n1: { kind: 'function', fn: 'trim', inputs: ['c1'] } } };
+
+    expect(place(added, kept, 'f1').n1).toEqual({ x: kept.c1!.x + BOX.width + 64, y: kept.c1!.y });
+  });
+
   test('a new box whose spot is taken moves down until it is free', () => {
     const crowded: Positions = { ...kept, u1: { x: BOX.width + 64, y: 220 } };
     const added: TargetFieldMapping = { ...mapping, boxes: { ...mapping.boxes, n1: { kind: 'function', fn: 'trim', inputs: ['c1'] } } };
