@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import type { TargetFieldMapping } from '../../generated/mapping-model';
-import { SINK } from './graph';
+import type { FunctionCatalogue } from '../../api/client';
+import type { Box, TargetFieldMapping } from '../../generated/mapping-model';
+import { cardHeights, SINK } from './graph';
 import { arrange, BOX, place, type Positions } from './layout';
 
 const ORDER_ID = '/Q{urn:flottila:corpus:skeleton}Order/OrderId';
@@ -50,6 +51,68 @@ describe('the full layout (Arrange, and a graph opened without kept positions)',
 
   test('a target field without a mapping has only its sink', () => {
     expect(Object.keys(arrange(undefined))).toEqual([SINK]);
+  });
+});
+
+/** A function with two inputs and two params, as tall as a card gets: a divide-like box with `pattern` and `mode`. */
+const tall: FunctionCatalogue = {
+  divide: {
+    family: 'arithmetic',
+    executionKind: 'single',
+    portable: true,
+    fidelity: { level: 'exact' },
+    inputs: [{ name: 'dividend' }, { name: 'divisor' }],
+    params: [
+      { name: 'pattern', type: 'string', default: '0' },
+      { name: 'mode', type: 'string', default: 'a' },
+    ],
+  },
+};
+const divide = (inputs: (string | null)[]): Box => ({ kind: 'function', fn: 'divide', inputs, params: { pattern: '0', mode: 'b' } });
+
+/** Two positions overlap when their rectangles, of the heights given, share any area. */
+const overlapping = (positions: Positions, heights: Record<string, number>) => {
+  const h = (id: string) => heights[id] ?? BOX.height;
+  const ids = Object.keys(positions);
+  return ids.flatMap((a, i) =>
+    ids.slice(i + 1).filter((b) => {
+      const [p, q] = [positions[a]!, positions[b]!];
+      return Math.abs(p.x - q.x) < BOX.width && p.y < q.y + h(b) && q.y < p.y + h(a);
+    }).map((b) => `${a}/${b}`),
+  );
+};
+
+describe('cards of different heights never overlap (spec #135)', () => {
+  // a1 feeds d1, a tall card, which with a2 feeds f1: d1 and a2 share a column
+  const graph: TargetFieldMapping = {
+    id: 't1',
+    result: 'f1',
+    boxes: {
+      a1: { kind: 'source', field: ORDER_ID },
+      a2: { kind: 'source', field: ORDER_ID },
+      d1: divide(['a1', null]),
+      d2: divide(['a2', null]),
+      f1: { kind: 'function', fn: 'concat', inputs: ['d1', 'd2'] },
+    },
+  };
+  const heights = cardHeights(graph, tall, undefined);
+
+  test('a tall card is taller than a source card', () => {
+    expect(heights.d1).toBeGreaterThan(BOX.height + 16);
+    expect(heights.a1).toBeLessThan(heights.d1!);
+  });
+
+  test('Arrange puts a 2-input, 2-param function next to a source box without intersecting it', () => {
+    expect(overlapping(arrange(graph, heights), heights)).toEqual([]);
+  });
+
+  test('a new box placed next to its neighbour does not intersect the tall cards already there', () => {
+    // d2 and a2 are new: d2 goes left of f1, into d1's column, and a2 left of d2
+    const kept = arrange({ ...graph, boxes: { a1: graph.boxes.a1!, d1: graph.boxes.d1!, f1: { kind: 'function', fn: 'concat', inputs: ['d1'] } } }, heights);
+    const placed = place(graph, kept, null, heights);
+
+    expect(Object.keys(placed).sort()).toEqual([SINK, 'a1', 'a2', 'd1', 'd2', 'f1']);
+    expect(overlapping(placed, heights)).toEqual([]);
   });
 });
 

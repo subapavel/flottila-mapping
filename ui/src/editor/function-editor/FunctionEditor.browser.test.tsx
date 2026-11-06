@@ -228,6 +228,19 @@ describe('the canvas of the selected target field', () => {
       await expect.element(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
     });
 
+    test('a letter typed with a card select focused does not open quick insert', async () => {
+      const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+      const boxes: typeof target.boxes = { ...target.boxes, x1: { kind: 'function', fn: 'fixValues', inputs: ['a1'], params: { missing: 'error' } } };
+      render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } }) });
+      const missing = box('x1').getByRole('combobox', { name: 'missing' });
+      await expect.element(missing).toHaveValue('error');
+
+      (missing.element() as HTMLElement).focus();
+      await userEvent.keyboard('d');
+
+      await expect.element(page.getByRole('combobox', { name: 'Quick insert' })).not.toBeInTheDocument();
+    });
+
     test('typing a letter in a card input neither opens quick insert nor drags the node', async () => {
       render({ api: withFormatNum() });
       await expect.element(pattern()).toHaveClass('nodrag');

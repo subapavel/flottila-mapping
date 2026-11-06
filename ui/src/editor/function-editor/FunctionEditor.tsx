@@ -23,7 +23,7 @@ import { stepName } from '../../model/field-path';
 import { reachedBoxes } from '../../model/reached';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { boxIds, boxView, cardView, liveMarks, SINK, wires, type BoxView, type CardView } from './graph';
+import { boxIds, boxView, cardHeights, cardView, liveMarks, SINK, wires, type BoxView, type CardView } from './graph';
 import { arrange, BOX, place, type Positions } from './layout';
 import { FUNCTION_DRAG } from './palette';
 import './function-editor.css';
@@ -201,12 +201,14 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
 
 function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox, chosen }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
-  const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions) : arrange(mapping)));
+  // each card's height from its content, so that no layout puts two cards over each other
+  const heights = cardHeights(mapping, catalogue, udfs);
+  const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions, null, heights) : arrange(mapping, heights)));
   const [measured, setMeasured] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
   const canPaste = useStore(store, (s) => s.clipboard?.targetField === targetField);
 
   // A box added or removed since the last render: place it and keep the others (ADR-0012, "Layout").
-  const shown = place(mapping, positions, selectedBox);
+  const shown = place(mapping, positions, selectedBox, heights);
   if (shown !== positions) setPositions(shown);
 
   const keep = (state: CanvasState) => canvasState.write(mapping.id, { ...canvasState.read(mapping.id), ...state });
@@ -298,7 +300,7 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
         <Button
           variant="secondary"
           onClick={() => {
-            setPositions(arrange(mapping));
+            setPositions(arrange(mapping, heights));
             canvasState.write(mapping.id, { viewport: canvasState.read(mapping.id)?.viewport });
           }}
         >

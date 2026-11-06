@@ -124,6 +124,32 @@ export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
   };
 }
 
+/** The heights, in px, of a card's parts, as function-editor.css sets them (a row is a line of text with its padding). */
+export const CARD_HEIGHT = { base: 50, row: 22, context: 26, value: 22, badges: 22, slack: 8 } as const;
+
+/**
+ * Each box's card height from its content, for the layout: the caption and id, one row per input slot and per param,
+ * a source card's context row, a constant's value, and a row more when fidelity badges make the head wrap. A function
+ * of the model and the catalogue only, so the layout stays deterministic (ADR-0012).
+ */
+export function cardHeights(mapping: TargetFieldMapping, catalogue: FunctionCatalogue, udfs: Udfs | undefined): Record<AuthoringId, number> {
+  return Object.fromEntries(
+    boxIds(mapping).map((id) => {
+      const box = mapping.boxes[id]!;
+      const view = boxView(box, catalogue, udfs);
+      const card = cardView(box, catalogue);
+      const height =
+        CARD_HEIGHT.base +
+        CARD_HEIGHT.row * (view.slots.length + card.params.length) +
+        (card.context === undefined ? 0 : CARD_HEIGHT.context) +
+        (view.value === undefined ? 0 : CARD_HEIGHT.value) +
+        (card.badges.length === 0 ? 0 : CARD_HEIGHT.badges) +
+        CARD_HEIGHT.slack;
+      return [id, height];
+    }),
+  );
+}
+
 /** The live marks of a canvas (ADR-0013): whether `result` is `null`, and the input slots that read no box, by box. */
 export interface LiveMarks {
   resultUnconnected: boolean;
