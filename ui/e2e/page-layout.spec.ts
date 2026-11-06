@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { collectProblems } from './problems';
 
 // The layout contract of spec #135: on a 1440 x 900 window the page fills the window and never scrolls; the Editor
-// tab shows both trees, the canvas and the inspector, and the Test tab shows Run.
+// tab shows both trees, the canvas and the inspector, and the Test tab shows Run and the generated target output.
 const ORDER_ID = '/Q{urn:flottila:corpus:skeleton}Order/OrderId';
 
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -26,6 +26,8 @@ test('at 1440 x 900 the editor fills the window without a page scroll, on the Ed
   await page.getByRole('tab', { name: 'Test' }).click();
 
   await expect(page.getByRole('button', { name: 'Run test' })).toBeInViewport();
+  // the generated target output region is wholly on screen, not pushed below the fold
+  await expect(page.getByRole('region', { name: 'Generated target' })).toBeInViewport({ ratio: 1 });
   expect(await verticalScroll(page)).toBe(0);
   expect(problems).toEqual([]);
 });
