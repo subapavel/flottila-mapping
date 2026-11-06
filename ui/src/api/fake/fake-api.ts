@@ -6,6 +6,7 @@ import type { MappingModel } from '../../generated/mapping-model';
 import {
   ApiProblem,
   type ApiClient,
+  type Diagnostic,
   type FunctionCatalogue,
   type StoredMapping,
   type StructureResponse,
@@ -31,13 +32,20 @@ const structures: Record<string, StructureResponse> = { 'structures/skeleton/ord
 /** The test runs the fake knows: the corpus case's mapping, input and output (`link/direct-copy/001`). */
 const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput }];
 
+/** The fixtures of one scenario: what the fake answers where it cannot compute the answer. */
+export interface FakeScenario {
+  /** The diagnostics a compile answers, by mapping id; a mapping without an entry has none. */
+  compile?: Record<string, Diagnostic[]>;
+}
+
 /**
  * An in-memory `ApiClient` over synthetic fixtures from `corpus/` and the catalogue of `contract/` (ADR-0013,
  * ADR-0027), for component tests, the e2e suite
  * and `?api=fake`. It runs no engine: a test run answers only a corpus case, and refuses an unconnected result as
- * the engine does. `seed` replaces the corpus mappings.
+ * the engine does; a compile answers the scenario's fixture whatever the working copy. `seed` replaces the corpus
+ * mappings.
  */
-export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings()): ApiClient {
+export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings(), scenario: FakeScenario = {}): ApiClient {
   // Each write gets a tag of its own, as a changed file gets a new sha256 (ADR-0024); never the same tag twice.
   let writes = 0;
   const written = (model: MappingModel): StoredMapping => ({ model: structuredClone(model), etag: `"fake:${++writes}"` });
@@ -108,6 +116,11 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
 
     // The committed packed catalogue (ADR-0027): the bytes GET /api/catalogue serves.
     getCatalogue: async () => JSON.parse(catalogueText) as FunctionCatalogue,
+
+    compile: async (id) => {
+      stored(id);
+      return { diagnostics: structuredClone(scenario.compile?.[id] ?? []) };
+    },
   };
 }
 

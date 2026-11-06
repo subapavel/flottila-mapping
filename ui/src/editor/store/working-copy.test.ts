@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { ApiProblem, type StoredMapping } from '../../api/client';
+import { ApiProblem, type Diagnostic, type StoredMapping } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
 import { createWorkingCopyStore, selectUnsaved, UNDO_DEPTH, watchUnsaved, type WorkingCopyPorts } from './working-copy';
 
@@ -41,11 +41,15 @@ function deferred<A extends unknown[]>() {
   return { port, calls };
 }
 
+/** A compile port that never answers: these tests do not look at diagnostics (`compile.test.ts` does). */
+const unanswered = () => new Promise<Diagnostic[]>(() => {});
+
 function store(ports: Partial<WorkingCopyPorts> = {}, initial: StoredMapping = opened) {
   return createWorkingCopyStore(initial, {
     newId: ids(),
     save: deferred<[MappingModel, string]>().port,
     load: deferred<[]>().port,
+    compile: unanswered,
     ...ports,
   });
 }

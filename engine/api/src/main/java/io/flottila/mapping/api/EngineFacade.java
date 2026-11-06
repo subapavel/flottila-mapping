@@ -177,6 +177,33 @@ public final class EngineFacade {
   }
 
   /**
+   * The diagnostics of a compile of a mapping model (ADR-0015, ADR-0027), without the closure
+   * compile: those of the first of load, structures, and stage 3 with lowering that refuses the
+   * model, as {@link #compile} reports them, and none when it compiles. A model that passes stages
+   * 1 and 2 adds the {@code unreachable-box} warnings (ADR-0011, ADR-0013), whichever later stage
+   * refuses it. The result is sorted by {@link Diagnostic#ORDER}. An unchecked exception from
+   * {@code resolver} passes through unchanged.
+   *
+   * @param model the mapping model's bytes
+   * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
+   *     "Reference resolver shape")
+   * @return every diagnostic, the warnings among them
+   * @throws MalformedJsonException if the bytes are no JSON document
+   */
+  public List<Diagnostic> diagnostics(byte[] model, ReferenceResolver resolver)
+      throws MalformedJsonException {
+    return switch (MappingModelFormat.load(model)) {
+      case Refused r -> r.diagnostics();
+      case Loaded(MappingModel loaded) -> {
+        List<Diagnostic> found =
+            new ArrayList<>(lower(loaded, resolver, refusals -> refusals, lowered -> List.of()));
+        found.addAll(Lowering.unreachable(loaded));
+        yield DiagnosticOrder.sorted(found);
+      }
+    };
+  }
+
+  /**
    * Exports a mapping model to XSLT 3.0 in the portable profile (ADR-0023): load, structures, stage
    * 3 and lowering as {@link #compile} does them, then the export of the unoptimised IR. A refused
    * model gives no stylesheet, not even of the target fields that would export. An unchecked
@@ -266,26 +293,33 @@ public final class EngineFacade {
       throws MalformedJsonException {
     return switch (MappingModelFormat.load(model)) {
       case Refused r -> refused.apply(r.diagnostics());
-      case Loaded(MappingModel loaded) -> {
-        List<Diagnostic> refusals = new ArrayList<>();
-        Optional<Structure> source = structure(resolver, loaded.source(), refusals);
-        Optional<Structure> target = structure(resolver, loaded.target(), refusals);
-        if (!refusals.isEmpty()) {
-          yield refused.apply(refusals);
-        }
-        fingerprint(loaded.source(), source.orElseThrow(), "/source/fingerprint", refusals);
-        fingerprint(loaded.target(), target.orElseThrow(), "/target/fingerprint", refusals);
-        yield switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
-          case Refused r -> {
-            refusals.addAll(r.diagnostics());
-            yield refused.apply(refusals);
-          }
-          case Lowered(TargetDocument document) ->
-              refusals.isEmpty()
-                  ? lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document))
-                  : refused.apply(refusals);
-        };
+      case Loaded(MappingModel loaded) -> lower(loaded, resolver, refused, lowered);
+    };
+  }
+
+  /** {@link #loadAndLower} after a load that passed stages 1 and 2. */
+  private static <R> R lower(
+      MappingModel loaded,
+      ReferenceResolver resolver,
+      Function<List<Diagnostic>, R> refused,
+      Function<LoweredModel, R> lowered) {
+    List<Diagnostic> refusals = new ArrayList<>();
+    Optional<Structure> source = structure(resolver, loaded.source(), refusals);
+    Optional<Structure> target = structure(resolver, loaded.target(), refusals);
+    if (!refusals.isEmpty()) {
+      return refused.apply(refusals);
+    }
+    fingerprint(loaded.source(), source.orElseThrow(), "/source/fingerprint", refusals);
+    fingerprint(loaded.target(), target.orElseThrow(), "/target/fingerprint", refusals);
+    return switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
+      case Refused r -> {
+        refusals.addAll(r.diagnostics());
+        yield refused.apply(refusals);
       }
+      case Lowered(TargetDocument document) ->
+          refusals.isEmpty()
+              ? lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document))
+              : refused.apply(refusals);
     };
   }
 

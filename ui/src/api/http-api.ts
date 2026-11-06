@@ -2,6 +2,7 @@ import type { MappingModel } from '../generated/mapping-model';
 import {
   ApiProblem,
   type ApiClient,
+  type CompileResponse,
   type FunctionCatalogue,
   type Problem,
   type StoredMapping,
@@ -15,8 +16,14 @@ import {
 export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, init) => fetch(input, init)): ApiClient {
   const mapping = (id: string) => `${baseUrl}/api/mappings/${id.split('/').map(encodeURIComponent).join('/')}`;
 
-  async function send(url: string, method: string, body?: unknown, headers: Record<string, string> = {}): Promise<Response> {
-    const init: RequestInit = { method };
+  async function send(
+    url: string,
+    method: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    const init: RequestInit = { method, signal };
     if (body !== undefined) {
       init.headers = { 'content-type': 'application/json', ...headers };
       init.body = JSON.stringify(body);
@@ -26,8 +33,8 @@ export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, in
     throw new ApiProblem(await problemOf(response));
   }
 
-  async function call<T>(url: string, method: string, body?: unknown): Promise<T> {
-    return (await (await send(url, method, body)).json()) as T;
+  async function call<T>(url: string, method: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+    return (await (await send(url, method, body, {}, signal)).json()) as T;
   }
 
   return {
@@ -36,6 +43,7 @@ export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, in
     loadStructure: (request: StructureRequest) => call<StructureResponse>(`${baseUrl}/api/structures`, 'POST', request),
     runTest: (id, request: TestRequest) => call<TestResult>(`${mapping(id)}/test`, 'POST', request),
     getCatalogue: () => call<FunctionCatalogue>(`${baseUrl}/api/catalogue`, 'GET'),
+    compile: (id, model, signal) => call<CompileResponse>(`${mapping(id)}/compile`, 'POST', model, signal),
   };
 }
 
