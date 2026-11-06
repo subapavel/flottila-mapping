@@ -4,7 +4,10 @@ import type { AuthoringId, BoxReference, FieldPath, MappingModel, TargetFieldMap
 /** A refused field's refusal as `/api/structures` carries it: the reason's code and the declaration's position. */
 export type FieldRefusal = components['schemas']['RefusalDto'];
 
-/** Why a command was refused at a box or mapping id, by the model check's codes (ADR-0011, ADR-0013). */
+/**
+ * Why a command was refused at a box or mapping id, by the model check's codes (ADR-0011, ADR-0013);
+ * `not-source-field-box` is the editor's own, as no model check sees a remap.
+ */
 export interface BoxRefusal {
   code:
     | 'duplicate-authoring-id'
@@ -15,7 +18,8 @@ export interface BoxRefusal {
     | 'context-not-ancestor'
     | 'unknown-parameter'
     | 'wrong-parameter-type'
-    | 'invalid-parameter-value';
+    | 'invalid-parameter-value'
+    | 'not-source-field-box';
   id: AuthoringId;
 }
 
@@ -81,6 +85,8 @@ export function describeRefusal(refusal: Refusal): string {
       return `That value has the wrong type for the parameter of box ${id}.`;
     case 'invalid-parameter-value':
       return `That value is not one the parameter of box ${id} takes.`;
+    case 'not-source-field-box':
+      return `Box ${id} reads no source field, so it cannot be remapped.`;
   }
 }
 

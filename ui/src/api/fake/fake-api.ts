@@ -2,7 +2,7 @@ import caseOutput from '../../../../corpus/cases/link/direct-copy/001/expected.x
 import caseInput from '../../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import orderIdCopyText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import catalogueText from '../../../../contract/function-catalogue.json?raw';
-import type { MappingModel } from '../../generated/mapping-model';
+import type { MappingModel, StructureRef } from '../../generated/mapping-model';
 import {
   ApiProblem,
   type ApiClient,
@@ -84,6 +84,8 @@ const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput
 export interface FakeScenario {
   /** The diagnostics a compile answers, by mapping id; a mapping without an entry has none. */
   compile?: Record<string, Diagnostic[]>;
+  /** The diagnostics a refresh answers when both structures load, by mapping id; a mapping without an entry has none. */
+  refresh?: Record<string, Diagnostic[]>;
   /** What a test run answers, by mapping id, whatever the working copy and input; a mapping without one runs the corpus cases. */
   test?: Record<string, TestResult>;
 }
@@ -92,8 +94,8 @@ export interface FakeScenario {
  * An in-memory `ApiClient` over synthetic fixtures from `corpus/` and the catalogue of `contract/` (ADR-0013,
  * ADR-0027), for component tests, the e2e suite
  * and `?api=fake`. It runs no engine: a test run answers the scenario's fixture, else only a corpus case, and refuses
- * an unconnected result as the engine does; a compile answers the scenario's fixture whatever the working copy. `seed`
- * replaces the corpus mappings.
+ * an unconnected result as the engine does; a compile answers the scenario's fixture whatever the working copy, and so
+ * does a refresh for its diagnostics. `seed` replaces the corpus mappings.
  */
 export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings(), scenario: FakeScenario = {}): ApiClient {
   // Each write gets a tag of its own, as a changed file gets a new sha256 (ADR-0024); never the same tag twice.
@@ -194,6 +196,20 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
     compile: async (id) => {
       stored(id);
       return { diagnostics: structuredClone(scenario.compile?.[id] ?? []) };
+    },
+
+    // as the engine refreshes (#99): the fingerprints are the fake's structures', only the stage-3 diagnostics a fixture
+    refresh: async (id, model) => {
+      stored(id);
+      const base = directoryOf(id);
+      const [source, target] = [structureOf(base, model.source.bundle), structureOf(base, model.target.bundle)];
+      const refreshed = (ref: StructureRef, structure: StructureResponse): StructureRef =>
+        structure.kind === 'loaded' ? { ...ref, fingerprint: structure.fingerprint } : ref;
+      const loadErrors = [source, target].flatMap((s) => (s.kind === 'refused' ? s.diagnostics : []));
+      return {
+        model: sortedKeys({ ...model, source: refreshed(model.source, source), target: refreshed(model.target, target) }),
+        diagnostics: loadErrors.length > 0 ? loadErrors : structuredClone(scenario.refresh?.[id] ?? []),
+      };
     },
   };
 }

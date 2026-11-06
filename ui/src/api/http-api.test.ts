@@ -181,6 +181,19 @@ describe('the HTTP ApiClient', () => {
     expect(signals).toEqual([controller.signal]);
   });
 
+  test('refreshes by POST of the working copy to the mapping refresh path, and answers the refreshed model and its diagnostics', async () => {
+    const refreshed = {
+      model: { ...model, source: { ...model.source, fingerprint: 'sha256:11' } },
+      diagnostics: [
+        { severity: 'error', code: 'orphaned-reference', message: 'gone', location: { kind: 'authoring-id', authoringId: 's1' } },
+      ],
+    };
+    const port = fakeFetch(() => json(refreshed));
+
+    expect(await httpApiClient('', port.fetch).refresh('m/one', model)).toEqual(refreshed);
+    expect(port.calls).toEqual([{ url: '/api/mappings/m/one/refresh', method: 'POST', contentType: 'application/json', body: model }]);
+  });
+
   test('a problem+json answer becomes an ApiProblem with its type, status and diagnostics', async () => {
     const refused = {
       type: 'urn:flottila:mapping:problem:model-refused',

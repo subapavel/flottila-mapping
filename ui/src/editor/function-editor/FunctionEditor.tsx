@@ -13,10 +13,11 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
 import { boxIds, boxView, liveMarks, reachable, SINK, stepName, wires, type BoxView } from './graph';
 import { arrange, BOX, place, type Positions } from './layout';
@@ -43,19 +44,24 @@ export interface FunctionEditorProps {
   /** The selected target field, whose function graph the canvas shows. */
   targetField: FieldPath | null;
   canvasState: CanvasStatePort;
+  /** The orphaned source-field boxes (GLOSSARY: Orphaned reference), marked on the canvas. */
+  orphaned: ReadonlySet<AuthoringId>;
+  /** Remaps an orphaned source-field box of a target field mapping to a dropped source field. */
+  onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
 }
 
 /**
  * The function editor (ADR-0012): the palette, and the canvas with the function graph of the selected target field
  * mapping, its boxes and wires and a sink for the target field. Dropping a palette entry inserts a box, also into a
- * target field without a mapping. Boxes that `result` cannot reach are dimmed. Positions and zoom are browser state
- * only; moving a box never touches the working copy.
+ * target field without a mapping. Boxes that `result` cannot reach are dimmed. An orphaned source-field box is marked,
+ * and a source row dropped on it remaps it. Positions and zoom are browser state only; moving a box never touches the
+ * working copy.
  *
  * The canvas takes the focus and its keys: `/` or a typed character opens quick insert, Delete deletes the selected
  * box, Ctrl+C copies the selected boxes and Ctrl+V pastes them. A key typed into a field inside the canvas, quick
  * insert's own, is the field's.
  */
-export function FunctionEditor({ api, store, targetField, canvasState }: FunctionEditorProps) {
+export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap }: FunctionEditorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const mapping = useStore(store, (s) => (targetField === null ? undefined : s.workingCopy.targetFieldMappings?.[targetField]));
   const udfs = useStore(store, (s) => s.workingCopy.udfs);
@@ -140,6 +146,8 @@ export function FunctionEditor({ api, store, targetField, canvasState }: Functio
                 catalogue={catalogue.data}
                 udfs={udfs}
                 canvasState={canvasState}
+                orphaned={orphaned}
+                onRemap={onRemap}
                 selectedBox={selectedBox}
               />
             )}
@@ -150,7 +158,8 @@ export function FunctionEditor({ api, store, targetField, canvasState }: Functio
   );
 }
 
-type BoxNode = Node<{ view: BoxView; reachable: boolean; unconnected: number[] }, 'box'>;
+/** A box node's data; `remap` points an orphaned source-field box at a dropped source field, and is absent otherwise. */
+type BoxNode = Node<{ view: BoxView; reachable: boolean; unconnected: number[]; remap?: (field: FieldPath) => void }, 'box'>;
 type SinkNode = Node<{ field: FieldPath; connected: boolean }, 'sink'>;
 
 const nodeTypes = { box: BoxNodeView, sink: SinkNodeView };
@@ -167,7 +176,7 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
   selectedBox: AuthoringId | null;
 }
 
-function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, selectedBox }: CanvasProps) {
+function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
   const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions) : arrange(mapping)));
   const [measured, setMeasured] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
@@ -191,7 +200,12 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, sel
         position: shown[id]!,
         measured: measured[id],
         selected: chosen.includes(id),
-        data: { view: boxView(mapping.boxes[id]!, catalogue, udfs), reachable: reached.has(id), unconnected: marks.unconnectedInputs[id] ?? [] },
+        data: {
+          view: boxView(mapping.boxes[id]!, catalogue, udfs),
+          reachable: reached.has(id),
+          unconnected: marks.unconnectedInputs[id] ?? [],
+          remap: orphaned.has(id) ? (field) => onRemap(targetField, id, field) : undefined,
+        },
       }),
     ),
     {
@@ -288,14 +302,33 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, sel
 
 const MARK = { color: 'var(--pf-t--global--text--color--status--danger--default, #c9190b)' } as const;
 
+/** Only a source row's drag may end on an orphaned source-field box; any other drag goes on to the canvas. */
+const sourceFieldDrag = (event: DragEvent) => event.dataTransfer.types.includes(SOURCE_FIELD_DRAG);
+
 /**
  * A box: its title, a constant's value, one input handle per input slot with the slot's name and a mark when it reads
- * no box, and its output on the right.
+ * no box, and its output on the right. An orphaned source-field box is marked and takes a dropped source row.
  */
 function BoxNodeView({ id, data }: NodeProps<BoxNode>) {
+  const { remap } = data;
   return (
     <div
       data-testid={`box:${id}`}
+      onDragOver={
+        remap &&
+        ((event) => {
+          if (sourceFieldDrag(event)) event.preventDefault();
+        })
+      }
+      onDrop={
+        remap &&
+        ((event) => {
+          if (!sourceFieldDrag(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          remap(event.dataTransfer.getData(SOURCE_FIELD_DRAG));
+        })
+      }
       style={{
         width: BOX.width,
         minHeight: BOX.height,
@@ -308,6 +341,11 @@ function BoxNodeView({ id, data }: NodeProps<BoxNode>) {
     >
       <strong>{data.view.title}</strong>
       {data.view.value !== undefined && <code data-testid={`value:${id}`}> {data.view.value}</code>}
+      {remap && (
+        <div data-testid={`orphaned:${id}`} title="The source structure has no such field: drop a source row here to remap" style={MARK}>
+          Orphaned
+        </div>
+      )}
       {data.view.slots.map((name, slot) => (
         <div key={slot} style={{ position: 'relative' }}>
           <Handle type="target" position={Position.Left} id={`in-${slot}`} data-testid={`in:${id}#${slot}`} />

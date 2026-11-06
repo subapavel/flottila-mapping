@@ -7,6 +7,7 @@ import {
   type FunctionCatalogue,
   type MappingSummary,
   type Problem,
+  type RefreshResponse,
   type StoredMapping,
   type StructureRequest,
   type StructureResponse,
@@ -48,6 +49,7 @@ export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, in
     runTest: (id, request: TestRequest) => call<TestResult>(`${mapping(id)}/test`, 'POST', request),
     getCatalogue: () => call<FunctionCatalogue>(`${baseUrl}/api/catalogue`, 'GET'),
     compile: (id, model, signal) => call<CompileResponse>(`${mapping(id)}/compile`, 'POST', model, signal),
+    refresh: (id, model) => call<RefreshResponse>(`${mapping(id)}/refresh`, 'POST', model),
   };
 }
 
