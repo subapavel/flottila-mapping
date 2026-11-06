@@ -117,9 +117,9 @@ export const selectUnsaved = (state: WorkingCopyState): boolean => !sameModel(st
 export const selectTrace = (state: WorkingCopyState): Record<string, TraceEntry> | undefined =>
   state.lastRun === null || state.lastRun.kind === 'refused' ? undefined : state.lastRun.trace;
 
-/** Whether the last run's trace is a stale trace: the working copy has changed since that run (GLOSSARY). */
+/** Whether the last run's trace is a stale trace: there is one, and the working copy has changed since that run (GLOSSARY). */
 export const selectTraceStale = (state: WorkingCopyState): boolean =>
-  state.lastRunModel !== null && !sameModel(state.workingCopy, state.lastRunModel);
+  selectTrace(state) !== undefined && !sameModel(state.workingCopy, state.lastRunModel!);
 
 /** One store per open mapping (ADR-0013). Its actions only call the pure commands of `model/`. */
 export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopyPorts) {

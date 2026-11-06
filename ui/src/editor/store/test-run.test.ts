@@ -108,6 +108,10 @@ describe('the last test run in the store', () => {
 
     expect(selectTrace(s.getState())).toBeUndefined();
     expect(s.getState().diagnostics).toEqual(refused.diagnostics);
+
+    // no trace, so nothing to mark stale after an edit
+    s.getState().link(ORDER_ID, ORDER_ID);
+    expect(selectTraceStale(s.getState())).toBe(false);
   });
 
   test('a runtime error keeps the trace up to the error', () => {

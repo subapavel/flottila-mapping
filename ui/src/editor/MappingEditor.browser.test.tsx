@@ -399,18 +399,23 @@ describe('the test panel', () => {
       .toMatchTextContent('<OrderId>PO 4711</OrderId>');
   });
 
-  test('shows the diagnostics that refuse the working copy, and no target message', async () => {
+  test('shows the diagnostics that refuse the working copy in the Diagnostics panel, and no target message', async () => {
     const unfinished = structuredClone(corpusMapping);
     unfinished.targetFieldMappings![ORDER_ID]!.result = null;
-    render('drafts/unfinished', fakeApiClient({ 'drafts/unfinished': unfinished }));
+    const unconnected: Diagnostic = {
+      severity: 'error',
+      code: 'unconnected-target-field',
+      message: "the target field mapping's result is not connected",
+      location: { kind: 'authoring-id', authoringId: 't1' },
+    };
+    // the compile of the same working copy answers what the run's compile answers
+    render('drafts/unfinished', fakeApiClient({ 'drafts/unfinished': unfinished }, { compile: { 'drafts/unfinished': [unconnected] } }));
 
     await userEvent.fill(page.getByRole('textbox', { name: 'Input message' }), caseInput);
     await page.getByRole('button', { name: 'Run test' }).click();
 
-    const diagnostics = page.getByRole('list', { name: 'Diagnostics' });
-    await expect
-      .element(diagnostics)
-      .toHaveTextContent("error unconnected-target-field: the target field mapping's result is not connected");
+    const diagnostics = page.getByRole('list', { name: 'Working copy diagnostics' });
+    await expect.element(diagnostics).toMatchTextContent("unconnected-target-field t1: the target field mapping's result is not connected");
     await expect.element(page.getByRole('figure', { name: 'Target message' })).not.toBeInTheDocument();
   });
 

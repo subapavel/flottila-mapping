@@ -152,6 +152,7 @@ function OpenMapping({
     store.getState().select(where.box);
   };
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [drawerTab, setDrawerTab] = useState<string | number>('test');
   const [canvasState] = useState(() => ({
     read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
     write: (tfm: AuthoringId, state: CanvasState) => browserState.write(canvasKey(mappingId, tfm), state),
@@ -213,9 +214,10 @@ function OpenMapping({
           {inspectorOpen && <Inspector api={api} store={store} targetField={selectedField} />}
         </div>
       </div>
-      <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">
+      <Tabs activeKey={drawerTab} onSelect={(_event, key) => setDrawerTab(key)} aria-label="Test and diagnostics">
         <Tab eventKey="test" title={<TabTitleText>Test</TabTitleText>}>
-          <TestPanel mappingId={mappingId} api={api} store={store} />
+          {/* a run that compile refused shows its diagnostics in the Diagnostics panel */}
+          <TestPanel mappingId={mappingId} api={api} store={store} onShow={select} onRefused={() => setDrawerTab('diagnostics')} />
         </Tab>
         <Tab eventKey="diagnostics" title={<TabTitleText>Diagnostics ({diagnosticCount})</TabTitleText>}>
           <DiagnosticsPanel store={store} onSelectField={selectTreeField} />
