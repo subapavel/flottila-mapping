@@ -82,14 +82,16 @@ const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput
 export interface FakeScenario {
   /** The diagnostics a compile answers, by mapping id; a mapping without an entry has none. */
   compile?: Record<string, Diagnostic[]>;
+  /** What a test run answers, by mapping id, whatever the working copy and input; a mapping without one runs the corpus cases. */
+  test?: Record<string, TestResult>;
 }
 
 /**
  * An in-memory `ApiClient` over synthetic fixtures from `corpus/` and the catalogue of `contract/` (ADR-0013,
  * ADR-0027), for component tests, the e2e suite
- * and `?api=fake`. It runs no engine: a test run answers only a corpus case, and refuses an unconnected result as
- * the engine does; a compile answers the scenario's fixture whatever the working copy. `seed` replaces the corpus
- * mappings.
+ * and `?api=fake`. It runs no engine: a test run answers the scenario's fixture, else only a corpus case, and refuses
+ * an unconnected result as the engine does; a compile answers the scenario's fixture whatever the working copy. `seed`
+ * replaces the corpus mappings.
  */
 export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings(), scenario: FakeScenario = {}): ApiClient {
   // Each write gets a tag of its own, as a changed file gets a new sha256 (ADR-0024); never the same tag twice.
@@ -158,7 +160,9 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
 
     loadStructure: async ({ base, bundle }) => structureOf(base, bundle),
 
-    runTest: async (_id, { model, input }): Promise<TestResult> => {
+    runTest: async (id, { model, input }): Promise<TestResult> => {
+      const fixture = scenario.test?.[id];
+      if (fixture) return structuredClone(fixture);
       const known = cases.find((c) => c.input === input && c.links === links(model));
       // a test run's output carries its trace (ADR-0015, #53); the fake records none
       if (known) return { kind: 'output', output: known.output, diagnostics: [], trace: {} };
