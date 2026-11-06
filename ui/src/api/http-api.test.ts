@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { MappingModel } from '../generated/mapping-model';
-import { ApiProblem } from './client';
+import { ApiProblem, isSaveConflict } from './client';
 import { httpApiClient } from './http-api';
 
 const model: MappingModel = {
@@ -13,6 +13,7 @@ interface Call {
   url: string;
   method: string;
   contentType: string | null;
+  ifMatch?: string;
   body: unknown;
 }
 
@@ -21,10 +22,12 @@ function fakeFetch(answer: () => Response) {
   const calls: Call[] = [];
   const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
+    const ifMatch = headers.get('if-match');
     calls.push({
       url: String(input),
       method: init?.method ?? 'GET',
       contentType: headers.get('content-type'),
+      ...(ifMatch === null ? {} : { ifMatch }),
       body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
     });
     return answer();
@@ -32,40 +35,66 @@ function fakeFetch(answer: () => Response) {
   return { fetch, calls };
 }
 
-const json = (body: unknown, status = 200, type = 'application/json') =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': type } });
+const json = (body: unknown, status = 200, type = 'application/json', etag?: string) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': type, ...(etag ? { etag } : {}) } });
+
+const TAG = '"sha256:aa"';
+const stored = (body: unknown, etag = TAG) => json(body, 200, 'application/json', etag);
 
 describe('the HTTP ApiClient', () => {
   test('uses the global fetch when no fetch port is given', async () => {
-    const port = fakeFetch(() => json(model));
+    const port = fakeFetch(() => stored(model));
     vi.stubGlobal('fetch', port.fetch);
     try {
-      expect(await httpApiClient().getMapping('m/one')).toEqual(model);
+      expect(await httpApiClient().getMapping('m/one')).toEqual({ model, etag: TAG });
       expect(port.calls.map((c) => c.url)).toEqual(['/api/mappings/m/one']);
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  test('opens a mapping by GET on its id, keeping the id segments as path segments', async () => {
-    const port = fakeFetch(() => json(model));
+  test('opens a mapping by GET on its id, keeping the id segments as path segments, with its ETag', async () => {
+    const port = fakeFetch(() => stored(model));
 
     const opened = await httpApiClient('http://svc', port.fetch).getMapping('mappings/order-id-copy');
 
-    expect(opened).toEqual(model);
+    expect(opened).toEqual({ model, etag: TAG });
     expect(port.calls).toEqual([
       { url: 'http://svc/api/mappings/mappings/order-id-copy', method: 'GET', contentType: null, body: undefined },
     ]);
   });
 
-  test('saves by PUT of the working copy as JSON and returns the canonical response', async () => {
+  test('saves by PUT of the working copy as JSON with If-Match, and returns the canonical response and its new ETag', async () => {
     const canonical = { ...model, target: { ...model.target, fingerprint: 'sha256:01' } };
-    const port = fakeFetch(() => json(canonical));
+    const port = fakeFetch(() => stored(canonical, '"sha256:bb"'));
 
-    const saved = await httpApiClient('', port.fetch).saveMapping('m/one', model);
+    const saved = await httpApiClient('', port.fetch).saveMapping('m/one', model, TAG);
 
-    expect(saved).toEqual(canonical);
-    expect(port.calls).toEqual([{ url: '/api/mappings/m/one', method: 'PUT', contentType: 'application/json', body: model }]);
+    expect(saved).toEqual({ model: canonical, etag: '"sha256:bb"' });
+    expect(port.calls).toEqual([
+      { url: '/api/mappings/m/one', method: 'PUT', contentType: 'application/json', ifMatch: TAG, body: model },
+    ]);
+  });
+
+  test('a mapping answered without an ETag is an error: the editor could not save it conditionally', async () => {
+    const port = fakeFetch(() => json(model));
+
+    await expect(httpApiClient('', port.fetch).getMapping('m/one')).rejects.toThrow('no ETag');
+  });
+
+  test('a 409 mapping-changed answer to a save is a save conflict', async () => {
+    const changed = {
+      type: 'urn:flottila:mapping:problem:mapping-changed',
+      title: 'Mapping changed',
+      status: 409,
+      detail: 'the mapping changed on disk since the If-Match tag was read; nothing was saved',
+    };
+    const port = fakeFetch(() => json(changed, 409, 'application/problem+json'));
+
+    const error = await httpApiClient('', port.fetch).saveMapping('m/one', model, TAG).catch((e: unknown) => e);
+
+    expect(isSaveConflict(error)).toBe(true);
+    expect((error as ApiProblem).problem).toEqual(changed);
   });
 
   test('loads a structure by POST to /api/structures', async () => {
@@ -99,7 +128,7 @@ describe('the HTTP ApiClient', () => {
     };
     const port = fakeFetch(() => json(refused, 422, 'application/problem+json'));
 
-    const error = await httpApiClient('', port.fetch).saveMapping('m/one', model).catch((e: unknown) => e);
+    const error = await httpApiClient('', port.fetch).saveMapping('m/one', model, TAG).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiProblem);
     expect((error as ApiProblem).problem).toEqual(refused);
