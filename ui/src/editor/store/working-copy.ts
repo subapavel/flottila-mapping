@@ -9,11 +9,12 @@ import {
   type TestResult,
   type TraceEntry,
 } from '../../api/client';
-import type { AuthoringId, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
-import type { CommandResult, Refusal } from '../../model/command';
+import type { AuthoringId, Box, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
+import { refusalOf, type CommandResult, type FieldRefusal, type Refusal } from '../../model/command';
 import { deleteBox } from '../../model/delete-box';
 import { insertBox } from '../../model/insert-box';
 import { link } from '../../model/link';
+import { paste } from '../../model/paste';
 import { sameModel } from '../../model/same-model';
 import { setContext } from '../../model/set-context';
 import { setInput } from '../../model/set-input';
@@ -49,8 +50,12 @@ export interface WorkingCopyState {
   past: readonly MappingModel[];
   /** The working copies undo stepped back from, the next redo first. */
   future: readonly MappingModel[];
-  /** The selected box or target field mapping, by authoring id; selecting is no undo step. */
+  /** The selected box or target field mapping, by authoring id, the last selected of several; selecting is no undo step. */
   selection: AuthoringId | null;
+  /** Every selected id, `selection` last: several boxes of one canvas are selected together for copy. */
+  selected: readonly AuthoringId[];
+  /** The boxes copy took, by the ids they had then, and the target field whose mapping they came from. */
+  clipboard: Clipboard | null;
   /** Why the last command was refused; `null` once a command applies. */
   refusal: Refusal | null;
   /** A save answered that the file changed on disk: the author chooses Reload or Keep editing (ADR-0027). */
@@ -63,8 +68,11 @@ export interface WorkingCopyState {
   lastRun: TestResult | null;
   /** The working copy the last test run ran; its trace is a stale trace once the working copy differs from it. */
   lastRunModel: MappingModel | null;
-  /** Links a source field to a target field (the link command in `model/`). */
-  link: (sourceField: FieldPath, targetField: FieldPath) => void;
+  /**
+   * Links a source field to a target field (the link command in `model/`); `refusals` are the refusals the two fields
+   * carry in their trees, which refuse the link (ADR-0027).
+   */
+  link: (sourceField: FieldPath, targetField: FieldPath, refusals?: { source?: FieldRefusal; target?: FieldRefusal }) => void;
   /** Inserts a box of standard function `fn` into the target field's mapping, with fresh ids. */
   insertBox: (targetField: FieldPath, fn: string) => void;
   /** Wires box `source`'s output into input slot `slot` of box `target`. */
@@ -73,7 +81,7 @@ export interface WorkingCopyState {
   unwire: (targetField: FieldPath, target: AuthoringId, slot: number) => void;
   /** Connects a box to the target field's sink, or disconnects it with `null`. */
   setResult: (targetField: FieldPath, box: AuthoringId | null) => void;
-  /** Deletes a box; the selection is cleared when it was that box. */
+  /** Deletes a box; a selected box is unselected, and the one selected before it becomes the selection. */
   deleteBox: (box: AuthoringId) => void;
   /** Sets box parameter `name` of a standard function box, checked against `catalogue`; the default is left out. */
   setParam: (targetField: FieldPath, box: AuthoringId, name: string, value: ParamValue, catalogue: FunctionCatalogue) => void;
@@ -83,7 +91,17 @@ export interface WorkingCopyState {
   setInput: (targetField: FieldPath, target: AuthoringId, slot: number, source: AuthoringId | null) => void;
   undo: () => void;
   redo: () => void;
+  /** Selects one id, or nothing with `null`. */
   select: (selection: AuthoringId | null) => void;
+  /** Selects these ids together, the last as `selection`. */
+  selectBoxes: (ids: readonly AuthoringId[]) => void;
+  /** Puts the selected boxes of the target field's mapping into the clipboard; with none of them selected, nothing. */
+  copy: (targetField: FieldPath) => void;
+  /**
+   * Pastes the clipboard into the target field's mapping with fresh ids (the paste command in `model/`) and selects the
+   * pasted boxes; an empty clipboard, or one copied from another target field, pastes nothing.
+   */
+  paste: (targetField: FieldPath) => void;
   /**
    * Sends the working copy with the baseline's ETag; what the service wrote becomes the baseline, and the history
    * stays. A save conflict opens `conflict`; any other error rejects, and a refusal with diagnostics (422
@@ -106,6 +124,11 @@ export interface WorkingCopyState {
    * ran; the next compile then brings the newer ones.
    */
   recordRun: (sent: MappingModel, result: TestResult) => void;
+}
+
+export interface Clipboard {
+  targetField: FieldPath;
+  boxes: Readonly<Record<AuthoringId, Box>>;
 }
 
 export type WorkingCopyStore = ReturnType<typeof createWorkingCopyStore>;
@@ -141,7 +164,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
      */
     const apply = (result: CommandResult): boolean => {
       if (result.kind === 'refused') {
-        set({ refusal: { code: result.code, id: result.id } });
+        set({ refusal: refusalOf(result) });
         return false;
       }
       set((state) =>
@@ -164,6 +187,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       past: [],
       future: [],
       selection: null,
+      selected: [],
+      clipboard: null,
       refusal: null,
       conflict: false,
       diagnostics: [],
@@ -171,8 +196,17 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       lastRun: null,
       lastRunModel: null,
 
-      link: (sourceField, targetField) =>
-        void apply(link(get().workingCopy, { sourceField, targetField, boxId: ports.newId(), mappingId: ports.newId() })),
+      link: (sourceField, targetField, refusals) =>
+        void apply(
+          link(get().workingCopy, {
+            sourceField,
+            targetField,
+            boxId: ports.newId(),
+            mappingId: ports.newId(),
+            sourceRefusal: refusals?.source,
+            targetRefusal: refusals?.target,
+          }),
+        ),
 
       insertBox: (targetField, fn) =>
         void apply(
@@ -186,7 +220,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       setResult: (targetField, box) => void apply(setResult(get().workingCopy, { targetField, box })),
 
       deleteBox: (box) => {
-        if (apply(deleteBox(get().workingCopy, { box })) && get().selection === box) set({ selection: null });
+        if (apply(deleteBox(get().workingCopy, { box }))) get().selectBoxes(get().selected.filter((id) => id !== box));
       },
 
       setParam: (targetField, box, name, value, catalogue) =>
@@ -210,7 +244,30 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
             : { workingCopy: state.future[0], future: state.future.slice(1), past: [...state.past, state.workingCopy] },
         ),
 
-      select: (selection) => set({ selection }),
+      select: (selection) => set({ selection, selected: selection === null ? [] : [selection] }),
+
+      selectBoxes: (ids) => set({ selected: ids, selection: ids.at(-1) ?? null }),
+
+      copy: (targetField) => {
+        const { workingCopy, selected } = get();
+        const boxes = workingCopy.targetFieldMappings?.[targetField]?.boxes ?? {};
+        const copied = selected.filter((id) => Object.hasOwn(boxes, id));
+        if (copied.length > 0) set({ clipboard: { targetField, boxes: Object.fromEntries(copied.map((id) => [id, boxes[id]!])) } });
+      },
+
+      paste: (targetField) => {
+        const { clipboard } = get();
+        if (clipboard?.targetField !== targetField) return;
+        const pasted: AuthoringId[] = [];
+        const freshId = () => {
+          const id = ports.newId();
+          pasted.push(id);
+          return id;
+        };
+        if (apply(paste(get().workingCopy, { targetField, boxes: clipboard.boxes, freshId, mappingId: ports.newId() }))) {
+          get().selectBoxes(pasted);
+        }
+      },
 
       save: async () => {
         const sent = get().workingCopy;
@@ -242,6 +299,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           past: [],
           future: [],
           selection: null,
+          selected: [],
           conflict: false,
         });
       },

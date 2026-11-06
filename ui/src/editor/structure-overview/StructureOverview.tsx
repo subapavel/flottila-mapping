@@ -5,6 +5,7 @@ import { useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, typ
 import { useStore } from 'zustand';
 import type { ApiClient } from '../../api/client';
 import type { FieldPath, StructureRef } from '../../generated/mapping-model';
+import { describeFieldRefusal, type FieldRefusal } from '../../model/command';
 import type { WorkingCopyStore } from '../store/working-copy';
 import {
   STATUS_FILTERS,
@@ -16,7 +17,7 @@ import {
   type StatusFilter,
 } from './field-status';
 import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type Gutter } from './links';
-import { occurrenceText, reachedSourceFields, stepName, treeRows } from './rows';
+import { occurrenceText, reachedSourceFields, refusalAt, stepName, treeRows } from './rows';
 
 type Side = 'source' | 'target';
 
@@ -65,7 +66,8 @@ const STATUS_COLOURS: Record<FieldStatus, string> = {
 /**
  * The top half of the editor (ADR-0012): the source tree and the target tree side by side, virtualised, with the
  * field links drawn in the link gutter between them. Dropping a source row on a target row links the two fields; so
- * does Enter on a source row, then Enter on a target row. Clicking a target row, or Enter on it, selects that target
+ * does Enter on a source row, then Enter on a target row. A refused field's row is marked, its reason and position on
+ * hover, and a link from or to it is refused (ADR-0027). Clicking a target row, or Enter on it, selects that target
  * field; a source row never selects. Each target row carries its field status; the status filter shows the rows of
  * one status, and only the links to them. The orphaned target field mappings are listed below the trees under the
  * filters all and orphaned, and selecting one selects its target field.
@@ -83,9 +85,9 @@ export function StructureOverview({
 }: StructureOverviewProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const diagnostics = useStore(store, (s) => s.diagnostics);
-  const source = useTree(mappingId, api, model.source, expanded.source);
+  const source = useTree(mappingId, api, model.source, expanded.source, 'source');
   const statuses = useMemo(() => fieldStatuses(model, diagnostics, source.structure), [model, diagnostics, source.structure]);
-  const target = useTree(mappingId, api, model.target, expanded.target, statuses, statusFilter);
+  const target = useTree(mappingId, api, model.target, expanded.target, 'target', statuses, statusFilter);
   const orphaned = useMemo(() => (target.structure ? orphanedMappings(model, target.structure) : []), [model, target.structure]);
   const [picked, setPicked] = useState<string | null>(null);
 
@@ -104,7 +106,13 @@ export function StructureOverview({
   };
 
   const linkTo = (targetField: string, sourceField: string | null) => {
-    if (sourceField) store.getState().link(sourceField, targetField);
+    // a row to link from or to exists only once its structure has loaded
+    if (sourceField) {
+      store.getState().link(sourceField, targetField, {
+        source: refusalAt(source.structure!, sourceField, 'source'),
+        target: refusalAt(target.structure!, targetField, 'target'),
+      });
+    }
     setPicked(null);
   };
 
@@ -219,6 +227,7 @@ function useTree(
   api: ApiClient,
   ref: StructureRef,
   expanded: string[] | undefined,
+  side: Side,
   statuses: ReadonlyMap<FieldPath, FieldStatus> = NO_STATUSES,
   filter: StatusFilter = 'all',
 ) {
@@ -230,15 +239,25 @@ function useTree(
   const shown = filter === 'all' ? NO_STATUSES : statuses;
   const rows = useMemo(() => {
     if (!structure) return [];
-    return filter === 'all' ? treeRows(structure, new Set(expanded ?? [rootPath])) : filteredRows(structure, shown, filter);
-  }, [structure, expanded, rootPath, shown, filter]);
+    return filter === 'all' ? treeRows(structure, new Set(expanded ?? [rootPath]), side) : filteredRows(structure, shown, filter, side);
+  }, [structure, expanded, rootPath, side, shown, filter]);
+  // Same-step siblings share a field path (ADR-0008), so the second and later rows of a path get `#n`; an XML name
+  // holds no `#`, and a JSON object has no two members of one name.
+  const keys = useMemo(() => {
+    const seen = new Map<string, number>();
+    return rows.map(({ path }) => {
+      const n = (seen.get(path) ?? 0) + 1;
+      seen.set(path, n);
+      return n === 1 ? path : `${path}#${n}`;
+    });
+  }, [rows]);
   const anchors = useMemo(() => (structure ? rowAnchors(structure, rows) : undefined), [structure, rows]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
-    getItemKey: (index) => rows[index]!.path,
+    getItemKey: (index) => keys[index]!,
     overscan: 8,
   });
   const viewport = { scrollTop: virtualizer.scrollOffset ?? 0, height: virtualizer.scrollRect?.height ?? 0 };
@@ -322,6 +341,7 @@ function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
               <span>{stepName(r.path)}</span>
               <span>{r.field.valueType}</span>
               <span>{occurrenceText(r.field)}</span>
+              {r.refusal && <RefusedMark side={side} path={r.path} refusal={r.refusal} />}
               {mark?.(r.path)}
             </div>
           );
@@ -389,6 +409,16 @@ function LinkGutter({ gutter }: { gutter: Gutter }) {
       {count('target', 'above')}
       {count('target', 'below')}
     </svg>
+  );
+}
+
+/** The mark of a refused field's row (ADR-0027): its reason and the declaration's file, line and column on hover. */
+function RefusedMark({ side, path, refusal }: { side: Side; path: string; refusal: FieldRefusal }) {
+  const text = `Refused: ${describeFieldRefusal(refusal)}`;
+  return (
+    <span data-testid={`refused:${side}:${path}`} role="img" aria-label={text} title={text}>
+      ⊘
+    </span>
   );
 }
 

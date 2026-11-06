@@ -43,10 +43,11 @@ export function arrange(mapping: TargetFieldMapping | undefined): Positions {
 /**
  * The stable layout after open (ADR-0012): `kept` positions stay where they are, but only for ids the model still
  * has, and each new node is placed next to its neighbour. The neighbour is the first placed node it feeds, which it
- * goes left of; else the first placed node that feeds it, which it goes right of; else it goes below all nodes at the
- * left edge. A taken spot moves it down. Returns `kept` itself when the model has exactly its ids.
+ * goes left of; else the first placed node that feeds it, which it goes right of; else the placed `selected` box, which
+ * it goes left of (quick insert puts a box next to the selected box); else it goes below all nodes at the left edge. A
+ * taken spot moves it down. Returns `kept` itself when the model has exactly its ids.
  */
-export function place(mapping: TargetFieldMapping | undefined, kept: Positions): Positions {
+export function place(mapping: TargetFieldMapping | undefined, kept: Positions, selected: string | null = null): Positions {
   const ids = nodeIds(mapping);
   const keptIds = Object.keys(kept);
   if (keptIds.length === ids.length && ids.every((id) => Object.hasOwn(kept, id))) return kept;
@@ -56,11 +57,14 @@ export function place(mapping: TargetFieldMapping | undefined, kept: Positions):
   for (const id of ids.filter((id) => !Object.hasOwn(placed, id))) {
     const consumer = all.find((w) => w.source === id && Object.hasOwn(placed, w.target))?.target;
     const producer = all.find((w) => w.target === id && Object.hasOwn(placed, w.source))?.source;
+    const anchor = selected !== null && Object.hasOwn(placed, selected) ? selected : undefined;
     let spot = consumer
       ? { x: placed[consumer]!.x - COLUMN, y: placed[consumer]!.y }
       : producer
         ? { x: placed[producer]!.x + COLUMN, y: placed[producer]!.y }
-        : below(Object.values(placed));
+        : anchor
+          ? { x: placed[anchor]!.x - COLUMN, y: placed[anchor]!.y }
+          : below(Object.values(placed));
     while (Object.values(placed).some((p) => Math.abs(p.x - spot.x) < BOX.width && Math.abs(p.y - spot.y) < BOX.height)) {
       spot = { x: spot.x, y: spot.y + ROW };
     }
