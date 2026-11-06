@@ -2,7 +2,7 @@ import caseOutput from '../../../../corpus/cases/link/direct-copy/001/expected.x
 import caseInput from '../../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import orderIdCopyText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem, type ApiClient, type StructureResponse, type TestResult } from '../client';
+import { ApiProblem, type ApiClient, type Diagnostic, type StructureResponse, type TestResult } from '../client';
 import { orderStructure } from './order-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
@@ -23,12 +23,19 @@ const structures: Record<string, StructureResponse> = { 'structures/skeleton/ord
 /** The test runs the fake knows: the corpus case's mapping, input and output (`link/direct-copy/001`). */
 const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput }];
 
+/** The fixtures of one scenario: what the fake answers where it cannot compute the answer. */
+export interface FakeScenario {
+  /** The diagnostics a compile answers, by mapping id; a mapping without an entry has none. */
+  compile?: Record<string, Diagnostic[]>;
+}
+
 /**
  * An in-memory `ApiClient` over synthetic fixtures from `corpus/` (ADR-0013), for component tests, the e2e suite
  * and `?api=fake`. It runs no engine: a test run answers only a corpus case, and refuses an unconnected result as
- * the engine does. `seed` replaces the corpus mappings.
+ * the engine does; a compile answers the scenario's fixture whatever the working copy. `seed` replaces the corpus
+ * mappings.
  */
-export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings()): ApiClient {
+export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings(), scenario: FakeScenario = {}): ApiClient {
   const mappings = new Map(Object.entries(seed).map(([id, model]) => [id, structuredClone(model)]));
 
   const stored = (id: string) => {
@@ -85,6 +92,11 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
         status: 400,
         detail: 'the fake API has no corpus case for this working copy and input',
       });
+    },
+
+    compile: async (id) => {
+      stored(id);
+      return { diagnostics: structuredClone(scenario.compile?.[id] ?? []) };
     },
   };
 }

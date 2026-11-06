@@ -10,6 +10,7 @@ export type StructureResponse = Schemas['StructureResponse'];
 export type StructureLoaded = Schemas['StructureLoaded'];
 export type FieldDto = Schemas['FieldDto'];
 export type TestResult = Schemas['TestResult'];
+export type CompileResponse = Schemas['CompileResponse'];
 
 /**
  * The answer of `GET /api/catalogue`, typed by json-schema-to-typescript from the contract's catalogue schema
@@ -55,4 +56,6 @@ export interface ApiClient {
   loadStructure(request: StructureRequest): Promise<StructureResponse>;
   /** Runs the working copy in the request on its input message. */
   runTest(id: string, request: TestRequest): Promise<TestResult>;
+  /** Compiles the working copy (ADR-0015, ADR-0027); `signal` cancels the call. */
+  compile(id: string, model: MappingModel, signal?: AbortSignal): Promise<CompileResponse>;
 }

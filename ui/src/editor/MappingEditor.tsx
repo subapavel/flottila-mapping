@@ -52,7 +52,11 @@ function Editor({ mappingId, api, browserState }: MappingEditorProps) {
 
 function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProps & { loaded: MappingModel }) {
   const [store] = useState(() =>
-    createWorkingCopyStore(loaded, { newId: () => newAuthoringId(), save: (model) => api.saveMapping(mappingId, model) }),
+    createWorkingCopyStore(loaded, {
+      newId: () => newAuthoringId(),
+      save: (model) => api.saveMapping(mappingId, model),
+      compile: (model, signal) => api.compile(mappingId, model, signal).then((compiled) => compiled.diagnostics),
+    }),
   );
   const unsaved = useStore(store, selectUnsaved);
   const save = useMutation({ mutationFn: () => store.getState().save() });

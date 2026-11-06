@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem } from '../client';
+import { ApiProblem, type Diagnostic } from '../client';
 import { fakeApiClient } from './fake-api';
 
 // The expectations come from the corpus files and from replies of the real service, observed on 2026-11-02.
@@ -166,6 +166,26 @@ describe('the fake ApiClient over the corpus', () => {
       expect(problem.problem.status).toBe(400);
       expect(problem.problem.type).toBe('urn:flottila:mapping:problem:invalid-request');
     }
+  });
+
+  test('compile answers the scenario fixture of the mapping, and no diagnostics for a mapping it does not name', async () => {
+    const unreachable: Diagnostic = {
+      severity: 'warning',
+      code: 'unreachable-box',
+      message: 'the result of the target field mapping t1 does not reach this box, so compile ignores it',
+      location: { kind: 'authoring-id', authoringId: 'f9' },
+    };
+    const api = fakeApiClient(undefined, { compile: { 'mappings/order-id-copy': [unreachable] } });
+
+    expect(await api.compile('mappings/order-id-copy', corpusMapping)).toEqual({ diagnostics: [unreachable] });
+    expect(await api.compile('mappings/order-unmapped', corpusMapping)).toEqual({ diagnostics: [] });
+    expect(await fakeApiClient().compile('mappings/order-id-copy', corpusMapping)).toEqual({ diagnostics: [] });
+  });
+
+  test('compile of a mapping it does not know is a not-found problem', async () => {
+    const problem = await problemOf(fakeApiClient().compile('mappings/missing', corpusMapping));
+
+    expect(problem.problem.status).toBe(404);
   });
 
   test('a fake seeded with its own mappings opens those instead of the corpus', async () => {

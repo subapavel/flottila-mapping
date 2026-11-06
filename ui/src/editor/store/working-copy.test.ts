@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import type { Diagnostic } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
 import { createWorkingCopyStore, selectUnsaved } from './working-copy';
 
@@ -32,6 +33,9 @@ function deferredSave() {
   return { save, calls };
 }
 
+/** A compile port that never answers: these tests do not look at diagnostics (`compile.test.ts` does). */
+const unanswered = () => new Promise<Diagnostic[]>(() => {});
+
 /** The canonical model the service writes for the one link: the same content, keys sorted, no context. */
 const canonicalLinked: MappingModel = {
   formatVersion: 1,
@@ -44,7 +48,7 @@ const canonicalLinked: MappingModel = {
 
 describe('the working-copy store', () => {
   test('starts with the working copy equal to the baseline, so nothing is unsaved', () => {
-    const store = createWorkingCopyStore(baseline, { newId: ids(), save: deferredSave().save });
+    const store = createWorkingCopyStore(baseline, { newId: ids(), save: deferredSave().save, compile: unanswered });
 
     expect(store.getState().workingCopy).toEqual(baseline);
     expect(store.getState().baseline).toEqual(baseline);
@@ -52,7 +56,7 @@ describe('the working-copy store', () => {
   });
 
   test('a link runs the link command on the working copy with fresh ids, and the working copy becomes unsaved', () => {
-    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: deferredSave().save });
+    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: deferredSave().save, compile: unanswered });
 
     store.getState().link(ORDER_ID, ORDER_ID);
 
@@ -66,7 +70,7 @@ describe('the working-copy store', () => {
 
   test('a refused link leaves the working copy as it was and records the refusal; the next applied link clears it', () => {
     // the second link reuses b1 inside the same target field mapping: a duplicate id
-    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1', 'b1', 'm2', 'b2', 'm3'), save: deferredSave().save });
+    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1', 'b1', 'm2', 'b2', 'm3'), save: deferredSave().save, compile: unanswered });
     store.getState().link(ORDER_ID, ORDER_ID);
     const linked = store.getState().workingCopy;
 
@@ -83,7 +87,7 @@ describe('the working-copy store', () => {
 
   test('save sends the working copy, and the canonical response becomes the baseline and the working copy', async () => {
     const port = deferredSave();
-    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: port.save });
+    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: port.save, compile: unanswered });
     store.getState().link(ORDER_ID, ORDER_ID);
     const sent = store.getState().workingCopy;
 
@@ -109,7 +113,7 @@ describe('the working-copy store', () => {
       },
     };
     const port = deferredSave();
-    const store = createWorkingCopyStore(withContext, { newId: ids(), save: port.save });
+    const store = createWorkingCopyStore(withContext, { newId: ids(), save: port.save, compile: unanswered });
 
     const saving = store.getState().save();
     port.calls[0]!.resolve(canonicalLinked);
@@ -122,7 +126,7 @@ describe('the working-copy store', () => {
 
   test('an edit made while a save is under way stays in the working copy and is unsaved against the new baseline', async () => {
     const port = deferredSave();
-    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1', 'b2', 'm2'), save: port.save });
+    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1', 'b2', 'm2'), save: port.save, compile: unanswered });
     store.getState().link(ORDER_ID, ORDER_ID);
 
     const saving = store.getState().save();
@@ -141,7 +145,7 @@ describe('the working-copy store', () => {
 
   test('a refused save keeps the baseline and the working copy, stays unsaved and passes the error on', async () => {
     const port = deferredSave();
-    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: port.save });
+    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: port.save, compile: unanswered });
     store.getState().link(ORDER_ID, ORDER_ID);
     const edited = store.getState().workingCopy;
 
@@ -156,7 +160,7 @@ describe('the working-copy store', () => {
 
   test('unsaved compares content, not identity: an edit that the response already holds is saved', async () => {
     const port = deferredSave();
-    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: port.save });
+    const store = createWorkingCopyStore(baseline, { newId: ids('b1', 'm1'), save: port.save, compile: unanswered });
 
     // the save leaves before the edit, and its response happens to hold the edit already
     const saving = store.getState().save();

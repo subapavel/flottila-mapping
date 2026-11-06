@@ -2,6 +2,7 @@ import type { MappingModel } from '../generated/mapping-model';
 import {
   ApiProblem,
   type ApiClient,
+  type CompileResponse,
   type Problem,
   type StructureRequest,
   type StructureResponse,
@@ -13,8 +14,8 @@ import {
 export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, init) => fetch(input, init)): ApiClient {
   const mapping = (id: string) => `${baseUrl}/api/mappings/${id.split('/').map(encodeURIComponent).join('/')}`;
 
-  async function call<T>(url: string, method: string, body?: unknown): Promise<T> {
-    const init: RequestInit = { method };
+  async function call<T>(url: string, method: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+    const init: RequestInit = { method, signal };
     if (body !== undefined) {
       init.headers = { 'content-type': 'application/json' };
       init.body = JSON.stringify(body);
@@ -29,6 +30,7 @@ export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, in
     saveMapping: (id, model) => call<MappingModel>(mapping(id), 'PUT', model),
     loadStructure: (request: StructureRequest) => call<StructureResponse>(`${baseUrl}/api/structures`, 'POST', request),
     runTest: (id, request: TestRequest) => call<TestResult>(`${mapping(id)}/test`, 'POST', request),
+    compile: (id, model, signal) => call<CompileResponse>(`${mapping(id)}/compile`, 'POST', model, signal),
   };
 }
 
