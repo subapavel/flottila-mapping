@@ -5,6 +5,7 @@ import { useStore } from 'zustand';
 import { describeError, type ApiClient, type StoredMapping } from '../api/client';
 import type { AuthoringId, FieldPath } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
+import { describeRefusal } from '../model/command';
 import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
 import { locate } from './function-editor/graph';
@@ -102,13 +103,13 @@ function OpenMapping({
     store.getState()[step]();
   };
 
-  const [selectedBox, setSelectedBox] = useState<AuthoringId | null>(null);
-  /** Selects what an authoring id names: its target field, and the box when it is a box's id. */
+  const refusal = useStore(store, (s) => s.refusal);
+  /** Selects what an authoring id names: its target field, and the box when it is a box's id (the store's selection). */
   const select = (id: AuthoringId) => {
     const where = locate(store.getState().workingCopy, id);
     if (!where) return;
     onSelectField?.(where.field);
-    setSelectedBox(where.box);
+    store.getState().select(where.box);
   };
   const [canvasState] = useState(() => ({
     read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
@@ -146,6 +147,7 @@ function OpenMapping({
           </ul>
         </Alert>
       )}
+      {refusal && <Alert variant="warning" isInline title={describeRefusal(refusal)} />}
       <SaveConflict store={store} />
       <StructureOverview
         mappingId={mappingId}
@@ -158,8 +160,6 @@ function OpenMapping({
         api={api}
         store={store}
         targetField={selectedField}
-        selectedBox={selectedBox}
-        onSelectBox={setSelectedBox}
         canvasState={canvasState}
       />
       <TestPanel mappingId={mappingId} api={api} store={store} />

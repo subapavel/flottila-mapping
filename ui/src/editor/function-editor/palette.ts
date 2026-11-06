@@ -2,6 +2,9 @@ import type { FunctionCatalogue } from '../../api/client';
 
 type CatalogueEntry = FunctionCatalogue[string];
 
+/** The drag data type of a palette entry; its value is the function id. */
+export const FUNCTION_DRAG = 'application/x-flottila-function';
+
 /** A mark of a palette entry (ADR-0026): an assumed reading, a deviation with its text, an export that needs Flottila. */
 export type Badge = { kind: 'assumed' } | { kind: 'deviation'; text: string } | { kind: 'not-portable' };
 
