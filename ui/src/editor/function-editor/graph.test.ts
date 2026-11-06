@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
-import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
+import type { TargetFieldMapping } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
-import { boxIds, boxView, liveMarks, locate, reachable, SINK, wires } from './graph';
+import { boxIds, boxView, liveMarks, SINK, wires } from './graph';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -49,25 +49,6 @@ describe('the function graph of a target field mapping', () => {
 
     expect(wires(unfinished)).toEqual([{ id: 'a1->f1#1', source: 'a1', target: 'f1', slot: 1 }]);
     expect(wires(undefined)).toEqual([]);
-  });
-
-  test('reaches the boxes that feed result, each once, and not an unreachable box', () => {
-    expect([...reachable(mapping)].sort()).toEqual(['a1', 'c1', 'f1']);
-  });
-
-  test('the walk ends in a cycle of a hand-written model and skips an empty slot and a reference to no box', () => {
-    const cyclic: TargetFieldMapping = {
-      id: 't1',
-      result: 'x',
-      boxes: { x: { kind: 'function', fn: 'concat', inputs: ['y', null] }, y: { kind: 'function', fn: 'concat', inputs: ['x', 'toString'] } },
-    };
-
-    expect([...reachable(cyclic)].sort()).toEqual(['x', 'y']);
-  });
-
-  test('a null result reaches no box', () => {
-    expect(reachable({ ...mapping, result: null }).size).toBe(0);
-    expect(reachable(undefined).size).toBe(0);
   });
 });
 
@@ -133,27 +114,5 @@ describe('the live marks (ADR-0013)', () => {
       resultUnconnected: false,
       unconnectedInputs: {},
     });
-  });
-});
-
-describe('locating an authoring id', () => {
-  const model: MappingModel = {
-    formatVersion: 1,
-    source: { bundle: ['order.xsd'], fingerprint: 'sha256:00', root: { element: 'Q{urn:a}Order' } },
-    target: { bundle: ['order.xsd'], fingerprint: 'sha256:00', root: { element: 'Q{urn:a}Order' } },
-    targetFieldMappings: { [ORDER_ID]: mapping },
-  };
-
-  test('a box id names its target field and the box', () => {
-    expect(locate(model, 'c1')).toEqual({ field: ORDER_ID, box: 'c1' });
-  });
-
-  test('a target field mapping id names its target field and no box', () => {
-    expect(locate(model, 't1')).toEqual({ field: ORDER_ID, box: null });
-  });
-
-  test('an id the model lacks names nothing', () => {
-    expect(locate(model, 'zz')).toBeUndefined();
-    expect(locate({ ...model, targetFieldMappings: undefined }, 'c1')).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import type { Diagnostic, FieldDto, StructureLoaded } from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
 import type { FieldRefusal } from '../../model/command';
 import { fieldPathSteps } from '../../model/field-path';
+import { targetFieldOf } from '../store/locations';
 import { rowRefusal, type TreeRow } from './rows';
 
 /** The mark of a target row (GLOSSARY: Field status); a row without one has no mark. */
@@ -58,30 +59,12 @@ export function fieldStatuses(
   }
 
   for (const diagnostic of diagnostics) {
-    const path = targetFieldOf(diagnostic.location, owner);
+    const path = targetFieldOf(diagnostic.location, (id) => owner.get(id));
     if (path === undefined) continue;
     if (diagnostic.code === UNMAPPED_MANDATORY_LEAF) raise(path, 'unmapped-mandatory');
     else if (diagnostic.severity === 'error') raise(path, 'error');
   }
   return statuses;
-}
-
-/** The target field a diagnostic's location names, by `owner` for an authoring id; `undefined` for any other. */
-function targetFieldOf(location: Diagnostic['location'], owner: ReadonlyMap<string, FieldPath>): FieldPath | undefined {
-  switch (location.kind) {
-    case 'authoring-id':
-      return owner.get(location.authoringId);
-    case 'pointer': {
-      // RFC 6901 (ADR-0015): `/targetFieldMappings/<field path>` and below
-      const [first, member, field] = location.pointer.split('/');
-      if (first !== '' || member !== 'targetFieldMappings' || field === undefined) return undefined;
-      return field.replaceAll('~1', '/').replaceAll('~0', '~');
-    }
-    case 'field-path':
-      return location.side === 'target' ? location.fieldPath : undefined;
-    case 'file-position':
-      return undefined;
-  }
 }
 
 /**

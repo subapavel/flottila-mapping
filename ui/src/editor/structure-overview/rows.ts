@@ -1,7 +1,8 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
-import type { BoxReference, FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
+import type { FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
 import type { FieldRefusal } from '../../model/command';
 import { fieldPathSteps } from '../../model/field-path';
+import { reachedBoxes } from '../../model/reached';
 
 type Side = 'source' | 'target';
 
@@ -74,8 +75,8 @@ export function occurrenceText(field: FieldDto): string {
 
 /**
  * The source fields read by the source-field boxes that a target field mapping's `result` reaches (ADR-0013), each
- * once, in the order a walk from `result` through the boxes' inputs meets them. An unreachable box adds none, so a
- * mapping whose `result` is null has none. The walk stops at an empty input slot, a box it has met, and a missing box.
+ * once, in the order `reachedBoxes` meets those boxes. An unreachable box adds none, so a mapping whose `result` is
+ * null has none.
  */
 export function reachedSourceFields(mapping: TargetFieldMapping | undefined): FieldPath[] {
   return [...reachedSourceBoxes(mapping).keys()];
@@ -84,15 +85,9 @@ export function reachedSourceFields(mapping: TargetFieldMapping | undefined): Fi
 /** The reached source fields of `reachedSourceFields`, each with the reached source-field boxes that read it. */
 export function reachedSourceBoxes(mapping: TargetFieldMapping | undefined): Map<FieldPath, SourceFieldBox[]> {
   const fields = new Map<FieldPath, SourceFieldBox[]>();
-  const met = new Set<string>();
-  const visit = (ref: BoxReference) => {
-    if (ref === null || met.has(ref)) return;
-    met.add(ref);
-    const box = mapping!.boxes[ref];
-    if (box === undefined) return;
+  for (const id of reachedBoxes(mapping)) {
+    const box = mapping!.boxes[id]!;
     if (box.kind === 'source') fields.set(box.field, [...(fields.get(box.field) ?? []), box]);
-    else box.inputs?.forEach(visit);
-  };
-  if (mapping) visit(mapping.result);
+  }
   return fields;
 }
