@@ -1,3 +1,5 @@
+// the app's PatternFly tokens (app/main.tsx), so that cards are measured with the fonts, spacing and borders they have
+import '@patternfly/react-core/dist/styles/base.css';
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -230,6 +232,76 @@ describe('the canvas of the selected target field', () => {
     });
 
     expect(taller).toEqual([]);
+  });
+
+  test('an orphaned card above another card in its column does not overlap it, its Orphaned row counted', async () => {
+    // a0 and a1 (orphaned) both feed f1: the layout puts them in one column, a1 on top. No result: every card is
+    // unreachable, so it fills its marks line too and the Orphaned row has no spare room to hide in
+    const column: TargetFieldMapping = {
+      id: 't1',
+      result: null,
+      boxes: {
+        a0: { kind: 'source', field: ORDER_ID },
+        a1: { kind: 'source', field: `${ORDER}/Gone`, context: ORDER },
+        f1: { kind: 'function', fn: 'concat', inputs: ['a0', 'a1'] },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: column } } }) });
+    await expect.element(page.getByTestId('orphaned:a1')).toBeVisible();
+    // the orphaned boxes are known once the source structure is loaded: lay the graph out with them
+    await page.getByRole('button', { name: 'Arrange' }).click();
+
+    await expect.poll(() => box('a1').element().getBoundingClientRect().left).toBeCloseTo(box('a0').element().getBoundingClientRect().left, 0);
+    const above = box('a1').element().getBoundingClientRect();
+    const below = box('a0').element().getBoundingClientRect();
+    // the canvas zoom, from a card's rendered height over its layout height
+    const zoom = above.height / (box('a1').element() as HTMLElement).offsetHeight;
+    expect(above.top).toBeLessThan(below.top);
+    expect(above.bottom).toBeLessThanOrEqual(below.top);
+    // and they keep the layout's 16px gap between cards: the orphaned card is no taller than the height reserved for it
+    expect((below.top - above.bottom) / zoom).toBeGreaterThanOrEqual(16 - 0.5);
+  });
+
+  test('a card with a long title shows its badge and its caption in full; only the title is cut', async () => {
+    const api = fakeApiClient({ [DRAFT]: graphMapping });
+    const catalogue = await api.getCatalogue();
+    const long = 'formatWithAVeryLongFunctionName';
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    // unreachable, so they carry "not reached" too: the longest caption, unresolved, and a function with a badge
+    const boxes: typeof target.boxes = { ...target.boxes, l1: { kind: 'function', fn: long }, n1: { kind: 'unresolved', name: long, origin: 'po' } };
+    render({
+      api: {
+        ...fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } }),
+        getCatalogue: async () => ({ ...catalogue, [long]: catalogue.divide! }),
+      },
+    });
+    await expect.element(box('l1')).toHaveAttribute('title', UNREACHABLE);
+
+    const whole = (id: string, text: string) => {
+      const card = box(id).element().getBoundingClientRect();
+      const element = box(id).getByText(text, { exact: true }).element();
+      const { left, right } = element.getBoundingClientRect();
+      return { id, text: element.textContent, cut: element.scrollWidth > element.clientWidth, inside: left >= card.left && right <= card.right };
+    };
+    expect([whole('l1', 'fn'), whole('l1', 'deviation'), whole('l1', 'not reached'), whole('n1', 'unresolved'), whole('n1', 'not reached')]).toEqual([
+      { id: 'l1', text: 'fn', cut: false, inside: true },
+      { id: 'l1', text: 'deviation', cut: false, inside: true },
+      { id: 'l1', text: 'not reached', cut: false, inside: true },
+      { id: 'n1', text: 'unresolved', cut: false, inside: true },
+      { id: 'n1', text: 'not reached', cut: false, inside: true },
+    ]);
+    for (const id of ['l1', 'n1']) {
+      const title = box(id).getByText(long, { exact: true }).element();
+      expect(title.scrollWidth).toBeGreaterThan(title.clientWidth);
+    }
+  });
+
+  test('an unreachable card has a dashed border and a reachable one a solid border (F-31)', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+
+    expect(getComputedStyle(box('u1').element()).borderTopStyle).toBe('dashed');
+    expect(getComputedStyle(box('f1').element()).borderTopStyle).toBe('solid');
   });
 
   describe('editing on the card', () => {

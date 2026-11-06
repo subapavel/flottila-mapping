@@ -169,32 +169,34 @@ describe('the card of a box (spec #135)', () => {
 
 describe("a card's height for the layout (spec #135), one term at a time", () => {
   const deviating: FunctionCatalogue = { divide: { family: 'arithmetic', executionKind: 'single', portable: true, fidelity: { level: 'deviation', text: 'scale' } } };
-  const { base, row, context, value, slack } = CARD_HEIGHT;
+  const { base, marks, row, context, value, slack } = CARD_HEIGHT;
+  /** Every card: its name line and id, and the marks line it keeps whether it has marks or not. */
+  const head = base + marks;
   const heightOf = (box: Box, orphaned: ReadonlySet<string> = new Set()) => cardHeights({ id: 't1', result: null, boxes: { b1: box } }, deviating, undefined, orphaned).b1;
 
-  test('a card with only its head and id is the base and the slack', () => {
-    expect(heightOf({ kind: 'unresolved', name: 'x', origin: 'po' })).toBe(base + slack);
+  test('a card with only its head and id is the base, the marks line (reserved even without a mark) and the slack', () => {
+    expect(heightOf({ kind: 'unresolved', name: 'x', origin: 'po' })).toBe(base + marks + slack);
   });
 
   test('each input slot and each param is a row', () => {
-    expect(heightOf({ kind: 'unresolved', name: 'x', origin: 'po', inputs: [null, null], params: { p: 'x' } })).toBe(base + 3 * row + slack);
+    expect(heightOf({ kind: 'unresolved', name: 'x', origin: 'po', inputs: [null, null], params: { p: 'x' } })).toBe(head + 3 * row + slack);
   });
 
   test("a source card's context select is its own term", () => {
-    expect(heightOf({ kind: 'source', field: ORDER_ID })).toBe(base + context + slack);
+    expect(heightOf({ kind: 'source', field: ORDER_ID })).toBe(head + context + slack);
   });
 
   test("a constant's value is its own term", () => {
-    expect(heightOf({ kind: 'function', fn: 'constant', params: { value: '-' } })).toBe(base + value + slack);
+    expect(heightOf({ kind: 'function', fn: 'constant', params: { value: '-' } })).toBe(head + value + slack);
   });
 
-  test('fidelity badges add no height: they share the head, which keeps to one line', () => {
+  test('fidelity badges add no height: they go on the marks line every card keeps', () => {
     expect(cardView({ kind: 'function', fn: 'divide' }, deviating).badges).toEqual([{ kind: 'deviation', text: 'scale' }]);
-    expect(heightOf({ kind: 'function', fn: 'divide' })).toBe(base + slack);
+    expect(heightOf({ kind: 'function', fn: 'divide' })).toBe(head + slack);
   });
 
   test('an orphaned box has a row for its Orphaned mark', () => {
-    expect(heightOf({ kind: 'source', field: ORDER_ID }, new Set(['b1']))).toBe(base + context + row + slack);
+    expect(heightOf({ kind: 'source', field: ORDER_ID }, new Set(['b1']))).toBe(head + context + row + slack);
   });
 });
 

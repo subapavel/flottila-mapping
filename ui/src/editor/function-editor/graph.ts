@@ -127,16 +127,17 @@ export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
 }
 
 /**
- * Upper bounds, in px, of a card's parts at the default font size: the head (one line, which function-editor.css keeps
- * from wrapping, fidelity badges included) with the id below it, a row (an input slot, a param, the Orphaned mark), a
- * source card's context select and a constant's value. They are estimates, not sizes the CSS sets:
- * FunctionEditor.browser.test.tsx checks rendered cards against them.
+ * Upper bounds, in px, of a card's parts at the default font size: the head's name line with the id below it, the
+ * head's marks line (fidelity badges, "not reached"; function-editor.css keeps each line from wrapping), a row (an
+ * input slot, a param, the Orphaned mark), a source card's context select and a constant's value. They are estimates,
+ * not sizes the CSS sets: FunctionEditor.browser.test.tsx checks rendered cards against them.
  */
-export const CARD_HEIGHT = { base: 50, row: 22, context: 26, value: 22, slack: 8 } as const;
+export const CARD_HEIGHT = { base: 50, marks: 22, row: 22, context: 26, value: 22, slack: 8 } as const;
 
 /**
  * Each box's card height from its content, for the layout: the head and id, one row per input slot and per param, a
- * source card's context, a constant's value, and a row for the Orphaned mark of a box in `orphaned`. A function of the
+ * source card's context, a constant's value, and a row for the Orphaned mark of a box in `orphaned`. Every card keeps
+ * room for the marks line, as a wire can make any box unreachable without a new layout. A function of the
  * model, the catalogue and the orphaned boxes (found against the loaded source structure) only, so the same model and
  * structures always get the same layout (ADR-0012).
  */
@@ -154,6 +155,7 @@ export function cardHeights(
       const rows = view.slots.length + card.params.length + (orphaned.has(id) ? 1 : 0);
       const height =
         CARD_HEIGHT.base +
+        CARD_HEIGHT.marks +
         CARD_HEIGHT.row * rows +
         (card.context === undefined ? 0 : CARD_HEIGHT.context) +
         (view.value === undefined ? 0 : CARD_HEIGHT.value) +
