@@ -1,5 +1,5 @@
 import type { Diagnostic, FieldDto, StructureLoaded } from '../../api/client';
-import type { FieldPath, MappingModel } from '../../generated/mapping-model';
+import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
 import type { TreeRow } from './rows';
 
 /** The mark of a target row (GLOSSARY: Field status); a row without one has no mark. */
@@ -47,13 +47,13 @@ export function fieldStatuses(
   };
 
   const owner = new Map<string, FieldPath>();
-  const sourceField = source ? fieldLookup(source) : undefined;
+  const orphans = orphanedBoxes(model, source);
   for (const [path, mapping] of Object.entries(model.targetFieldMappings ?? {})) {
     owner.set(mapping.id, path);
     let orphaned = false;
-    for (const [id, box] of Object.entries(mapping.boxes)) {
+    for (const id of Object.keys(mapping.boxes)) {
       owner.set(id, path);
-      if (sourceField && box.kind === 'source' && sourceField(box.field) === undefined) orphaned = true;
+      if (orphans.has(id)) orphaned = true;
     }
     raise(path, orphaned ? 'orphaned' : 'mapped');
   }
@@ -83,6 +83,22 @@ function targetFieldOf(location: Diagnostic['location'], owner: ReadonlyMap<stri
     case 'file-position':
       return undefined;
   }
+}
+
+/**
+ * The orphaned source-field boxes (GLOSSARY: Orphaned reference): the authoring ids of the source-field boxes, in any
+ * target field mapping, that read a field `source` lacks; none while `source` is not loaded.
+ */
+export function orphanedBoxes(model: MappingModel, source: StructureLoaded | undefined): Set<AuthoringId> {
+  const orphans = new Set<AuthoringId>();
+  if (source === undefined) return orphans;
+  const sourceField = fieldLookup(source);
+  for (const mapping of Object.values(model.targetFieldMappings ?? {})) {
+    for (const [id, box] of Object.entries(mapping.boxes)) {
+      if (box.kind === 'source' && sourceField(box.field) === undefined) orphans.add(id);
+    }
+  }
+  return orphans;
 }
 
 /**
