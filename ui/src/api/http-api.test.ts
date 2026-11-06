@@ -162,6 +162,25 @@ describe('the HTTP ApiClient', () => {
     ]);
   });
 
+  test('compiles by POST of the working copy to the mapping compile path, passing the abort signal on', async () => {
+    const compiled = {
+      diagnostics: [
+        { severity: 'warning', code: 'unreachable-box', message: 'not reached', location: { kind: 'authoring-id', authoringId: 'f9' } },
+      ],
+    };
+    const port = fakeFetch(() => json(compiled));
+    const signals: (AbortSignal | null | undefined)[] = [];
+    const fetch: typeof port.fetch = (input, init) => {
+      signals.push(init?.signal);
+      return port.fetch(input, init);
+    };
+    const controller = new AbortController();
+
+    expect(await httpApiClient('', fetch).compile('m/one', model, controller.signal)).toEqual(compiled);
+    expect(port.calls).toEqual([{ url: '/api/mappings/m/one/compile', method: 'POST', contentType: 'application/json', body: model }]);
+    expect(signals).toEqual([controller.signal]);
+  });
+
   test('a problem+json answer becomes an ApiProblem with its type, status and diagnostics', async () => {
     const refused = {
       type: 'urn:flottila:mapping:problem:model-refused',

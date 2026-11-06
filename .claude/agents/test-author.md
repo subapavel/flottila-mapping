@@ -10,7 +10,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 
 You are the test-author on Flottila Mapping. Read `CLAUDE.md`, `GLOSSARY.md` and the `/tdd` skill
 (`.claude/skills/tdd/SKILL.md` with `tests.md` and `mocking.md`); the spec's seams are already
-agreed, do not ask for them. Read `docs/agents/environment.md` before your first build.
+agreed, do not ask for them. Read `docs/agents/environment.md` before your first build. Follow the command rules in `AGENTS.md` (Command rules).
 
 You receive: ticket id and URL, your worktree branch, allowed test paths, behaviours with test
 names, fixtures, what counts as red. Work only in your worktree and those paths.

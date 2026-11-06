@@ -15,6 +15,18 @@
           }
         }
       },
+      "CompileResponse" : {
+        "type" : "object",
+        "required" : [ "diagnostics" ],
+        "properties" : {
+          "diagnostics" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DiagnosticDto"
+            }
+          }
+        }
+      },
       "CreateMappingRequest" : {
         "type" : "object",
         "required" : [ "id", "source", "target" ],
@@ -85,6 +97,23 @@
           }
         }
       },
+      "FieldPathLocation" : {
+        "type" : "object",
+        "required" : [ "kind", "side", "fieldPath" ],
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "const" : "field-path"
+          },
+          "side" : {
+            "type" : "string",
+            "enum" : [ "source", "target" ]
+          },
+          "fieldPath" : {
+            "type" : "string"
+          }
+        }
+      },
       "FilePositionLocation" : {
         "type" : "object",
         "required" : [ "kind", "file", "line", "column" ],
@@ -113,13 +142,16 @@
           "$ref" : "#/components/schemas/AuthoringIdLocation"
         }, {
           "$ref" : "#/components/schemas/FilePositionLocation"
+        }, {
+          "$ref" : "#/components/schemas/FieldPathLocation"
         } ],
         "discriminator" : {
           "propertyName" : "kind",
           "mapping" : {
             "pointer" : "#/components/schemas/PointerLocation",
             "authoring-id" : "#/components/schemas/AuthoringIdLocation",
-            "file-position" : "#/components/schemas/FilePositionLocation"
+            "file-position" : "#/components/schemas/FilePositionLocation",
+            "field-path" : "#/components/schemas/FieldPathLocation"
           }
         },
         "type" : "object"
@@ -839,6 +871,73 @@
           }
         },
         "summary" : "Get",
+        "tags" : [ "Mappings Resource" ]
+      }
+    },
+    "/api/mappings/{id}/compile" : {
+      "post" : {
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : ".+"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "./mapping-model.schema.json"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The working copy's diagnostics, none when it compiles with every box reached",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CompileResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "invalid-workspace-path or malformed-json",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "not-found: the mapping's directory",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415" : {
+            "description" : "unsupported-media-type",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "summary" : "Compile",
         "tags" : [ "Mappings Resource" ]
       }
     },

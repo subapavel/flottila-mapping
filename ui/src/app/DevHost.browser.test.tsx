@@ -67,7 +67,7 @@ describe('the mapping list', () => {
   test("lists the workspace's mappings; one opens in the editor, and All mappings goes back to the list", async () => {
     render(fakeApiClient());
 
-    await expect.element(mappingList()).toHaveTextContent('mappings/order-id-copymappings/order-unmapped');
+    await expect.element(mappingList()).toHaveTextContent('mappings/order-id-copymappings/order-unmappedmappings/tree-20128');
     await page.getByRole('button', { name: 'mappings/order-unmapped' }).click();
 
     await expect.element(page.getByRole('heading', { name: 'mappings/order-unmapped' })).toBeVisible();

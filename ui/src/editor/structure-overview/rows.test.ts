@@ -88,6 +88,9 @@ describe('the name of a field path’s last step', () => {
     ['/Q{urn:a}Order/@channel', '@channel'],
     ['/Q{http://a/b}Order/Q{http://a/b}Item', 'Item'],
     ['/Q{http://a/b}Order/@Q{http://a/c}code', '@code'],
+    ['/$', '$'],
+    ['/$/order/items', 'items'],
+    ['/$/order/a%2Fb%25%40%7B%7D', 'a/b%@{}'],
     ['', ''],
   ])('%s is %s', (path, name) => {
     expect(stepName(path)).toBe(name);
