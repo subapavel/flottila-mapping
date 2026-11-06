@@ -24,10 +24,21 @@ describe('the fake ApiClient over the corpus', () => {
   test('opens the corpus mapping, and the mapping without its target field mappings', async () => {
     const api = fakeApiClient();
 
-    expect(await api.getMapping('mappings/order-id-copy')).toEqual(corpusMapping);
+    expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(corpusMapping);
     const unmapped = { ...corpusMapping };
     delete unmapped.targetFieldMappings;
-    expect(await api.getMapping('mappings/order-unmapped')).toEqual(unmapped);
+    expect((await api.getMapping('mappings/order-unmapped')).model).toEqual(unmapped);
+  });
+
+  test('tags each mapping, and the tag stays until the mapping is written', async () => {
+    const api = fakeApiClient();
+
+    const first = await api.getMapping('mappings/order-id-copy');
+    const other = await api.getMapping('mappings/order-unmapped');
+
+    expect(first.etag).toMatch(/^"fake:\d+"$/);
+    expect(other.etag).not.toBe(first.etag);
+    expect((await api.getMapping('mappings/order-id-copy')).etag).toBe(first.etag);
   });
 
   test('answers an unknown mapping id with a not-found problem', async () => {
@@ -46,21 +57,38 @@ describe('the fake ApiClient over the corpus', () => {
       targetFieldMappings: { [ORDER_ID]: { result: 'b1', id: 'm1', boxes: { b1: { kind: 'source', field: ORDER_ID } } } },
     };
 
-    const saved = await api.saveMapping('mappings/order-unmapped', sent);
+    const { etag } = await api.getMapping('mappings/order-unmapped');
 
-    expect(saved).toEqual(sent);
-    expect(Object.keys(saved)).toEqual(['formatVersion', 'source', 'target', 'targetFieldMappings']);
-    expect(Object.keys(saved.targetFieldMappings![ORDER_ID]!)).toEqual(['boxes', 'id', 'result']);
-    expect(await api.getMapping('mappings/order-unmapped')).toEqual(sent);
-    expect((await problemOf(api.saveMapping('mappings/missing', sent))).problem.status).toBe(404);
+    const saved = await api.saveMapping('mappings/order-unmapped', sent, etag);
+
+    expect(saved.model).toEqual(sent);
+    expect(saved.etag).not.toBe(etag);
+    expect(Object.keys(saved.model)).toEqual(['formatVersion', 'source', 'target', 'targetFieldMappings']);
+    expect(Object.keys(saved.model.targetFieldMappings![ORDER_ID]!)).toEqual(['boxes', 'id', 'result']);
+    expect(await api.getMapping('mappings/order-unmapped')).toEqual(saved);
+    expect((await problemOf(api.saveMapping('mappings/missing', sent, etag))).problem.status).toBe(404);
+  });
+
+  test('a save with a tag the stored mapping no longer has is 409 mapping-changed and keeps what is stored', async () => {
+    const api = fakeApiClient();
+    const opened = await api.getMapping('mappings/order-id-copy');
+    const unmapped = { ...corpusMapping };
+    delete unmapped.targetFieldMappings;
+    await api.saveMapping('mappings/order-id-copy', unmapped, opened.etag);
+
+    const problem = await problemOf(api.saveMapping('mappings/order-id-copy', corpusMapping, opened.etag));
+
+    expect(problem.problem.status).toBe(409);
+    expect(problem.problem.type).toBe('urn:flottila:mapping:problem:mapping-changed');
+    expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(unmapped);
   });
 
   test('what it returns is a copy: changing it leaves the fake as it was', async () => {
     const api = fakeApiClient();
     const first = await api.getMapping('mappings/order-id-copy');
-    first.targetFieldMappings![ORDER_ID]!.result = null;
+    first.model.targetFieldMappings![ORDER_ID]!.result = null;
 
-    expect(await api.getMapping('mappings/order-id-copy')).toEqual(corpusMapping);
+    expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(corpusMapping);
   });
 
   test('loads the order structure relative to the mapping directory', async () => {
@@ -171,7 +199,7 @@ describe('the fake ApiClient over the corpus', () => {
   test('a fake seeded with its own mappings opens those instead of the corpus', async () => {
     const api = fakeApiClient({ 'drafts/one': corpusMapping });
 
-    expect(await api.getMapping('drafts/one')).toEqual(corpusMapping);
+    expect((await api.getMapping('drafts/one')).model).toEqual(corpusMapping);
     expect((await problemOf(api.getMapping('mappings/order-id-copy'))).problem.status).toBe(404);
   });
 });

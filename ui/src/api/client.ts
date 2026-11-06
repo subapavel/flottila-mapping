@@ -24,6 +24,12 @@ export type { FunctionCatalogue } from '../generated/function-catalogue';
  */
 export type TestRequest = Omit<Schemas['TestRequest'], 'model'> & { model: MappingModel };
 
+/** A mapping as the service stored it: the canonical model and its strong ETag (ADR-0024). */
+export interface StoredMapping {
+  model: MappingModel;
+  etag: string;
+}
+
 /** A transport error of the service: an RFC 9457 problem (ADR-0015, ADR-0024). */
 export class ApiProblem extends Error {
   readonly problem: Problem;
@@ -33,6 +39,11 @@ export class ApiProblem extends Error {
     this.name = 'ApiProblem';
     this.problem = problem;
   }
+}
+
+/** Whether a failed save is a save conflict: 409 `mapping-changed`, the file changed on disk (ADR-0027). */
+export function isSaveConflict(error: unknown): boolean {
+  return error instanceof ApiProblem && error.problem.type === 'urn:flottila:mapping:problem:mapping-changed';
 }
 
 /** What the editor shows for a failed call: an `ApiProblem`'s title, detail and diagnostics, or another error's message. */
@@ -49,9 +60,12 @@ export function describeError(error: unknown): { title: string; detail: string; 
  * Diagnostics are a result, never a rejection, except for a refused save (422 `model-refused`).
  */
 export interface ApiClient {
-  getMapping(id: string): Promise<MappingModel>;
-  /** Resolves to the canonical model the service wrote. */
-  saveMapping(id: string, model: MappingModel): Promise<MappingModel>;
+  getMapping(id: string): Promise<StoredMapping>;
+  /**
+   * Saves on condition that the stored file still has `etag` (`If-Match`, ADR-0027), and resolves to the canonical
+   * model the service wrote. A file changed on disk rejects with a 409 `mapping-changed` problem.
+   */
+  saveMapping(id: string, model: MappingModel, etag: string): Promise<StoredMapping>;
   loadStructure(request: StructureRequest): Promise<StructureResponse>;
   /** Runs the working copy in the request on its input message. */
   runTest(id: string, request: TestRequest): Promise<TestResult>;

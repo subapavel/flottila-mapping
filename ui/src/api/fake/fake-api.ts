@@ -2,7 +2,7 @@ import caseOutput from '../../../../corpus/cases/link/direct-copy/001/expected.x
 import caseInput from '../../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import orderIdCopyText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem, type ApiClient, type StructureResponse, type TestResult } from '../client';
+import { ApiProblem, type ApiClient, type StoredMapping, type StructureResponse, type TestResult } from '../client';
 import { orderStructure } from './order-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
@@ -29,20 +29,30 @@ const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput
  * the engine does. `seed` replaces the corpus mappings.
  */
 export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings()): ApiClient {
-  const mappings = new Map(Object.entries(seed).map(([id, model]) => [id, structuredClone(model)]));
+  // Each write gets a tag of its own, as a changed file gets a new sha256 (ADR-0024); never the same tag twice.
+  let writes = 0;
+  const written = (model: MappingModel): StoredMapping => ({ model: structuredClone(model), etag: `"fake:${++writes}"` });
+  const mappings = new Map(Object.entries(seed).map(([id, model]) => [id, written(model)]));
 
   const stored = (id: string) => {
-    const model = mappings.get(id);
-    if (!model) throw notFound(id);
-    return model;
+    const mapping = mappings.get(id);
+    if (!mapping) throw notFound(id);
+    return mapping;
   };
 
   return {
     getMapping: async (id) => structuredClone(stored(id)),
 
-    saveMapping: async (id, model) => {
-      stored(id);
-      mappings.set(id, sortedKeys(structuredClone(model)));
+    saveMapping: async (id, model, etag) => {
+      if (stored(id).etag !== etag) {
+        throw new ApiProblem({
+          type: `${PROBLEM}mapping-changed`,
+          title: 'Mapping changed',
+          status: 409,
+          detail: 'the mapping changed on disk since the If-Match tag was read; nothing was saved',
+        });
+      }
+      mappings.set(id, written(sortedKeys(model)));
       return structuredClone(stored(id));
     },
 
