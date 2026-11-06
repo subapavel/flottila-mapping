@@ -25,8 +25,13 @@ fi
 spec=$1
 
 cd "$(dirname "$0")/.."
-pit_modules=${2:-$(cut -f1 ratchet/mutation.tsv | paste -sd, -)}
 mkdir -p .logs ui/.logs
+# the console output, stderr included, also goes to .logs/<spec>-spec-gate.log under this root, whatever the caller's
+# directory (#125). On exit, close it and wait for tee, so the log is complete when the script returns.
+exec > >(tee ".logs/${spec}-spec-gate.log") 2>&1
+tee_pid=$!
+trap 'exec >&- 2>&-; wait "$tee_pid"' EXIT
+pit_modules=${2:-$(cut -f1 ratchet/mutation.tsv | paste -sd, -)}
 status=0
 
 step() {
