@@ -1,4 +1,16 @@
-import { Alert, Button, Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core';
+import {
+  Alert,
+  Button,
+  DataList,
+  DataListCell,
+  DataListItem,
+  DataListItemCells,
+  DataListItemRow,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+} from '@patternfly/react-core';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { describeError, type ApiClient } from '../api/client';
@@ -101,15 +113,24 @@ function MappingList({ api, onOpen }: { api: ApiClient; onOpen: (id: string) => 
     }
     if (mappings.data.length === 0) return <p>The workspace has no mappings.</p>;
     return (
-      <ul aria-label="Mappings">
+      <DataList aria-label="Mappings" className="fm-host__list">
         {mappings.data.map((m) => (
-          <li key={m.id}>
-            <Button variant="link" isInline onClick={() => onOpen(m.id)}>
-              {m.id}
-            </Button>
-          </li>
+          <DataListItem key={m.id} aria-labelledby={`fm-mapping-${m.id}`}>
+            <DataListItemRow>
+              <DataListItemCells
+                dataListCells={[
+                  ...(m.name === m.id ? [] : [<DataListCell key="name">{m.name}</DataListCell>]),
+                  <DataListCell key="id">
+                    <Button id={`fm-mapping-${m.id}`} variant="link" isInline onClick={() => onOpen(m.id)}>
+                      {m.id}
+                    </Button>
+                  </DataListCell>,
+                ]}
+              />
+            </DataListItemRow>
+          </DataListItem>
         ))}
-      </ul>
+      </DataList>
     );
   };
 
@@ -119,7 +140,7 @@ function MappingList({ api, onOpen }: { api: ApiClient; onOpen: (id: string) => 
         <h1 className="fm-host__title">Flottila Mapping</h1>
       </header>
       <main className="fm-host__main">
-        <h2>Mappings</h2>
+        <h2>{mappings.data ? `Mappings (${mappings.data.length})` : 'Mappings'}</h2>
         {list()}
         {creating ? (
           <NewMappingForm api={api} onCreated={onOpen} onCancel={() => setCreating(false)} />
