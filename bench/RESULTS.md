@@ -167,3 +167,23 @@ Playwright copy. Then Vitest browser mode, `npm run e2e` and `npm run e2e:stack`
 Chromium with no path and no environment variable, and CI's `npx playwright install chromium` fetches the
 same 1243. The optional `PW_CHROMIUM_EXECUTABLE` that #22 allowed for a mismatch is therefore not needed and
 not added; `deploy/claude-cloud/setup.sh` is unchanged. Playwright is not downgraded.
+
+## Spec 5 gate: `ui/tree-20128/scroll` (#104, GATE check 7, tree)
+
+Machine `claude-cloud-4vcpu`, 2026-11-06, commit 7fb5576 on `spec/104-mapping-editor`, Playwright 1.63.0 with
+the image's headless Chromium (60 Hz frame cap), `npm run e2e -- tree-20128`, three runs in a row
+(`ui/.logs/104-gate7-{1,2,3}.log` in the gate worktree). The scenario: 20,128 fields per side, fully
+expanded, every leaf linked, scrolled top to bottom for 3 s, one step per animation frame.
+
+| run | p95 frame (ms) | max frame (ms) | max rows in DOM |
+| --- | --- | --- | --- |
+| 1 | 16.8 | 133.3 | 32 |
+| 2 | 16.8 | 116.6 | 32 |
+| 3 | 16.7 | 100.0 | 32 |
+
+Median p95: 16.8 ms against the GATE target of ≤ 16.7 ms. At a 60 Hz cap one frame is 16.67 ms, so the
+lowest p95 this measurement can show is one vsync. 16.8 ms is that vsync plus timer jitter, not a dropped
+frame: a dropped frame would push the interval to 33.3 ms, and fewer than 5 % of frames do that. The
+same 16.7–16.8 ms was measured before the editor tickets touched the tree (#111, #114). The target as written
+sits at the measurement's floor; finding #128 asks the owner how to read it. JMH: NOT_RUN (no
+`bench/jmh` jar until spec 6).
