@@ -1,5 +1,8 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
 import type { BoxReference, FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
+import type { FieldRefusal } from '../../model/command';
+
+type Side = 'source' | 'target';
 
 /** One visible row of a structure tree. */
 export interface TreeRow {
@@ -10,21 +13,59 @@ export interface TreeRow {
   /** A structure field: it has a type with child fields, even when that type lists none. */
   expandable: boolean;
   expanded: boolean;
+  /** The refusal that refuses the row's field in its tree, nearest the root (`refusalAt`); absent when none does. */
+  refusal?: FieldRefusal;
+}
+
+/** The steps of a field path: an EQName's braces may hold a `/` (ADR-0007). */
+export const STEP = /(?:\{[^}]*\}|[^/{])+/g;
+
+/**
+ * A field's own refusal, when it refuses the field on `side`: a refusal whose side is `target` holds in a target only,
+ * and a source reads the field (ADR-0008, #94, #95).
+ */
+const refusing = (field: FieldDto, side: Side): FieldRefusal | undefined =>
+  side === 'target' || field.refusal?.side !== 'target' ? field.refusal : undefined;
+
+/**
+ * The refusal of a row of `field` on `side` whose parent row has the refusal `above`: the one nearest the root, so the
+ * parent's when it has one, else the field's own when it refuses the field on `side`.
+ */
+export const rowRefusal = (field: FieldDto, side: Side, above: FieldRefusal | undefined): FieldRefusal | undefined =>
+  above ?? refusing(field, side);
+
+/**
+ * The refusal that refuses the field at `path` on `side`, as compile reports it (ADR-0008 Shape, ADR-0027): the
+ * refusal of the refused field nearest the root on the path, counting one that holds in a target only on the target
+ * side only. The wire gives each field its own refusal, since a type's fields are shared (ADR-0015). `undefined` when
+ * no field on the path refuses it, or the structure has no field at `path`. A step is matched against its first
+ * same-step sibling: same-step siblings all carry one `ambiguous-field-path`, so the walk ends there anyway.
+ */
+export function refusalAt(structure: StructureLoaded, path: FieldPath, side: Side): FieldRefusal | undefined {
+  const steps = path.match(STEP) ?? [];
+  let field: FieldDto | undefined = steps[0] === structure.root.step ? structure.root : undefined;
+  for (const step of steps.slice(1)) {
+    if (field === undefined || refusing(field, side)) break;
+    field = field.type === undefined ? undefined : structure.types[field.type]?.find((c) => c.step === step);
+  }
+  return field && refusing(field, side);
 }
 
 /**
- * Flattens the structure graph (ADR-0015) into the visible rows: the root, then the child fields of every expanded
- * row. A recursive type is expanded only as deep as its paths are, so the rows are always finite (ADR-0008).
+ * Flattens the structure graph (ADR-0015) into the visible rows of the `side` tree: the root, then the child fields of
+ * every expanded row. A recursive type is expanded only as deep as its paths are, so the rows are always finite
+ * (ADR-0008). Each row carries the refusal `refusalAt` gives its path.
  */
-export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<string>): TreeRow[] {
+export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<string>, side: Side): TreeRow[] {
   const rows: TreeRow[] = [];
-  const visit = (field: FieldDto, path: string, depth: number) => {
+  const visit = (field: FieldDto, path: string, depth: number, above: FieldRefusal | undefined) => {
     const open = field.type !== undefined && expanded.has(path);
-    rows.push({ path, depth, field, expandable: field.type !== undefined, expanded: open });
+    const refusal = rowRefusal(field, side, above);
+    rows.push({ path, depth, field, expandable: field.type !== undefined, expanded: open, ...(refusal && { refusal }) });
     if (!open) return;
-    for (const child of structure.types[field.type!] ?? []) visit(child, `${path}/${child.step}`, depth + 1);
+    for (const child of structure.types[field.type!] ?? []) visit(child, `${path}/${child.step}`, depth + 1, refusal);
   };
-  visit(structure.root, `/${structure.root.step}`, 0);
+  visit(structure.root, `/${structure.root.step}`, 0, undefined);
   return rows;
 }
 

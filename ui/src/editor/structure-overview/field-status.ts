@@ -1,6 +1,7 @@
 import type { Diagnostic, FieldDto, StructureLoaded } from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
-import type { TreeRow } from './rows';
+import type { FieldRefusal } from '../../model/command';
+import { rowRefusal, type TreeRow } from './rows';
 
 /** The mark of a target row (GLOSSARY: Field status); a row without one has no mark. */
 export type FieldStatus = 'mapped' | 'unmapped-mandatory' | 'orphaned' | 'error';
@@ -113,9 +114,15 @@ export function orphanedMappings(model: MappingModel, target: StructureLoaded): 
 /**
  * The target rows under a status filter (ADR-0012): every row of status `filter` and each of its ancestors, in tree
  * order, whatever is expanded. An ancestor is shown expanded; a row of that status with no such row below it is shown
- * collapsed. A field path the structure lacks shows no row, nor any ancestor for it.
+ * collapsed. A field path the structure lacks shows no row, nor any ancestor for it. Each row carries the refusal
+ * nearest the root on its path in the `side` tree, as `treeRows` gives it (ADR-0027).
  */
-export function filteredRows(structure: StructureLoaded, statuses: ReadonlyMap<FieldPath, FieldStatus>, filter: FieldStatus): TreeRow[] {
+export function filteredRows(
+  structure: StructureLoaded,
+  statuses: ReadonlyMap<FieldPath, FieldStatus>,
+  filter: FieldStatus,
+  side: 'source' | 'target',
+): TreeRow[] {
   const matches = new Set<FieldPath>();
   const ancestors = new Set<FieldPath>();
   for (const [path, status] of statuses) {
@@ -125,13 +132,15 @@ export function filteredRows(structure: StructureLoaded, statuses: ReadonlyMap<F
     for (let i = 1; i < steps.length; i++) ancestors.add(`/${steps.slice(0, i).join('/')}`);
   }
   // only the branches down to a match are walked, so a recursive type ends (ADR-0008)
-  const visit = (field: FieldDto, path: string, depth: number): TreeRow[] => {
+  const visit = (field: FieldDto, path: string, depth: number, above: FieldRefusal | undefined): TreeRow[] => {
+    const refusal = rowRefusal(field, side, above);
     const children = field.type !== undefined && ancestors.has(path) ? (structure.types[field.type] ?? []) : [];
-    const below = children.flatMap((child) => visit(child, `${path}/${child.step}`, depth + 1));
+    const below = children.flatMap((child) => visit(child, `${path}/${child.step}`, depth + 1, refusal));
     if (below.length === 0 && !matches.has(path)) return [];
-    return [{ path, depth, field, expandable: field.type !== undefined, expanded: below.length > 0 }, ...below];
+    const row = { path, depth, field, expandable: field.type !== undefined, expanded: below.length > 0, ...(refusal && { refusal }) };
+    return [row, ...below];
   };
-  return visit(structure.root, `/${structure.root.step}`, 0);
+  return visit(structure.root, `/${structure.root.step}`, 0, undefined);
 }
 
 /** The links a status filter keeps: all of them under `all`, else those whose target field has that status. */

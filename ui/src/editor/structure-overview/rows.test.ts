@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
 import type { TargetFieldMapping } from '../../generated/mapping-model';
-import { occurrenceText, reachedSourceFields, stepName, treeRows } from './rows';
+import { occurrenceText, reachedSourceFields, refusalAt, stepName, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
 type StructureLoaded = components['schemas']['StructureLoaded'];
@@ -34,7 +34,7 @@ const structure: StructureLoaded = {
 
 const ORDER = '/Q{urn:a}Order';
 const describeRows = (expanded: string[]) =>
-  treeRows(structure, new Set(expanded)).map((r) => `${'  '.repeat(r.depth)}${r.path}${r.expandable ? (r.expanded ? ' -' : ' +') : ''}`);
+  treeRows(structure, new Set(expanded), 'target').map((r) => `${'  '.repeat(r.depth)}${r.path}${r.expandable ? (r.expanded ? ' -' : ' +') : ''}`);
 
 describe('the rows of a structure tree', () => {
   test('show only the root while nothing is expanded', () => {
@@ -68,7 +68,7 @@ describe('the rows of a structure tree', () => {
   });
 
   test('carry the field itself, so a row can show its type', () => {
-    const orderId = treeRows(structure, new Set([ORDER]))[2]!;
+    const orderId = treeRows(structure, new Set([ORDER]), 'target')[2]!;
 
     expect(orderId.field.valueType).toBe('xs:string');
     expect(orderId.field.step).toBe('OrderId');
@@ -77,7 +77,100 @@ describe('the rows of a structure tree', () => {
   test('treat a type id without fields as a structure field with no child fields', () => {
     const empty: StructureLoaded = { ...structure, types: {} };
 
-    expect(treeRows(empty, new Set([ORDER])).map((r) => r.path)).toEqual([ORDER]);
+    expect(treeRows(empty, new Set([ORDER]), 'target').map((r) => r.path)).toEqual([ORDER]);
+  });
+});
+
+describe('a refused field in the tree (ADR-0008, ADR-0027)', () => {
+  const ambiguousNote = { code: 'ambiguous-field-path', side: 'both' as const, file: 'r.xsd', line: 8, column: 65 };
+  const ambiguousPart = { code: 'ambiguous-field-path', side: 'both' as const, file: 'r.xsd', line: 20, column: 53 };
+  const abstractBox = { code: 'abstract-target-element', side: 'target' as const, file: 'r.xsd', line: 12, column: 40 };
+
+  /**
+   * Doc holds Id, Note twice (same-step siblings), and Box, refused in a target only; Box holds Sku and Part twice,
+   * whose type holds Name. Part's type is shared, so Name carries no refusal of its own.
+   */
+  const refused: StructureLoaded = {
+    kind: 'loaded',
+    fingerprint: 'sha256:00',
+    root: field('Doc', 1, 1, { type: 'doc' }),
+    types: {
+      doc: [
+        field('Id', 1, 1, { valueType: 'xs:string' }),
+        field('Note', 0, 1, { valueType: 'xs:string', refusal: ambiguousNote }),
+        field('Note', 0, 1, { valueType: 'xs:string', refusal: ambiguousNote }),
+        field('Box', 0, 1, { type: 'box', refusal: abstractBox }),
+      ],
+      box: [
+        field('Sku', 1, 1, { valueType: 'xs:string' }),
+        field('Part', 1, 1, { type: 'part', refusal: ambiguousPart }),
+        field('Part', 0, 2, { type: 'part', refusal: ambiguousPart }),
+      ],
+      part: [field('Name', 0, 1, { valueType: 'xs:string' })],
+    },
+  };
+  const all = ['/Doc', '/Doc/Box', '/Doc/Box/Part'];
+  const rowRefusals = (side: 'source' | 'target') =>
+    treeRows(refused, new Set(all), side).map((r) => `${r.path} ${r.refusal ? `${r.refusal.code} ${r.refusal.line}` : '-'}`);
+
+  test('a target row carries its field’s refusal, and a row below a refused field the refusal nearest the root', () => {
+    expect(rowRefusals('target')).toEqual([
+      '/Doc -',
+      '/Doc/Id -',
+      '/Doc/Note ambiguous-field-path 8',
+      '/Doc/Note ambiguous-field-path 8',
+      '/Doc/Box abstract-target-element 12',
+      '/Doc/Box/Sku abstract-target-element 12',
+      '/Doc/Box/Part abstract-target-element 12',
+      '/Doc/Box/Part/Name abstract-target-element 12',
+      '/Doc/Box/Part abstract-target-element 12',
+      '/Doc/Box/Part/Name abstract-target-element 12',
+    ]);
+  });
+
+  test('a source row passes a refusal that holds in a target only, as compile does (#94, #95)', () => {
+    expect(rowRefusals('source')).toEqual([
+      '/Doc -',
+      '/Doc/Id -',
+      '/Doc/Note ambiguous-field-path 8',
+      '/Doc/Note ambiguous-field-path 8',
+      '/Doc/Box -',
+      '/Doc/Box/Sku -',
+      '/Doc/Box/Part ambiguous-field-path 20',
+      '/Doc/Box/Part/Name ambiguous-field-path 20',
+      '/Doc/Box/Part ambiguous-field-path 20',
+      '/Doc/Box/Part/Name ambiguous-field-path 20',
+    ]);
+  });
+
+  test.each([
+    ['/Doc/Id', 'target', undefined],
+    ['/Doc/Note', 'source', ambiguousNote],
+    ['/Doc/Box/Part/Name', 'target', abstractBox],
+    ['/Doc/Box/Part/Name', 'source', ambiguousPart],
+    ['/Doc/Box/Sku', 'source', undefined],
+    ['/Doc/Gone', 'target', undefined],
+    ['/Other/Id', 'target', undefined],
+  ] as const)('the refusal at %s in a %s tree, whatever the rows show', (path, side, refusal) => {
+    expect(refusalAt(refused, path, side)).toEqual(refusal);
+  });
+
+  test('which side a refusal holds on comes from its side, never from its code', () => {
+    const later = { code: 'a-later-target-reason', side: 'target' as const, file: 'r.xsd', line: 3, column: 4 };
+    const targetOnlyId: StructureLoaded = {
+      ...refused,
+      types: { ...refused.types, doc: [field('Id', 1, 1, { valueType: 'xs:string', refusal: later })] },
+    };
+
+    expect(refusalAt(targetOnlyId, '/Doc/Id', 'source')).toBeUndefined();
+    expect(refusalAt(targetOnlyId, '/Doc/Id', 'target')).toEqual(later);
+  });
+
+  test('the root carries its own refusal', () => {
+    const rootRefused: StructureLoaded = { ...refused, root: { ...refused.root, refusal: ambiguousNote } };
+
+    expect(refusalAt(rootRefused, '/Doc/Id', 'source')).toEqual(ambiguousNote);
+    expect(treeRows(rootRefused, new Set(['/Doc']), 'source')[1]!.refusal).toEqual(ambiguousNote);
   });
 });
 

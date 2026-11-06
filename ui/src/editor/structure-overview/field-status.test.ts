@@ -248,7 +248,7 @@ describe('the target rows under a status filter (ADR-0012, spec #104 story 39)',
     ['/', 'error'],
     [`${ORDER}/Gone/Deeper`, 'mapped'],
   ]);
-  const shown = (filter: FieldStatus) => filteredRows(structure, statuses, filter).map((r) => [r.path, r.depth, r.expanded]);
+  const shown = (filter: FieldStatus) => filteredRows(structure, statuses, filter, 'target').map((r) => [r.path, r.depth, r.expanded]);
 
   test('are the rows of that status with their ancestors, expanded down to them, in tree order', () => {
     expect(shown('error')).toEqual([
@@ -265,7 +265,7 @@ describe('the target rows under a status filter (ADR-0012, spec #104 story 39)',
       [ORDER, 0, true],
       [ITEM, 1, false],
     ]);
-    expect(filteredRows(structure, statuses, 'orphaned')[1]!.expandable).toBe(true);
+    expect(filteredRows(structure, statuses, 'orphaned', 'target')[1]!.expandable).toBe(true);
   });
 
   test('show no ancestor of a field the structure lacks', () => {
@@ -279,12 +279,38 @@ describe('the target rows under a status filter (ADR-0012, spec #104 story 39)',
     expect(shown('unmapped-mandatory')).toEqual([]);
   });
 
+  test('carry the refusal nearest the root on their path, by the side of the tree (ADR-0027)', () => {
+    const abstractItem = { code: 'abstract-target-element', side: 'target' as const, file: 'o.xsd', line: 4, column: 9 };
+    const ambiguousSku = { code: 'ambiguous-field-path', side: 'both' as const, file: 'o.xsd', line: 7, column: 9 };
+    const refused: StructureLoaded = {
+      ...structure,
+      types: {
+        order: [field('Item', { type: 'item', refusal: abstractItem })],
+        item: [field('Sku', { refusal: ambiguousSku }), field('Item', { type: 'item' })],
+      },
+    };
+    const errors = new Map<string, FieldStatus>([[SKU, 'error']]);
+    const rows = (side: 'source' | 'target') =>
+      filteredRows(refused, errors, 'error', side).map((r) => [r.path, r.refusal?.code]);
+
+    expect(rows('target')).toEqual([
+      [ORDER, undefined],
+      [ITEM, 'abstract-target-element'],
+      [SKU, 'abstract-target-element'],
+    ]);
+    expect(rows('source')).toEqual([
+      [ORDER, undefined],
+      [ITEM, undefined],
+      [SKU, 'ambiguous-field-path'],
+    ]);
+  });
+
   test('show the root of that status expanded when a row below it has it too', () => {
     const both = new Map<string, FieldStatus>([
       [ORDER, 'mapped'],
       [ORDER_ID, 'mapped'],
     ]);
-    expect(filteredRows(structure, both, 'mapped').map((r) => [r.path, r.expanded])).toEqual([
+    expect(filteredRows(structure, both, 'mapped', 'target').map((r) => [r.path, r.expanded])).toEqual([
       [ORDER, true],
       [ORDER_ID, false],
     ]);

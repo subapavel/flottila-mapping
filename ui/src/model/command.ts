@@ -1,10 +1,14 @@
+import type { components } from '../generated/api';
 import type { AuthoringId, BoxReference, FieldPath, MappingModel, TargetFieldMapping } from '../generated/mapping-model';
 
+/** A refused field's refusal as `/api/structures` carries it: the reason's code and the declaration's position. */
+export type FieldRefusal = components['schemas']['RefusalDto'];
+
 /**
- * Why a command was refused, by the model check's codes (ADR-0011, ADR-0013); `not-source-field-box` is the editor's
- * own, as no model check sees a remap.
+ * Why a command was refused at a box or mapping id, by the model check's codes (ADR-0011, ADR-0013);
+ * `not-source-field-box` is the editor's own, as no model check sees a remap.
  */
-export interface Refusal {
+export interface BoxRefusal {
   code:
     | 'duplicate-authoring-id'
     | 'cross-target-field-reference'
@@ -19,15 +23,49 @@ export interface Refusal {
   id: AuthoringId;
 }
 
+/** Why a command was refused at a refused field (ADR-0027): the field and the refusal it carries in its tree. */
+export interface RefusedField {
+  code: 'refused-field';
+  side: 'source' | 'target';
+  field: FieldPath;
+  refusal: FieldRefusal;
+}
+
+/** Why a command was refused. */
+export type Refusal = BoxRefusal | RefusedField;
+
 /** A command's answer: the next model, or why the model stays as it was. */
 export type CommandResult = { kind: 'applied'; model: MappingModel } | ({ kind: 'refused' } & Refusal);
 
 export const applied = (model: MappingModel): CommandResult => ({ kind: 'applied', model });
 
-export const refused = (code: Refusal['code'], id: AuthoringId): CommandResult => ({ kind: 'refused', code, id });
+export const refused = (code: BoxRefusal['code'], id: AuthoringId): CommandResult => ({ kind: 'refused', code, id });
+
+export const refusedField = (side: RefusedField['side'], field: FieldPath, refusal: FieldRefusal): CommandResult => ({
+  kind: 'refused',
+  code: 'refused-field',
+  side,
+  field,
+  refusal,
+});
+
+/** The refusal of a refused command's result: the result without its `kind`. */
+export function refusalOf(result: { kind: 'refused' } & Refusal): Refusal {
+  const { kind, ...refusal } = result;
+  void kind;
+  return refusal;
+}
+
+/** A refused field's reason and the position of the declaration that causes it, in words. */
+export const describeFieldRefusal = ({ code, file, line, column }: FieldRefusal): string =>
+  `${code}, declared at ${file}:${line}:${column}`;
 
 /** What the editor tells the author about a refusal. */
-export function describeRefusal({ code, id }: Refusal): string {
+export function describeRefusal(refusal: Refusal): string {
+  if (refusal.code === 'refused-field') {
+    return `The ${refusal.side} field ${refusal.field} is refused: ${describeFieldRefusal(refusal.refusal)}.`;
+  }
+  const { code, id } = refusal;
   switch (code) {
     case 'box-cycle':
       return `The wire would close a cycle: box ${id} already feeds the box it would read.`;
