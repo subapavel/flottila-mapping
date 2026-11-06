@@ -232,6 +232,29 @@ describe('remap (GLOSSARY, stories 48 and 49)', () => {
     await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
   });
 
+  test('a refused source field is refused as a link to it is (ADR-0027), and the box stays orphaned', async () => {
+    // the same-step structure of #116: Doc's two Note fields are refused, Code is not
+    const sameStep: MappingModel = {
+      ...corpusMapping,
+      source: {
+        bundle: ['../structures/refused/same-step.xsd'],
+        fingerprint: 'sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e',
+        root: { element: 'Doc' },
+      },
+      targetFieldMappings: { [NOTE]: { id: 't1', result: 'a1', boxes: { a1: { kind: 'source', field: '/Doc/Gone' } } } },
+    };
+    render(fakeApiClient({ [DRAFT]: sameStep }));
+    await targetRow(NOTE).click();
+    await expect.element(orphanMark('a1')).toBeVisible();
+
+    await userEvent.dragAndDrop(sourceRow('/Doc/Note').first(), box('a1'));
+
+    await expect.element(page.getByRole('heading', { name: /The source field \/Doc\/Note is refused: ambiguous-field-path/ })).toBeVisible();
+    await expect.element(orphanMark('a1')).toBeVisible();
+    await userEvent.dragAndDrop(sourceRow('/Doc/Code'), box('a1'));
+    await expect.element(orphanMark('a1')).not.toBeInTheDocument();
+  });
+
   test('picking a field in the inspector remaps the orphaned box; a box that is not orphaned offers no remap', async () => {
     render(staleApi());
     await openNote();

@@ -46,6 +46,8 @@ export interface FunctionEditorProps {
   canvasState: CanvasStatePort;
   /** The orphaned source-field boxes (GLOSSARY: Orphaned reference), marked on the canvas. */
   orphaned: ReadonlySet<AuthoringId>;
+  /** Remaps an orphaned source-field box of a target field mapping to a dropped source field. */
+  onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
 }
 
 /**
@@ -59,7 +61,7 @@ export interface FunctionEditorProps {
  * box, Ctrl+C copies the selected boxes and Ctrl+V pastes them. A key typed into a field inside the canvas, quick
  * insert's own, is the field's.
  */
-export function FunctionEditor({ api, store, targetField, canvasState, orphaned }: FunctionEditorProps) {
+export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap }: FunctionEditorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const mapping = useStore(store, (s) => (targetField === null ? undefined : s.workingCopy.targetFieldMappings?.[targetField]));
   const udfs = useStore(store, (s) => s.workingCopy.udfs);
@@ -145,6 +147,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned 
                 udfs={udfs}
                 canvasState={canvasState}
                 orphaned={orphaned}
+                onRemap={onRemap}
                 selectedBox={selectedBox}
               />
             )}
@@ -173,7 +176,7 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
   selectedBox: AuthoringId | null;
 }
 
-function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, selectedBox }: CanvasProps) {
+function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
   const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions) : arrange(mapping)));
   const [measured, setMeasured] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
@@ -201,7 +204,7 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
           view: boxView(mapping.boxes[id]!, catalogue, udfs),
           reachable: reached.has(id),
           unconnected: marks.unconnectedInputs[id] ?? [],
-          remap: orphaned.has(id) ? (field) => store.getState().remap(targetField, id, field) : undefined,
+          remap: orphaned.has(id) ? (field) => onRemap(targetField, id, field) : undefined,
         },
       }),
     ),

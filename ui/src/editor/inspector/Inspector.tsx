@@ -19,6 +19,8 @@ export interface InspectorProps {
   /** The orphaned source-field boxes, found against the loaded `source`; each offers a remap. */
   orphaned: ReadonlySet<AuthoringId>;
   source: StructureLoaded | undefined;
+  /** Remaps an orphaned source-field box of a target field mapping to a picked source field. */
+  onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface InspectorProps {
  * editors, the context of a source-field box and, when it is orphaned, a remap picker, and one picker per input slot.
  * The params of a `udf` and an `unresolved` box, and of a function the catalogue lacks, are shown read-only.
  */
-export function Inspector({ api, store, targetField, orphaned, source }: InspectorProps) {
+export function Inspector({ api, store, targetField, orphaned, source, onRemap }: InspectorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const model = useStore(store, (s) => s.workingCopy);
   const selection = useStore(store, (s) => s.selection);
@@ -47,6 +49,7 @@ export function Inspector({ api, store, targetField, orphaned, source }: Inspect
           udfs={model.udfs}
           // an orphaned box is only found against a loaded source structure
           remapSource={orphaned.has(shown.id) ? source : undefined}
+          onRemap={(field) => onRemap(targetField!, shown.id, field)}
         />
       )}
     </aside>
@@ -61,9 +64,10 @@ interface BoxInspectorProps {
   udfs: Udfs | undefined;
   /** The source structure whose fields an orphaned source-field box can be remapped to; absent for any other box. */
   remapSource: StructureLoaded | undefined;
+  onRemap: (field: FieldPath) => void;
 }
 
-function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource }: BoxInspectorProps) {
+function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource, onRemap }: BoxInspectorProps) {
   const { id, box } = shown;
   const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
   return (
@@ -73,7 +77,7 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource 
       </h3>
       {box.kind === 'source' ? (
         <>
-          {remapSource && <RemapPicker store={store} targetField={targetField} id={id} box={box} source={remapSource} />}
+          {remapSource && <RemapPicker box={box} source={remapSource} onRemap={onRemap} />}
           <ContextPicker store={store} targetField={targetField} id={id} box={box} />
         </>
       ) : box.kind === 'function' && entry !== undefined ? (
@@ -288,24 +292,12 @@ function ContextPicker({ store, targetField, id, box }: { store: WorkingCopyStor
  * The remap of an orphaned source-field box (GLOSSARY: Remap): a field of the source structure, picked from all of them
  * in tree order; the box keeps its id and wires.
  */
-function RemapPicker({
-  store,
-  targetField,
-  id,
-  box,
-  source,
-}: {
-  store: WorkingCopyStore;
-  targetField: FieldPath;
-  id: string;
-  box: SourceFieldBox;
-  source: StructureLoaded;
-}) {
+function RemapPicker({ box, source, onRemap }: { box: SourceFieldBox; source: StructureLoaded; onRemap: (field: FieldPath) => void }) {
   const choices = useMemo(() => remapChoices(source), [source]);
   return (
     <section aria-label="Remap">
       <p title={box.field}>The source structure has no field {stepName(box.field)}.</p>
-      <FormSelect aria-label="Remap to" value="" onChange={(_event, field) => store.getState().remap(targetField, id, field)}>
+      <FormSelect aria-label="Remap to" value="" onChange={(_event, field) => onRemap(field)}>
         <FormSelectOption value="" label="Choose a source field" isPlaceholder isDisabled />
         {choices.map((choice) => (
           <FormSelectOption key={choice.path} value={choice.path} label={choice.label} />

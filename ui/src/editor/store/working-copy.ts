@@ -89,8 +89,11 @@ export interface WorkingCopyState {
   setContext: (targetField: FieldPath, box: AuthoringId, context: FieldPath) => void;
   /** Wires input slot `slot` of box `target` from box `source`, or leaves it unconnected with `null`. */
   setInput: (targetField: FieldPath, target: AuthoringId, slot: number, source: AuthoringId | null) => void;
-  /** Points source-field box `box` at the source field `field`, keeping its id and wires (GLOSSARY: Remap). */
-  remap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
+  /**
+   * Points source-field box `box` at the source field `field`, keeping its id and wires (GLOSSARY: Remap);
+   * `sourceRefusal`, the refusal `field` carries in the source tree, refuses the remap (ADR-0027).
+   */
+  remap: (targetField: FieldPath, box: AuthoringId, field: FieldPath, sourceRefusal?: FieldRefusal) => void;
   /** Removes the target field mapping of `targetField` with all its boxes, such as an orphaned one. */
   deleteTargetFieldMapping: (targetField: FieldPath) => void;
   /**
@@ -226,7 +229,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
 
       setInput: (targetField, target, slot, source) => void apply(setInput(get().workingCopy, { targetField, target, slot, source })),
 
-      remap: (targetField, box, field) => void apply(remap(get().workingCopy, { targetField, box, field })),
+      remap: (targetField, box, field, sourceRefusal) => void apply(remap(get().workingCopy, { targetField, box, field, sourceRefusal })),
 
       deleteTargetFieldMapping: (targetField) => void apply(deleteTargetFieldMapping(get().workingCopy, { targetField })),
 

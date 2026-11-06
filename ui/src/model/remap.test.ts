@@ -97,6 +97,18 @@ describe('the remap command', () => {
       expect(remap(model, { targetField: ORDER_ID, box, field: SKU })).toEqual({ kind: 'refused', code, id });
     });
 
+    test('a refused source field first, as link does (ADR-0027)', () => {
+      const refusal = { code: 'ambiguous-field-path', side: 'both' as const, file: 'order.xsd', line: 4, column: 9 };
+
+      expect(remap(model, { targetField: ORDER_ID, box: 'f1', field: SKU, sourceRefusal: refusal })).toEqual({
+        kind: 'refused',
+        code: 'refused-field',
+        side: 'source',
+        field: SKU,
+        refusal,
+      });
+    });
+
     test('a function box with a message that names the box', () => {
       expect(describeRefusal({ code: 'not-source-field-box', id: 'f1' })).toBe('Box f1 reads no source field, so it cannot be remapped.');
     });

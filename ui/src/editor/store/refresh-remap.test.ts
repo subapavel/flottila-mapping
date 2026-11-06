@@ -165,6 +165,16 @@ describe('remap and the delete of a target field mapping in the store', () => {
     expect(s.getState().workingCopy).toBe(opened);
   });
 
+  test('a remap to a refused source field is refused with the field’s refusal', () => {
+    const s = store();
+    const refusal = { code: 'ambiguous-field-path', side: 'both' as const, file: 'order.xsd', line: 4, column: 9 };
+
+    s.getState().remap(ORDER_ID, 'a1', SKU, refusal);
+
+    expect(s.getState().refusal).toEqual({ code: 'refused-field', side: 'source', field: SKU, refusal });
+    expect(s.getState().workingCopy).toBe(opened);
+  });
+
   test('delete target field mapping removes it as one undo step, and undo brings it back', () => {
     const s = store();
 

@@ -15,6 +15,7 @@ import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
 import { isStatusFilter, orphanedBoxes, type StatusFilter } from './structure-overview/field-status';
+import { refusalAt } from './structure-overview/rows';
 import { StructureOverview, useStructure, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
 
@@ -114,6 +115,10 @@ function OpenMapping({
   const sourceQuery = useStructure(mappingId, api, model.source);
   const source = sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined;
   const orphaned = useMemo(() => orphanedBoxes(model, source), [model, source]);
+  // A remap to a refused source field is refused as a link to it is (ADR-0027); only an orphaned box is remapped, and
+  // it is orphaned only against a loaded source structure.
+  const remap = (targetField: FieldPath, box: AuthoringId, field: FieldPath) =>
+    store.getState().remap(targetField, box, field, refusalAt(source!, field, 'source'));
 
   const expandedKey = `mapping:${mappingId}:expanded`;
   const [expanded, setExpanded] = useState<Expanded>(() => (browserState.read(expandedKey) as Expanded | null | undefined) ?? {});
@@ -241,13 +246,22 @@ function OpenMapping({
       {/* the function editor, with the collapsible inspector on its right; below it when the two do not fit (ADR-0012) */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '0.5rem' }}>
         <div style={{ flex: '1 1 34rem', minWidth: 0 }}>
-          <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} orphaned={orphaned} />
+          <FunctionEditor
+            api={api}
+            store={store}
+            targetField={selectedField}
+            canvasState={canvasState}
+            orphaned={orphaned}
+            onRemap={remap}
+          />
         </div>
         <div style={{ flex: 'none' }}>
           <Button variant="link" isInline aria-expanded={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}>
             {inspectorOpen ? 'Hide inspector' : 'Show inspector'}
           </Button>
-          {inspectorOpen && <Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} />}
+          {inspectorOpen && (
+            <Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} onRemap={remap} />
+          )}
         </div>
       </div>
       <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">
