@@ -160,3 +160,9 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   count); a new `LocationDto` kind updates the union and records maps (spec #104).
 - Worktree-isolated shells refuse compound commands with several git calls, `python3 - <<EOF`
   and heredoc+chmod chains: one simple command per call, files via Write (spec #104).
+- An integration tip that adds a fake-API corpus mapping breaks tests that count `listMappings()`;
+  assert "unchanged by the call", not a corpus size (spec #104).
+- Vitest browser: an HTML5 `dragAndDrop` whose target needs scrolling is lost silently — call
+  `scrollIntoView({block:'end'})` first; React Flow edge-end anchors render only with `onReconnect` (spec #104).
+- `$(…)` capture waits for `tee`'s EOF and hides an unwaited `tee`; test "log complete on return"
+  with stdout to a file and a slow `tee` stub (spec #104).
