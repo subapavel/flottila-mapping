@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import corpusMappingText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
-import { ApiProblem, type ApiClient, type Diagnostic } from '../../api/client';
+import { ApiProblem, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { canvasKey, type BrowserStateStore } from '../browser-state/browser-state';
@@ -732,5 +732,122 @@ describe('editing on the canvas', () => {
 
     await expect.element(box('n1')).toBeVisible();
     await expect.element(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  });
+});
+
+// the prototype's canvas detail (#150): sizes and colours from prototype.css and prototype-round2.css
+describe("the prototype's canvas detail", () => {
+  const editor = page.getByRole('region', { name: 'Function editor' });
+  const strip = editor.getByRole('region', { name: 'Canvas display queue' });
+  /** The box queue the editor puts into the strip, the inspector's view, named apart from the inspector's own. */
+  const resultQueue = strip.getByRole('region', { name: 'Display queue of the result', exact: true });
+  const selectedQueue = strip.getByRole('region', { name: 'Display queue of the selected box', exact: true });
+  const styleOf = (element: Element) => getComputedStyle(element);
+  const headOf = (id: string) => box(id).element().querySelector('.fm-card__head')!;
+
+  /** A run whose trace holds c1's atomic value and f1's one context. */
+  const run: TestResult = {
+    kind: 'output',
+    output: '<Order/>',
+    diagnostics: [],
+    trace: {
+      c1: { kind: 'atomic', type: 'xs:string', value: '-' },
+      f1: { kind: 'queue', contexts: [['A-']], capped: false, slotCount: 1, contextCount: 1 },
+    },
+  };
+
+  test('the palette is 118 px wide, its entries 11 px', async () => {
+    render();
+    await expect.element(page.getByTestId('palette:abs')).toBeVisible();
+
+    expect(page.getByRole('navigation', { name: 'Palette' }).element().getBoundingClientRect().width).toBe(118);
+    expect(styleOf(page.getByTestId('palette:abs').element()).fontSize).toBe('11px');
+  });
+
+  test('a box head is tinted by kind: function, source, constant, UDF and unresolved each differ', async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const kinds: MappingModel = {
+      ...graphMapping,
+      udfs: { shout: { executionKind: 'single', inputs: ['text'], source: 'udf/Shout.java#shout' } },
+      targetFieldMappings: {
+        // a1 into r1 into s1, which with c1 feeds f1, the result: every one is reached, so no head is the muted one (F-31)
+        [ORDER_ID]: {
+          ...target,
+          boxes: {
+            a1: { kind: 'source', field: ORDER_ID },
+            r1: { kind: 'unresolved', name: 'ByExample', origin: 'po', inputs: ['a1'] },
+            s1: { kind: 'udf', udf: 'shout', inputs: ['r1'] },
+            c1: { kind: 'function', fn: 'constant', params: { value: '-' } },
+            f1: { kind: 'function', fn: 'concat', inputs: ['s1', 'c1'] },
+          },
+        },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: kinds }) });
+    for (const id of ['a1', 'c1', 'f1', 's1', 'r1']) await expect.element(box(id)).toBeVisible();
+    for (const id of ['a1', 'c1', 'f1', 's1', 'r1']) await expect.element(box(id)).not.toHaveAttribute('title');
+
+    const backgrounds = ['f1', 'a1', 'c1', 's1', 'r1'].map((id) => styleOf(headOf(id)).backgroundColor);
+    expect(backgrounds[0]).not.toBe(backgrounds[1]);
+    expect(new Set(backgrounds).size).toBe(5);
+    // the card is 11 px, its kind label 9 px
+    expect(styleOf(box('f1').element()).fontSize).toBe('11px');
+    expect(styleOf(box('f1').getByText('fn', { exact: true }).element()).fontSize).toBe('9px');
+  });
+
+  test('the target node is a green rounded pill, "TARGET FIELD" in 9 px above the 11 px bold name', async () => {
+    render();
+    const sink = page.getByTestId(`sink:${ORDER_ID}`);
+    await expect.element(sink).toBeVisible();
+
+    expect(Number.parseFloat(styleOf(sink.element()).borderTopLeftRadius)).toBeGreaterThanOrEqual(12);
+    expect(styleOf(sink.getByText('target field').element()).fontSize).toBe('9px');
+    expect(styleOf(sink.getByTitle(ORDER_ID).element()).fontSize).toBe('11px');
+  });
+
+  test('a box with an error diagnostic has a 2 px red border; a warning leaves it as it is', async () => {
+    const answer: Diagnostic[] = [
+      { severity: 'error', code: 'box-cycle', message: 'a cycle', location: { kind: 'authoring-id', authoringId: 'c1' } },
+      { severity: 'warning', code: 'unreachable-box', message: 'not reached', location: { kind: 'authoring-id', authoringId: 'f1' } },
+    ];
+    render({ api: fakeApiClient({ [DRAFT]: graphMapping }, { compile: { [DRAFT]: answer } }) });
+
+    await expect.poll(() => styleOf(box('c1').element()).borderTopWidth).toBe('2px');
+    expect(styleOf(box('c1').element()).borderTopColor).toBe('rgb(201, 25, 11)');
+    expect(styleOf(box('f1').element()).borderTopWidth).toBe('1px');
+  });
+
+  test("a strip under the canvas shows the result's display queue, and the selected box's once one is selected", async () => {
+    render({ api: fakeApiClient({ [DRAFT]: graphMapping }, { test: { [DRAFT]: run } }) });
+    await page.getByRole('tab', { name: 'Test' }).click();
+    await page.getByRole('button', { name: 'Run test' }).click();
+    await expect.element(page.getByRole('figure', { name: 'Target message' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Editor' }).click();
+
+    await expect.element(resultQueue).toHaveTextContent('Display queueA-');
+    await expect.element(strip.getByText(/^result \(what the target field reads\) f1$/)).toBeVisible();
+    await box('c1').click();
+    await expect.element(selectedQueue).toHaveTextContent('Display queue- xs:string');
+    // the inspector's "Display queue" region is the only one so named
+    await expect.element(page.getByRole('region', { name: 'Display queue', exact: true })).toHaveTextContent('Display queue- xs:string');
+    await expect.element(strip.getByText(/^selected box c1$/)).toBeVisible();
+
+    // under the canvas, the palette beside it, and 130 px high
+    const canvas = page.getByRole('group', { name: /^Canvas of / }).element().getBoundingClientRect();
+    const queue = strip.element().getBoundingClientRect();
+    expect(queue.top).toBeGreaterThanOrEqual(canvas.bottom - 0.5);
+    expect(queue.height).toBe(130);
+  });
+
+  test('without a result or a selected box the strip says so; a field without a mapping has no strip', async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, result: null } } } }) });
+
+    await expect.element(strip).toHaveTextContent('No box selected, and no result.');
+    await expect.element(resultQueue).not.toBeInTheDocument();
+
+    await page.getByRole('button', { name: 'Host: open Note' }).click();
+    await expect.element(page.getByTestId(`canvas:${NOTE}`)).toBeVisible();
+    await expect.element(strip).not.toBeInTheDocument();
   });
 });

@@ -10,10 +10,13 @@ export interface LastTrace {
   stale: boolean;
 }
 
-/** The display queue of a box (GLOSSARY): the queue or value it gave in the last test run. */
-export function BoxQueue({ id, last }: { id: AuthoringId; last: LastTrace }) {
+/**
+ * The display queue of a box (GLOSSARY): the queue or value it gave in the last test run. `label` names the region,
+ * "Display queue" by default; a second view of a queue on the page names itself apart.
+ */
+export function BoxQueue({ id, last, label = 'Display queue' }: { id: AuthoringId; last: LastTrace; label?: string }) {
   return (
-    <section aria-label="Display queue" className="fm-queue">
+    <section aria-label={label} className="fm-queue">
       <h4>Display queue</h4>
       <Traced last={last} id={id} />
     </section>

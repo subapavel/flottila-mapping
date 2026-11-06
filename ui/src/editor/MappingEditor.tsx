@@ -11,6 +11,7 @@ import { canvasKey, type BrowserStateStore } from './browser-state/browser-state
 import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { EditorLayout } from './EditorLayout';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
+import { BoxQueue } from './inspector/DisplayQueue';
 import { Inspector } from './inspector/Inspector';
 import { ModelJson } from './model-json/ModelJson';
 import { RefusedMapping } from './RefusedMapping';
@@ -337,7 +338,15 @@ function OpenMapping({
             />
           )}
           functionEditor={
-            <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} orphaned={orphaned} onRemap={remap} />
+            <FunctionEditor
+              api={api}
+              store={store}
+              targetField={selectedField}
+              canvasState={canvasState}
+              orphaned={orphaned}
+              onRemap={remap}
+              boxQueue={(id, last, label) => <BoxQueue id={id} last={last} label={label} />}
+            />
           }
           inspector={<Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} onRemap={remap} />}
         />

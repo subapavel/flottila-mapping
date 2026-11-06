@@ -132,7 +132,7 @@ export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
  * input slot, a param, the Orphaned mark), a source card's context select and a constant's value. They are estimates,
  * not sizes the CSS sets: FunctionEditor.browser.test.tsx checks rendered cards against them.
  */
-export const CARD_HEIGHT = { base: 50, marks: 22, row: 22, context: 26, value: 22, slack: 8 } as const;
+export const CARD_HEIGHT = { base: 40, marks: 16, row: 22, context: 24, value: 18, slack: 4 } as const;
 
 /**
  * Each box's card height from its content, for the layout: the head and id, one row per input slot and per param, a
