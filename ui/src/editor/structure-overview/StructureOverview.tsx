@@ -239,7 +239,7 @@ function useTree(
   const shown = filter === 'all' ? NO_STATUSES : statuses;
   const rows = useMemo(() => {
     if (!structure) return [];
-    return filter === 'all' ? treeRows(structure, new Set(expanded ?? [rootPath]), side) : filteredRows(structure, shown, filter);
+    return filter === 'all' ? treeRows(structure, new Set(expanded ?? [rootPath]), side) : filteredRows(structure, shown, filter, side);
   }, [structure, expanded, rootPath, side, shown, filter]);
   // Same-step siblings share a field path (ADR-0008), so the second and later rows of a path get `#n`; an XML name
   // holds no `#`, and a JSON object has no two members of one name.

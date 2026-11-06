@@ -1,4 +1,5 @@
 import sameStepText from '../../../../corpus/mappings/same-step-source-box.mapping.json?raw';
+import sameStepTargetText from '../../../../corpus/mappings/same-step-target-field.mapping.json?raw';
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -238,6 +239,26 @@ describe('refused fields (ADR-0027, stories 43 and 44)', () => {
     await expect.element(alert(`The target field /Doc/Head/Ref is refused: ambiguous-field-path, declared at ${FILE}:19:56.`)).toBeVisible();
     await expect.element(targetRow('/Doc/Head/Ref').last()).not.toHaveTextContent('←');
     await expect.element(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  test('a refused target row keeps its mark under a status filter', async () => {
+    // corpus/mappings/same-step-target-field: T2 writes the refused /Doc/Note, which compile reports at T2
+    const TARGET_FIELD = 'mappings/same-step-target-field';
+    const atT2 = {
+      severity: 'error' as const,
+      code: 'ambiguous-field-path',
+      message: `the field path /Doc/Note is ambiguous: ${FILE} 14:65`,
+      location: { kind: 'authoring-id' as const, authoringId: 'T2' },
+    };
+    const api = fakeApiClient({ [TARGET_FIELD]: JSON.parse(sameStepTargetText) as MappingModel }, { compile: { [TARGET_FIELD]: [atT2] } });
+    render(TARGET_FIELD, api, opened);
+    await expect.element(page.getByRole('tab', { name: 'Diagnostics (1)' })).toBeVisible();
+
+    await page.getByRole('group', { name: 'Status filter' }).getByRole('button', { name: 'Error', exact: true }).click();
+
+    await expect.element(targetRow('/Doc/Id')).not.toBeInTheDocument();
+    await expect.element(refusedMark('target', '/Doc/Note').first()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:14:65`);
+    await expect.element(refusedMark('target', '/Doc/Note').last()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:14:65`);
   });
 
   test('a model that already uses a refused field opens, and shows its compile diagnostic', async () => {

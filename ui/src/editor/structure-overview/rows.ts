@@ -28,6 +28,13 @@ const refusing = (field: FieldDto, side: Side): FieldRefusal | undefined =>
   side === 'target' || field.refusal?.side !== 'target' ? field.refusal : undefined;
 
 /**
+ * The refusal of a row of `field` on `side` whose parent row has the refusal `above`: the one nearest the root, so the
+ * parent's when it has one, else the field's own when it refuses the field on `side`.
+ */
+export const rowRefusal = (field: FieldDto, side: Side, above: FieldRefusal | undefined): FieldRefusal | undefined =>
+  above ?? refusing(field, side);
+
+/**
  * The refusal that refuses the field at `path` on `side`, as compile reports it (ADR-0008 Shape, ADR-0027): the
  * refusal of the refused field nearest the root on the path, counting one that holds in a target only on the target
  * side only. The wire gives each field its own refusal, since a type's fields are shared (ADR-0015). `undefined` when
@@ -53,7 +60,7 @@ export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<strin
   const rows: TreeRow[] = [];
   const visit = (field: FieldDto, path: string, depth: number, above: FieldRefusal | undefined) => {
     const open = field.type !== undefined && expanded.has(path);
-    const refusal = above ?? refusing(field, side);
+    const refusal = rowRefusal(field, side, above);
     rows.push({ path, depth, field, expandable: field.type !== undefined, expanded: open, ...(refusal && { refusal }) });
     if (!open) return;
     for (const child of structure.types[field.type!] ?? []) visit(child, `${path}/${child.step}`, depth + 1, refusal);
