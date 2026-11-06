@@ -103,9 +103,9 @@ then stop with `IDLE_NO_FRONTIER`, see §5):
    `gh pr create --base main --head spec/<spec>-<slug>`, the body closing the spec. Wait for CI in
    the foreground (`gh pr checks --watch`, with a timeout). Red CI is a fix packet, not a retry.
 5. **Merge** — `rm -f .logs/.batch-in-review && gh pr merge --merge` (never squash, never
-   rebase, never force). Remove every worktree whose branch is merged into `main`
-   (`git worktree remove <path>` for each one `git branch --merged main` names), then
-   `git worktree prune`.
+   rebase, never force). Run `scripts/clean-worktrees.sh`: it removes every
+   merged agent worktree, forces only one whose index and files are already in `origin/main`
+   history, keeps the rest with a reason, then prunes.
 6. Suggest `/retro` to the owner in one line.
 
 ## 4. Waiting and turns
