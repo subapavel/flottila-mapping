@@ -8,6 +8,7 @@ import { newAuthoringId } from '../model/authoring-id';
 import { describeRefusal } from '../model/command';
 import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
 import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
+import { EditorLayout } from './EditorLayout';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
 import { locate } from './function-editor/graph';
 import { Inspector } from './inspector/Inspector';
@@ -177,7 +178,6 @@ function OpenMapping({
     onSelectField?.(where.field);
     store.getState().select(where.box);
   };
-  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [drawerTab, setDrawerTab] = useState<string | number>('test');
   const [canvasState] = useState(() => ({
     read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
@@ -233,38 +233,26 @@ function OpenMapping({
       )}
       {refusal && <Alert variant="warning" isInline title={describeRefusal(refusal)} />}
       <SaveConflict store={store} />
-      <StructureOverview
-        mappingId={mappingId}
-        api={api}
-        store={store}
-        expanded={expanded}
-        onExpandedChange={changeExpanded}
-        selectedField={selectedField}
-        onSelectField={onSelectField}
-        statusFilter={statusFilter}
-        onStatusFilterChange={changeStatusFilter}
-      />
-      {/* the function editor, with the collapsible inspector on its right; below it when the two do not fit (ADR-0012) */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '0.5rem' }}>
-        <div style={{ flex: '1 1 34rem', minWidth: 0 }}>
-          <FunctionEditor
+      <EditorLayout
+        browserState={browserState}
+        overview={
+          <StructureOverview
+            mappingId={mappingId}
             api={api}
             store={store}
-            targetField={selectedField}
-            canvasState={canvasState}
-            orphaned={orphaned}
-            onRemap={remap}
+            expanded={expanded}
+            onExpandedChange={changeExpanded}
+            selectedField={selectedField}
+            onSelectField={onSelectField}
+            statusFilter={statusFilter}
+            onStatusFilterChange={changeStatusFilter}
           />
-        </div>
-        <div style={{ flex: 'none' }}>
-          <Button variant="link" isInline aria-expanded={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)}>
-            {inspectorOpen ? 'Hide inspector' : 'Show inspector'}
-          </Button>
-          {inspectorOpen && (
-            <Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} onRemap={remap} />
-          )}
-        </div>
-      </div>
+        }
+        functionEditor={
+          <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} orphaned={orphaned} onRemap={remap} />
+        }
+        inspector={<Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} onRemap={remap} />}
+      />
       <Tabs activeKey={drawerTab} onSelect={(_event, key) => setDrawerTab(key)} aria-label="Test and diagnostics">
         <Tab eventKey="test" title={<TabTitleText>Test</TabTitleText>}>
           {/* a run that compile refused shows its diagnostics in the Diagnostics panel */}

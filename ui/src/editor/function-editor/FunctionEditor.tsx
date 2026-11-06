@@ -92,7 +92,8 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   };
 
   return (
-    <section aria-label="Function editor">
+    // the canvas fills the height the editor gives it, and never goes below its basis (ADR-0012, "splitter")
+    <section aria-label="Function editor" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {targetField === null ? (
         <p>Select a target field to see its function graph.</p>
       ) : catalogue.isPending ? (
@@ -101,7 +102,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
         <p role="alert">{catalogue.error.message}</p>
       ) : (
         // the canvas goes below the palette when the two do not fit side by side
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ flex: '1 0 auto', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           <PaletteView catalogue={catalogue.data} />
           <div
             ref={canvas}
@@ -110,7 +111,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
             aria-label={`Canvas of ${stepName(targetField)}`}
             tabIndex={0}
             onKeyDown={(event) => onKeyDown(event, targetField)}
-            style={{ flex: '1 1 24rem', minWidth: 0, position: 'relative' }}
+            style={{ flex: '1 1 24rem', minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
             // only a palette entry drops here
             onDragOver={(event) => {
               if (event.dataTransfer.types.includes(FUNCTION_DRAG)) event.preventDefault();
@@ -257,22 +258,24 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
 
   return (
     <>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          setPositions(arrange(mapping));
-          canvasState.write(mapping.id, { viewport: canvasState.read(mapping.id)?.viewport });
-        }}
-      >
-        Arrange
-      </Button>{' '}
-      <Button variant="secondary" isDisabled={chosen.length === 0} onClick={() => store.getState().copy(targetField)}>
-        Copy
-      </Button>{' '}
-      <Button variant="secondary" isDisabled={!canPaste} onClick={() => store.getState().paste(targetField)}>
-        Paste
-      </Button>
-      <div style={{ height: '24rem' }}>
+      <div>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setPositions(arrange(mapping));
+            canvasState.write(mapping.id, { viewport: canvasState.read(mapping.id)?.viewport });
+          }}
+        >
+          Arrange
+        </Button>{' '}
+        <Button variant="secondary" isDisabled={chosen.length === 0} onClick={() => store.getState().copy(targetField)}>
+          Copy
+        </Button>{' '}
+        <Button variant="secondary" isDisabled={!canPaste} onClick={() => store.getState().paste(targetField)}>
+          Paste
+        </Button>
+      </div>
+      <div style={{ flex: '1 0 24rem' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

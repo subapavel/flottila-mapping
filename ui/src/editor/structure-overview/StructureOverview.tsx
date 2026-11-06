@@ -27,6 +27,7 @@ export type Expanded = Partial<Record<Side, string[]>>;
 
 /** Every row has this height, so the virtualiser and the link gutter place rows by index alone. */
 const ROW_HEIGHT = 28;
+/** The trees fill the height the overview is given, from this basis down to a few rows (ADR-0012, "splitter"). */
 const TREE_HEIGHT = 420;
 const GUTTER_WIDTH = 120;
 
@@ -96,6 +97,8 @@ export function StructureOverview({
     [links, source.anchors, target.anchors],
   );
   const gutter = linkGutter(anchored, source.viewport, target.viewport, ROW_HEIGHT, selectedField);
+  // the trees share one height; a tree still loading has none yet
+  const gutterHeight = Math.max(source.viewport.height, target.viewport.height);
 
   const toggle = (side: Side, rootPath: string, path: string) => {
     const open = new Set(expanded[side] ?? [rootPath]);
@@ -116,7 +119,7 @@ export function StructureOverview({
   };
 
   return (
-    <div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <ToggleGroup isCompact aria-label="Status filter">
           {STATUS_FILTERS.map((value) => (
@@ -129,7 +132,7 @@ export function StructureOverview({
           ))}
         </ToggleGroup>
       </div>
-      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flex: `1 1 ${TREE_HEIGHT}px`, minHeight: 4 * ROW_HEIGHT }}>
         <TreePane
           side="source"
           tree={source}
@@ -144,7 +147,7 @@ export function StructureOverview({
             onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
           })}
         />
-        <LinkGutter gutter={gutter} />
+        <LinkGutter gutter={gutter} height={gutterHeight} />
         <TreePane
           side="target"
           tree={target}
@@ -287,7 +290,7 @@ interface TreePaneProps {
 function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
   const { query, rootPath, rows, scrollRef, virtualizer } = tree;
   const label = side === 'source' ? 'Source structure' : 'Target structure';
-  const pane = { flex: 1, minWidth: 0, height: TREE_HEIGHT };
+  const pane = { flex: 1, minWidth: 0 };
 
   if (query.isPending) return <p style={pane}>Loading the {side} structure…</p>;
   if (query.isError) {
@@ -365,7 +368,7 @@ function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
  * count when several source-field boxes stand behind it, a ctx mark at its source end when one of them has a context
  * that is not the parent, and per side the ↑n and ↓n of the ends scrolled away.
  */
-function LinkGutter({ gutter }: { gutter: Gutter }) {
+function LinkGutter({ gutter, height }: { gutter: Gutter; height: number }) {
   const mid = GUTTER_WIDTH / 2;
   const count = (side: Side, edge: 'above' | 'below') => {
     const n = gutter.counts[side][edge];
@@ -374,7 +377,7 @@ function LinkGutter({ gutter }: { gutter: Gutter }) {
       <text
         data-testid={`link-count:${side}:${edge}`}
         x={side === 'source' ? 2 : GUTTER_WIDTH - 2}
-        y={edge === 'above' ? 10 : TREE_HEIGHT - 2}
+        y={edge === 'above' ? 10 : height - 2}
         textAnchor={side === 'source' ? 'start' : 'end'}
         fontSize={10}
       >
@@ -384,7 +387,7 @@ function LinkGutter({ gutter }: { gutter: Gutter }) {
     );
   };
   return (
-    <svg aria-label="Field links" width={GUTTER_WIDTH} height={TREE_HEIGHT} style={{ flex: 'none' }}>
+    <svg aria-label="Field links" width={GUTTER_WIDTH} height={height} style={{ flex: 'none' }}>
       {gutter.lines.map((l) => {
         const key = `${l.source}->${l.target}`;
         return (

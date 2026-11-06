@@ -13,6 +13,15 @@ export function canvasKey(mappingId: string, targetFieldMappingId: string): stri
   return `mapping:${mappingId}:canvas:${targetFieldMappingId}`;
 }
 
+/**
+ * The key of a splitter's ratio and collapsed pane, kept per user and so the same for every mapping (ADR-0013):
+ * `halves` between the structure overview and the function editor, `inspector` between the function editor and the
+ * inspector, whose collapsed end pane is the closed inspector.
+ */
+export function splitKey(splitter: 'halves' | 'inspector'): string {
+  return `user:split:${splitter}`;
+}
+
 /** The default `BrowserStateStore`, over `localStorage` or another `Storage`, with every call wrapped. */
 export function storageBrowserState(storage: Pick<Storage, 'getItem' | 'setItem'>): BrowserStateStore {
   return {
