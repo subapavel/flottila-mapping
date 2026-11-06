@@ -40,7 +40,7 @@ test('@stack GATE 3: a test run of the unsaved working copy, and the display que
   expect(readFileSync(join(stackWorkspace, `${mapping}.mapping.json`)).equals(readFileSync(corpus(`${mapping}.mapping.json`)))).toBe(true);
 
   // the function box: one context, with createIf's SUPPRESS of line 2 and the kept SUPPRESS of line 3
-  const boxQueue = page.getByRole('region', { name: 'Display queue' });
+  const boxQueue = page.getByRole('region', { name: 'Display queue', exact: true });
   await expect(boxQueue.getByRole('list', { name: 'Contexts' }).getByRole('listitem')).toHaveText(['""SUPPRESSSUPPRESS""']);
 
   // the target field Item: its parent slot, the root, creates two of four slots and suppresses two
