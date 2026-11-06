@@ -170,3 +170,6 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - The scratchpad is shared by parallel agents: prefix scratch files with the ticket number (spec #104).
 - Fake-API component tests: the compile scheduled on open (500 ms) can land after a quick run and replace
   its diagnostics; `expect.poll` for it or give the scenario a matching compile fixture (spec #104).
+- `npm exec --prefix ui -- vitest` skips `ui/vitest*.config.ts`; use `npm --prefix ui run test[:browser] -- <file>` (spec #104).
+- Vitest browser viewport defaults to 414 px; a tree-row-to-box drag needs `page.viewport(1280, 1400)` (spec #104).
+- The ratchet holds `ui/src/model` and `ui/src/editor/store` at 100 %: a constant-only file needs a test importing it (spec #104).

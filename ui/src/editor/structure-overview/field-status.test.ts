@@ -7,6 +7,7 @@ import {
   filteredLinks,
   filteredRows,
   isStatusFilter,
+  orphanedBoxes,
   orphanedMappings,
   type FieldStatus,
 } from './field-status';
@@ -209,6 +210,30 @@ describe('the orphaned target field mappings (GLOSSARY, spec #104 story 46)', ()
 
   test('are none for a model without target field mappings', () => {
     expect(orphanedMappings({} as MappingModel, structure)).toEqual([]);
+  });
+});
+
+describe('the orphaned source-field boxes (GLOSSARY: Orphaned reference, spec #104 story 45)', () => {
+  test('are the source-field boxes of every target field mapping that read a field the source structure lacks', () => {
+    const working = model({
+      [ORDER_ID]: {
+        id: 't1',
+        result: 'f1',
+        boxes: {
+          f1: { kind: 'function', fn: 'concat', inputs: ['a1', 'a2'] },
+          a1: { kind: 'source', field: DEEP_SKU },
+          a2: { kind: 'source', field: `${ORDER}/Gone` },
+        },
+      },
+      [`${ORDER}/Missing`]: copy('t2', `${SKU}/Below`),
+    });
+
+    expect(orphanedBoxes(working, structure)).toEqual(new Set(['a2', 't2s']));
+  });
+
+  test('are none while the source structure is not loaded, and none for a model without target field mappings', () => {
+    expect(orphanedBoxes(model({ [ORDER_ID]: copy('t1', `${ORDER}/Gone`) }), undefined)).toEqual(new Set());
+    expect(orphanedBoxes({} as MappingModel, structure)).toEqual(new Set());
   });
 });
 
