@@ -119,6 +119,7 @@ function MappingList({ api, onOpen }: { api: ApiClient; onOpen: (id: string) => 
             <DataListItemRow>
               <DataListItemCells
                 dataListCells={[
+                  ...(m.name === m.id ? [] : [<DataListCell key="name">{m.name}</DataListCell>]),
                   <DataListCell key="id">
                     <Button id={`fm-mapping-${m.id}`} variant="link" isInline onClick={() => onOpen(m.id)}>
                       {m.id}
@@ -139,7 +140,7 @@ function MappingList({ api, onOpen }: { api: ApiClient; onOpen: (id: string) => 
         <h1 className="fm-host__title">Flottila Mapping</h1>
       </header>
       <main className="fm-host__main">
-        <h2>Mappings</h2>
+        <h2>{mappings.data ? `Mappings (${mappings.data.length})` : 'Mappings'}</h2>
         {list()}
         {creating ? (
           <NewMappingForm api={api} onCreated={onOpen} onCancel={() => setCreating(false)} />
