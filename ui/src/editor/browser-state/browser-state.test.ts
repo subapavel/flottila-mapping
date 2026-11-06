@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { storageBrowserState } from './browser-state';
+import { canvasKey, storageBrowserState } from './browser-state';
 
 /** A Storage port over a Map; `failing` makes every call throw, as a blocked or full localStorage does. */
 function fakeStorage(failing = false) {
@@ -41,5 +41,11 @@ describe('the browser state store over a Storage', () => {
 
     expect(() => state.write('k', 1)).not.toThrow();
     expect(state.read('k')).toBeUndefined();
+  });
+});
+
+describe('the keys of the browser state (ADR-0013, "Browser state")', () => {
+  test('a target field mapping keeps its canvas under its mapping and its own authoring id', () => {
+    expect(canvasKey('mappings/order', 't1')).toBe('mapping:mappings/order:canvas:t1');
   });
 });

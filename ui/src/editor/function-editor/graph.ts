@@ -72,7 +72,7 @@ export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | und
 }
 
 /** The local name of a field path's last step, `@` before an attribute's. */
-function stepName(path: FieldPath): string {
+export function stepName(path: FieldPath): string {
   const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)![0];
   return last.replace(/^(@?)Q\{[^}]*\}/, '$1');
 }

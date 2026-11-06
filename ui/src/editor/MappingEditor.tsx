@@ -3,9 +3,11 @@ import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tansta
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../api/client';
-import type { MappingModel } from '../generated/mapping-model';
+import type { AuthoringId, FieldPath, MappingModel } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
-import type { BrowserStateStore } from './browser-state/browser-state';
+import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
+import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
+import { locate } from './function-editor/graph';
 import { createWorkingCopyStore, selectUnsaved } from './store/working-copy';
 import { StructureOverview, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
@@ -17,6 +19,10 @@ export interface MappingEditorProps {
   api: ApiClient;
   /** The port for layout and view state. */
   browserState: BrowserStateStore;
+  /** The selected target field, controlled by the host (ADR-0013); the function editor shows its graph. */
+  selectedField?: FieldPath | null;
+  /** Asks the host to select a target field. */
+  onSelectField?: (field: FieldPath) => void;
 }
 
 /** The mapping editor (ADR-0013): router-free, over injected ports, with its own query client. */
@@ -35,7 +41,8 @@ export function MappingEditor(props: MappingEditorProps) {
   );
 }
 
-function Editor({ mappingId, api, browserState }: MappingEditorProps) {
+function Editor(props: MappingEditorProps) {
+  const { mappingId, api } = props;
   const mapping = useQuery({ queryKey: ['mapping', mappingId], queryFn: () => api.getMapping(mappingId) });
 
   if (mapping.isPending) return <p>Opening {mappingId}…</p>;
@@ -47,10 +54,17 @@ function Editor({ mappingId, api, browserState }: MappingEditorProps) {
       </Alert>
     );
   }
-  return <OpenMapping key={mappingId} mappingId={mappingId} api={api} browserState={browserState} loaded={mapping.data} />;
+  return <OpenMapping key={mappingId} {...props} loaded={mapping.data} />;
 }
 
-function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProps & { loaded: MappingModel }) {
+function OpenMapping({
+  mappingId,
+  api,
+  browserState,
+  selectedField = null,
+  onSelectField,
+  loaded,
+}: MappingEditorProps & { loaded: MappingModel }) {
   const [store] = useState(() =>
     createWorkingCopyStore(loaded, { newId: () => newAuthoringId(), save: (model) => api.saveMapping(mappingId, model) }),
   );
@@ -65,6 +79,19 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
     browserState.write(expandedKey, next);
   };
 
+  const [selectedBox, setSelectedBox] = useState<AuthoringId | null>(null);
+  /** Selects what an authoring id names: its target field, and the box when it is a box's id. */
+  const select = (id: AuthoringId) => {
+    const where = locate(store.getState().workingCopy, id);
+    if (!where) return;
+    onSelectField?.(where.field);
+    setSelectedBox(where.box);
+  };
+  const [canvasState] = useState(() => ({
+    read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
+    write: (tfm: AuthoringId, state: CanvasState) => browserState.write(canvasKey(mappingId, tfm), state),
+  }));
+
   return (
     <div>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -77,9 +104,14 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
         <Alert variant="danger" isInline title={failure.title}>
           <p>{failure.detail}</p>
           <ul aria-label="Save diagnostics">
-            {failure.diagnostics.map((d, i) => (
+            {failure.diagnostics.map(({ severity, code, message, location }, i) => (
               <li key={i}>
-                {d.severity} <code>{d.code}</code>: {d.message}
+                {severity} <code>{code}</code>: {message}
+                {location.kind === 'authoring-id' && (
+                  <Button variant="link" isInline onClick={() => select(location.authoringId)}>
+                    Show {location.authoringId}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -91,6 +123,14 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
         store={store}
         expanded={expanded}
         onExpandedChange={changeExpanded}
+      />
+      <FunctionEditor
+        api={api}
+        store={store}
+        targetField={selectedField}
+        selectedBox={selectedBox}
+        onSelectBox={setSelectedBox}
+        canvasState={canvasState}
       />
       <TestPanel mappingId={mappingId} api={api} store={store} />
     </div>
