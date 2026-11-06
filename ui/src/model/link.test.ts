@@ -102,6 +102,39 @@ describe('the link command', () => {
     });
   });
 
+  describe('refuses a refused field (ADR-0027) with its refusal, and leaves the model as it was', () => {
+    const ambiguous = { code: 'ambiguous-field-path', side: 'both' as const, file: 'order.xsd', line: 14, column: 56 };
+    const abstract = { code: 'abstract-target-element', side: 'target' as const, file: 'types.xsd', line: 3, column: 40 };
+    const ids = { boxId: 'a1', mappingId: 't1' };
+
+    test('a refused source field', () => {
+      const before = structuredClone(partlyMapped);
+
+      const result = link(partlyMapped, { sourceField: NOTE, targetField: ORDER_ID, ...ids, sourceRefusal: ambiguous });
+
+      expect(result).toEqual({ kind: 'refused', code: 'refused-field', side: 'source', field: NOTE, refusal: ambiguous });
+      expect(partlyMapped).toEqual(before);
+    });
+
+    test('a refused target field', () => {
+      const result = link(partlyMapped, { sourceField: NOTE, targetField: ORDER_ID, ...ids, targetRefusal: abstract });
+
+      expect(result).toEqual({ kind: 'refused', code: 'refused-field', side: 'target', field: ORDER_ID, refusal: abstract });
+    });
+
+    test('both refused: the source field is named', () => {
+      const result = link(partlyMapped, {
+        sourceField: NOTE,
+        targetField: ORDER_ID,
+        ...ids,
+        sourceRefusal: ambiguous,
+        targetRefusal: abstract,
+      });
+
+      expect(result).toMatchObject({ kind: 'refused', side: 'source', field: NOTE });
+    });
+  });
+
   test('refuses a cross-target-field reference: a box id that names a box of another target field mapping', () => {
     const result = link(partlyMapped, { sourceField: ORDER_ID, targetField: QUANTITY, boxId: 'n1', mappingId: 'x' });
 

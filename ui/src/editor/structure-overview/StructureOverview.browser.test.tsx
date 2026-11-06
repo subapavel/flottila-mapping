@@ -1,3 +1,5 @@
+import sameStepText from '../../../../corpus/mappings/same-step-source-box.mapping.json?raw';
+import sameStepTargetText from '../../../../corpus/mappings/same-step-target-field.mapping.json?raw';
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -194,6 +196,85 @@ describe('the link gutter', () => {
     await expect.element(page.getByTestId(`link-fx:${first}->${first}`)).toHaveTextContent('fx 2');
     await expect.element(fieldLink(leaves[1]!, leaves[1]!)).toBeInTheDocument();
     await expect.element(page.getByTestId(`link-fx:${leaves[1]}->${leaves[1]}`)).not.toBeInTheDocument();
+  });
+});
+
+describe('refused fields (ADR-0027, stories 43 and 44)', () => {
+  // corpus/mappings/same-step-source-box: /Doc/Id is mapped from the refused /Doc/Note (#92)
+  const SAME_STEP = 'mappings/same-step-source-box';
+  const sameStep = JSON.parse(sameStepText) as MappingModel;
+  const FILE = '../structures/refused/same-step.xsd';
+  const opened: BrowserStateStore = (() => {
+    const expanded = ['/Doc', '/Doc/Head'];
+    const values = new Map<string, unknown>([[`mapping:${SAME_STEP}:expanded`, { source: expanded, target: expanded }]]);
+    return { read: (key) => values.get(key), write: (key, value) => void values.set(key, value) };
+  })();
+  const refusedMark = (side: 'source' | 'target', path: string) => page.getByTestId(`refused:${side}:${path}`);
+  /** The heading of the alert titled `title`, after the screen-reader prefix PatternFly puts before it. */
+  const alert = (title: string) => page.getByRole('heading', { name: new RegExp(`${title.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}$`) });
+
+  test('a refused row is marked, with its reason and the declaration’s file, line and column on hover', async () => {
+    render(SAME_STEP, fakeApiClient({ [SAME_STEP]: sameStep }), opened);
+
+    for (const side of ['source', 'target'] as const) {
+      await expect.element(refusedMark(side, '/Doc/Note').first()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:14:65`);
+      await expect.element(refusedMark(side, '/Doc/Note').last()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:14:65`);
+      await expect.element(refusedMark(side, '/Doc/Head/Ref').first()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:19:56`);
+      await expect.element(refusedMark(side, '/Doc/Id')).not.toBeInTheDocument();
+      await expect.element(refusedMark(side, '/Doc/Head')).not.toBeInTheDocument();
+    }
+  });
+
+  test('a drop from or onto a refused field is refused with its reason, and the model stays as it was', async () => {
+    render(SAME_STEP, fakeApiClient({ [SAME_STEP]: sameStep }), opened);
+    await expect.element(targetRow('/Doc/Code')).toBeVisible();
+
+    await userEvent.dragAndDrop(sourceRow('/Doc/Note').first(), targetRow('/Doc/Code'));
+
+    await expect.element(alert(`The source field /Doc/Note is refused: ambiguous-field-path, declared at ${FILE}:14:65.`)).toBeVisible();
+    await expect.element(targetRow('/Doc/Code')).not.toHaveTextContent('←');
+
+    await userEvent.dragAndDrop(sourceRow('/Doc/Code'), targetRow('/Doc/Head/Ref').last());
+
+    await expect.element(alert(`The target field /Doc/Head/Ref is refused: ambiguous-field-path, declared at ${FILE}:19:56.`)).toBeVisible();
+    await expect.element(targetRow('/Doc/Head/Ref').last()).not.toHaveTextContent('←');
+    await expect.element(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  test('a refused target row keeps its mark under a status filter', async () => {
+    // corpus/mappings/same-step-target-field: T2 writes the refused /Doc/Note, which compile reports at T2
+    const TARGET_FIELD = 'mappings/same-step-target-field';
+    const atT2 = {
+      severity: 'error' as const,
+      code: 'ambiguous-field-path',
+      message: `the field path /Doc/Note is ambiguous: ${FILE} 14:65`,
+      location: { kind: 'authoring-id' as const, authoringId: 'T2' },
+    };
+    const api = fakeApiClient({ [TARGET_FIELD]: JSON.parse(sameStepTargetText) as MappingModel }, { compile: { [TARGET_FIELD]: [atT2] } });
+    render(TARGET_FIELD, api, opened);
+    await expect.element(page.getByRole('tab', { name: 'Diagnostics (1)' })).toBeVisible();
+
+    await page.getByRole('group', { name: 'Status filter' }).getByRole('button', { name: 'Error', exact: true }).click();
+
+    await expect.element(targetRow('/Doc/Id')).not.toBeInTheDocument();
+    await expect.element(refusedMark('target', '/Doc/Note').first()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:14:65`);
+    await expect.element(refusedMark('target', '/Doc/Note').last()).toHaveAttribute('title', `Refused: ambiguous-field-path, declared at ${FILE}:14:65`);
+  });
+
+  test('a model that already uses a refused field opens, and shows its compile diagnostic', async () => {
+    const ambiguous = {
+      severity: 'error' as const,
+      code: 'ambiguous-field-path',
+      message: `the field path /Doc/Note is ambiguous: ${FILE} 14:65`,
+      location: { kind: 'authoring-id' as const, authoringId: 'S1' },
+    };
+    render(SAME_STEP, fakeApiClient({ [SAME_STEP]: sameStep }, { compile: { [SAME_STEP]: [ambiguous] } }), opened);
+
+    await expect.element(targetRow('/Doc/Id')).toMatchTextContent(/← Note$/);
+    await page.getByRole('tab', { name: 'Diagnostics (1)' }).click();
+    await expect
+      .element(page.getByRole('list', { name: 'Working copy diagnostics' }))
+      .toHaveTextContent(`error ambiguous-field-path S1: ${ambiguous.message}`);
   });
 });
 

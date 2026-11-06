@@ -21,6 +21,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param valueType the XPath name of a leaf field's value type, for example {@code xs:date}
  * @param nillable whether the field may carry {@code xsi:nil}
  * @param type the id of the structure type with a structure field's child fields
+ * @param refusal the field's own refusal, for a refused field (ADR-0027, #116); a type's fields are
+ *     shared by every field of that type, so a field below a refused field does not carry its
+ *     ancestor's here: the editor's tree derives the refusal nearest the root
  */
 public record FieldDto(
     @Schema(
@@ -34,7 +37,8 @@ public record FieldDto(
     @Schema(nullable = false) Optional<Long> max,
     @Schema(nullable = false) Optional<String> valueType,
     @Schema(required = true) boolean nillable,
-    @Schema(nullable = false) Optional<String> type) {
+    @Schema(nullable = false) Optional<String> type,
+    @Schema(nullable = false) Optional<RefusalDto> refusal) {
 
   static FieldDto of(Field field) {
     FieldPath.Step step = field.step();
@@ -48,6 +52,7 @@ public record FieldDto(
         Optional.of(field.occurrence().max()).filter(max -> max != Occurrence.UNBOUNDED),
         field.valueType().map(ValueType::typeName),
         field.nillable(),
-        field.type());
+        field.type(),
+        field.refusal().map(RefusalDto::of));
   }
 }

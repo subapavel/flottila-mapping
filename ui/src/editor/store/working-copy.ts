@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type FunctionCatalogue, type StoredMapping } from '../../api/client';
 import type { AuthoringId, Box, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
-import type { CommandResult, Refusal } from '../../model/command';
+import { refusalOf, type CommandResult, type FieldRefusal, type Refusal } from '../../model/command';
 import { deleteBox } from '../../model/delete-box';
 import { insertBox } from '../../model/insert-box';
 import { link } from '../../model/link';
@@ -55,8 +55,11 @@ export interface WorkingCopyState {
   diagnostics: Diagnostic[];
   /** The title of the transport error the last compile failed with; `null` once a compile answers. */
   compileFailure: string | null;
-  /** Links a source field to a target field (the link command in `model/`). */
-  link: (sourceField: FieldPath, targetField: FieldPath) => void;
+  /**
+   * Links a source field to a target field (the link command in `model/`); `refusals` are the refusals the two fields
+   * carry in their trees, which refuse the link (ADR-0027).
+   */
+  link: (sourceField: FieldPath, targetField: FieldPath, refusals?: { source?: FieldRefusal; target?: FieldRefusal }) => void;
   /** Inserts a box of standard function `fn` into the target field's mapping, with fresh ids. */
   insertBox: (targetField: FieldPath, fn: string) => void;
   /** Wires box `source`'s output into input slot `slot` of box `target`. */
@@ -135,7 +138,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
      */
     const apply = (result: CommandResult): boolean => {
       if (result.kind === 'refused') {
-        set({ refusal: { code: result.code, id: result.id } });
+        set({ refusal: refusalOf(result) });
         return false;
       }
       set((state) =>
@@ -165,8 +168,17 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       diagnostics: [],
       compileFailure: null,
 
-      link: (sourceField, targetField) =>
-        void apply(link(get().workingCopy, { sourceField, targetField, boxId: ports.newId(), mappingId: ports.newId() })),
+      link: (sourceField, targetField, refusals) =>
+        void apply(
+          link(get().workingCopy, {
+            sourceField,
+            targetField,
+            boxId: ports.newId(),
+            mappingId: ports.newId(),
+            sourceRefusal: refusals?.source,
+            targetRefusal: refusals?.target,
+          }),
+        ),
 
       insertBox: (targetField, fn) =>
         void apply(

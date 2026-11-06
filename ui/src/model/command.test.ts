@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { describeRefusal, type Refusal } from './command';
+import { describeRefusal, refusalOf, type BoxRefusal } from './command';
 
 describe('why a command was refused, in words', () => {
-  test.each<[Refusal['code'], string]>([
+  test.each<[BoxRefusal['code'], string]>([
     ['box-cycle', 'The wire would close a cycle: box b1 already feeds the box it would read.'],
     ['cross-target-field-reference', 'Box b1 belongs to another target field mapping.'],
     ['duplicate-authoring-id', 'The id b1 is already used.'],
@@ -14,5 +14,27 @@ describe('why a command was refused, in words', () => {
     ['invalid-parameter-value', 'That value is not one the parameter of box b1 takes.'],
   ])('%s', (code, text) => {
     expect(describeRefusal({ code, id: 'b1' })).toBe(text);
+  });
+
+  test('refused-field names the side, the field, the reason and the declaration (ADR-0027)', () => {
+    const refusal = { code: 'ambiguous-field-path', side: 'both' as const, file: 'same-step.xsd', line: 14, column: 65 };
+
+    expect(describeRefusal({ code: 'refused-field', side: 'source', field: '/Doc/Note', refusal })).toBe(
+      'The source field /Doc/Note is refused: ambiguous-field-path, declared at same-step.xsd:14:65.',
+    );
+  });
+});
+
+describe("a refused result's refusal", () => {
+  test('drops only the kind', () => {
+    const refusal = { code: 'ambiguous-field-path', side: 'both' as const, file: 'a.xsd', line: 1, column: 2 };
+
+    expect(refusalOf({ kind: 'refused', code: 'box-cycle', id: 'b1' })).toEqual({ code: 'box-cycle', id: 'b1' });
+    expect(refusalOf({ kind: 'refused', code: 'refused-field', side: 'target', field: '/A', refusal })).toEqual({
+      code: 'refused-field',
+      side: 'target',
+      field: '/A',
+      refusal,
+    });
   });
 });
