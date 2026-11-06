@@ -59,7 +59,7 @@ export interface FunctionEditorProps {
  * The function editor (ADR-0012): the palette, and the canvas with the function graph of the selected target field
  * mapping, its boxes and wires and a sink for the target field. Dropping a palette entry inserts a box, also into a
  * target field without a mapping. A box that `result` cannot reach (an unreachable box) has a dashed border, a muted
- * head and a title saying so (F-31). An orphaned source-field box is marked,
+ * head with a "not reached" mark, and a title saying so (F-31). An orphaned source-field box is marked,
  * and a source row dropped on it remaps it. Positions and zoom are browser state only; moving a box never touches the
  * working copy.
  *
@@ -370,15 +370,22 @@ function BoxNodeView({ id, data, selected }: NodeProps<BoxNode>) {
       className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreachable'}`}
     >
       <div className="fm-card__head">
-        <span className="fm-card__kind">{data.card.caption}</span>
-        <strong className="fm-card__title" title={data.view.path}>
-          {data.view.title}
-        </strong>
-        {data.card.badges.map((badge) => (
-          <span key={badge.kind} className={`fm-fid fm-fid--${badge.kind}`} title={badge.kind === 'deviation' ? badge.text : undefined}>
-            {badge.kind}
-          </span>
-        ))}
+        <div className="fm-card__name">
+          <span className="fm-card__kind">{data.card.caption}</span>
+          <strong className="fm-card__title" title={data.view.path}>
+            {data.view.title}
+          </strong>
+        </div>
+        {(data.card.badges.length > 0 || !data.reachable) && (
+          <div className="fm-card__marks">
+            {data.card.badges.map((badge) => (
+              <span key={badge.kind} className={`fm-fid fm-fid--${badge.kind}`} title={badge.kind === 'deviation' ? badge.text : undefined}>
+                {badge.kind}
+              </span>
+            ))}
+            {!data.reachable && <span className="fm-card__reach">not reached</span>}
+          </div>
+        )}
       </div>
       <code className="fm-card__id">{id}</code>
       {data.view.value !== undefined && (

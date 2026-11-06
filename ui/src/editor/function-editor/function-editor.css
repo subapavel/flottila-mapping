@@ -129,22 +129,33 @@
 }
 
 /*
- * the head keeps to one line, so that its height does not depend on the text (graph.ts, CARD_HEIGHT): the caption, the
- * title and the badges shrink with an ellipsis instead of wrapping; a source card's full path is the title's tooltip
+ * the head: a name line (caption and title) and, below it, a marks line (fidelity badges, "not reached"). Each keeps to
+ * one line, so that the head's height does not depend on the text (graph.ts, CARD_HEIGHT): only the title shrinks,
+ * with an ellipsis, and a source card's full path is its tooltip; the caption and the marks keep their full text, as
+ * the styling hides no mark (spec #135, story 26). The marks fit beside each other but not beside a caption.
  */
 .fm-card__head {
-  display: flex;
-  flex-wrap: nowrap;
-  white-space: nowrap;
-  align-items: center;
-  gap: var(--pf-t--global--spacer--xs);
   padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
   border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
   border-radius: var(--pf-t--global--border--radius--small) var(--pf-t--global--border--radius--small) 0 0;
   background-color: var(--pf-t--global--background--color--secondary--default);
 }
 
-.fm-card__head > * {
+.fm-card__name,
+.fm-card__marks {
+  display: flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--xs);
+}
+
+.fm-card__name > *,
+.fm-card__marks > * {
+  flex: none;
+}
+
+.fm-card__name > .fm-card__title {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -163,7 +174,7 @@
   background-color: color-mix(in srgb, var(--pf-t--global--color--status--danger--default) 15%, var(--pf-t--global--background--color--primary--default));
 }
 
-/* an unreachable box: a dashed border and a muted head with a caption, the text keeps its contrast (F-31) */
+/* an unreachable box: a dashed border and a muted head with a "not reached" mark, the text keeps its contrast (F-31) */
 .fm-card--unreachable {
   border-style: dashed;
 }
@@ -172,11 +183,8 @@
   background-color: var(--pf-t--global--background--color--secondary--default);
 }
 
-.fm-card--unreachable .fm-card__kind::after {
-  content: ' · not reached';
-}
-
-.fm-card__kind {
+.fm-card__kind,
+.fm-card__reach {
   font-size: var(--pf-t--global--font--size--xs);
   color: var(--pf-t--global--text--color--subtle);
   text-transform: uppercase;
