@@ -739,8 +739,9 @@ describe('editing on the canvas', () => {
 describe("the prototype's canvas detail", () => {
   const editor = page.getByRole('region', { name: 'Function editor' });
   const strip = editor.getByRole('region', { name: 'Canvas display queue' });
-  /** The box queue the editor puts into the strip: the inspector's display queue view. */
-  const stripQueue = strip.getByRole('region', { name: 'Display queue', exact: true });
+  /** The box queue the editor puts into the strip, the inspector's view, named apart from the inspector's own. */
+  const resultQueue = strip.getByRole('region', { name: 'Display queue of the result', exact: true });
+  const selectedQueue = strip.getByRole('region', { name: 'Display queue of the selected box', exact: true });
   const styleOf = (element: Element) => getComputedStyle(element);
   const headOf = (id: string) => box(id).element().querySelector('.fm-card__head')!;
 
@@ -823,10 +824,12 @@ describe("the prototype's canvas detail", () => {
     await expect.element(page.getByRole('figure', { name: 'Target message' })).toBeVisible();
     await page.getByRole('tab', { name: 'Editor' }).click();
 
-    await expect.element(stripQueue).toHaveTextContent('Display queueA-');
+    await expect.element(resultQueue).toHaveTextContent('Display queueA-');
     await expect.element(strip.getByText(/^result \(what the target field reads\) f1$/)).toBeVisible();
     await box('c1').click();
-    await expect.element(stripQueue).toHaveTextContent('Display queue- xs:string');
+    await expect.element(selectedQueue).toHaveTextContent('Display queue- xs:string');
+    // the inspector's "Display queue" region is the only one so named
+    await expect.element(page.getByRole('region', { name: 'Display queue', exact: true })).toHaveTextContent('Display queue- xs:string');
     await expect.element(strip.getByText(/^selected box c1$/)).toBeVisible();
 
     // under the canvas, the palette beside it, and 130 px high
@@ -841,7 +844,7 @@ describe("the prototype's canvas detail", () => {
     render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, result: null } } } }) });
 
     await expect.element(strip).toHaveTextContent('No box selected, and no result.');
-    await expect.element(stripQueue).not.toBeInTheDocument();
+    await expect.element(resultQueue).not.toBeInTheDocument();
 
     await page.getByRole('button', { name: 'Host: open Note' }).click();
     await expect.element(page.getByTestId(`canvas:${NOTE}`)).toBeVisible();

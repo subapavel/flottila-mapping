@@ -54,10 +54,10 @@ export interface FunctionEditorProps {
   /** Remaps an orphaned source-field box of a target field mapping to a dropped source field. */
   onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
   /**
-   * The display queue of a box from the last run, for the strip under the canvas: the editor injects the inspector's
-   * view, as editor subfolders do not import each other (ADR-0013).
+   * The display queue of a box from the last run, for the strip under the canvas, its region named `label`: the editor
+   * injects the inspector's view, as editor subfolders do not import each other (ADR-0013).
    */
-  boxQueue: (id: AuthoringId, last: LastRun) => ReactNode;
+  boxQueue: (id: AuthoringId, last: LastRun, label: string) => ReactNode;
 }
 
 /** The last run's trace by authoring id (`undefined` before a run), and whether it is a stale trace. */
@@ -184,7 +184,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
             </div>
           </div>
           {mapping !== undefined && (
-            <QueueStrip subject={selectedBox ?? mapping.result} selected={selectedBox !== null} queue={(id) => boxQueue(id, { trace, stale })} />
+            <QueueStrip subject={selectedBox ?? mapping.result} selected={selectedBox !== null} queue={(id, label) => boxQueue(id, { trace, stale }, label)} />
           )}
         </>
       )}
@@ -196,7 +196,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
  * The display-queue strip under the canvas, after the prototype's .gc__queue: the selected box's display queue, else
  * the result's (what the target field reads), else a line saying there is neither.
  */
-function QueueStrip({ subject, selected, queue }: { subject: AuthoringId | null; selected: boolean; queue: (id: AuthoringId) => ReactNode }) {
+function QueueStrip({ subject, selected, queue }: { subject: AuthoringId | null; selected: boolean; queue: (id: AuthoringId, label: string) => ReactNode }) {
   return (
     <section aria-label="Canvas display queue" className="fm-function-editor__queue">
       {subject === null ? (
@@ -206,7 +206,8 @@ function QueueStrip({ subject, selected, queue }: { subject: AuthoringId | null;
           <p className="fm-function-editor__queue-subject">
             {selected ? 'selected box' : 'result (what the target field reads)'} <code>{subject}</code>
           </p>
-          {queue(subject)}
+          {/* named apart from the inspector's "Display queue" region */}
+          {queue(subject, selected ? 'Display queue of the selected box' : 'Display queue of the result')}
         </>
       )}
     </section>

@@ -345,7 +345,7 @@ function OpenMapping({
               canvasState={canvasState}
               orphaned={orphaned}
               onRemap={remap}
-              boxQueue={(id, last) => <BoxQueue id={id} last={last} />}
+              boxQueue={(id, last, label) => <BoxQueue id={id} last={last} label={label} />}
             />
           }
           inspector={<Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} onRemap={remap} />}
