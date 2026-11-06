@@ -13,6 +13,9 @@ Follow the command rules in `AGENTS.md` (Command rules); hand back only after ev
 
 - Every command's output to `.logs/<ticket>-<check>.log` or `ui/.logs/<ticket>-<check>.log`;
   read only the tail and the failing section (`tail`, `grep -n`, `sed -n`).
+- Run a gate as one plain command by absolute path, `/…/verify-<ticket>/scripts/gate-ticket.sh
+  <args>` (or `gate-spec.sh`), with no `bash -c`, `cd` or redirect: it writes its own
+  `.logs/<ticket>-gate.log` (`.logs/<spec>-spec-gate.log`) in the worktree it lives in.
 - When the architect asks you to remove a worktree, write the hand-back first: its logs are
   removed with it.
 - One run per check unless asked by exact command to repeat.
