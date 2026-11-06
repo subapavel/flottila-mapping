@@ -1,13 +1,17 @@
 import { Alert, Button, Label, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
-import { describeError, type ApiClient } from '../api/client';
-import type { MappingModel } from '../generated/mapping-model';
+import { describeError, type ApiClient, type StoredMapping } from '../api/client';
+import type { AuthoringId, FieldPath } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
-import type { BrowserStateStore } from './browser-state/browser-state';
+import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
 import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
-import { createWorkingCopyStore, selectUnsaved } from './store/working-copy';
+import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
+import { locate } from './function-editor/graph';
+import { RefusedMapping } from './RefusedMapping';
+import { SaveConflict } from './SaveConflict';
+import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
 import { StructureOverview, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
 
@@ -18,6 +22,12 @@ export interface MappingEditorProps {
   api: ApiClient;
   /** The port for layout and view state. */
   browserState: BrowserStateStore;
+  /** Told each time the working copy starts or stops having unsaved changes, so the host can guard leaving. */
+  onUnsavedChange?: (unsaved: boolean) => void;
+  /** The selected target field, controlled by the host (ADR-0013); the function editor shows its graph. */
+  selectedField?: FieldPath | null;
+  /** Asks the host to select a target field. */
+  onSelectField?: (field: FieldPath) => void;
 }
 
 /** The mapping editor (ADR-0013): router-free, over injected ports, with its own query client. */
@@ -36,30 +46,47 @@ export function MappingEditor(props: MappingEditorProps) {
   );
 }
 
-function Editor({ mappingId, api, browserState }: MappingEditorProps) {
+function Editor(props: MappingEditorProps) {
+  const { mappingId, api } = props;
   const mapping = useQuery({ queryKey: ['mapping', mappingId], queryFn: () => api.getMapping(mappingId) });
 
   if (mapping.isPending) return <p>Opening {mappingId}…</p>;
+  // A file the service refuses opens read-only: its problem and diagnostics, and Retry (ADR-0027).
   if (mapping.isError) {
-    const failure = describeError(mapping.error);
-    return (
-      <Alert variant="danger" isInline title={failure.title}>
-        {failure.detail}
-      </Alert>
-    );
+    return <RefusedMapping error={mapping.error} retrying={mapping.isFetching} onRetry={() => void mapping.refetch()} />;
   }
-  return <OpenMapping key={mappingId} mappingId={mappingId} api={api} browserState={browserState} loaded={mapping.data} />;
+  return <OpenMapping key={mappingId} {...props} opened={mapping.data} />;
 }
 
-function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProps & { loaded: MappingModel }) {
+/** Ctrl+Z undoes and Ctrl+Shift+Z redoes, except in a text field, which keeps its own undo. */
+function undoKey(event: KeyboardEvent): 'undo' | 'redo' | undefined {
+  const target = event.target;
+  if (!event.ctrlKey || event.key.toLowerCase() !== 'z') return undefined;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) return undefined;
+  return event.shiftKey ? 'redo' : 'undo';
+}
+
+function OpenMapping({
+  mappingId,
+  api,
+  browserState,
+  onUnsavedChange,
+  selectedField = null,
+  onSelectField,
+  opened,
+}: MappingEditorProps & { opened: StoredMapping }) {
   const [store] = useState(() =>
-    createWorkingCopyStore(loaded, {
+    createWorkingCopyStore(opened, {
       newId: () => newAuthoringId(),
-      save: (model) => api.saveMapping(mappingId, model),
+      save: (model, etag) => api.saveMapping(mappingId, model, etag),
+      load: () => api.getMapping(mappingId),
       compile: (model, signal) => api.compile(mappingId, model, signal).then((compiled) => compiled.diagnostics),
     }),
   );
+  useEffect(() => (onUnsavedChange ? watchUnsaved(store, onUnsavedChange) : undefined), [store, onUnsavedChange]);
   const unsaved = useStore(store, selectUnsaved);
+  const canUndo = useStore(store, (s) => s.past.length > 0);
+  const canRedo = useStore(store, (s) => s.future.length > 0);
   const diagnosticCount = useStore(store, (s) => s.diagnostics.length);
   const save = useMutation({ mutationFn: () => store.getState().save() });
   const failure = save.isError ? describeError(save.error) : undefined;
@@ -71,30 +98,58 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
     browserState.write(expandedKey, next);
   };
 
-  // The working copy is compiled on open, then after every edit (ADR-0013).
+  // The working copy is compiled on open, then after every change of it (ADR-0013).
   useEffect(() => {
     store.getState().scheduleCompile();
     return () => store.getState().cancelCompile();
   }, [store]);
 
-  // A field the Diagnostics panel leads to: its branch is expanded, then its row takes the focus.
+  // A field the Diagnostics panel leads to: its branch is expanded, then its row takes the focus; a target field is
+  // also selected for the function editor.
   const editor = useRef<HTMLDivElement>(null);
-  const [selected, setSelected] = useState<{ testId: string } | null>(null);
-  const selectField = (side: 'source' | 'target', fieldPath: string) => {
+  const [focused, setFocused] = useState<{ testId: string } | null>(null);
+  const selectTreeField = (side: 'source' | 'target', fieldPath: FieldPath) => {
     const paths = pathsDownTo(fieldPath);
     const open = new Set([...(expanded[side] ?? [paths[0]!]), ...paths.slice(0, -1)]);
     changeExpanded({ ...expanded, [side]: [...open] });
-    setSelected({ testId: `${side}-field:${fieldPath}` });
+    setFocused({ testId: `${side}-field:${fieldPath}` });
+    if (side === 'target') onSelectField?.(fieldPath);
   };
   useEffect(() => {
-    if (selected === null) return;
+    if (focused === null) return;
     const rows = editor.current!.querySelectorAll<HTMLElement>('[data-testid]');
-    [...rows].find((row) => row.dataset.testid === selected.testId)?.focus();
-  }, [selected]);
+    [...rows].find((row) => row.dataset.testid === focused.testId)?.focus();
+  }, [focused]);
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    const step = undoKey(event);
+    if (!step) return;
+    event.preventDefault();
+    store.getState()[step]();
+  };
+
+  const [selectedBox, setSelectedBox] = useState<AuthoringId | null>(null);
+  /** Selects what an authoring id names: its target field, and the box when it is a box's id. */
+  const select = (id: AuthoringId) => {
+    const where = locate(store.getState().workingCopy, id);
+    if (!where) return;
+    onSelectField?.(where.field);
+    setSelectedBox(where.box);
+  };
+  const [canvasState] = useState(() => ({
+    read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
+    write: (tfm: AuthoringId, state: CanvasState) => browserState.write(canvasKey(mappingId, tfm), state),
+  }));
 
   return (
-    <div ref={editor}>
+    <div ref={editor} onKeyDown={onKeyDown}>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <Button variant="secondary" onClick={() => store.getState().undo()} isDisabled={!canUndo}>
+          Undo
+        </Button>
+        <Button variant="secondary" onClick={() => store.getState().redo()} isDisabled={!canRedo}>
+          Redo
+        </Button>
         <Button onClick={() => save.mutate()} isDisabled={!unsaved || save.isPending} isLoading={save.isPending}>
           Save
         </Button>
@@ -104,14 +159,20 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
         <Alert variant="danger" isInline title={failure.title}>
           <p>{failure.detail}</p>
           <ul aria-label="Save diagnostics">
-            {failure.diagnostics.map((d, i) => (
+            {failure.diagnostics.map(({ severity, code, message, location }, i) => (
               <li key={i}>
-                {d.severity} <code>{d.code}</code>: {d.message}
+                {severity} <code>{code}</code>: {message}
+                {location.kind === 'authoring-id' && (
+                  <Button variant="link" isInline onClick={() => select(location.authoringId)}>
+                    Show {location.authoringId}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
         </Alert>
       )}
+      <SaveConflict store={store} />
       <StructureOverview
         mappingId={mappingId}
         api={api}
@@ -119,12 +180,20 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
         expanded={expanded}
         onExpandedChange={changeExpanded}
       />
+      <FunctionEditor
+        api={api}
+        store={store}
+        targetField={selectedField}
+        selectedBox={selectedBox}
+        onSelectBox={setSelectedBox}
+        canvasState={canvasState}
+      />
       <Tabs defaultActiveKey="test" aria-label="Test and diagnostics">
         <Tab eventKey="test" title={<TabTitleText>Test</TabTitleText>}>
           <TestPanel mappingId={mappingId} api={api} store={store} />
         </Tab>
         <Tab eventKey="diagnostics" title={<TabTitleText>Diagnostics ({diagnosticCount})</TabTitleText>}>
-          <DiagnosticsPanel store={store} onSelectField={selectField} />
+          <DiagnosticsPanel store={store} onSelectField={selectTreeField} />
         </Tab>
       </Tabs>
     </div>
@@ -132,7 +201,7 @@ function OpenMapping({ mappingId, api, browserState, loaded }: MappingEditorProp
 }
 
 /** The field paths from the root down to `fieldPath`, itself last; a step's `{namespace}` may hold a `/` (ADR-0007). */
-function pathsDownTo(fieldPath: string): string[] {
+function pathsDownTo(fieldPath: FieldPath): FieldPath[] {
   const steps = [...fieldPath.matchAll(/(?:\{[^}]*\}|[^/{])+/g)].map((step) => step[0]);
   return steps.map((_, i) => `/${steps.slice(0, i + 1).join('/')}`);
 }

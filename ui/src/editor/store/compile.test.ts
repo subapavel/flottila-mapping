@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ApiProblem, type Diagnostic } from '../../api/client';
+import { ApiProblem, type Diagnostic, type StoredMapping } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
 import { COMPILE_DELAY_MS, createWorkingCopyStore } from './working-copy';
 
@@ -46,8 +46,14 @@ function freshIds() {
   return () => `x${++next}`;
 }
 
-function storeWith(port: ReturnType<typeof deferredCompile>, save: (m: MappingModel) => Promise<MappingModel> = async (m) => m) {
-  return createWorkingCopyStore(baseline, { newId: freshIds(), save, compile: port.compile });
+function storeWith(
+  port: ReturnType<typeof deferredCompile>,
+  save: (m: MappingModel, etag: string) => Promise<StoredMapping> = async (model) => ({ model, etag: '"e2"' }),
+) {
+  return createWorkingCopyStore(
+    { model: baseline, etag: '"e1"' },
+    { newId: freshIds(), save, load: () => new Promise<StoredMapping>(() => {}), compile: port.compile },
+  );
 }
 
 /** Lets the answered port's promise settle. */
@@ -182,6 +188,41 @@ describe('the compile scheduler of the working-copy store', () => {
 
     await expect(store.getState().save()).rejects.toBe(notFound);
 
+    expect(store.getState().diagnostics).toEqual([at('unreachable-box', 'b9', 'warning')]);
+  });
+
+  test('undo and redo change the working copy, so each schedules a compile of the copy it leaves', async () => {
+    const port = deferredCompile();
+    const store = storeWith(port);
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await vi.advanceTimersByTimeAsync(COMPILE_DELAY_MS);
+
+    store.getState().undo();
+    await vi.advanceTimersByTimeAsync(COMPILE_DELAY_MS);
+    store.getState().redo();
+    await vi.advanceTimersByTimeAsync(COMPILE_DELAY_MS);
+
+    expect(port.calls.map((c) => Object.keys(c.sent.targetFieldMappings ?? {}))).toEqual([[ORDER_ID], [], [ORDER_ID]]);
+    expect(port.calls[1]!.sent).toBe(baseline);
+  });
+
+  test('a save conflict (409) is no refusal: the set stays and the conflict opens', async () => {
+    const changed = new ApiProblem({
+      type: 'urn:flottila:mapping:problem:mapping-changed',
+      title: 'Mapping changed',
+      status: 409,
+      detail: 'the mapping changed on disk',
+    });
+    const port = deferredCompile();
+    const store = storeWith(port, refusingSave(changed));
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await vi.advanceTimersByTimeAsync(COMPILE_DELAY_MS);
+    port.calls[0]!.resolve([at('unreachable-box', 'b9', 'warning')]);
+    await settled();
+
+    await store.getState().save();
+
+    expect(store.getState().conflict).toBe(true);
     expect(store.getState().diagnostics).toEqual([at('unreachable-box', 'b9', 'warning')]);
   });
 

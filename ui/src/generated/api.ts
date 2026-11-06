@@ -212,7 +212,10 @@ export interface paths {
         put: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description The ETag the editor read; absent, the save is unconditional */
+                    "If-Match"?: string;
+                };
                 path: {
                     id: string;
                 };
@@ -246,6 +249,15 @@ export interface paths {
                 };
                 /** @description not-found: no mapping of this id */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description mapping-changed: If-Match differs from the stored file's ETag */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };

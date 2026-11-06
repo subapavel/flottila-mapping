@@ -1,8 +1,17 @@
 import caseOutput from '../../../../corpus/cases/link/direct-copy/001/expected.xml?raw';
 import caseInput from '../../../../corpus/cases/link/direct-copy/001/input.xml?raw';
 import orderIdCopyText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
+import catalogueText from '../../../../contract/function-catalogue.json?raw';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem, type ApiClient, type Diagnostic, type StructureResponse, type TestResult } from '../client';
+import {
+  ApiProblem,
+  type ApiClient,
+  type Diagnostic,
+  type FunctionCatalogue,
+  type StoredMapping,
+  type StructureResponse,
+  type TestResult,
+} from '../client';
 import { orderStructure } from './order-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
@@ -30,26 +39,37 @@ export interface FakeScenario {
 }
 
 /**
- * An in-memory `ApiClient` over synthetic fixtures from `corpus/` (ADR-0013), for component tests, the e2e suite
+ * An in-memory `ApiClient` over synthetic fixtures from `corpus/` and the catalogue of `contract/` (ADR-0013,
+ * ADR-0027), for component tests, the e2e suite
  * and `?api=fake`. It runs no engine: a test run answers only a corpus case, and refuses an unconnected result as
  * the engine does; a compile answers the scenario's fixture whatever the working copy. `seed` replaces the corpus
  * mappings.
  */
 export function fakeApiClient(seed: Record<string, MappingModel> = corpusMappings(), scenario: FakeScenario = {}): ApiClient {
-  const mappings = new Map(Object.entries(seed).map(([id, model]) => [id, structuredClone(model)]));
+  // Each write gets a tag of its own, as a changed file gets a new sha256 (ADR-0024); never the same tag twice.
+  let writes = 0;
+  const written = (model: MappingModel): StoredMapping => ({ model: structuredClone(model), etag: `"fake:${++writes}"` });
+  const mappings = new Map(Object.entries(seed).map(([id, model]) => [id, written(model)]));
 
   const stored = (id: string) => {
-    const model = mappings.get(id);
-    if (!model) throw notFound(id);
-    return model;
+    const mapping = mappings.get(id);
+    if (!mapping) throw notFound(id);
+    return mapping;
   };
 
   return {
     getMapping: async (id) => structuredClone(stored(id)),
 
-    saveMapping: async (id, model) => {
-      stored(id);
-      mappings.set(id, sortedKeys(structuredClone(model)));
+    saveMapping: async (id, model, etag) => {
+      if (stored(id).etag !== etag) {
+        throw new ApiProblem({
+          type: `${PROBLEM}mapping-changed`,
+          title: 'Mapping changed',
+          status: 409,
+          detail: 'the mapping changed on disk since the If-Match tag was read; nothing was saved',
+        });
+      }
+      mappings.set(id, written(sortedKeys(model)));
       return structuredClone(stored(id));
     },
 
@@ -93,6 +113,9 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
         detail: 'the fake API has no corpus case for this working copy and input',
       });
     },
+
+    // The committed packed catalogue (ADR-0027): the bytes GET /api/catalogue serves.
+    getCatalogue: async () => JSON.parse(catalogueText) as FunctionCatalogue,
 
     compile: async (id) => {
       stored(id);

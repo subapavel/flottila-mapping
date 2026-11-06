@@ -8,6 +8,11 @@ export interface BrowserStateStore {
 
 const PREFIX = 'flottila-mapping:v1:';
 
+/** The key of a target field mapping's canvas, its box positions and zoom, by its authoring id (ADR-0013). */
+export function canvasKey(mappingId: string, targetFieldMappingId: string): string {
+  return `mapping:${mappingId}:canvas:${targetFieldMappingId}`;
+}
+
 /** The default `BrowserStateStore`, over `localStorage` or another `Storage`, with every call wrapped. */
 export function storageBrowserState(storage: Pick<Storage, 'getItem' | 'setItem'>): BrowserStateStore {
   return {

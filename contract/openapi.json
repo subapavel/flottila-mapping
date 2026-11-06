@@ -717,6 +717,13 @@
             "type" : "string",
             "pattern" : ".+"
           }
+        }, {
+          "description" : "The ETag the editor read; absent, the save is unconditional",
+          "name" : "If-Match",
+          "in" : "header",
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -760,6 +767,16 @@
           },
           "404" : {
             "description" : "not-found: no mapping of this id",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "mapping-changed: If-Match differs from the stored file's ETag",
             "content" : {
               "application/problem+json" : {
                 "schema" : {

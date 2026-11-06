@@ -19,11 +19,15 @@ let consoleError: ReturnType<typeof vi.spyOn>;
 
 /** Renders the panel over a store of the corpus mapping holding `diagnostics`; resolves to the selection spy. */
 function render(diagnostics: Diagnostic[], compileFailure: string | null = null) {
-  const store = createWorkingCopyStore(corpusMapping, {
-    newId: () => 'x1',
-    save: async (model) => model,
-    compile: () => new Promise<Diagnostic[]>(() => {}),
-  });
+  const store = createWorkingCopyStore(
+    { model: corpusMapping, etag: '"e1"' },
+    {
+      newId: () => 'x1',
+      save: async (model) => ({ model, etag: '"e2"' }),
+      load: async () => ({ model: corpusMapping, etag: '"e1"' }),
+      compile: () => new Promise<Diagnostic[]>(() => {}),
+    },
+  );
   store.setState({ diagnostics, compileFailure });
   const onSelectField = vi.fn();
   host = document.createElement('div');

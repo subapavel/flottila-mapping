@@ -307,7 +307,8 @@ class OpenApiContractTest {
           "get /api/mappings", Set.of(),
           "post /api/mappings", Set.of("400", "404", "409", "415", "422"),
           "get /api/mappings/{id}", Set.of("400", "404", "422"),
-          "put /api/mappings/{id}", Set.of("400", "404", "415", "422"),
+          // ADR-0027: 409 mapping-changed when If-Match differs from the stored file's tag
+          "put /api/mappings/{id}", Set.of("400", "404", "409", "415", "422"),
           "post /api/mappings/{id}/test", Set.of("400", "404", "415"),
           // #99: a stage 1 or 2 refusal is 422, as for Save; a structure load error is a 200
           "post /api/mappings/{id}/refresh", Set.of("400", "404", "415", "422"),
