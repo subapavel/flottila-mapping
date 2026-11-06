@@ -32,6 +32,12 @@
   overflow-wrap: anywhere;
 }
 
+/* a field path inside a message: its local path, the full path in the title */
+.fm-diagnostic__path {
+  font-family: var(--pf-t--global--font--family--mono);
+  text-decoration: underline dotted;
+}
+
 /* the colon keeps the text of a row readable as a sentence; the columns make it redundant */
 .fm-diagnostic__colon {
   display: none;

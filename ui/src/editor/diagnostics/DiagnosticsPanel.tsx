@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { Diagnostic } from '../../api/client';
 import type { FieldPath } from '../../generated/mapping-model';
-import { localPath } from '../../model/field-path';
+import { localPath, proseSegments } from '../../model/field-path';
 import { locate, targetFieldOf } from '../store/locations';
 import type { WorkingCopyStore } from '../store/working-copy';
 import './diagnostics-list.css';
@@ -41,7 +41,17 @@ export function DiagnosticsPanel({ store, onSelectField }: DiagnosticsPanelProps
                 <Place store={store} location={d.location} onSelectField={onSelectField} />
                 <span className="fm-diagnostic__colon">: </span>
               </span>
-              <span className="fm-diagnostic__message">{d.message}</span>
+              <span className="fm-diagnostic__message">
+                {proseSegments(d.message).map((s, j) =>
+                  s.path === undefined ? (
+                    s.text
+                  ) : (
+                    <span key={j} className="fm-diagnostic__path" title={s.path}>
+                      {s.text}
+                    </span>
+                  ),
+                )}
+              </span>
             </li>
           ))}
         </ul>
