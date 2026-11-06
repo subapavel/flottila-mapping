@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -65,6 +66,23 @@ function render(mappingId: string, api: ApiClient, browserState: BrowserStateSto
   document.body.append(host);
   root = createRoot(host);
   root.render(<MappingEditor mappingId={mappingId} api={api} browserState={browserState} selectedField={selectedField} />);
+}
+
+/** A host that owns the selected target field (ADR-0013: controlled state) and reports each request to select one. */
+function Host({ api, browserState, onSelect }: { api: ApiClient; browserState: BrowserStateStore; onSelect: (field: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const select = (field: string) => {
+    onSelect(field);
+    setSelected(field);
+  };
+  return <MappingEditor mappingId={TREE_MAPPING} api={api} browserState={browserState} selectedField={selected} onSelectField={select} />;
+}
+
+function renderHost(onSelect: (field: string) => void) {
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  root.render(<Host api={fakeApiClient()} browserState={expandedState(TREE_MAPPING)} onSelect={onSelect} />);
 }
 
 beforeEach(() => {
@@ -176,5 +194,36 @@ describe('the link gutter', () => {
     await expect.element(page.getByTestId(`link-fx:${first}->${first}`)).toHaveTextContent('fx 2');
     await expect.element(fieldLink(leaves[1]!, leaves[1]!)).toBeInTheDocument();
     await expect.element(page.getByTestId(`link-fx:${leaves[1]}->${leaves[1]}`)).not.toBeInTheDocument();
+  });
+});
+
+describe('selecting a target field (spec #104, story 1)', () => {
+  test('a click on a virtualised target row asks the host to select it, and its links are highlighted', async () => {
+    const onSelect = vi.fn();
+    const target = leaves[9_000]!;
+    renderHost(onSelect);
+    await scrollTo('Target', target);
+
+    await userEvent.click(targetRow(target));
+
+    expect(onSelect).toHaveBeenCalledWith(target);
+    await scrollTo('Source', target);
+    await expect.element(fieldLink(target, target)).toHaveAttribute('data-emphasis', 'highlighted');
+  });
+
+  test('Enter on a focused target row selects it too; a source row never selects', async () => {
+    const onSelect = vi.fn();
+    const [first, second] = [leaves[0]!, leaves[1]!];
+    renderHost(onSelect);
+    await userEvent.click(sourceRow(first));
+    await userEvent.keyboard('{Enter}');
+    expect(onSelect).not.toHaveBeenCalled();
+
+    (targetRow(second).element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(second);
+    await expect.element(fieldLink(second, second)).toHaveAttribute('data-emphasis', 'highlighted');
+    await expect.element(fieldLink(first, first)).toHaveAttribute('data-emphasis', 'dimmed');
   });
 });

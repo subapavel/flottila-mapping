@@ -29,14 +29,25 @@ export interface StructureOverviewProps {
   onExpandedChange: (expanded: Expanded) => void;
   /** The selected target field: its links are highlighted and the others dimmed. */
   selectedField?: FieldPath | null;
+  /** Asks the host to select a target field: a click on its row, or Enter or Space on it. */
+  onSelectField?: (field: FieldPath) => void;
 }
 
 /**
  * The top half of the editor (ADR-0012): the source tree and the target tree side by side, virtualised, with the
  * field links drawn in the link gutter between them. Dropping a source row on a target row links the two fields; so
- * does Enter on a source row, then Enter on a target row.
+ * does Enter on a source row, then Enter on a target row. Clicking a target row, or Enter on it, selects that target
+ * field; a source row never selects.
  */
-export function StructureOverview({ mappingId, api, store, expanded, onExpandedChange, selectedField = null }: StructureOverviewProps) {
+export function StructureOverview({
+  mappingId,
+  api,
+  store,
+  expanded,
+  onExpandedChange,
+  selectedField = null,
+  onSelectField,
+}: StructureOverviewProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const source = useTree(mappingId, api, model.source, expanded.source);
   const target = useTree(mappingId, api, model.target, expanded.target);
@@ -91,7 +102,12 @@ export function StructureOverview({ mappingId, api, store, expanded, onExpandedC
             e.preventDefault();
             linkTo(path, e.dataTransfer.getData(SOURCE_FIELD));
           },
-          onKeyDown: (e) => activated(e) && linkTo(path, picked),
+          onClick: () => onSelectField?.(path),
+          onKeyDown: (e) => {
+            if (!activated(e)) return;
+            linkTo(path, picked);
+            onSelectField?.(path);
+          },
         })}
         mark={(path) => <TargetLinks store={store} path={path} />}
       />
