@@ -76,7 +76,23 @@
   margin: 0;
 }
 
+/* a name and its value on one line; the read-only params wrap each pair in a div */
 .fm-inspector__list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 var(--pf-t--global--spacer--md);
+}
+
+.fm-inspector__list > div {
+  display: contents;
+}
+
+.fm-inspector__list dt {
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.fm-inspector__list dd {
   margin: 0;
 }
 

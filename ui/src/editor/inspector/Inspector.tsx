@@ -9,7 +9,7 @@ import { stepName } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { BoxQueue, TargetFieldQueue, type LastTrace } from './DisplayQueue';
-import './inspector.css';
+import './inspector-panel.css';
 import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames, type Badge, type Inspected, type TableRow } from './inspector-view';
 import { remapChoices } from './remap-choices';
 
