@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
-import { boxIds, boxView, locate, reachable, SINK, wires } from './graph';
+import { boxIds, boxView, liveMarks, locate, reachable, SINK, wires } from './graph';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -90,6 +90,41 @@ describe('the view of a box', () => {
     expect(boxView({ kind: 'udf', udf: 'trim2', inputs: [null] }, catalogue, udfs)).toEqual({ title: 'trim2', slots: ['text'] });
     expect(boxView({ kind: 'udf', udf: 'other', inputs: [null] }, catalogue, udfs)).toEqual({ title: 'other', slots: ['1'] });
     expect(boxView({ kind: 'unresolved', name: 'ns:fn', origin: 'po', inputs: ['a1'] }, catalogue, udfs)).toEqual({ title: 'ns:fn', slots: ['1'] });
+  });
+});
+
+describe('the value of a constant box', () => {
+  test('is its value param as JSON, and "" (the default) when the param is left out', () => {
+    expect(boxView(mapping.boxes.c1!, catalogue, undefined)).toEqual({ title: 'constant', slots: [], value: '"-"' });
+    expect(boxView({ kind: 'function', fn: 'constant' }, catalogue, undefined).value).toBe('""');
+  });
+
+  test('another box has none', () => {
+    expect(boxView({ kind: 'function', fn: 'concat', params: { value: 'x' } }, catalogue, undefined).value).toBeUndefined();
+  });
+});
+
+describe('the live marks (ADR-0013)', () => {
+  test('a null result and each input slot that reads no box are marked, absent slots included', () => {
+    const unfinished: TargetFieldMapping = {
+      id: 't1',
+      result: null,
+      boxes: {
+        a1: { kind: 'source', field: ORDER_ID },
+        f1: { kind: 'function', fn: 'concat', inputs: [null, 'a1'] },
+        f2: { kind: 'function', fn: 'concat' },
+        f3: { kind: 'function', fn: 'concat', inputs: ['a1', 'a1'] },
+      },
+    };
+
+    expect(liveMarks(unfinished, catalogue, undefined)).toEqual({ resultUnconnected: true, unconnectedInputs: { f1: [0], f2: [0, 1] } });
+  });
+
+  test('a finished graph has no mark', () => {
+    expect(liveMarks({ ...mapping, boxes: { ...mapping.boxes, u1: { kind: 'function', fn: 'concat', inputs: ['a1', 'c1'] } } }, catalogue, undefined)).toEqual({
+      resultUnconnected: false,
+      unconnectedInputs: {},
+    });
   });
 });
 

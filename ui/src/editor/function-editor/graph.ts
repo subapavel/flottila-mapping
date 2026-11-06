@@ -49,10 +49,12 @@ export function reachable(mapping: TargetFieldMapping | undefined): Set<Authorin
   return reached;
 }
 
-/** What a box node shows: its title and the names of its input slots. */
+/** What a box node shows: its title, the names of its input slots, and a constant box's value. */
 export interface BoxView {
   title: string;
   slots: string[];
+  /** A `constant` box's value as JSON, `""` when the param is left out at its default. */
+  value?: string;
 }
 
 /**
@@ -68,7 +70,27 @@ export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | und
       : box.kind === 'udf'
         ? [box.udf, udfs?.[box.udf]?.inputs]
         : [box.name, undefined];
-  return { title, slots: names ?? inputsOf(box).map((_, i) => String(i + 1)) };
+  const view: BoxView = { title, slots: names ?? inputsOf(box).map((_, i) => String(i + 1)) };
+  if (box.kind === 'function' && box.fn === 'constant') view.value = JSON.stringify(box.params?.value ?? '');
+  return view;
+}
+
+/** The live marks of a canvas (ADR-0013): whether `result` is `null`, and the input slots that read no box, by box. */
+export interface LiveMarks {
+  resultUnconnected: boolean;
+  /** Only the boxes that have such a slot; a slot the model leaves out counts. */
+  unconnectedInputs: Record<AuthoringId, number[]>;
+}
+
+export function liveMarks(mapping: TargetFieldMapping, catalogue: FunctionCatalogue, udfs: Udfs | undefined): LiveMarks {
+  const unconnectedInputs: Record<AuthoringId, number[]> = {};
+  for (const id of boxIds(mapping)) {
+    const box = mapping.boxes[id]!;
+    const inputs = inputsOf(box);
+    const open = boxView(box, catalogue, udfs).slots.flatMap((_, slot) => (inputs[slot] == null ? [slot] : []));
+    if (open.length > 0) unconnectedInputs[id] = open;
+  }
+  return { resultUnconnected: mapping.result === null, unconnectedInputs };
 }
 
 /** The local name of a field path's last step, `@` before an attribute's. */
