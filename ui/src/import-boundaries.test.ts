@@ -44,6 +44,10 @@ describe('import boundaries (ADR-0013)', () => {
     ['src/api/http-api.ts', 'react'],
     ['src/api/fake/fake-api.ts', '../../model/link'],
     ['src/editor/MappingEditor.tsx', '../app/main'],
+    ['src/editor/MappingEditor.tsx', '@tanstack/react-virtual'],
+    ['src/editor/store/working-copy.ts', '@tanstack/react-virtual'],
+    ['src/model/link.ts', '@tanstack/react-virtual'],
+    ['src/api/fake/fake-api.ts', '@tanstack/react-virtual'],
     ['src/editor/store/working-copy.ts', '../test-panel/TestPanel'],
     ['src/editor/structure-overview/StructureOverview.tsx', '../test-panel/TestPanel'],
     ['src/editor/structure-overview/StructureOverview.tsx', '../index'],
@@ -53,6 +57,7 @@ describe('import boundaries (ADR-0013)', () => {
     ['src/editor/test-panel/TestPanel.tsx', '@dagrejs/dagre'],
     ['src/app/main.tsx', '../editor/store/working-copy'],
     ['src/app/main.tsx', '../editor/MappingEditor'],
+    ['src/app/main.tsx', '@tanstack/react-virtual'],
   ])('%s may not import %s', async (file, specifier) => {
     expect(await restricted(file, specifier)).toBe(true);
   });
