@@ -1,6 +1,6 @@
 import type { FunctionCatalogue } from '../../api/client';
-import type { AuthoringId, Box, BoxReference, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
+import type { AuthoringId, Box, BoxReference, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { localPath, stepName } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
 import { badges, type Badge } from './palette';
 
@@ -41,18 +41,20 @@ export function wires(mapping: TargetFieldMapping | undefined): Wire[] {
 /** What a box node shows: its title, the names of its input slots, and a constant box's value. */
 export interface BoxView {
   title: string;
+  /** A source-field box's full field path, the tooltip of its title. */
+  path?: FieldPath;
   slots: string[];
   /** A `constant` box's value as JSON, `""` when the param is left out at its default. */
   value?: string;
 }
 
 /**
- * A source-field box shows its field's last step; a function box its function and the catalogue's input names; a
- * `udf` box its declaration's input names; an `unresolved` box its name. Slots without a known name are numbered
- * from 1, as many as the model has.
+ * A source-field box shows its field's local path, the full path as its tooltip; a function box its function and the
+ * catalogue's input names; a `udf` box its declaration's input names; an `unresolved` box its name. Slots without a
+ * known name are numbered from 1, as many as the model has.
  */
 export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | undefined): BoxView {
-  if (box.kind === 'source') return { title: stepName(box.field), slots: [] };
+  if (box.kind === 'source') return { title: localPath(box.field), path: box.field, slots: [] };
   const [title, names] =
     box.kind === 'function'
       ? [box.fn, catalogue[box.fn]?.inputs?.map((input) => input.name)]
@@ -124,26 +126,37 @@ export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
   };
 }
 
-/** The heights, in px, of a card's parts, as function-editor.css sets them (a row is a line of text with its padding). */
-export const CARD_HEIGHT = { base: 50, row: 22, context: 26, value: 22, badges: 22, slack: 8 } as const;
+/**
+ * Upper bounds, in px, of a card's parts at the default font size: the head (one line, which function-editor.css keeps
+ * from wrapping, fidelity badges included) with the id below it, a row (an input slot, a param, the Orphaned mark), a
+ * source card's context select and a constant's value. They are estimates, not sizes the CSS sets:
+ * FunctionEditor.browser.test.tsx checks rendered cards against them.
+ */
+export const CARD_HEIGHT = { base: 50, row: 22, context: 26, value: 22, slack: 8 } as const;
 
 /**
- * Each box's card height from its content, for the layout: the caption and id, one row per input slot and per param,
- * a source card's context row, a constant's value, and a row more when fidelity badges make the head wrap. A function
- * of the model and the catalogue only, so the layout stays deterministic (ADR-0012).
+ * Each box's card height from its content, for the layout: the head and id, one row per input slot and per param, a
+ * source card's context, a constant's value, and a row for the Orphaned mark of a box in `orphaned`. A function of the
+ * model, the catalogue and the orphaned boxes (found against the loaded source structure) only, so the same model and
+ * structures always get the same layout (ADR-0012).
  */
-export function cardHeights(mapping: TargetFieldMapping, catalogue: FunctionCatalogue, udfs: Udfs | undefined): Record<AuthoringId, number> {
+export function cardHeights(
+  mapping: TargetFieldMapping,
+  catalogue: FunctionCatalogue,
+  udfs: Udfs | undefined,
+  orphaned: ReadonlySet<AuthoringId>,
+): Record<AuthoringId, number> {
   return Object.fromEntries(
     boxIds(mapping).map((id) => {
       const box = mapping.boxes[id]!;
       const view = boxView(box, catalogue, udfs);
       const card = cardView(box, catalogue);
+      const rows = view.slots.length + card.params.length + (orphaned.has(id) ? 1 : 0);
       const height =
         CARD_HEIGHT.base +
-        CARD_HEIGHT.row * (view.slots.length + card.params.length) +
+        CARD_HEIGHT.row * rows +
         (card.context === undefined ? 0 : CARD_HEIGHT.context) +
         (view.value === undefined ? 0 : CARD_HEIGHT.value) +
-        (card.badges.length === 0 ? 0 : CARD_HEIGHT.badges) +
         CARD_HEIGHT.slack;
       return [id, height];
     }),

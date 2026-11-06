@@ -2,7 +2,7 @@
  * The function editor module's styles (spec #135, #138), imported by FunctionEditor.tsx: the palette, the canvas
  * toolbar, the box cards and quick insert, after the prototype's .fbox, .fnode, .fid and .gc__* rules. Classes carry
  * the fm- prefix; colours and spacing are PatternFly tokens; tints are a token mixed into the card background. Sizes
- * set at run time (a box's width and height from the layout, its dimming) stay inline.
+ * set at run time (a box's width from the layout) stay inline.
  */
 .fm-function-editor {
   height: 100%;
@@ -61,11 +61,15 @@
   flex: 1;
 }
 
-/* the palette, after the prototype's .gc__palette and .gc__pitem */
+/*
+ * the palette, after the prototype's .gc__palette and .gc__pitem: beside the canvas it runs the canvas column's full
+ * height and scrolls inside it (d-default); the flex line stretches it, the max-height keeps it from growing the line
+ */
 .fm-palette {
   width: 11rem;
   flex: none;
-  max-height: 16rem;
+  max-height: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   padding: var(--pf-t--global--spacer--xs);
   border-right: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
@@ -124,15 +128,27 @@
   background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--orange--default) 10%, var(--pf-t--global--background--color--primary--default));
 }
 
+/*
+ * the head keeps to one line, so that its height does not depend on the text (graph.ts, CARD_HEIGHT): the caption, the
+ * title and the badges shrink with an ellipsis instead of wrapping; a source card's full path is the title's tooltip
+ */
 .fm-card__head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   align-items: center;
   gap: var(--pf-t--global--spacer--xs);
   padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
   border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
   border-radius: var(--pf-t--global--border--radius--small) var(--pf-t--global--border--radius--small) 0 0;
   background-color: var(--pf-t--global--background--color--secondary--default);
+}
+
+.fm-card__head > * {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fm-card--source .fm-card__head {
@@ -147,16 +163,16 @@
   background-color: color-mix(in srgb, var(--pf-t--global--color--status--danger--default) 15%, var(--pf-t--global--background--color--primary--default));
 }
 
-/* a box `result` does not reach: a dashed border and a muted head with a caption, the text keeps its contrast */
-.fm-card--unreached {
+/* an unreachable box: a dashed border and a muted head with a caption, the text keeps its contrast (F-31) */
+.fm-card--unreachable {
   border-style: dashed;
 }
 
-.fm-card--unreached .fm-card__head {
+.fm-card--unreachable .fm-card__head {
   background-color: var(--pf-t--global--background--color--secondary--default);
 }
 
-.fm-card--unreached .fm-card__kind::after {
+.fm-card--unreachable .fm-card__kind::after {
   content: ' · not reached';
 }
 

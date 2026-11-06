@@ -5,15 +5,18 @@ import { page, userEvent } from 'vitest/browser';
 import corpusMappingText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import { ApiProblem, type ApiClient, type Diagnostic } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
-import type { MappingModel } from '../../generated/mapping-model';
+import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { canvasKey, type BrowserStateStore } from '../browser-state/browser-state';
 import { MappingEditor } from '../index';
+import { cardHeights } from './graph';
 import { FUNCTION_DRAG } from './palette';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
 const NOTE = `${ORDER}/Note`;
 const DRAFT = 'drafts/graph';
+/** The title of a box `result` does not reach (GLOSSARY: Unreachable box). */
+const UNREACHABLE = 'Not reached by the result';
 const corpusMapping = JSON.parse(corpusMappingText) as MappingModel;
 
 /** OrderId and a constant into concat, which is the result; toUpperCase reads OrderId but feeds nothing. */
@@ -119,8 +122,11 @@ describe('the canvas of the selected target field', () => {
     for (const id of ['a1', 'c1', 'f1', 'u1']) await expect.element(box(id)).toBeVisible();
     // a card's text: its caption, title, id, then the input slots (spec #135: the card shows caption and id too)
     await expect.element(box('f1')).toMatchTextContent(/^fnconcat.*f1ab$/);
-    await expect.element(box('a1')).toMatchTextContent(/^source fieldOrderIda1/);
-    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toMatchTextContent(/^target fieldOrderId$/);
+    // a source card and the sink name their field by its local path, the full path in the title (spec #135, #138)
+    await expect.element(box('a1')).toMatchTextContent(/^source fieldOrder\/OrderIda1/);
+    await expect.element(box('a1').getByTitle(ORDER_ID)).toHaveTextContent('Order/OrderId');
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toMatchTextContent(/^target fieldOrder\/OrderId$/);
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`).getByTitle(ORDER_ID)).toHaveTextContent('Order/OrderId');
     await expect.poll(() => edges().elements().map((e) => e.dataset.testid).sort()).toEqual(
       ['rf__edge-a1->f1#0', 'rf__edge-a1->u1#0', 'rf__edge-c1->f1#1', 'rf__edge-f1->:sink'].sort(),
     );
@@ -170,10 +176,12 @@ describe('the canvas of the selected target field', () => {
     await expect.element(box('d1').getByTitle(divide!.fidelity.level === 'deviation' ? divide!.fidelity.text : '')).toHaveTextContent('deviation');
   });
 
-  test('the toolbar shows the field, its mapping id and the quick-insert hint; Copy counts the selected boxes', async () => {
+  test("the toolbar shows the field's local path, its mapping id and the quick-insert hint; Copy counts the selected boxes", async () => {
     render();
 
-    const toolbar = page.getByRole('group', { name: 'Canvas of OrderId' });
+    const toolbar = page.getByRole('group', { name: 'Canvas of Order/OrderId' });
+    // the toolbar comes before the cards, whose source card and sink carry the same path
+    await expect.element(toolbar.getByTitle(ORDER_ID).first()).toHaveTextContent('Order/OrderId');
     await expect.element(toolbar.getByText('type or press / on the canvas to insert a function')).toBeVisible();
     await expect.element(toolbar.getByText('t1', { exact: true })).toBeVisible();
     await expect.element(toolbar.getByRole('button', { name: 'Copy (0)' })).toBeDisabled();
@@ -183,17 +191,45 @@ describe('the canvas of the selected target field', () => {
     await expect.element(toolbar.getByRole('button', { name: 'Copy (1)' })).toBeEnabled();
   });
 
-  test('marks an unreachable box, by a class and a description rather than by fading it', async () => {
+  test('an unreachable box, and only it, is titled "Not reached by the result" and keeps the whole card opaque', async () => {
     render();
 
-    await expect.element(box('u1')).toHaveClass('fm-card--unreached');
-    await expect.element(box('u1')).toHaveAttribute('title', 'Not reached by the result');
-    for (const id of ['a1', 'c1', 'f1']) {
-      await expect.element(box(id)).not.toHaveClass('fm-card--unreached');
-      await expect.element(box(id)).not.toHaveAttribute('title');
-    }
-    // the text keeps its contrast: no whole-card opacity
+    await expect.element(box('u1')).toHaveAttribute('title', UNREACHABLE);
+    for (const id of ['a1', 'c1', 'f1']) await expect.element(box(id)).not.toHaveAttribute('title');
+    // the text keeps its contrast: no whole-card opacity (F-31)
     expect(getComputedStyle(box('u1').element()).opacity).toBe('1');
+  });
+
+  test('the layout reserves at least the rendered height of each card (spec #135)', async () => {
+    // a source card with its context, a function card with input slots, params and a fidelity badge, a deviating
+    // function, a constant, and an orphaned source card; all but a1 and x1 are unreachable, whose caption grows
+    const cards: TargetFieldMapping = {
+      id: 't1',
+      result: 'x1',
+      boxes: {
+        a1: { kind: 'source', field: ORDER_ID },
+        c1: { kind: 'function', fn: 'constant', params: { value: '-' } },
+        d1: { kind: 'function', fn: 'divide', inputs: ['a1', null] },
+        o1: { kind: 'source', field: `${ORDER}/Gone`, context: ORDER },
+        x1: { kind: 'function', fn: 'fixValues', inputs: ['a1'], params: { missing: 'error', table: { A: 'B' } } },
+      },
+    };
+    const api = fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: cards } } });
+    const catalogue = await api.getCatalogue();
+    expect(catalogue.fixValues!.fidelity.level).toBe('assumed');
+    expect(catalogue.divide!.fidelity.level).toBe('deviation');
+    render({ api });
+    await expect.element(page.getByTestId('orphaned:o1')).toBeVisible();
+
+    const reserved = cardHeights(cards, catalogue, undefined, new Set(['o1']));
+    const ids = Object.keys(cards.boxes);
+    for (const id of ids) await expect.element(box(id)).toBeVisible();
+    const taller = ids.flatMap((id) => {
+      const rendered = (box(id).element() as HTMLElement).offsetHeight;
+      return rendered > reserved[id]! ? [`${id}: rendered ${rendered} > reserved ${reserved[id]}`] : [];
+    });
+
+    expect(taller).toEqual([]);
   });
 
   describe('editing on the card', () => {
@@ -260,7 +296,7 @@ describe('the canvas of the selected target field', () => {
     unmount();
 
     render({ field: NOTE });
-    await expect.element(page.getByText('Note has no function graph yet.')).toBeVisible();
+    await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
   });
 
   test('a catalogue that cannot be read shows the error instead of the canvas', async () => {
@@ -450,6 +486,24 @@ describe('the palette', () => {
     await expect.element(page.getByTestId('palette:toUpperCase')).not.toMatchTextContent(/single|context|queue/);
   });
 
+  test('runs the full height of the canvas beside it, as in the prototype (d-default)', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+
+    const palette = page.getByRole('navigation', { name: 'Palette' }).element().getBoundingClientRect();
+    const canvas = page.getByRole('group', { name: /^Canvas of / }).element().getBoundingClientRect();
+    const editor = page.getByRole('region', { name: 'Function editor' }).element().getBoundingClientRect();
+    const entries = page.getByRole('navigation', { name: 'Palette' }).element();
+
+    // the layout contract of the function editor: side by side, top to bottom, and the palette scrolls inside the
+    // pane rather than growing it with the whole catalogue
+    expect(palette.right).toBeLessThanOrEqual(canvas.left);
+    expect(palette.top).toBeCloseTo(canvas.top, 0);
+    expect(palette.bottom).toBeCloseTo(canvas.bottom, 0);
+    expect(palette.bottom).toBeLessThanOrEqual(editor.bottom + 1);
+    expect(entries.scrollHeight).toBeGreaterThan(entries.clientHeight);
+  });
+
   test('an entry that is not portable is described so to assistive technology', async () => {
     const api = fakeApiClient({ [DRAFT]: graphMapping });
     const catalogue = await api.getCatalogue();
@@ -492,7 +546,7 @@ describe('editing on the canvas', () => {
 
     await expect.poll(boxCount).toBe(5);
     const added = boxIdsShown().find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
-    await expect.element(box(added)).toHaveClass('fm-card--unreached');
+    await expect.element(box(added)).toHaveAttribute('title', UNREACHABLE);
     await expect.element(page.getByTestId(`unconnected:${added}#0`)).toBeVisible();
     expect(edgeIds()).toContain('f1->:sink');
   });
@@ -521,8 +575,8 @@ describe('editing on the canvas', () => {
 
     await expect.poll(edgeIds).toContain('u1->:sink');
     expect(edgeIds()).not.toContain('f1->:sink');
-    await expect.element(box('u1')).not.toHaveClass('fm-card--unreached');
-    await expect.element(box('f1')).toHaveClass('fm-card--unreached');
+    await expect.element(box('u1')).not.toHaveAttribute('title');
+    await expect.element(box('f1')).toHaveAttribute('title', UNREACHABLE);
 
     await userEvent.dragAndDrop(handle('out:c1'), handle('in:u1#0'));
 

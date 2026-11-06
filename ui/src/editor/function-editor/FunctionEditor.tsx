@@ -19,7 +19,7 @@ import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
+import { localPath } from '../../model/field-path';
 import { reachedBoxes } from '../../model/reached';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
@@ -58,7 +58,8 @@ export interface FunctionEditorProps {
 /**
  * The function editor (ADR-0012): the palette, and the canvas with the function graph of the selected target field
  * mapping, its boxes and wires and a sink for the target field. Dropping a palette entry inserts a box, also into a
- * target field without a mapping. Boxes that `result` cannot reach are dimmed. An orphaned source-field box is marked,
+ * target field without a mapping. A box that `result` cannot reach (an unreachable box) has a dashed border, a muted
+ * head and a title saying so (F-31). An orphaned source-field box is marked,
  * and a source row dropped on it remaps it. Positions and zoom are browser state only; moving a box never touches the
  * working copy.
  *
@@ -116,7 +117,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
             ref={canvas}
             data-testid={`canvas:${targetField}`}
             role="group"
-            aria-label={`Canvas of ${stepName(targetField)}`}
+            aria-label={`Canvas of ${localPath(targetField)}`}
             tabIndex={0}
             onKeyDown={(event) => onKeyDown(event, targetField)}
             className="fm-function-editor__canvas"
@@ -143,7 +144,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
             )}
             {mapping === undefined ? (
               <>
-                <p>{stepName(targetField)} has no function graph yet.</p>
+                <p>{localPath(targetField)} has no function graph yet.</p>
                 <p>Drag a function here from the palette, or press / to insert one.</p>
               </>
             ) : (
@@ -202,7 +203,7 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
 function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox, chosen }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
   // each card's height from its content, so that no layout puts two cards over each other
-  const heights = cardHeights(mapping, catalogue, udfs);
+  const heights = cardHeights(mapping, catalogue, udfs, orphaned);
   const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions, null, heights) : arrange(mapping, heights)));
   const [measured, setMeasured] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
   const canPaste = useStore(store, (s) => s.clipboard?.targetField === targetField);
@@ -286,7 +287,7 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
     <>
       <div className="fm-toolbar">
         <strong className="fm-toolbar__title" title={targetField}>
-          {stepName(targetField)}
+          {localPath(targetField)}
         </strong>
         <code className="fm-toolbar__id">{mapping.id}</code>
         <span className="fm-toolbar__hint">type or press / on the canvas to insert a function</span>
@@ -363,14 +364,16 @@ function BoxNodeView({ id, data, selected }: NodeProps<BoxNode>) {
           remap(event.dataTransfer.getData(SOURCE_FIELD_DRAG));
         })
       }
-      // the width is the layout's; a box `result` does not reach is marked by class, not faded
+      // the width is the layout's; an unreachable box has a dashed border and a muted head, not a faded card (F-31)
       style={{ width: BOX.width }}
       title={data.reachable ? undefined : 'Not reached by the result'}
-      className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreached'}`}
+      className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreachable'}`}
     >
       <div className="fm-card__head">
         <span className="fm-card__kind">{data.card.caption}</span>
-        <strong className="fm-card__title">{data.view.title}</strong>
+        <strong className="fm-card__title" title={data.view.path}>
+          {data.view.title}
+        </strong>
         {data.card.badges.map((badge) => (
           <span key={badge.kind} className={`fm-fid fm-fid--${badge.kind}`} title={badge.kind === 'deviation' ? badge.text : undefined}>
             {badge.kind}
@@ -472,7 +475,9 @@ function SinkNodeView({ data }: NodeProps<SinkNode>) {
     <div data-testid={`sink:${data.field}`} className="fm-sink" style={{ width: BOX.width }}>
       <Handle type="target" position={Position.Left} data-testid="in:sink" />
       <span className="fm-sink__caption">target field</span>
-      <span className="fm-sink__name">{stepName(data.field)}</span>
+      <span className="fm-sink__name" title={data.field}>
+        {localPath(data.field)}
+      </span>
       {!data.connected && (
         <div className="fm-card__mark" data-testid="unconnected:sink">
           No result connected

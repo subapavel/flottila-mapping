@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
-import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames } from './inspector-view';
+import { localPath } from '../../model/field-path';
+import { boxTitle, duplicateKey, inspected, slotChoices, slotNames } from './inspector-view';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -64,7 +64,7 @@ describe("a box's input slots", () => {
 
   test('are wired from any other box of the same target field mapping, in sorted id order, with its title', () => {
     expect(slotChoices(mapping, 'f1')).toEqual([
-      { id: 'a1', title: 'OrderId' },
+      { id: 'a1', title: 'Order/OrderId' },
       { id: 'r1', title: 'FormatByExample' },
       { id: 'u1', title: 'shout' },
       { id: 'x1', title: 'noSuchFunction' },
@@ -73,21 +73,12 @@ describe("a box's input slots", () => {
 });
 
 describe("a box's title", () => {
-  test('a source-field box reading an escaped JSON property is titled by its name as the source tree shows it', () => {
+  test('a source-field box is titled by its local path, an escaped JSON property by its names as the source tree shows them', () => {
     const field = '/$/order/a%2Fb%25%40%7B%7D';
 
-    expect(boxTitle({ kind: 'source', field })).toBe('a/b%@{}');
-    expect(boxTitle({ kind: 'source', field })).toBe(stepName(field));
-  });
-});
-
-describe('the badges of a catalogue entry (ADR-0026)', () => {
-  test('are the fidelity badge unless exact, then "not portable" unless portable', () => {
-    const entry = catalogue.concat!;
-
-    expect(badges(entry)).toEqual([]);
-    expect(badges({ ...entry, fidelity: { level: 'assumed' }, portable: false })).toEqual([{ kind: 'assumed' }, { kind: 'not-portable' }]);
-    expect(badges({ ...entry, fidelity: { level: 'deviation', text: 'differs' } })).toEqual([{ kind: 'deviation', text: 'differs' }]);
+    expect(boxTitle({ kind: 'source', field: '/Q{urn:x}Order/@Q{urn:y}code' })).toBe('Order/@code');
+    expect(boxTitle({ kind: 'source', field })).toBe('$/order/a/b%@{}');
+    expect(boxTitle({ kind: 'source', field })).toBe(localPath(field));
   });
 });
 
