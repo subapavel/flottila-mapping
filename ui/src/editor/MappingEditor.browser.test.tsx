@@ -16,6 +16,8 @@ const corpusMapping = JSON.parse(corpusMappingText) as MappingModel;
 
 const sourceRow = (path: string) => page.getByTestId(`source-field:${path}`);
 const targetRow = (path: string) => page.getByTestId(`target-field:${path}`);
+/** A page tab (spec #135): Editor, Test, Diagnostics (n) or Model JSON. */
+const tab = (name: string | RegExp) => page.getByRole('tab', { name });
 
 function memoryBrowserState(): BrowserStateStore {
   const values = new Map<string, unknown>();
@@ -53,6 +55,65 @@ afterEach(() => {
   // every test fails on console.error (ADR-0013)
   expect(consoleError).not.toHaveBeenCalled();
   consoleError.mockRestore();
+});
+
+describe('the header bar and the page tabs (spec #135)', () => {
+  const header = page.getByRole('banner');
+  const at =(authoringId: string, severity: Diagnostic['severity']): Diagnostic => ({
+    severity,
+    code: 'box-cycle',
+    message: severity,
+    location: { kind: 'authoring-id', authoringId },
+  });
+
+  test('shows the mapping id, source → target in local names, the target field mapping count and the error badge', async () => {
+    const compile = { 'mappings/order-id-copy': [at('t1', 'error'), at('a1', 'warning'), at('a1', 'error')] };
+    render('mappings/order-id-copy', fakeApiClient(undefined, { compile }));
+
+    await expect.element(header.getByRole('heading', { name: 'mappings/order-id-copy' })).toBeVisible();
+    await expect.element(header).toMatchTextContent('Order → Order · 1 target field mapping');
+    // the badge counts the error diagnostics only; the Diagnostics tab counts them all
+    await expect.element(header.getByRole('button', { name: '2 errors' })).toBeVisible();
+    await expect.element(tab(/^Diagnostics/)).toHaveTextContent('Diagnostics (3)');
+  });
+
+  test('clicking the error badge selects the Diagnostics tab', async () => {
+    render('mappings/order-id-copy', fakeApiClient(undefined, { compile: { 'mappings/order-id-copy': [at('t1', 'error')] } }));
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
+
+    await header.getByRole('button', { name: '1 error' }).click();
+
+    await expect.element(tab(/^Diagnostics/)).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByRole('list', { name: 'Working copy diagnostics' })).toBeVisible();
+    await expect.element(page.getByRole('tree', { name: 'Target structure', includeHidden: true })).not.toBeVisible();
+  });
+
+  test('the active page tab is kept per mapping in the browser state; a kept value that is no tab opens the Editor tab', async () => {
+    const browserState = memoryBrowserState();
+    render('mappings/order-id-copy', fakeApiClient(), browserState);
+    await tab('Model JSON').click();
+    await expect.element(page.getByRole('tabpanel', { name: 'Model JSON' })).toBeVisible();
+
+    unmount();
+    render('mappings/order-id-copy', fakeApiClient(), browserState);
+
+    await expect.element(tab('Model JSON')).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByRole('tabpanel', { name: 'Model JSON' })).toBeVisible();
+
+    unmount();
+    browserState.write('mapping:mappings/order-id-copy:page-tab', 'drawer');
+    render('mappings/order-id-copy', fakeApiClient(), browserState);
+
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
+  });
+
+  test('counts no target field mapping and no error as such', async () => {
+    render('mappings/order-unmapped', fakeApiClient(undefined, { compile: { 'mappings/order-unmapped': [] } }));
+
+    await expect.element(header).toMatchTextContent('0 target field mappings');
+    await expect.element(header.getByRole('button', { name: '0 errors' })).toBeVisible();
+  });
 });
 
 describe('the structure overview', () => {
@@ -272,8 +333,10 @@ describe('undo, redo and the unsaved flag', () => {
     await userEvent.keyboard('{Control>}{Shift>}Z{/Shift}{/Control}');
     await expect.element(linked(ORDER_ID)).toBeVisible();
 
+    await tab('Test').click();
     await userEvent.click(page.getByRole('textbox', { name: 'Input message' }));
     await userEvent.keyboard('{Control>}z{/Control}');
+    await tab('Editor').click();
     await expect.element(linked(ORDER_ID)).toBeVisible();
   });
 });
@@ -391,6 +454,7 @@ describe('the test panel', () => {
     render('mappings/order-unmapped', fakeApiClient());
     await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
 
+    await tab('Test').click();
     await userEvent.fill(page.getByRole('textbox', { name: 'Input message' }), caseInput);
     await page.getByRole('button', { name: 'Run test' }).click();
 
@@ -411,9 +475,11 @@ describe('the test panel', () => {
     // the compile of the same working copy answers what the run's compile answers
     render('drafts/unfinished', fakeApiClient({ 'drafts/unfinished': unfinished }, { compile: { 'drafts/unfinished': [unconnected] } }));
 
+    await tab('Test').click();
     await userEvent.fill(page.getByRole('textbox', { name: 'Input message' }), caseInput);
     await page.getByRole('button', { name: 'Run test' }).click();
 
+    await expect.element(tab(/^Diagnostics/)).toHaveAttribute('aria-selected', 'true');
     const diagnostics = page.getByRole('list', { name: 'Working copy diagnostics' });
     await expect.element(diagnostics).toMatchTextContent("unconnected-target-field t1: the target field mapping's result is not connected");
     await expect.element(page.getByRole('figure', { name: 'Target message' })).not.toBeInTheDocument();
@@ -422,6 +488,7 @@ describe('the test panel', () => {
   test('shows the problem when the service refuses the request', async () => {
     render('mappings/order-id-copy', fakeApiClient());
 
+    await tab('Test').click();
     await userEvent.fill(page.getByRole('textbox', { name: 'Input message' }), '<other/>');
     await page.getByRole('button', { name: 'Run test' }).click();
 
@@ -440,7 +507,7 @@ describe('the Diagnostics panel', () => {
   };
   const diagnosticsTab = () => page.getByRole('tab', { name: /^Diagnostics/ });
 
-  test('the working copy is compiled on open, and the drawer tab lists its diagnostics', async () => {
+  test('the working copy is compiled on open, and the Diagnostics tab lists its diagnostics', async () => {
     render('mappings/order-unmapped', fakeApiClient(undefined, { compile: { 'mappings/order-unmapped': [unmappedOrderId] } }));
 
     await expect.element(diagnosticsTab()).toHaveTextContent('Diagnostics (1)');
@@ -497,7 +564,7 @@ describe('the Diagnostics panel', () => {
     await expect.element(targetRow(ORDER_ID)).toHaveFocus();
   });
 
-  test('a target field the structure lacks leads nowhere, and the focus stays on the link', async () => {
+  test('a target field the structure lacks opens the Editor tab, whose panel takes the focus: no row has it', async () => {
     const orphaned = structuredClone(corpusMapping);
     orphaned.targetFieldMappings = { [`${ORDER}/Missing`]: orphaned.targetFieldMappings![ORDER_ID]! };
     const answer: Diagnostic[] = [
@@ -506,10 +573,9 @@ describe('the Diagnostics panel', () => {
     render('drafts/orphaned', fakeApiClient({ 'drafts/orphaned': orphaned }, { compile: { 'drafts/orphaned': answer } }));
 
     await diagnosticsTab().click();
-    const link = page.getByRole('button', { name: 't1' });
-    await link.click();
+    await page.getByRole('button', { name: 't1' }).click();
 
-    await expect.element(link).toHaveFocus();
+    await expect.element(page.getByRole('tabpanel', { name: 'Editor' })).toHaveFocus();
   });
 
   test("a target field is also selected for the host (onSelectField), a source field's row only takes the focus", async () => {
@@ -534,6 +600,8 @@ describe('the Diagnostics panel', () => {
     await page.getByRole('button', { name: 'Order/Note' }).click();
     await expect.element(sourceRow(NOTE)).toHaveFocus();
     expect(onSelectField).not.toHaveBeenCalled();
+    // the link opened the Editor tab: the next one is back on the Diagnostics tab
+    await diagnosticsTab().click();
     await page.getByRole('button', { name: 'Order/OrderId' }).click();
 
     await expect.element(targetRow(ORDER_ID)).toHaveFocus();

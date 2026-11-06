@@ -1,0 +1,24 @@
+/*
+ * The app module's styles (spec #135), imported by DevHost.tsx: the list page's header bar with the product name,
+ * styled as the editor's header bar, over the list. Classes carry the fm- prefix; colours and spacing are PatternFly
+ * tokens. The file is named after its module: a CSS file beside DevHost.tsx would share its path once the extension
+ * is ignored (file-names.test.ts, #131).
+ */
+.fm-host__header {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--md);
+  border-bottom: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+
+.fm-host__title {
+  margin: 0;
+  font-size: var(--pf-t--global--font--size--md);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+.fm-host__main {
+  padding: var(--pf-t--global--spacer--md);
+}

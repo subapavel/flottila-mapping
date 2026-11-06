@@ -11,8 +11,6 @@ const HALVES: SplitRules = { initial: 0.5, collapsible: ['start', 'end'] };
 const SIDES: SplitRules = { initial: 0.5, collapsible: ['start', 'end'] };
 /** Only the inspector collapses; its collapsed state is the closed inspector. */
 const INSPECTOR: SplitRules = { initial: 0.7, collapsible: ['end'] };
-/** The height the halves share: at the initial ratio, about the trees' and the canvas's fixed heights before #104's splitters. */
-const HEIGHT = '56rem';
 
 export interface EditorLayoutProps {
   browserState: BrowserStateStore;
@@ -27,7 +25,8 @@ export interface EditorLayoutProps {
  * The split view of ADR-0012: the structure overview on top, the function editor below with the inspector on its
  * right. A splitter sets the ratio between the halves, and either half collapses fully; a second one, between the
  * source and the target tree, collapses either tree fully; a third sets the inspector's width and closes it, as does
- * the inspector button. All three are kept per user in the browser (ADR-0013).
+ * the inspector button. All three are kept per user in the browser (ADR-0013). The view fills the height its parent
+ * leaves it (spec #135); its static styles are in editor.css.
  */
 export function EditorLayout({ browserState, overview, functionEditor, inspector }: EditorLayoutProps) {
   const id = useId();
@@ -46,7 +45,7 @@ export function EditorLayout({ browserState, overview, functionEditor, inspector
   };
 
   return (
-    <div style={{ height: HEIGHT, display: 'flex', flexDirection: 'column' }}>
+    <div className="fm-layout">
       <div id={`${id}overview`} style={top}>
         {overview(
           sides,
@@ -68,8 +67,8 @@ export function EditorLayout({ browserState, overview, functionEditor, inspector
         rules={HALVES}
         onChange={changeHalves}
       />
-      <div style={{ ...bottom, display: bottom.display ?? 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div className="fm-layout__bottom" style={bottom}>
+        <div className="fm-layout__bar">
           <Button
             variant="link"
             isInline
@@ -80,7 +79,7 @@ export function EditorLayout({ browserState, overview, functionEditor, inspector
             {inspectorOpen ? 'Hide inspector' : 'Show inspector'}
           </Button>
         </div>
-        <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex' }}>
+        <div className="fm-layout__work">
           <div id={`${id}function-editor`} style={main}>
             {functionEditor}
           </div>

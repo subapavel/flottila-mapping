@@ -18,7 +18,6 @@ const api: Promise<ApiClient> =
 void api.then((client) =>
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <h1>Flottila Mapping</h1>
       <DevHost api={client} browserState={storageBrowserState(window.localStorage)} start={start} />
     </StrictMode>,
   ),

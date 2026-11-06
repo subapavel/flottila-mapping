@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { useEffect, useState } from 'react';
 import { describeError, type ApiClient } from '../api/client';
 import { MappingEditor, type BrowserStateStore } from '../editor';
+import './app.css';
 import { NewMappingForm } from './NewMappingForm';
 
 export interface DevHostProps {
@@ -16,8 +17,9 @@ export interface DevHostProps {
 }
 
 /**
- * The dev host (ADR-0013): the workspace's mappings, a New mapping form, and one open mapping in the editor. It asks
- * before the page unloads or the author leaves a mapping while the editor reports unsaved changes.
+ * The dev host (ADR-0013): the workspace's mappings under a header bar with the product name, a New mapping form, and
+ * one open mapping in the editor, whose header bar ends with All mappings. It asks before the page unloads or the
+ * author leaves a mapping while the editor reports unsaved changes.
  */
 export function DevHost(props: DevHostProps) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
@@ -53,10 +55,6 @@ function Host({ api, browserState, start }: DevHostProps) {
   if (open === undefined) return <MappingList api={api} onOpen={setOpen} />;
   return (
     <>
-      <Button variant="link" isInline onClick={() => (unsaved ? setAsking(true) : toList())}>
-        All mappings
-      </Button>
-      <h2>{open}</h2>
       <MappingEditor
         key={open}
         mappingId={open}
@@ -65,6 +63,11 @@ function Host({ api, browserState, start }: DevHostProps) {
         onUnsavedChange={setUnsaved}
         selectedField={selectedField}
         onSelectField={setSelectedField}
+        headerActions={
+          <Button size="sm" variant="link" onClick={() => (unsaved ? setAsking(true) : toList())}>
+            All mappings
+          </Button>
+        }
       />
       <Modal variant="small" isOpen={asking} onClose={() => setAsking(false)} aria-labelledby="unsaved-guard-title">
         <ModalHeader title="Unsaved changes" labelId="unsaved-guard-title" />
@@ -111,16 +114,21 @@ function MappingList({ api, onOpen }: { api: ApiClient; onOpen: (id: string) => 
   };
 
   return (
-    <>
-      <h2>Mappings</h2>
-      {list()}
-      {creating ? (
-        <NewMappingForm api={api} onCreated={onOpen} onCancel={() => setCreating(false)} />
-      ) : (
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          New mapping
-        </Button>
-      )}
-    </>
+    <div className="fm-host">
+      <header className="fm-host__header">
+        <h1 className="fm-host__title">Flottila Mapping</h1>
+      </header>
+      <main className="fm-host__main">
+        <h2>Mappings</h2>
+        {list()}
+        {creating ? (
+          <NewMappingForm api={api} onCreated={onOpen} onCancel={() => setCreating(false)} />
+        ) : (
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            New mapping
+          </Button>
+        )}
+      </main>
+    </div>
   );
 }
