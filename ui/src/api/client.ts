@@ -11,6 +11,9 @@ export type StructureResponse = Schemas['StructureResponse'];
 export type StructureLoaded = Schemas['StructureLoaded'];
 export type FieldDto = Schemas['FieldDto'];
 export type TestResult = Schemas['TestResult'];
+export type MappingSummary = Schemas['MappingSummary'];
+export type CreateMappingRequest = Schemas['CreateMappingRequest'];
+export type RootSelector = Schemas['rootSelector'];
 export type CompileResponse = Schemas['CompileResponse'];
 
 /** The answer of `GET /api/catalogue`, typed by json-schema-to-typescript from the contract's catalogue schema (ADR-0026). */
@@ -59,6 +62,13 @@ export function describeError(error: unknown): { title: string; detail: string; 
  * Diagnostics are a result, never a rejection, except for a refused save (422 `model-refused`).
  */
 export interface ApiClient {
+  /** The workspace's mappings, sorted by id. */
+  listMappings(): Promise<MappingSummary[]>;
+  /**
+   * Creates a mapping with both structures' fingerprints and no target field mapping, and resolves to it as stored.
+   * An existing id rejects with a 409 `mapping-exists` problem, an id that is not a workspace path with a 400.
+   */
+  createMapping(request: CreateMappingRequest): Promise<StoredMapping>;
   getMapping(id: string): Promise<StoredMapping>;
   /**
    * Saves on condition that the stored file still has `etag` (`If-Match`, ADR-0027), and resolves to the canonical
