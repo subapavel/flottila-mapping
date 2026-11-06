@@ -47,4 +47,12 @@ describe('the delete target field mapping command', () => {
 
     expect(result.kind === 'applied' && result.model).toBe(model);
   });
+
+  test('a model without targetFieldMappings gives back the same model', () => {
+    const empty: MappingModel = { formatVersion: 1, source: structure, target: structure };
+
+    const result = deleteTargetFieldMapping(empty, { targetField: GONE });
+
+    expect(result.kind === 'applied' && result.model).toBe(empty);
+  });
 });
