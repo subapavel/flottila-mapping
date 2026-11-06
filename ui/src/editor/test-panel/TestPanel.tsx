@@ -4,6 +4,7 @@ import { useState, type ChangeEvent } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
 import type { AuthoringId } from '../../generated/mapping-model';
+import { proseSegments } from '../../model/field-path';
 import { selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import './test-panel.css';
 
@@ -124,8 +125,8 @@ function Errors({ result, onShow }: { result: TestResult | null; onShow: (id: Au
         <ul className="fm-test__list">
           {diagnostics.map((d, i) => (
             <li key={i}>
-              <span className="fm-test__code">{d.code}</span> {d.message}
-              <Place location={d.location} onShow={onShow} />
+              <span className="fm-test__code">{d.code}</span> <Message text={d.message} />
+              <LocationLink location={d.location} onShow={onShow} />
             </li>
           ))}
         </ul>
@@ -134,8 +135,21 @@ function Errors({ result, onShow }: { result: TestResult | null; onShow: (id: Au
   );
 }
 
+/** A diagnostic's message with each field path in it shown as its local names, the full path in its title. */
+function Message({ text }: { text: string }) {
+  return proseSegments(text).map((s, i) =>
+    s.path === undefined ? (
+      s.text
+    ) : (
+      <span key={i} className="fm-test__path" title={s.path}>
+        {s.text}
+      </span>
+    ),
+  );
+}
+
 /** A link to the authoring id a diagnostic names; the Diagnostics panel shows its other locations. */
-function Place({ location, onShow }: { location: Diagnostic['location']; onShow: (id: AuthoringId) => void }) {
+function LocationLink({ location, onShow }: { location: Diagnostic['location']; onShow: (id: AuthoringId) => void }) {
   if (location.kind !== 'authoring-id') return null;
   return (
     <>

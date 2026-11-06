@@ -66,6 +66,12 @@
   color: var(--pf-t--global--text--color--status--danger--default);
 }
 
+/* a field path in a message: its local names, the full path in a tooltip, as in the Diagnostics panel */
+.fm-test__path {
+  font-family: var(--pf-t--global--font--family--mono);
+  text-decoration: underline dotted;
+}
+
 /* the generated target takes the rest of the column; its message scrolls inside it */
 .fm-test__output {
   flex: 1 1 0;

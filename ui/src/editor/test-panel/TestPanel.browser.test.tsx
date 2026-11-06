@@ -126,6 +126,20 @@ describe('the Test tab (spec #135)', () => {
     await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
     await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
   });
+
+  test("shows a field path in an error's message as local names, with the full path in its title", async () => {
+    const missing = `${ORDER}/Missing/@Q{urn:flottila:corpus:skeleton}code`;
+    render({
+      ...output,
+      diagnostics: [
+        { severity: 'error', code: 'orphaned-reference', message: `source field ${missing} is not in the source structure`, location: { kind: 'authoring-id', authoringId: 'a1' } },
+      ],
+    });
+    await runTest();
+
+    await expect.element(errors.getByRole('listitem')).toHaveTextContent('orphaned-reference source field Order/Missing/@code is not in the source structure · Show a1');
+    await expect.element(errors.getByTitle(missing, { exact: true })).toHaveTextContent('Order/Missing/@code');
+  });
 });
 
 describe('the test panel', () => {
