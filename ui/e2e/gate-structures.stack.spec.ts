@@ -107,7 +107,8 @@ test('@stack the JSON gate structure loads as a target, and a test run gives jso
   await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/gate/jsonTarget/001/input.xml'), 'utf8'));
   await page.getByRole('button', { name: 'Run test' }).click();
 
-  await expect(page.getByRole('list', { name: 'Diagnostics' })).toContainText('json-target-unsupported');
+  // a run that compile refuses fills the Diagnostics panel (#113)
+  await expect(page.getByRole('list', { name: 'Working copy diagnostics' })).toContainText('json-target-unsupported');
   await expect(page.getByRole('figure', { name: 'Target message' })).toBeHidden();
   expect(problems).toEqual([]);
 });

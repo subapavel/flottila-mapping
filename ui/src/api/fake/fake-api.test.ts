@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem, type Diagnostic } from '../client';
+import { ApiProblem, type Diagnostic, type TestResult } from '../client';
 import { fakeApiClient } from './fake-api';
 
 // The expectations come from the corpus files and from replies of the real service, observed on 2026-11-02.
@@ -211,6 +211,20 @@ describe('the fake ApiClient over the corpus', () => {
       expect(problem.problem.status).toBe(400);
       expect(problem.problem.type).toBe('urn:flottila:mapping:problem:invalid-request');
     }
+  });
+
+  test('a test run of a mapping the scenario names answers its fixture, whatever the working copy and input', async () => {
+    const minOccurs: TestResult = {
+      kind: 'error',
+      error: { code: 'po:MINOCCURS', message: 'too few occurrences', authoringId: 't1' },
+      diagnostics: [],
+      trace: { t1: { kind: 'occurrences', min: 1, max: 1, capped: false, parents: [{ parentSlot: 1, created: 0, slots: [] }] } },
+    };
+    const api = fakeApiClient(undefined, { test: { 'mappings/order-id-copy': minOccurs } });
+
+    expect(await api.runTest('mappings/order-id-copy', { model: corpusMapping, input: '<a/>' })).toEqual(minOccurs);
+    expect((await api.runTest('mappings/order-id-copy', { model: corpusMapping, input: caseInput })).kind).toBe('error');
+    expect((await problemOf(api.runTest('mappings/order-unmapped', { model: corpusMapping, input: '<a/>' }))).problem.status).toBe(400);
   });
 
   test('lists its mappings sorted by id, each named by the last segment of its id', async () => {

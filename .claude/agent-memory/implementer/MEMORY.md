@@ -166,3 +166,7 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   `scrollIntoView({block:'end'})` first; React Flow edge-end anchors render only with `onReconnect` (spec #104).
 - `$(…)` capture waits for `tee`'s EOF and hides an unwaited `tee`; test "log complete on return"
   with stdout to a file and a slow `tee` stub (spec #104).
+- Vitest browser `toHaveTextContent('x')` matches the whole text; `toMatchTextContent` for part (spec #104).
+- The scratchpad is shared by parallel agents: prefix scratch files with the ticket number (spec #104).
+- Fake-API component tests: the compile scheduled on open (500 ms) can land after a quick run and replace
+  its diagnostics; `expect.poll` for it or give the scenario a matching compile fixture (spec #104).
