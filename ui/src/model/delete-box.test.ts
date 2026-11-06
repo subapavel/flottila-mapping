@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { MappingModel } from '../generated/mapping-model';
-import { deleteBox } from './delete-box';
+import { deleteBox, deleteBoxes } from './delete-box';
 import { insertBox } from './insert-box';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
@@ -81,5 +81,42 @@ describe('the delete box command', () => {
   test('refuses an id that names no box', () => {
     expect(deleteBox(model, { box: 't1' })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 't1' });
     expect(deleteBox(unmapped, { box: 'a1' })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 'a1' });
+  });
+});
+
+describe('the delete boxes command', () => {
+  test('removes every box at once, across target field mappings, and nulls every input and result that read one', () => {
+    const result = deleteBoxes(model, { boxes: ['a1', 'f1', 'n1'] });
+
+    expect(result).toEqual({
+      kind: 'applied',
+      model: {
+        ...unmapped,
+        targetFieldMappings: {
+          [ORDER_ID]: {
+            id: 't1',
+            result: null,
+            boxes: {
+              u1: { kind: 'unresolved', name: 'ns:fn', origin: 'po', inputs: [null, null] },
+              e1: { kind: 'function', fn: 'concat' },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  test('deleting every box of every mapping gives back the model without target field mappings', () => {
+    expect(deleteBoxes(model, { boxes: ['e1', 'u1', 'f1', 'a1', 'n1'] })).toEqual({ kind: 'applied', model: unmapped });
+  });
+
+  test('an id that names no box refuses the whole command, even after ids that do', () => {
+    expect(deleteBoxes(model, { boxes: ['a1', 'zz', 'f1'] })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 'zz' });
+  });
+
+  test('no ids leave the very same model, so that the store records no undo step', () => {
+    const result = deleteBoxes(model, { boxes: [] });
+
+    expect(result.kind === 'applied' && result.model).toBe(model);
   });
 });

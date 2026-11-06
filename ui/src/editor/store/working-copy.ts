@@ -12,7 +12,7 @@ import {
 } from '../../api/client';
 import type { AuthoringId, Box, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
 import { applied, refusalOf, type CommandResult, type FieldRefusal, type Refusal } from '../../model/command';
-import { deleteBox } from '../../model/delete-box';
+import { deleteBoxes } from '../../model/delete-box';
 import { deleteTargetFieldMapping } from '../../model/delete-target-field-mapping';
 import { insertBox } from '../../model/insert-box';
 import { link } from '../../model/link';
@@ -90,8 +90,11 @@ export interface WorkingCopyState {
   unwire: (targetField: FieldPath, target: AuthoringId, slot: number) => void;
   /** Connects a box to the target field's sink, or disconnects it with `null`. */
   setResult: (targetField: FieldPath, box: AuthoringId | null) => void;
-  /** Deletes a box; a selected box is unselected, and the one selected before it becomes the selection. */
-  deleteBox: (box: AuthoringId) => void;
+  /**
+   * Deletes these boxes as one undo step, or none of them when an id names no box; each selected one is unselected, and
+   * the last selected id left becomes the selection.
+   */
+  deleteBoxes: (boxes: readonly AuthoringId[]) => void;
   /** Sets box parameter `name` of a standard function box, checked against `catalogue`; the default is left out. */
   setParam: (targetField: FieldPath, box: AuthoringId, name: string, value: ParamValue, catalogue: FunctionCatalogue) => void;
   /** Sets a source-field box's context to a proper ancestor of its field; the parent is left out. */
@@ -242,8 +245,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
 
       setResult: (targetField, box) => void apply(setResult(get().workingCopy, { targetField, box })),
 
-      deleteBox: (box) => {
-        if (apply(deleteBox(get().workingCopy, { box }))) get().selectBoxes(get().selected.filter((id) => id !== box));
+      deleteBoxes: (boxes) => {
+        if (apply(deleteBoxes(get().workingCopy, { boxes }))) get().selectBoxes(get().selected.filter((id) => !boxes.includes(id)));
       },
 
       setParam: (targetField, box, name, value, catalogue) =>

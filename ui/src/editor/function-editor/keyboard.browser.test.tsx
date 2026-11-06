@@ -212,6 +212,111 @@ describe('the keyboard-only path', () => {
   });
 });
 
+describe('deleting several boxes', () => {
+  test('Delete removes every selected box of the canvas as one undo step', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+    await tabTo('rf__node-c1');
+    await userEvent.keyboard('{Enter}');
+    await tabTo('rf__node-u1');
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    await expect.element(node('c1')).toHaveClass('selected');
+    await expect.element(node('u1')).toHaveClass('selected');
+
+    await userEvent.keyboard('{Delete}');
+
+    await expect.poll(boxIdsShown).toEqual(['a1', 'f1']);
+    await expect.element(canvas(ORDER_ID)).toHaveFocus();
+
+    await userEvent.keyboard('{Control>}z{/Control}');
+
+    await expect.poll(() => boxIdsShown().sort()).toEqual(['a1', 'c1', 'f1', 'u1']);
+  });
+
+  test('Delete with no box selected deletes nothing and leaves the focus where it is', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+    (node('u1').element() as HTMLElement).focus();
+
+    await userEvent.keyboard('{Delete}');
+
+    await expect.element(node('u1')).toHaveFocus();
+    expect(boxIdsShown().sort()).toEqual(['a1', 'c1', 'f1', 'u1']);
+  });
+});
+
+describe('the palette by keyboard', () => {
+  const entry = (fn: string) => page.getByTestId(`palette:${fn}`);
+
+  test('one entry is in the tab order; the arrows move along the entries and Enter inserts the focused one', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+    await userEvent.fill(page.getByLabelText('Search functions'), 'statistic');
+    await expect.element(entry('sum')).toBeVisible();
+
+    await tabTo('palette:average');
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}');
+    await expect.element(entry('counter')).toHaveFocus();
+
+    await userEvent.keyboard('{Enter}');
+
+    await expect.poll(boxIdsShown).toHaveLength(5);
+    const added = boxIdsShown().find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
+    expect(titleOf(added)).toBe('counter');
+    await expect.element(page.getByText('Unsaved')).toBeVisible();
+
+    // the arrows stop at either end, and Tab leaves the palette from the entry it is on
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+    await expect.element(entry('sum')).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}');
+    await expect.element(entry('average')).toHaveFocus();
+    await userEvent.tab();
+    await expect.element(canvas(ORDER_ID)).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    await expect.element(entry('average')).toHaveFocus();
+  });
+
+  test('a search that leaves out the entry moved to puts the first entry it lists in the tab order', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+    await tabTo('palette:abs');
+    await userEvent.keyboard('{ArrowDown}');
+    await expect.element(entry('add')).toHaveFocus();
+
+    await userEvent.fill(page.getByLabelText('Search functions'), 'statistic');
+
+    await tabTo('palette:average');
+  });
+
+  test('Enter on an entry inserts into a field without a mapping, with no pointer event', async () => {
+    const pointers: string[] = [];
+    const record = (event: Event) => void pointers.push(event.type);
+    for (const type of ['pointerdown', 'mousedown', 'click']) document.addEventListener(type, record, true);
+    try {
+      render(corpusMapping, NOTE);
+      await expect.element(page.getByText('Note has no function graph yet.')).toBeVisible();
+      await tabTo('palette:abs');
+
+      await userEvent.keyboard('{Enter}');
+
+      await expect.poll(boxIdsShown).toHaveLength(1);
+      expect(titleOf(boxIdsShown()[0]!)).toBe('abs');
+      expect(pointers).toEqual([]);
+    } finally {
+      for (const type of ['pointerdown', 'mousedown', 'click']) document.removeEventListener(type, record, true);
+    }
+  });
+
+  test('an entry is named by its function and described by its badges, the deviation with its text', async () => {
+    render();
+
+    await expect.element(entry('divide')).toHaveAccessibleName('divide');
+    await expect.element(entry('divide')).toHaveAccessibleDescription(/^deviation: Quotient scale follows Saxon-HE/);
+    await expect.element(entry('toUpperCase')).toHaveAccessibleDescription('assumed');
+    await expect.element(entry('abs')).not.toHaveAccessibleDescription();
+  });
+});
+
 describe('copy and paste', () => {
   test('Ctrl+C and Ctrl+V duplicate a two-box fragment with new ids; a wire inside it is kept, a wire from outside is not', async () => {
     render();
