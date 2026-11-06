@@ -1,11 +1,12 @@
 import { Alert, Button, Label, TextArea, Title } from '@patternfly/react-core';
 import { useMutation } from '@tanstack/react-query';
-import { useState, type ChangeEvent } from 'react';
+import { useMemo, useState, type ChangeEvent } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
 import type { AuthoringId } from '../../generated/mapping-model';
 import { proseSegments } from '../../model/field-path';
 import { selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
+import { indentXml } from './indent-xml';
 import './test-panel.css';
 
 export interface TestPanelProps {
@@ -173,14 +174,20 @@ function Output({ result }: { result: TestResult | null }) {
     case undefined:
       return <p className="fm-test__empty">No run yet.</p>;
     case 'output':
-      return (
-        <figure aria-label="Target message" className="fm-test__message">
-          <pre>{result.output}</pre>
-        </figure>
-      );
+      return <TargetMessage output={result.output} />;
     case 'error':
       return <p className="fm-test__empty">The run stopped at a runtime error: no target message.</p>;
     case 'refused':
       return <p className="fm-test__empty">Compile refused the working copy: nothing ran. Its diagnostics are in the Diagnostics panel.</p>;
   }
+}
+
+/** A target message, XML indented for display only; JSON and a text that does not parse are shown as they are. */
+function TargetMessage({ output }: { output: string }) {
+  const shown = useMemo(() => indentXml(output), [output]);
+  return (
+    <figure aria-label="Target message" className="fm-test__message">
+      <pre>{shown}</pre>
+    </figure>
+  );
 }

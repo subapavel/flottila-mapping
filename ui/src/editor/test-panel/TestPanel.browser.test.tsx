@@ -147,8 +147,24 @@ describe('the test panel', () => {
     render(output);
     await runTest();
 
-    await expect.element(targetMessage).toHaveTextContent('<Order><OrderId>PO 4711</OrderId></Order>');
+    // indented for display: toHaveTextContent folds its line break and indent into one space
+    await expect.element(targetMessage).toHaveTextContent('<Order> <OrderId>PO 4711</OrderId> </Order>');
     await expect.element(testPanel.getByText('stale')).not.toBeInTheDocument();
+  });
+
+  test('shows an XML target message indented, one element per line, in a pane that scrolls on both axes', async () => {
+    const note = 'leave at the door '.repeat(20);
+    render({ ...output, output: `<?xml version="1.0" encoding="UTF-8"?><Order><OrderId>PO 4711</OrderId><Note>${note}</Note></Order>` });
+    await runTest();
+
+    await expect
+      .poll(() => targetMessage.query()?.textContent)
+      .toBe(['<?xml version="1.0" encoding="UTF-8"?>', '<Order>', '  <OrderId>PO 4711</OrderId>', `  <Note>${note}</Note>`, '</Order>'].join('\n'));
+    // a line wider than the pane is not wrapped or clipped: the pane scrolls to it
+    const pane = targetMessage.element() as HTMLElement;
+    expect(getComputedStyle(pane)).toMatchObject({ overflowX: 'auto', overflowY: 'auto' });
+    expect(getComputedStyle(pane.querySelector('pre')!).whiteSpace).toBe('pre');
+    expect(pane.scrollWidth).toBeGreaterThan(pane.clientWidth);
   });
 
   test('shows a runtime error with its QName and message, and its link selects the target field mapping', async () => {
