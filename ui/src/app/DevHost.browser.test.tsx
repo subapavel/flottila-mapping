@@ -80,6 +80,17 @@ describe('the mapping list', () => {
     await expect.element(page.getByRole('tree', { name: 'Target structure' })).not.toBeInTheDocument();
   });
 
+  test('the list has one row per mapping, each with its id as a button', async () => {
+    render(fakeApiClient());
+
+    await expect.element(mappingList()).toBeVisible();
+    const rows = mappingList().getByRole('listitem');
+    await expect.element(rows).toHaveLength(3);
+    for (const id of ['mappings/order-id-copy', 'mappings/order-unmapped', 'mappings/tree-20128']) {
+      await expect.element(rows.filter({ hasText: id }).getByRole('button', { name: id })).toBeVisible();
+    }
+  });
+
   test('a mapping named at start opens directly', async () => {
     render(fakeApiClient(), { mapping: 'mappings/order-id-copy' });
 

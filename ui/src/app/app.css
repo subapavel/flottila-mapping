@@ -22,3 +22,7 @@
 .fm-host__main {
   padding: var(--pf-t--global--spacer--md);
 }
+
+.fm-host__list {
+  margin-block: var(--pf-t--global--spacer--md);
+}
