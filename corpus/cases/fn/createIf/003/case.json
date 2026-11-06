@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/create-if-twice.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0006 Consequences, assumed readings since #51: createIf of anything but 1 or true, \"\" and SUPPRESS included, gives SUPPRESS; observation #61",
-  "expect": "output",
-  "note": "createIf(createIf(Tag)) with Tag true, false, 1 in context Orders. The inner createIf gives \"\", SUPPRESS, \"\"; the outer one takes neither \"\" nor SUPPRESS as true, so every slot is SUPPRESS and the root is written empty. Taking \"\" as true would give two All."
+  "ref": "ADR-0006 Consequences, createIf (amended with #133, F-29): \"\" is no boolean and raises po:CREATEIF at the createIf box, observed in #31 for an empty source value (corpus/observations/obs-target-creation/po75/probe-bool-c-spec2-create-if-row.txt); assumed until obs-target-creation-2 (#134) answers: the same for the \"\" another createIf gives",
+  "expect": "error",
+  "note": "createIf(createIf(Tag)) with Tag true, false, 1 in context Orders. The inner createIf C1 gives \"\", SUPPRESS, \"\"; the outer one C2 casts \"\", which is no boolean, so the run raises po:CREATEIF at C2. Taking \"\" as false would write the root empty, as true two All."
 }

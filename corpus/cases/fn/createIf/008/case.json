@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/create-if-twice.mapping.json",
+  "provenance": "assumed",
+  "ref": "ADR-0006 Consequences, createIf (amended with #133, F-29): false and 0 give SUPPRESS, observed in #31; assumed until obs-target-creation-2 (#134) answers: a SUPPRESS slot gives SUPPRESS, no cast error",
+  "expect": "output",
+  "note": "createIf(createIf(Tag)) with Tag false, 0 in context Orders. The inner createIf gives SUPPRESS, SUPPRESS; the outer one keeps a SUPPRESS slot SUPPRESS without casting it, so no All and the root is written empty. Casting SUPPRESS would raise po:CREATEIF at C2."
+}

@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/create-if.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0006 Consequences, assumed readings since #51: createIf is true for 1 or true in any case, and anything else, \"\" and SUPPRESS included, gives SUPPRESS; from #2 §5: Boolean inputs \"1\" and \"true\" (not case-sensitive) are true, all else false [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm]; observation #61",
+  "ref": "ADR-0006 Consequences, createIf (amended with #133, F-29): PO casts with Bool.toBoolean, observed in #31 for true, TRUE, 1, false, 0; assumed until obs-target-creation-2 (#134) answers: false and true in any case; the input was TRUE, 1, yes, 0, \" true\", \"\" before #133, of which PO ends the run on yes (F-29, corpus/observations/obs-target-creation/po75/max-002-spec2-create-if-row.txt)",
   "expect": "output",
-  "note": "One context of six conditions: TRUE, 1, yes, 0, \" true\" and \"\". Only TRUE and 1 are true, so two empty All. A case-sensitive rule gives one, a rule that trims or takes yes gives three."
+  "note": "One context of three conditions: FALSE, 1, True. false and true in any case are booleans, so SUPPRESS, \"\", \"\": two empty All. A case-sensitive true would give one All, a case-sensitive false an error at C1."
 }
