@@ -93,6 +93,21 @@ describe('the Diagnostics panel', () => {
     expect(onSelectField.mock.calls).toEqual([['target', NOTE]]);
   });
 
+  test('a {side, fieldPath} location selects that tree row', async () => {
+    const onSelectField = render([
+      {
+        severity: 'error',
+        code: 'orphaned-reference',
+        message: 'gone',
+        location: { kind: 'field-path', side: 'source', fieldPath: NOTE },
+      },
+    ]);
+
+    await item('orphaned-reference').getByRole('button', { name: NOTE }).click();
+
+    expect(onSelectField.mock.calls).toEqual([['source', NOTE]]);
+  });
+
   test('a file position shows as file:line:column text', async () => {
     render([
       {

@@ -38,7 +38,9 @@ class OpenApiContractTest {
               Map.of(
                   "pointer", "PointerLocation",
                   "authoring-id", "AuthoringIdLocation",
-                  "file-position", "FilePositionLocation"),
+                  "file-position", "FilePositionLocation",
+                  // ADR-0015 {side, fieldPath} (#105)
+                  "field-path", "FieldPathLocation"),
           "TestResult",
               Map.of("output", "TestOutput", "refused", "TestRefused", "error", "TestError"),
           "StructureResponse", Map.of("loaded", "StructureLoaded", "refused", "StructureRefused"),
@@ -87,7 +89,8 @@ class OpenApiContractTest {
               "DiagnosticDto", "code location message severity | code location message severity"),
           Map.entry("PointerLocation", "kind pointer | kind pointer"),
           Map.entry("AuthoringIdLocation", "authoringId kind | authoringId kind"),
-          Map.entry("FilePositionLocation", "column file kind line | column file kind line"));
+          Map.entry("FilePositionLocation", "column file kind line | column file kind line"),
+          Map.entry("FieldPathLocation", "fieldPath kind side | fieldPath kind side"));
 
   @Test
   void everyOneOfEqualsThePermittedSubclasses() throws Exception {

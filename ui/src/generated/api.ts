@@ -604,6 +604,16 @@ export interface components {
             nillable: boolean;
             type?: string;
         };
+        FieldPathLocation: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "field-path";
+            /** @enum {string} */
+            side: "source" | "target";
+            fieldPath: string;
+        };
         FilePositionLocation: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -616,7 +626,7 @@ export interface components {
             /** Format: int32 */
             column: number;
         };
-        LocationDto: components["schemas"]["PointerLocation"] | components["schemas"]["AuthoringIdLocation"] | components["schemas"]["FilePositionLocation"];
+        LocationDto: components["schemas"]["PointerLocation"] | components["schemas"]["AuthoringIdLocation"] | components["schemas"]["FilePositionLocation"] | components["schemas"]["FieldPathLocation"];
         MappingSummary: {
             id: string;
             name: string;

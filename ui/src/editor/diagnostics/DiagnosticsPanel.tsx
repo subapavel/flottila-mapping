@@ -14,7 +14,7 @@ export interface DiagnosticsPanelProps {
 
 /**
  * The Diagnostics panel (GLOSSARY): the latest diagnostics of the working copy, from compile or a refused save, each
- * with its severity, code and message, and a link to the target field it names (ADR-0015).
+ * with its severity, code and message, and a link to the field it names (ADR-0015).
  */
 export function DiagnosticsPanel({ store, onSelectField }: DiagnosticsPanelProps) {
   const diagnostics = useStore(store, (s) => s.diagnostics);
@@ -43,7 +43,7 @@ export function DiagnosticsPanel({ store, onSelectField }: DiagnosticsPanelProps
   );
 }
 
-/** Where a diagnostic points: a link to the target field it leads to, or its text. */
+/** Where a diagnostic points: a link to the field it leads to, or its text. */
 function Place({
   store,
   location,
@@ -52,22 +52,25 @@ function Place({
   const model = useStore(store, (s) => s.workingCopy);
   switch (location.kind) {
     case 'authoring-id':
-      return <TargetLink field={targetFieldOf(model, location.authoringId)} text={location.authoringId} onSelectField={onSelectField} />;
+      return <FieldLink side="target" field={targetFieldOf(model, location.authoringId)} text={location.authoringId} onSelectField={onSelectField} />;
     case 'pointer':
-      return <TargetLink field={targetFieldAt(location.pointer)} text={location.pointer} onSelectField={onSelectField} />;
+      return <FieldLink side="target" field={targetFieldAt(location.pointer)} text={location.pointer} onSelectField={onSelectField} />;
+    case 'field-path':
+      return <FieldLink side={location.side} field={location.fieldPath} text={location.fieldPath} onSelectField={onSelectField} />;
     case 'file-position':
       return <span>{`${location.file}:${location.line}:${location.column}`}</span>;
   }
 }
 
-function TargetLink({
+function FieldLink({
+  side,
   field,
   text,
   onSelectField,
-}: Pick<DiagnosticsPanelProps, 'onSelectField'> & { field: FieldPath | undefined; text: string }) {
+}: Pick<DiagnosticsPanelProps, 'onSelectField'> & { side: 'source' | 'target'; field: FieldPath | undefined; text: string }) {
   if (field === undefined) return <span>{text}</span>;
   return (
-    <Button variant="link" isInline onClick={() => onSelectField('target', field)}>
+    <Button variant="link" isInline onClick={() => onSelectField(side, field)}>
       {text}
     </Button>
   );
