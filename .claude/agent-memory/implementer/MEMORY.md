@@ -140,3 +140,36 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   share an empty, reachable case (spec #89 review).
 - The worktree guard also refuses `-Dtest=Class#method*`, `git -C … | …`, `sed -n` with a variable
   file and multi-`sed -i` chains: put them in a scratch script and run `bash <script>`.
+- The scratchpad is shared by sibling agents: prefix scratch files with the ticket number (spec #104).
+- Service mutants: `-pl service -am … -Dsurefire.failIfNoSpecifiedTests=false`; count a kill only on a
+  `Tests run:.*Failures: [1-9]` line, a resolution failure also exits non-zero (spec #104).
+- react-hooks 7 (`react-hooks/refs`) refuses a ref read in a `useState` initialiser's closures:
+  subscribe store listeners in a `useEffect` (spec #104).
+- PF 6 Alert titles are headings with an SR prefix ("Danger alert:"): query
+  `getByRole('heading', { name: /…/ })`, not `getByText` (spec #104).
+- Vitest browser: `userEvent.keyboard('{Shift>}z')` sends `z`; send `Z`. `toHaveTextContent('x')`
+  compares the whole normalised text (spec #104).
+- React Flow 12 controlled nodes must carry `measured` back on every node object, or they are
+  re-measured and hidden; a node moves only from the second drag event (`dragAndDrop` with
+  `{ steps: 5 }`) (spec #104).
+- The Vitest browser viewport is 414 px wide: a wider host pushes the target tree off-screen and
+  row drag-and-drop fails silently (spec #104).
+- Default e2e uses fixed port 4173, shared by every worktree: if taken, wait (`/proc/net/tcp`
+  `:10AD`) and retry (spec #104).
+- An added endpoint updates three tables in `OpenApiContractTest` (PROBLEMS, successes, 400
+  count); a new `LocationDto` kind updates the union and records maps (spec #104).
+- Worktree-isolated shells refuse compound commands with several git calls, `python3 - <<EOF`
+  and heredoc+chmod chains: one simple command per call, files via Write (spec #104).
+- An integration tip that adds a fake-API corpus mapping breaks tests that count `listMappings()`;
+  assert "unchanged by the call", not a corpus size (spec #104).
+- Vitest browser: an HTML5 `dragAndDrop` whose target needs scrolling is lost silently — call
+  `scrollIntoView({block:'end'})` first; React Flow edge-end anchors render only with `onReconnect` (spec #104).
+- `$(…)` capture waits for `tee`'s EOF and hides an unwaited `tee`; test "log complete on return"
+  with stdout to a file and a slow `tee` stub (spec #104).
+- Vitest browser `toHaveTextContent('x')` matches the whole text; `toMatchTextContent` for part (spec #104).
+- The scratchpad is shared by parallel agents: prefix scratch files with the ticket number (spec #104).
+- Fake-API component tests: the compile scheduled on open (500 ms) can land after a quick run and replace
+  its diagnostics; `expect.poll` for it or give the scenario a matching compile fixture (spec #104).
+- `npm exec --prefix ui -- vitest` skips `ui/vitest*.config.ts`; use `npm --prefix ui run test[:browser] -- <file>` (spec #104).
+- Vitest browser viewport defaults to 414 px; a tree-row-to-box drag needs `page.viewport(1280, 1400)` (spec #104).
+- The ratchet holds `ui/src/model` and `ui/src/editor/store` at 100 %: a constant-only file needs a test importing it (spec #104).

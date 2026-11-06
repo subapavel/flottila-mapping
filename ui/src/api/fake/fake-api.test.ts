@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import type { MappingModel } from '../../generated/mapping-model';
-import { ApiProblem } from '../client';
+import { ApiProblem, type Diagnostic, type TestResult } from '../client';
 import { fakeApiClient } from './fake-api';
 
 // The expectations come from the corpus files and from replies of the real service, observed on 2026-11-02.
@@ -24,10 +24,21 @@ describe('the fake ApiClient over the corpus', () => {
   test('opens the corpus mapping, and the mapping without its target field mappings', async () => {
     const api = fakeApiClient();
 
-    expect(await api.getMapping('mappings/order-id-copy')).toEqual(corpusMapping);
+    expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(corpusMapping);
     const unmapped = { ...corpusMapping };
     delete unmapped.targetFieldMappings;
-    expect(await api.getMapping('mappings/order-unmapped')).toEqual(unmapped);
+    expect((await api.getMapping('mappings/order-unmapped')).model).toEqual(unmapped);
+  });
+
+  test('tags each mapping, and the tag stays until the mapping is written', async () => {
+    const api = fakeApiClient();
+
+    const first = await api.getMapping('mappings/order-id-copy');
+    const other = await api.getMapping('mappings/order-unmapped');
+
+    expect(first.etag).toMatch(/^"fake:\d+"$/);
+    expect(other.etag).not.toBe(first.etag);
+    expect((await api.getMapping('mappings/order-id-copy')).etag).toBe(first.etag);
   });
 
   test('answers an unknown mapping id with a not-found problem', async () => {
@@ -46,21 +57,38 @@ describe('the fake ApiClient over the corpus', () => {
       targetFieldMappings: { [ORDER_ID]: { result: 'b1', id: 'm1', boxes: { b1: { kind: 'source', field: ORDER_ID } } } },
     };
 
-    const saved = await api.saveMapping('mappings/order-unmapped', sent);
+    const { etag } = await api.getMapping('mappings/order-unmapped');
 
-    expect(saved).toEqual(sent);
-    expect(Object.keys(saved)).toEqual(['formatVersion', 'source', 'target', 'targetFieldMappings']);
-    expect(Object.keys(saved.targetFieldMappings![ORDER_ID]!)).toEqual(['boxes', 'id', 'result']);
-    expect(await api.getMapping('mappings/order-unmapped')).toEqual(sent);
-    expect((await problemOf(api.saveMapping('mappings/missing', sent))).problem.status).toBe(404);
+    const saved = await api.saveMapping('mappings/order-unmapped', sent, etag);
+
+    expect(saved.model).toEqual(sent);
+    expect(saved.etag).not.toBe(etag);
+    expect(Object.keys(saved.model)).toEqual(['formatVersion', 'source', 'target', 'targetFieldMappings']);
+    expect(Object.keys(saved.model.targetFieldMappings![ORDER_ID]!)).toEqual(['boxes', 'id', 'result']);
+    expect(await api.getMapping('mappings/order-unmapped')).toEqual(saved);
+    expect((await problemOf(api.saveMapping('mappings/missing', sent, etag))).problem.status).toBe(404);
+  });
+
+  test('a save with a tag the stored mapping no longer has is 409 mapping-changed and keeps what is stored', async () => {
+    const api = fakeApiClient();
+    const opened = await api.getMapping('mappings/order-id-copy');
+    const unmapped = { ...corpusMapping };
+    delete unmapped.targetFieldMappings;
+    await api.saveMapping('mappings/order-id-copy', unmapped, opened.etag);
+
+    const problem = await problemOf(api.saveMapping('mappings/order-id-copy', corpusMapping, opened.etag));
+
+    expect(problem.problem.status).toBe(409);
+    expect(problem.problem.type).toBe('urn:flottila:mapping:problem:mapping-changed');
+    expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(unmapped);
   });
 
   test('what it returns is a copy: changing it leaves the fake as it was', async () => {
     const api = fakeApiClient();
     const first = await api.getMapping('mappings/order-id-copy');
-    first.targetFieldMappings![ORDER_ID]!.result = null;
+    first.model.targetFieldMappings![ORDER_ID]!.result = null;
 
-    expect(await api.getMapping('mappings/order-id-copy')).toEqual(corpusMapping);
+    expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(corpusMapping);
   });
 
   test('loads the order structure relative to the mapping directory', async () => {
@@ -84,6 +112,23 @@ describe('the fake ApiClient over the corpus', () => {
       'PickupTime',
       'CreatedAt',
       'Note',
+    ]);
+  });
+
+  test('loads the same-step structure of the corpus mappings that use a refused field, with its refusals (#116)', async () => {
+    const sameStep = JSON.parse(corpus('mappings/same-step-source-box.mapping.json')) as MappingModel;
+
+    const response = await fakeApiClient().loadStructure({ base: 'mappings', bundle: sameStep.source.bundle, root: sameStep.source.root });
+
+    expect(response.kind).toBe('loaded');
+    if (response.kind !== 'loaded') return;
+    expect(response.fingerprint).toBe(sameStep.source.fingerprint);
+    expect(response.types['/Doc']!.map((f) => `${f.step} ${f.refusal?.code ?? '-'}`)).toEqual([
+      'Id -',
+      'Note ambiguous-field-path',
+      'Code -',
+      'Note ambiguous-field-path',
+      'Head -',
     ]);
   });
 
@@ -168,10 +213,175 @@ describe('the fake ApiClient over the corpus', () => {
     }
   });
 
+  test('a test run of a mapping the scenario names answers its fixture, whatever the working copy and input', async () => {
+    const minOccurs: TestResult = {
+      kind: 'error',
+      error: { code: 'po:MINOCCURS', message: 'too few occurrences', authoringId: 't1' },
+      diagnostics: [],
+      trace: { t1: { kind: 'occurrences', min: 1, max: 1, capped: false, parents: [{ parentSlot: 1, created: 0, slots: [] }] } },
+    };
+    const api = fakeApiClient(undefined, { test: { 'mappings/order-id-copy': minOccurs } });
+
+    expect(await api.runTest('mappings/order-id-copy', { model: corpusMapping, input: '<a/>' })).toEqual(minOccurs);
+    expect((await api.runTest('mappings/order-id-copy', { model: corpusMapping, input: caseInput })).kind).toBe('error');
+    expect((await problemOf(api.runTest('mappings/order-unmapped', { model: corpusMapping, input: '<a/>' }))).problem.status).toBe(400);
+  });
+
+  test('lists its mappings sorted by id, each named by the last segment of its id', async () => {
+    const api = fakeApiClient({ 'b/two': corpusMapping, 'a/deep/one': corpusMapping, 'b/one': corpusMapping });
+
+    expect(await api.listMappings()).toEqual([
+      { id: 'a/deep/one', name: 'one' },
+      { id: 'b/one', name: 'one' },
+      { id: 'b/two', name: 'two' },
+    ]);
+  });
+
+  test('creates a mapping with both fingerprints and no target field mapping; it is listed and opens with its tag', async () => {
+    const api = fakeApiClient();
+    const order = '../structures/skeleton/order.xsd';
+
+    const created = await api.createMapping({
+      id: 'mappings/new-one',
+      source: { bundle: [order], root: { json: '$' } },
+      target: { bundle: [order], root: { element: 'Q{urn:flottila:corpus:skeleton}Order' } },
+    });
+
+    expect(created.model).toEqual({
+      formatVersion: 1,
+      source: { bundle: [order], fingerprint: corpusMapping.source.fingerprint, root: { json: '$' } },
+      target: { bundle: [order], fingerprint: corpusMapping.target.fingerprint, root: { element: 'Q{urn:flottila:corpus:skeleton}Order' } },
+    });
+    expect(created.etag).toMatch(/^"fake:\d+"$/);
+    expect((await api.listMappings()).map((m) => m.id)).toContain('mappings/new-one');
+    expect(await api.getMapping('mappings/new-one')).toEqual(created);
+  });
+
+  test('a create with an id that exists is 409 mapping-exists and keeps what is stored', async () => {
+    const api = fakeApiClient();
+    const before = await api.getMapping('mappings/order-id-copy');
+
+    const problem = await problemOf(
+      api.createMapping({ id: 'mappings/order-id-copy', source: corpusMapping.source, target: corpusMapping.target }),
+    );
+
+    expect(problem.problem.status).toBe(409);
+    expect(problem.problem.type).toBe('urn:flottila:mapping:problem:mapping-exists');
+    expect(await api.getMapping('mappings/order-id-copy')).toEqual(before);
+  });
+
+  test.each(['', 'mappings/../escape', '/mappings/abs', 'mappings//double', 'mappings/test', 'mappings/a b'])(
+    'a create with the id %j, not a workspace path, is 400 invalid-workspace-path',
+    async (id) => {
+      const api = fakeApiClient();
+      const before = await api.listMappings();
+
+      const problem = await problemOf(api.createMapping({ id, source: corpusMapping.source, target: corpusMapping.target }));
+
+      expect(problem.problem.status).toBe(400);
+      expect(problem.problem.type).toBe('urn:flottila:mapping:problem:invalid-workspace-path');
+      expect(await api.listMappings()).toEqual(before);
+    },
+  );
+
+  test.each(['source', 'target'])('a create with a %s bundle it does not know is 422 model-refused with the diagnostic, and creates nothing', async (side) => {
+    const api = fakeApiClient();
+    const unknown = { bundle: ['missing.xsd'], root: { json: '$' as const } };
+
+    const problem = await problemOf(
+      api.createMapping({
+        id: 'mappings/new-one',
+        source: side === 'source' ? unknown : corpusMapping.source,
+        target: side === 'target' ? unknown : corpusMapping.target,
+      }),
+    );
+
+    expect(problem.problem.status).toBe(422);
+    expect(problem.problem.type).toBe('urn:flottila:mapping:problem:model-refused');
+    expect('diagnostics' in problem.problem && problem.problem.diagnostics.map((d) => d.code)).toEqual(['schema-unreadable']);
+    expect((await api.listMappings()).map((m) => m.id)).not.toContain('mappings/new-one');
+  });
+
+  test('compile answers the scenario fixture of the mapping, and no diagnostics for a mapping it does not name', async () => {
+    const unreachable: Diagnostic = {
+      severity: 'warning',
+      code: 'unreachable-box',
+      message: 'the result of the target field mapping t1 does not reach this box, so compile ignores it',
+      location: { kind: 'authoring-id', authoringId: 'f9' },
+    };
+    const api = fakeApiClient(undefined, { compile: { 'mappings/order-id-copy': [unreachable] } });
+
+    expect(await api.compile('mappings/order-id-copy', corpusMapping)).toEqual({ diagnostics: [unreachable] });
+    expect(await api.compile('mappings/order-unmapped', corpusMapping)).toEqual({ diagnostics: [] });
+    expect(await fakeApiClient().compile('mappings/order-id-copy', corpusMapping)).toEqual({ diagnostics: [] });
+  });
+
+  test('compile of a mapping it does not know is a not-found problem', async () => {
+    const problem = await problemOf(fakeApiClient().compile('mappings/missing', corpusMapping));
+
+    expect(problem.problem.status).toBe(404);
+  });
+
+  describe('refresh', () => {
+    const stale = { ...corpusMapping, source: { ...corpusMapping.source, fingerprint: 'sha256:stale' } };
+    const orphaned: Diagnostic = {
+      severity: 'error',
+      code: 'orphaned-reference',
+      message: 'the structure has no field /Q{urn:flottila:corpus:skeleton}Order/Gone',
+      location: { kind: 'authoring-id', authoringId: 'a1' },
+    };
+
+    test('derives each fingerprint from the structure it loads, and answers the scenario fixture as the diagnostics', async () => {
+      const api = fakeApiClient(undefined, { refresh: { 'mappings/order-id-copy': [orphaned] } });
+
+      const answer = await api.refresh('mappings/order-id-copy', stale);
+
+      expect(answer).toEqual({ model: corpusMapping, diagnostics: [orphaned] });
+    });
+
+    test('answers no diagnostics for a mapping the scenario does not name, and keeps the stored file as it is', async () => {
+      const api = fakeApiClient();
+
+      expect(await api.refresh('mappings/order-id-copy', stale)).toEqual({ model: corpusMapping, diagnostics: [] });
+      expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(corpusMapping);
+    });
+
+    test('a side whose bundle does not load keeps its fingerprint and gives its load errors as the only diagnostics', async () => {
+      const broken = { ...stale, target: { ...stale.target, bundle: ['missing.xsd'] as [string], fingerprint: 'sha256:kept' } };
+      const api = fakeApiClient(undefined, { refresh: { 'mappings/order-id-copy': [orphaned] } });
+
+      const answer = await api.refresh('mappings/order-id-copy', broken);
+
+      expect(answer.model).toEqual({ ...broken, source: corpusMapping.source });
+      expect(answer.diagnostics).toEqual([
+        {
+          severity: 'error',
+          code: 'schema-unreadable',
+          message: 'the fake API has no structure for mappings/missing.xsd',
+          location: { kind: 'file-position', file: 'missing.xsd', line: 1, column: 1 },
+        },
+      ]);
+    });
+
+    test('of a mapping it does not know is a not-found problem', async () => {
+      expect((await problemOf(fakeApiClient().refresh('mappings/missing', corpusMapping))).problem.status).toBe(404);
+    });
+  });
+
   test('a fake seeded with its own mappings opens those instead of the corpus', async () => {
     const api = fakeApiClient({ 'drafts/one': corpusMapping });
 
-    expect(await api.getMapping('drafts/one')).toEqual(corpusMapping);
+    expect((await api.getMapping('drafts/one')).model).toEqual(corpusMapping);
     expect((await problemOf(api.getMapping('mappings/order-id-copy'))).problem.status).toBe(404);
+  });
+
+  test('serves the committed function catalogue of contract/ (ADR-0027)', async () => {
+    const committed = readFileSync(new URL('../../../../contract/function-catalogue.json', import.meta.url), 'utf8');
+
+    const catalogue = await fakeApiClient().getCatalogue();
+
+    expect(catalogue).toEqual(JSON.parse(committed));
+    // witness: spec 2's functions are in it
+    expect(catalogue.useOneAsMany?.family).toBe('context');
   });
 });

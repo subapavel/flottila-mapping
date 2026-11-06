@@ -143,5 +143,13 @@ public final class MappingDiagnostics {
   /** A function box param whose string is none of its catalogue entry's values, at the box. */
   public static final String INVALID_PARAMETER_VALUE = "invalid-parameter-value";
 
+  // a warning, never an error (ADR-0011, ADR-0013, ADR-0027)
+
+  /**
+   * A box that its target field mapping's {@code result} does not reach through the boxes' inputs,
+   * at the box: it is kept, and compile ignores it.
+   */
+  public static final String UNREACHABLE_BOX = "unreachable-box";
+
   private MappingDiagnostics() {}
 }

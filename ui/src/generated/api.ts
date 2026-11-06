@@ -212,7 +212,10 @@ export interface paths {
         put: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description The ETag the editor read; absent, the save is unconditional */
+                    "If-Match"?: string;
+                };
                 path: {
                     id: string;
                 };
@@ -253,6 +256,15 @@ export interface paths {
                         "application/problem+json": components["schemas"]["Problem"];
                     };
                 };
+                /** @description mapping-changed: If-Match differs from the stored file's ETag */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
                 /** @description unsupported-media-type */
                 415: {
                     headers: {
@@ -274,6 +286,75 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mappings/{id}/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["mapping-model.schema"];
+                };
+            };
+            responses: {
+                /** @description The working copy's diagnostics, none when it compiles with every box reached */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CompileResponse"];
+                    };
+                };
+                /** @description invalid-workspace-path or malformed-json */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description not-found: the mapping's directory */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description unsupported-media-type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -506,6 +587,9 @@ export interface components {
             kind: "authoring-id";
             authoringId: string;
         };
+        CompileResponse: {
+            diagnostics: components["schemas"]["DiagnosticDto"][];
+        };
         CreateMappingRequest: {
             id: string;
             source: components["schemas"]["StructureChoice"];
@@ -531,6 +615,17 @@ export interface components {
             valueType?: string;
             nillable: boolean;
             type?: string;
+            refusal?: components["schemas"]["RefusalDto"];
+        };
+        FieldPathLocation: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "field-path";
+            /** @enum {string} */
+            side: "source" | "target";
+            fieldPath: string;
         };
         FilePositionLocation: {
             /**
@@ -544,7 +639,7 @@ export interface components {
             /** Format: int32 */
             column: number;
         };
-        LocationDto: components["schemas"]["PointerLocation"] | components["schemas"]["AuthoringIdLocation"] | components["schemas"]["FilePositionLocation"];
+        LocationDto: components["schemas"]["PointerLocation"] | components["schemas"]["AuthoringIdLocation"] | components["schemas"]["FilePositionLocation"] | components["schemas"]["FieldPathLocation"];
         MappingSummary: {
             id: string;
             name: string;
@@ -575,6 +670,16 @@ export interface components {
         RefreshResponse: {
             model: components["schemas"]["mapping-model.schema"];
             diagnostics: components["schemas"]["DiagnosticDto"][];
+        };
+        RefusalDto: {
+            code: string;
+            /** @enum {string} */
+            side: "both" | "target";
+            file: string;
+            /** Format: int32 */
+            line: number;
+            /** Format: int32 */
+            column: number;
         };
         RefusedProblem: {
             /** Format: uri */

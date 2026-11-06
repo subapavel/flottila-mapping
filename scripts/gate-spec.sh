@@ -5,8 +5,9 @@
 #   scripts/gate-spec.sh <spec> [pit-modules]
 #
 # <spec>         spec issue number, used in the log names (.logs/<spec>-<check>.log)
-# [pit-modules]  class-C module directories PIT runs on (step 1b), comma-separated. Default: the nine class-C
-#                modules. The verifier narrows it to the modules the spec touched.
+# [pit-modules]  class-C module directories PIT runs on (step 1b), comma-separated. Default: the modules in
+#                the first column of ratchet/mutation.tsv (a module without a row has no floor to hold). The verifier
+#                narrows it to the modules the spec touched.
 #
 # Order: 1, 1b, 2, 5, 4, 3. Step 5 writes the JMH JSON that step 4 reads. Step 4 reads the reports of steps 1, 1b
 # and 2, and step 3 must run after it: -Pui needs clean (ADR-0017), and that clean deletes the JaCoCo and PIT
@@ -22,10 +23,15 @@ if [ $# -lt 1 ]; then
   exit 2
 fi
 spec=$1
-pit_modules=${2:-engine/xdm,engine/ir,engine/runtime,engine/serializer,engine/mapping,engine/xslt-export,engine/api,engine/udf-api,engine/udf}
 
 cd "$(dirname "$0")/.."
 mkdir -p .logs ui/.logs
+# the console output, stderr included, also goes to .logs/<spec>-spec-gate.log under this root, whatever the caller's
+# directory (#125). On exit, close it and wait for tee, so the log is complete when the script returns.
+exec > >(tee ".logs/${spec}-spec-gate.log") 2>&1
+tee_pid=$!
+trap 'exec >&- 2>&-; wait "$tee_pid"' EXIT
+pit_modules=${2:-$(cut -f1 ratchet/mutation.tsv | paste -sd, -)}
 status=0
 
 step() {

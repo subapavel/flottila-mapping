@@ -1,0 +1,1182 @@
+{
+  "abs": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "add": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "and": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "average": {
+    "executionKind": "context",
+    "family": "statistic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "portable": true
+  },
+  "ceil": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "collapseContexts": {
+    "executionKind": "queue",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "compare": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Orders in code points, as XPath does; SAP PO orders UTF-16 units, so a character outside the BMP can sort differently."
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "compareDates": {
+    "executionKind": "single",
+    "family": "date",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "date1"
+      },
+      {
+        "name": "date2"
+      }
+    ],
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "format1",
+        "syntax": "datePattern",
+        "type": "string"
+      },
+      {
+        "default": "yyyy/MM/dd",
+        "name": "format2",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "concat": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "constant": {
+    "executionKind": "single",
+    "family": "constant",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "params": [
+      {
+        "default": "",
+        "name": "value",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "copyValue": {
+    "executionKind": "context",
+    "family": "constant",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "position",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "count": {
+    "executionKind": "context",
+    "family": "statistic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "portable": true
+  },
+  "counter": {
+    "executionKind": "queue",
+    "family": "statistic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "name": "initial",
+        "type": "string"
+      },
+      {
+        "default": "1",
+        "name": "increment",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "createIf": {
+    "executionKind": "context",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "condition"
+      }
+    ],
+    "portable": true
+  },
+  "currentDate": {
+    "executionKind": "single",
+    "family": "date",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "targetFormat",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "dateAfter": {
+    "executionKind": "single",
+    "family": "date",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "date1"
+      },
+      {
+        "name": "date2"
+      }
+    ],
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "format1",
+        "syntax": "datePattern",
+        "type": "string"
+      },
+      {
+        "default": "yyyy/MM/dd",
+        "name": "format2",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "dateBefore": {
+    "executionKind": "single",
+    "family": "date",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "date1"
+      },
+      {
+        "name": "date2"
+      }
+    ],
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "format1",
+        "syntax": "datePattern",
+        "type": "string"
+      },
+      {
+        "default": "yyyy/MM/dd",
+        "name": "format2",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "dateTrans": {
+    "executionKind": "single",
+    "family": "date",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "date"
+      }
+    ],
+    "params": [
+      {
+        "default": "yyyy/MM/dd",
+        "name": "sourceFormat",
+        "syntax": "datePattern",
+        "type": "string"
+      },
+      {
+        "default": "yyyy/MM/dd",
+        "name": "targetFormat",
+        "syntax": "datePattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "divide": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Quotient scale follows Saxon-HE (ADR-0005); PO divides in float or BigDecimal mode."
+    },
+    "inputs": [
+      {
+        "name": "dividend"
+      },
+      {
+        "name": "divisor"
+      }
+    ],
+    "portable": true
+  },
+  "endsWith": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "suffix"
+      }
+    ],
+    "portable": true
+  },
+  "equals": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "equalsA": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "equalsS": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "exists": {
+    "executionKind": "context",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "fixValues": {
+    "executionKind": "single",
+    "family": "conversions",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "key"
+      }
+    ],
+    "params": [
+      {
+        "default": {},
+        "name": "table",
+        "type": "table"
+      },
+      {
+        "default": "key",
+        "name": "missing",
+        "type": "string",
+        "values": [
+          "key",
+          "default",
+          "error"
+        ]
+      },
+      {
+        "default": "",
+        "name": "defaultValue",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "floor": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "formatByExample": {
+    "executionKind": "queue",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      },
+      {
+        "name": "example"
+      }
+    ],
+    "portable": true
+  },
+  "formatNum": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "pattern",
+        "syntax": "numberPattern",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "greater": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "if": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "condition"
+      },
+      {
+        "name": "then"
+      },
+      {
+        "name": "else"
+      }
+    ],
+    "portable": true
+  },
+  "ifWithoutElse": {
+    "executionKind": "context",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "condition"
+      },
+      {
+        "name": "then"
+      }
+    ],
+    "params": [
+      {
+        "default": "false",
+        "name": "keepSuppressValues",
+        "type": "string",
+        "values": [
+          "false",
+          "true"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "index": {
+    "executionKind": "queue",
+    "family": "statistic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "1",
+        "name": "initial",
+        "type": "string"
+      },
+      {
+        "default": "1",
+        "name": "increment",
+        "type": "string"
+      },
+      {
+        "default": "eachContext",
+        "name": "reset",
+        "type": "string",
+        "values": [
+          "eachContext",
+          "never"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "indexOf": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "search"
+      }
+    ],
+    "portable": true
+  },
+  "inv": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "isNil": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "lastIndexOf": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "search"
+      }
+    ],
+    "portable": true
+  },
+  "length": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "less": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "mapWithDefault": {
+    "executionKind": "context",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "default",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "max": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "min": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "multiply": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "neg": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "not": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "notEquals": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "or": {
+    "executionKind": "single",
+    "family": "boolean",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "power": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in xs:double (ADR-0005)."
+    },
+    "inputs": [
+      {
+        "name": "base"
+      },
+      {
+        "name": "exponent"
+      }
+    ],
+    "portable": true
+  },
+  "removeContexts": {
+    "executionKind": "queue",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "portable": true
+  },
+  "replaceString": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "search",
+        "type": "string"
+      },
+      {
+        "default": "",
+        "name": "replacement",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "replaceValue": {
+    "executionKind": "single",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "",
+        "name": "replacement",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "round": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sign": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sort": {
+    "executionKind": "context",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "lexicographic",
+        "name": "comparison",
+        "type": "string",
+        "values": [
+          "lexicographic",
+          "caseInsensitive",
+          "numeric"
+        ]
+      },
+      {
+        "default": "ascending",
+        "name": "order",
+        "type": "string",
+        "values": [
+          "ascending",
+          "descending"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "sortByKey": {
+    "executionKind": "context",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "keys"
+      },
+      {
+        "name": "values"
+      }
+    ],
+    "params": [
+      {
+        "default": "lexicographic",
+        "name": "comparison",
+        "type": "string",
+        "values": [
+          "lexicographic",
+          "caseInsensitive",
+          "numeric"
+        ]
+      },
+      {
+        "default": "ascending",
+        "name": "order",
+        "type": "string",
+        "values": [
+          "ascending",
+          "descending"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "splitByValue": {
+    "executionKind": "context",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "queue"
+      }
+    ],
+    "params": [
+      {
+        "default": "eachValue",
+        "name": "mode",
+        "type": "string",
+        "values": [
+          "eachValue",
+          "valueChange",
+          "emptyValue"
+        ]
+      }
+    ],
+    "portable": true
+  },
+  "sqr": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "sqrt": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Computed in xs:double and cast back to xs:decimal (ADR-0005)."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "startsWith": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "prefix"
+      }
+    ],
+    "portable": true
+  },
+  "substring": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "deviation",
+      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "params": [
+      {
+        "default": "0",
+        "name": "start",
+        "type": "string"
+      },
+      {
+        "default": "0",
+        "name": "length",
+        "type": "string"
+      }
+    ],
+    "portable": true
+  },
+  "subtract": {
+    "executionKind": "single",
+    "family": "arithmetic",
+    "fidelity": {
+      "level": "exact"
+    },
+    "inputs": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "portable": true
+  },
+  "sum": {
+    "executionKind": "context",
+    "family": "statistic",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "values"
+      }
+    ],
+    "portable": true
+  },
+  "toLowerCase": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "toUpperCase": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "trim": {
+    "executionKind": "single",
+    "family": "text",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      }
+    ],
+    "portable": true
+  },
+  "useOneAsMany": {
+    "executionKind": "queue",
+    "family": "context",
+    "fidelity": {
+      "level": "assumed"
+    },
+    "inputs": [
+      {
+        "name": "value"
+      },
+      {
+        "name": "occurrences"
+      },
+      {
+        "name": "contexts"
+      }
+    ],
+    "portable": true
+  }
+}

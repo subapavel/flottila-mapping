@@ -25,8 +25,8 @@ export default defineConfig([
   boundary(['src/api/*.{ts,tsx}'], String.raw`^(?!\./|\.\./generated/)`, 'api imports only generated.'),
   boundary(
     ['src/api/fake/**'],
-    String.raw`^(?!\./|\.\./[^./]|\.\./\.\./generated/|\.\./\.\./\.\./\.\./corpus/)`,
-    'The fake ApiClient imports only api, generated and corpus/ fixtures.',
+    String.raw`^(?!\./|\.\./[^./]|\.\./\.\./generated/|\.\./\.\./\.\./\.\./(corpus|contract)/)`,
+    'The fake ApiClient imports only api, generated, corpus/ fixtures and contract/ files.',
   ),
   boundary(
     ['src/editor/*.{ts,tsx}'],
@@ -48,5 +48,9 @@ export default defineConfig([
     String.raw`^(${otherSubfolder}|@xyflow/|@dagrejs/)`,
     'Editor subfolders meet through the store; @xyflow/react and dagre stay in function-editor.',
   ),
-  boundary(['src/app/**'], String.raw`^\.\./editor/`, 'app imports the editor only through editor/index.ts.'),
+  boundary(
+    ['src/app/**'],
+    String.raw`^(\.\./editor/|@tanstack/react-virtual$)`,
+    'app imports the editor only through editor/index.ts; @tanstack/react-virtual stays in structure-overview.',
+  ),
 ]);

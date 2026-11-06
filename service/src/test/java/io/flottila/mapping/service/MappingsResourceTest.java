@@ -339,10 +339,14 @@ class MappingsResourceTest {
     assertBytes(TempWorkspace.read("saving-text/order.mapping.json"), unwired());
   }
 
+  /** A tag that matches nothing on disk: the file changed since the editor read it (ADR-0027). */
+  private static final String OTHER_ETAG = "\"sha256:" + "0".repeat(64) + "\"";
+
   @Test
-  void saveIgnoresIfMatch() {
-    // spec 1 enforces no If-Match (ADR-0024): a tag that matches nothing still saves
+  void saveWithTheStoredFilesEtagSavesAndAnswersTheNewEtag() {
     TempWorkspace.write("saving-if-match/order.mapping.json", unwired());
+    String stored = http().get("api/mappings/saving-if-match/order").header("ETag").orElseThrow();
+    assertThat(stored).isEqualTo(UNWIRED_ETAG);
 
     Http.Reply put =
         http()
@@ -351,10 +355,100 @@ class MappingsResourceTest {
                 "application/json",
                 bytes(workingCopy("\"a1\"")),
                 "If-Match",
-                "\"sha256:" + "0".repeat(64) + "\"");
+                stored);
 
     assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertThat(put.header("ETag")).contains(CORPUS_MAPPING_ETAG);
     assertBytes(TempWorkspace.read("saving-if-match/order.mapping.json"), corpusMapping());
+  }
+
+  /**
+   * A tag that differs from the stored file's is 409 {@code mapping-changed} and writes nothing
+   * (ADR-0027); a weak tag never matches, and the precondition is decided before the body is read,
+   * so a malformed body is 409 too (RFC 9110, 13.2.1).
+   */
+  @Test
+  void saveWithAnotherEtagIs409MappingChangedAndTheFileIsUnchanged() {
+    TempWorkspace.write("saving-changed/order.mapping.json", unwired());
+    Map<String, String> tags =
+        Map.of(
+            "another tag",
+            OTHER_ETAG,
+            "the stored tag, weak",
+            "W/" + UNWIRED_ETAG,
+            "the stored tag, unquoted",
+            UNWIRED_ETAG.replace("\"", ""));
+    tags.forEach(
+        (name, tag) -> {
+          JsonNode problem =
+              assertProblem(
+                  http()
+                      .put(
+                          "api/mappings/saving-changed/order",
+                          "application/json",
+                          bytes(workingCopy("\"a1\"")),
+                          "If-Match",
+                          tag),
+                  409,
+                  "mapping-changed");
+          assertThat(problem.path("detail").textValue()).as(name).isNotBlank();
+          assertBytes(TempWorkspace.read("saving-changed/order.mapping.json"), unwired());
+        });
+
+    assertProblem(
+        http()
+            .put(
+                "api/mappings/saving-changed/order",
+                "application/json",
+                bytes("{"),
+                "If-Match",
+                OTHER_ETAG),
+        409,
+        "mapping-changed");
+    assertBytes(TempWorkspace.read("saving-changed/order.mapping.json"), unwired());
+  }
+
+  /**
+   * A stored file the service refuses has no tag a GET could have answered, so no {@code If-Match}
+   * matches it; without the header it is overwritten as before.
+   */
+  @Test
+  void saveWithAnEtagOverAStoredFileThatIsRefusedIs409() {
+    Map<String, byte[]> files =
+        Map.of("no-json", bytes("not a JSON document"), "stage1", bytes("{\"extra\": 1}"));
+    files.forEach(
+        (name, content) -> {
+          String file = "saving-refused-" + name + "/order.mapping.json";
+          TempWorkspace.write(file, content);
+
+          assertProblem(
+              http()
+                  .put(
+                      "api/mappings/saving-refused-" + name + "/order",
+                      "application/json",
+                      bytes(workingCopy("\"a1\"")),
+                      "If-Match",
+                      UNWIRED_ETAG),
+              409,
+              "mapping-changed");
+          assertBytes(TempWorkspace.read(file), content);
+        });
+  }
+
+  /** Without {@code If-Match} a save stays unconditional (ADR-0027): scripts keep working. */
+  @Test
+  void saveWithoutIfMatchOverwritesWhateverIsStored() {
+    TempWorkspace.write("saving-unconditional/order.mapping.json", bytes("not a JSON document"));
+
+    Http.Reply put =
+        http()
+            .put(
+                "api/mappings/saving-unconditional/order",
+                "application/json",
+                bytes(workingCopy("\"a1\"")));
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertBytes(TempWorkspace.read("saving-unconditional/order.mapping.json"), corpusMapping());
   }
 
   /** A dangling link in the listing is skipped; the listing does not fail (#28 rulings). */

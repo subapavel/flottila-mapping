@@ -1,5 +1,10 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
-import type { BoxReference, FieldPath, TargetFieldMapping } from '../../generated/mapping-model';
+import type { FieldPath, SourceFieldBox, TargetFieldMapping } from '../../generated/mapping-model';
+import type { FieldRefusal } from '../../model/command';
+import { fieldPathSteps } from '../../model/field-path';
+import { reachedBoxes } from '../../model/reached';
+
+type Side = 'source' | 'target';
 
 /** One visible row of a structure tree. */
 export interface TreeRow {
@@ -10,28 +15,57 @@ export interface TreeRow {
   /** A structure field: it has a type with child fields, even when that type lists none. */
   expandable: boolean;
   expanded: boolean;
+  /** The refusal that refuses the row's field in its tree, nearest the root (`refusalAt`); absent when none does. */
+  refusal?: FieldRefusal;
 }
 
 /**
- * Flattens the structure graph (ADR-0015) into the visible rows: the root, then the child fields of every expanded
- * row. A recursive type is expanded only as deep as its paths are, so the rows are always finite (ADR-0008).
+ * A field's own refusal, when it refuses the field on `side`: a refusal whose side is `target` holds in a target only,
+ * and a source reads the field (ADR-0008, #94, #95).
  */
-export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<string>): TreeRow[] {
-  const rows: TreeRow[] = [];
-  const visit = (field: FieldDto, path: string, depth: number) => {
-    const open = field.type !== undefined && expanded.has(path);
-    rows.push({ path, depth, field, expandable: field.type !== undefined, expanded: open });
-    if (!open) return;
-    for (const child of structure.types[field.type!] ?? []) visit(child, `${path}/${child.step}`, depth + 1);
-  };
-  visit(structure.root, `/${structure.root.step}`, 0);
-  return rows;
+const refusing = (field: FieldDto, side: Side): FieldRefusal | undefined =>
+  side === 'target' || field.refusal?.side !== 'target' ? field.refusal : undefined;
+
+/**
+ * The refusal of a row of `field` on `side` whose parent row has the refusal `above`: the one nearest the root, so the
+ * parent's when it has one, else the field's own when it refuses the field on `side`.
+ */
+export const rowRefusal = (field: FieldDto, side: Side, above: FieldRefusal | undefined): FieldRefusal | undefined =>
+  above ?? refusing(field, side);
+
+/**
+ * The refusal that refuses the field at `path` on `side`, as compile reports it (ADR-0008 Shape, ADR-0027): the
+ * refusal of the refused field nearest the root on the path, counting one that holds in a target only on the target
+ * side only. The wire gives each field its own refusal, since a type's fields are shared (ADR-0015). `undefined` when
+ * no field on the path refuses it, or the structure has no field at `path`. A step is matched against its first
+ * same-step sibling: same-step siblings all carry one `ambiguous-field-path`, so the walk ends there anyway.
+ */
+export function refusalAt(structure: StructureLoaded, path: FieldPath, side: Side): FieldRefusal | undefined {
+  const steps = fieldPathSteps(path);
+  let field: FieldDto | undefined = steps[0] === structure.root.step ? structure.root : undefined;
+  for (const step of steps.slice(1)) {
+    if (field === undefined || refusing(field, side)) break;
+    field = field.type === undefined ? undefined : structure.types[field.type]?.find((c) => c.step === step);
+  }
+  return field && refusing(field, side);
 }
 
-/** The name a row shows for the last step of a field path: its local name, `@` before an attribute's. */
-export function stepName(path: string): string {
-  const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)?.[0] ?? path;
-  return last.replace(/^(@?)Q\{[^}]*\}/, '$1');
+/**
+ * Flattens the structure graph (ADR-0015) into the visible rows of the `side` tree: the root, then the child fields of
+ * every expanded row. A recursive type is expanded only as deep as its paths are, so the rows are always finite
+ * (ADR-0008). Each row carries the refusal `refusalAt` gives its path.
+ */
+export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<string>, side: Side): TreeRow[] {
+  const rows: TreeRow[] = [];
+  const visit = (field: FieldDto, path: string, depth: number, above: FieldRefusal | undefined) => {
+    const open = field.type !== undefined && expanded.has(path);
+    const refusal = rowRefusal(field, side, above);
+    rows.push({ path, depth, field, expandable: field.type !== undefined, expanded: open, ...(refusal && { refusal }) });
+    if (!open) return;
+    for (const child of structure.types[field.type!] ?? []) visit(child, `${path}/${child.step}`, depth + 1, refusal);
+  };
+  visit(structure.root, `/${structure.root.step}`, 0, undefined);
+  return rows;
 }
 
 /** A field's effective occurrence, `min..max`, with `unbounded` for an absent max. */
@@ -41,20 +75,19 @@ export function occurrenceText(field: FieldDto): string {
 
 /**
  * The source fields read by the source-field boxes that a target field mapping's `result` reaches (ADR-0013), each
- * once, in the order a walk from `result` through the boxes' inputs meets them. An unreachable box adds none, so a
- * mapping whose `result` is null has none. The walk stops at an empty input slot, a box it has met, and a missing box.
+ * once, in the order `reachedBoxes` meets those boxes. An unreachable box adds none, so a mapping whose `result` is
+ * null has none.
  */
 export function reachedSourceFields(mapping: TargetFieldMapping | undefined): FieldPath[] {
-  const fields = new Set<FieldPath>();
-  const met = new Set<string>();
-  const visit = (ref: BoxReference) => {
-    if (ref === null || met.has(ref)) return;
-    met.add(ref);
-    const box = mapping!.boxes[ref];
-    if (box === undefined) return;
-    if (box.kind === 'source') fields.add(box.field);
-    else box.inputs?.forEach(visit);
-  };
-  if (mapping) visit(mapping.result);
-  return [...fields];
+  return [...reachedSourceBoxes(mapping).keys()];
+}
+
+/** The reached source fields of `reachedSourceFields`, each with the reached source-field boxes that read it. */
+export function reachedSourceBoxes(mapping: TargetFieldMapping | undefined): Map<FieldPath, SourceFieldBox[]> {
+  const fields = new Map<FieldPath, SourceFieldBox[]>();
+  for (const id of reachedBoxes(mapping)) {
+    const box = mapping!.boxes[id]!;
+    if (box.kind === 'source') fields.set(box.field, [...(fields.get(box.field) ?? []), box]);
+  }
+  return fields;
 }

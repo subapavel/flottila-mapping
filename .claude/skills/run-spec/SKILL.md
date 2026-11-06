@@ -46,7 +46,8 @@ for each, start the path its class names:
   ids when the ticket has an `oracle:*` label.
 
 Packets are pointers (ticket URL, branch, base sha, allowed paths, the red, ADR ids, checks), never
-copies of the spec. Each agent call passes the class's `model` and `effort`.
+copies of the spec, and name only what is specific to the ticket: the command and foreground rules
+live in `AGENTS.md` (Command rules) and the agent definitions point to them. Each agent call passes the class's `model` and `effort`.
 
 ## 2. When a writer hands back
 
@@ -74,6 +75,10 @@ Take hand-backs in the order they arrive; refill a freed slot from the frontier 
 6. **Carry or ticket** — a point a review leaves open is carried to the spec review only when it
    is a judgement call. One that gives invalid output, contradicts an ADR, or names a test that
    cannot fail is a ticket (or a finding, `docs/WORKFLOW.md` §7) now, before the next merge.
+   Reviewers label each non-blocking observation `carry` (a judgement call) or `ticket` (meets
+   the criteria above). File every `ticket` point before the next merge; carry only `carry`
+   points. If you disagree with a label, say why in the ticket's evidence comment; do not
+   drop it silently.
 
 ## 3. Finish the spec
 
@@ -98,9 +103,9 @@ then stop with `IDLE_NO_FRONTIER`, see §5):
    `gh pr create --base main --head spec/<spec>-<slug>`, the body closing the spec. Wait for CI in
    the foreground (`gh pr checks --watch`, with a timeout). Red CI is a fix packet, not a retry.
 5. **Merge** — `rm -f .logs/.batch-in-review && gh pr merge --merge` (never squash, never
-   rebase, never force). Remove every worktree whose branch is merged into `main`
-   (`git worktree remove <path>` for each one `git branch --merged main` names), then
-   `git worktree prune`.
+   rebase, never force). Run `scripts/clean-worktrees.sh`: it removes every
+   merged agent worktree, forces only one whose index and files are already in `origin/main`
+   history, keeps the rest with a reason, then prunes.
 6. Suggest `/retro` to the owner in one line.
 
 ## 4. Waiting and turns

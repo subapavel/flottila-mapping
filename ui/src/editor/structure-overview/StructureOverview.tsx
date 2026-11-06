@@ -1,18 +1,36 @@
+import { Button, ToggleGroup, ToggleGroupItem } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
-import { useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { ApiClient, StructureLoaded } from '../../api/client';
-import type { StructureRef } from '../../generated/mapping-model';
+import type { ApiClient } from '../../api/client';
+import type { FieldPath, StructureRef } from '../../generated/mapping-model';
+import { describeFieldRefusal, type FieldRefusal } from '../../model/command';
+import { stepName } from '../../model/field-path';
+import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { occurrenceText, reachedSourceFields, stepName, treeRows } from './rows';
+import {
+  STATUS_FILTERS,
+  fieldStatuses,
+  filteredLinks,
+  filteredRows,
+  orphanedMappings,
+  type FieldStatus,
+  type StatusFilter,
+} from './field-status';
+import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type Gutter } from './links';
+import { occurrenceText, reachedSourceFields, refusalAt, treeRows } from './rows';
 
 type Side = 'source' | 'target';
 
 /** The expanded branches of both trees, by field path; a side without an entry has only its root expanded. */
 export type Expanded = Partial<Record<Side, string[]>>;
 
-/** The drag data of a source row: its field path. */
-const SOURCE_FIELD = 'application/x-flottila-source-field';
+/** Every row has this height, so the virtualiser and the link gutter place rows by index alone. */
+const ROW_HEIGHT = 28;
+/** The trees fill the height the overview is given, from this basis down to a few rows (ADR-0012, "splitter"). */
+const TREE_HEIGHT = 420;
+const GUTTER_WIDTH = 120;
 
 export interface StructureOverviewProps {
   mappingId: string;
@@ -20,16 +38,84 @@ export interface StructureOverviewProps {
   store: WorkingCopyStore;
   expanded: Expanded;
   onExpandedChange: (expanded: Expanded) => void;
+  /** The selected target field: its links are highlighted and the others dimmed. */
+  selectedField?: FieldPath | null;
+  /** Asks the host to select a target field: a click on its row, or Enter or Space on it. */
+  onSelectField?: (field: FieldPath) => void;
+  /** The target rows shown: all, or those of one field status. */
+  statusFilter: StatusFilter;
+  onStatusFilterChange: (filter: StatusFilter) => void;
+  /** How the two trees share the width; the host keeps it and draws `splitter` between them (ADR-0012). */
+  sides: Sides;
+  /** The splitter between the source tree and the link gutter. */
+  splitter: ReactNode;
 }
 
+/** The trees' shares of the width (their flex grow), the side collapsed fully, if any, and the source tree's id. */
+export interface Sides {
+  source: number;
+  target: number;
+  collapsed: Side | null;
+  sourceId: string;
+}
+
+/** The text of each status filter value, and of each field status mark. */
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: 'All',
+  mapped: 'Mapped',
+  'unmapped-mandatory': 'Unmapped mandatory',
+  orphaned: 'Orphaned',
+  error: 'Error',
+};
+
+const STATUS_COLOURS: Record<FieldStatus, string> = {
+  mapped: 'var(--pf-t--global--color--status--success--default, #3d7317)',
+  'unmapped-mandatory': 'var(--pf-t--global--color--status--warning--default, #dca614)',
+  orphaned: 'var(--pf-t--global--color--nonstatus--purple--default, #5e40be)',
+  error: 'var(--pf-t--global--color--status--danger--default, #b1380b)',
+};
+
 /**
- * The top half of the editor (ADR-0012): the source tree and the target tree side by side. Dropping a source row on
- * a target row links the two fields; so does Enter on a source row, then Enter on a target row.
+ * The top half of the editor (ADR-0012): the source tree and the target tree side by side, virtualised, with the
+ * field links drawn in the link gutter between them. Dropping a source row on a target row links the two fields; so
+ * does Enter on a source row, then Enter on a target row. A refused field's row is marked, its reason and position on
+ * hover, and a link from or to it is refused (ADR-0027). Clicking a target row, or Enter on it, selects that target
+ * field; a source row never selects. Each target row carries its field status; the status filter shows the rows of
+ * one status, and only the links to them. The orphaned target field mappings are listed below the trees under the
+ * filters all and orphaned; selecting one selects its target field, and then offers to delete it.
  */
-export function StructureOverview({ mappingId, api, store, expanded, onExpandedChange }: StructureOverviewProps) {
-  const source = useStore(store, (s) => s.workingCopy.source);
-  const target = useStore(store, (s) => s.workingCopy.target);
+export function StructureOverview({
+  mappingId,
+  api,
+  store,
+  expanded,
+  onExpandedChange,
+  selectedField = null,
+  onSelectField,
+  statusFilter,
+  onStatusFilterChange,
+  sides,
+  splitter,
+}: StructureOverviewProps) {
+  const model = useStore(store, (s) => s.workingCopy);
+  const diagnostics = useStore(store, (s) => s.diagnostics);
+  const source = useTree(mappingId, api, model.source, expanded.source, 'source');
+  const statuses = useMemo(() => fieldStatuses(model, diagnostics, source.structure), [model, diagnostics, source.structure]);
+  const target = useTree(mappingId, api, model.target, expanded.target, 'target', statuses, statusFilter);
+  const orphaned = useMemo(() => (target.structure ? orphanedMappings(model, target.structure) : []), [model, target.structure]);
+  const selectedOrphan = orphaned.find((path) => path === selectedField);
   const [picked, setPicked] = useState<string | null>(null);
+
+  const links = useMemo(() => filteredLinks(fieldLinks(model), statuses, statusFilter), [model, statuses, statusFilter]);
+  const anchored = useMemo(
+    () => (source.anchors && target.anchors ? anchorLinks(links, source.anchors, target.anchors) : []),
+    [links, source.anchors, target.anchors],
+  );
+  // With a side collapsed the gutter draws nothing: a link has no end on that side, and the other side's ↑n and ↓n
+  // count the drawn links that run off its edge, of which there are none.
+  const gutter = sides.collapsed === null ? linkGutter(anchored, source.viewport, target.viewport, ROW_HEIGHT, selectedField) : undefined;
+  // the trees share one height; a tree still loading has none yet
+  const gutterHeight = Math.max(source.viewport.height, target.viewport.height);
 
   const toggle = (side: Side, rootPath: string, path: string) => {
     const open = new Set(expanded[side] ?? [rootPath]);
@@ -39,50 +125,116 @@ export function StructureOverview({ mappingId, api, store, expanded, onExpandedC
   };
 
   const linkTo = (targetField: string, sourceField: string | null) => {
-    if (sourceField) store.getState().link(sourceField, targetField);
+    // a row to link from or to exists only once its structure has loaded
+    if (sourceField) {
+      store.getState().link(sourceField, targetField, {
+        source: refusalAt(source.structure!, sourceField, 'source'),
+        target: refusalAt(target.structure!, targetField, 'target'),
+      });
+    }
     setPicked(null);
   };
 
   return (
-    <div style={{ display: 'flex', gap: '2rem' }}>
-      <StructureTree
-        side="source"
-        mappingId={mappingId}
-        api={api}
-        structureRef={source}
-        expanded={expanded.source}
-        onToggle={toggle}
-        row={(path) => ({
-          draggable: true,
-          'aria-selected': picked === path,
-          onDragStart: (e) => {
-            e.dataTransfer.setData(SOURCE_FIELD, path);
-            e.dataTransfer.effectAllowed = 'link';
-          },
-          onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
-        })}
-      />
-      <StructureTree
-        side="target"
-        mappingId={mappingId}
-        api={api}
-        structureRef={target}
-        expanded={expanded.target}
-        onToggle={toggle}
-        row={(path) => ({
-          onDragOver: (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'link';
-          },
-          onDrop: (e) => {
-            e.preventDefault();
-            linkTo(path, e.dataTransfer.getData(SOURCE_FIELD));
-          },
-          onKeyDown: (e) => activated(e) && linkTo(path, picked),
-        })}
-        mark={(path) => <TargetLinks store={store} path={path} />}
-      />
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <ToggleGroup isCompact aria-label="Status filter">
+          {STATUS_FILTERS.map((value) => (
+            <ToggleGroupItem
+              key={value}
+              text={STATUS_LABELS[value]}
+              isSelected={statusFilter === value}
+              onChange={() => onStatusFilterChange(value)}
+            />
+          ))}
+        </ToggleGroup>
+      </div>
+      <div style={{ display: 'flex', flex: `1 1 ${TREE_HEIGHT}px`, minHeight: 4 * ROW_HEIGHT }}>
+        <TreePane
+          side="source"
+          id={sides.sourceId}
+          grow={sides.source}
+          hidden={sides.collapsed === 'source'}
+          tree={source}
+          onToggle={toggle}
+          row={(path) => ({
+            draggable: true,
+            'aria-selected': picked === path,
+            onDragStart: (e) => {
+              e.dataTransfer.setData(SOURCE_FIELD_DRAG, path);
+              e.dataTransfer.effectAllowed = 'link';
+            },
+            onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
+          })}
+        />
+        {splitter}
+        {gutter && <LinkGutter gutter={gutter} height={gutterHeight} />}
+        <TreePane
+          side="target"
+          grow={sides.target}
+          hidden={sides.collapsed === 'target'}
+          tree={target}
+          // under a filter, the rows of that status and their ancestors are shown whatever is expanded
+          onToggle={statusFilter === 'all' ? toggle : undefined}
+          row={(path) => ({
+            onDragOver: (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'link';
+            },
+            onDrop: (e) => {
+              e.preventDefault();
+              linkTo(path, e.dataTransfer.getData(SOURCE_FIELD_DRAG));
+            },
+            onClick: () => onSelectField?.(path),
+            onKeyDown: (e) => {
+              if (!activated(e)) return;
+              linkTo(path, picked);
+              onSelectField?.(path);
+            },
+          })}
+          mark={(path) => (
+            <>
+              <StatusMark status={statuses.get(path)} />
+              <TargetLinks store={store} path={path} />
+            </>
+          )}
+        />
+      </div>
+      {(statusFilter === 'all' || statusFilter === 'orphaned') && orphaned.length > 0 && (
+        <section style={{ marginLeft: 'auto', width: '50%' }}>
+          <h3>Orphaned target field mappings</h3>
+          <ul aria-label="Orphaned target field mappings">
+            {orphaned.map((path) => (
+              <li key={path}>
+                <Button variant="link" isInline onClick={() => onSelectField?.(path)}>
+                  {path}
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {selectedOrphan !== undefined && (
+            <Button variant="secondary" isDanger onClick={() => store.getState().deleteTargetFieldMapping(selectedOrphan)}>
+              Delete the selected orphaned target field mapping
+            </Button>
+          )}
+        </section>
+      )}
     </div>
+  );
+}
+
+/** A target row's field status mark: a coloured dot named by its status; nothing for a row without a status. */
+function StatusMark({ status }: { status: FieldStatus | undefined }) {
+  if (status === undefined) return null;
+  const label = STATUS_LABELS[status];
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      data-status={status}
+      style={{ flex: 'none', width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOURS[status] }}
+    />
   );
 }
 
@@ -93,28 +245,99 @@ function activated(e: KeyboardEvent) {
   return true;
 }
 
-interface StructureTreeProps {
+/** The structure of one side as the service loads it; the trees and the rest of the editor share its query. */
+export function useStructure(mappingId: string, api: ApiClient, ref: StructureRef) {
+  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
+  return useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+}
+
+/** The source tree's statuses: none, and the same map on every render so that its rows stay memoised. */
+const NO_STATUSES: ReadonlyMap<FieldPath, FieldStatus> = new Map();
+
+/**
+ * One tree: its structure, its visible rows, where links end among them, and its virtualiser. The visible rows are
+ * the expanded ones under the filter `all`, else the rows of the filter's status in `statuses` and their ancestors.
+ */
+function useTree(
+  mappingId: string,
+  api: ApiClient,
+  ref: StructureRef,
+  expanded: string[] | undefined,
+  side: Side,
+  statuses: ReadonlyMap<FieldPath, FieldStatus> = NO_STATUSES,
+  filter: StatusFilter = 'all',
+) {
+  const query = useStructure(mappingId, api, ref);
+  const structure = query.data?.kind === 'loaded' ? query.data : undefined;
+  const rootPath = structure ? `/${structure.root.step}` : '';
+  // under the filter `all` a new status map must not walk the tree again
+  const shown = filter === 'all' ? NO_STATUSES : statuses;
+  const rows = useMemo(() => {
+    if (!structure) return [];
+    return filter === 'all' ? treeRows(structure, new Set(expanded ?? [rootPath]), side) : filteredRows(structure, shown, filter, side);
+  }, [structure, expanded, rootPath, side, shown, filter]);
+  // Same-step siblings share a field path (ADR-0008), so the second and later rows of a path get `#n`; an XML name
+  // holds no `#`, and a JSON object has no two members of one name.
+  const keys = useMemo(() => {
+    const seen = new Map<string, number>();
+    return rows.map(({ path }) => {
+      const n = (seen.get(path) ?? 0) + 1;
+      seen.set(path, n);
+      return n === 1 ? path : `${path}#${n}`;
+    });
+  }, [rows]);
+  const anchors = useMemo(() => (structure ? rowAnchors(structure, rows) : undefined), [structure, rows]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    getItemKey: (index) => keys[index]!,
+    overscan: 8,
+  });
+  const viewport = { scrollTop: virtualizer.scrollOffset ?? 0, height: virtualizer.scrollRect?.height ?? 0 };
+  return { query, structure, rootPath, rows, anchors, scrollRef, virtualizer, viewport };
+}
+
+type Tree = ReturnType<typeof useTree>;
+
+interface TreePaneProps {
   side: Side;
-  mappingId: string;
-  api: ApiClient;
-  structureRef: StructureRef;
-  expanded: string[] | undefined;
-  onToggle: (side: Side, rootPath: string, path: string) => void;
-  row: (path: string) => HTMLAttributes<HTMLLIElement>;
+  /** The pane's element id, which the splitter between the trees names as the pane it resizes. */
+  id?: string;
+  /** The pane's share of the width; a hidden pane is collapsed fully. */
+  grow: number;
+  hidden: boolean;
+  tree: Tree;
+  /** Expands or collapses a row; without it the rows offer no toggle. */
+  onToggle?: (side: Side, rootPath: string, path: string) => void;
+  row: (path: string) => HTMLAttributes<HTMLDivElement>;
   mark?: (path: string) => ReactNode;
 }
 
-function StructureTree({ side, mappingId, api, structureRef, expanded, onToggle, row, mark }: StructureTreeProps) {
-  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: structureRef.bundle, root: structureRef.root };
-  const structure = useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+function TreePane({ side, id, grow, hidden, tree, onToggle, row, mark }: TreePaneProps) {
+  const { query, rootPath, rows, scrollRef, virtualizer } = tree;
   const label = side === 'source' ? 'Source structure' : 'Target structure';
+  const pane = { flex: `${grow} 1 0`, minWidth: 0, display: hidden ? 'none' : undefined };
 
-  if (structure.isPending) return <p>Loading the {side} structure…</p>;
-  if (structure.isError) return <p role="alert">{structure.error.message}</p>;
-  if (structure.data.kind === 'refused') {
+  if (query.isPending) {
     return (
-      <ul aria-label={`${label} diagnostics`}>
-        {structure.data.diagnostics.map((d, i) => (
+      <p id={id} style={pane}>
+        Loading the {side} structure…
+      </p>
+    );
+  }
+  if (query.isError) {
+    return (
+      <p id={id} role="alert" style={pane}>
+        {query.error.message}
+      </p>
+    );
+  }
+  if (query.data.kind === 'refused') {
+    return (
+      <ul id={id} aria-label={`${label} diagnostics`} style={pane}>
+        {query.data.diagnostics.map((d, i) => (
           <li key={i}>
             {d.severity} <code>{d.code}</code>: {d.message}
           </li>
@@ -122,50 +345,126 @@ function StructureTree({ side, mappingId, api, structureRef, expanded, onToggle,
       </ul>
     );
   }
-  return <Tree side={side} label={label} structure={structure.data} expanded={expanded} onToggle={onToggle} row={row} mark={mark} />;
+  return (
+    <div ref={scrollRef} id={id} role="tree" aria-label={label} style={{ ...pane, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div role="presentation" style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const r = rows[item.index]!;
+          return (
+            <div
+              key={item.key}
+              role="treeitem"
+              aria-level={r.depth + 1}
+              aria-expanded={r.expandable ? r.expanded : undefined}
+              aria-label={stepName(r.path)}
+              title={r.path}
+              data-testid={`${side}-field:${r.path}`}
+              tabIndex={0}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: ROW_HEIGHT,
+                transform: `translateY(${item.start}px)`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                whiteSpace: 'nowrap',
+                paddingLeft: `${r.depth * 1.25}rem`,
+              }}
+              {...row(r.path)}
+            >
+              {r.expandable && onToggle && (
+                <button
+                  type="button"
+                  aria-label={`${r.expanded ? 'Collapse' : 'Expand'} ${side} ${stepName(r.path)}`}
+                  onClick={() => onToggle(side, rootPath, r.path)}
+                >
+                  <span aria-hidden="true">{r.expanded ? '▾' : '▸'}</span>
+                </button>
+              )}
+              <span>{stepName(r.path)}</span>
+              <span>{r.field.valueType}</span>
+              <span>{occurrenceText(r.field)}</span>
+              {r.refusal && <RefusedMark side={side} path={r.path} refusal={r.refusal} />}
+              {mark?.(r.path)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function Tree({
-  side,
-  label,
-  structure,
-  expanded,
-  onToggle,
-  row,
-  mark,
-}: Omit<StructureTreeProps, 'mappingId' | 'api' | 'structureRef'> & { label: string; structure: StructureLoaded }) {
-  const rootPath = `/${structure.root.step}`;
-  const rows = treeRows(structure, new Set(expanded ?? [rootPath]));
+/**
+ * The link gutter (ADR-0012): a line per field link, dashed when it ends at a collapsed row's ancestor, with the fx
+ * count when several source-field boxes stand behind it, a ctx mark at its source end when one of them has a context
+ * that is not the parent, and per side the ↑n and ↓n of the ends scrolled away.
+ */
+function LinkGutter({ gutter, height }: { gutter: Gutter; height: number }) {
+  const mid = GUTTER_WIDTH / 2;
+  const count = (side: Side, edge: 'above' | 'below') => {
+    const n = gutter.counts[side][edge];
+    if (n === 0) return null;
+    return (
+      <text
+        data-testid={`link-count:${side}:${edge}`}
+        x={side === 'source' ? 2 : GUTTER_WIDTH - 2}
+        y={edge === 'above' ? 10 : height - 2}
+        textAnchor={side === 'source' ? 'start' : 'end'}
+        fontSize={10}
+      >
+        {edge === 'above' ? '↑' : '↓'}
+        {n}
+      </text>
+    );
+  };
   return (
-    <ul role="tree" aria-label={label} style={{ listStyle: 'none', padding: 0, flex: 1 }}>
-      {rows.map((r) => (
-        <li
-          key={r.path}
-          role="treeitem"
-          aria-level={r.depth + 1}
-          aria-expanded={r.expandable ? r.expanded : undefined}
-          aria-label={stepName(r.path)}
-          data-testid={`${side}-field:${r.path}`}
-          tabIndex={0}
-          style={{ display: 'flex', gap: '0.5rem', paddingLeft: `${r.depth * 1.25}rem` }}
-          {...row(r.path)}
-        >
-          {r.expandable && (
-            <button
-              type="button"
-              aria-label={`${r.expanded ? 'Collapse' : 'Expand'} ${side} ${stepName(r.path)}`}
-              onClick={() => onToggle(side, rootPath, r.path)}
-            >
-              <span aria-hidden="true">{r.expanded ? '▾' : '▸'}</span>
-            </button>
-          )}
-          <span>{stepName(r.path)}</span>
-          <span>{r.field.valueType}</span>
-          <span>{occurrenceText(r.field)}</span>
-          {mark?.(r.path)}
-        </li>
-      ))}
-    </ul>
+    <svg aria-label="Field links" width={GUTTER_WIDTH} height={height} style={{ flex: 'none' }}>
+      {gutter.lines.map((l) => {
+        const key = `${l.source}->${l.target}`;
+        return (
+          <g key={key}>
+            <path
+              data-testid={`field-link:${key}`}
+              data-emphasis={l.emphasis}
+              d={`M0 ${l.y1} C${mid} ${l.y1} ${mid} ${l.y2} ${GUTTER_WIDTH} ${l.y2}`}
+              fill="none"
+              stroke={l.emphasis === 'highlighted' ? 'var(--pf-t--global--border--color--clicked, #0066cc)' : 'currentColor'}
+              strokeWidth={l.emphasis === 'highlighted' ? 2 : 1}
+              strokeOpacity={l.emphasis === 'dimmed' ? 0.25 : 0.8}
+              strokeDasharray={l.dashed ? '4 3' : undefined}
+            />
+            {l.boxes > 1 && (
+              <text data-testid={`link-fx:${key}`} x={mid} y={(l.y1 + l.y2) / 2 - 2} textAnchor="middle" fontSize={10}>
+                fx {l.boxes}
+              </text>
+            )}
+            {l.contextChanged && (
+              <text data-testid={`link-context:${key}`} x={2} y={l.y1 - 3} fontSize={10}>
+                <title>Read in a context other than its parent</title>
+                ctx
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {count('source', 'above')}
+      {count('source', 'below')}
+      {count('target', 'above')}
+      {count('target', 'below')}
+    </svg>
+  );
+}
+
+/** The mark of a refused field's row (ADR-0027): its reason and the declaration's file, line and column on hover. */
+function RefusedMark({ side, path, refusal }: { side: Side; path: string; refusal: FieldRefusal }) {
+  const text = `Refused: ${describeFieldRefusal(refusal)}`;
+  return (
+    <span data-testid={`refused:${side}:${path}`} role="img" aria-label={text} title={text}>
+      ⊘
+    </span>
   );
 }
 
