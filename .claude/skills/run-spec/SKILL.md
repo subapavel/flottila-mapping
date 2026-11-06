@@ -46,7 +46,8 @@ for each, start the path its class names:
   ids when the ticket has an `oracle:*` label.
 
 Packets are pointers (ticket URL, branch, base sha, allowed paths, the red, ADR ids, checks), never
-copies of the spec. Each agent call passes the class's `model` and `effort`.
+copies of the spec, and name only what is specific to the ticket: the command and foreground rules
+live in `AGENTS.md` (Command rules) and the agent definitions point to them. Each agent call passes the class's `model` and `effort`.
 
 ## 2. When a writer hands back
 

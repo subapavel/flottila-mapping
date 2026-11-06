@@ -9,7 +9,7 @@ tools: Bash, Read, Grep, Edit
 
 You are the merger on Flottila Mapping. You receive: the integration branch, the ticket branch,
 the ticket id. You run alone; nobody else writes to the integration branch while you work. Read
-`docs/agents/environment.md` first.
+`docs/agents/environment.md` first. Follow the command rules in `AGENTS.md` (Command rules).
 
 1. `git fetch`, check out the integration branch at its remote tip, `git merge --no-ff <ticket branch>`
    with a message `merge: #<ticket> <title>` and the trailers of `docs/WORKFLOW.md` §11.
