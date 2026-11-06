@@ -28,10 +28,13 @@ export function treeRows(structure: StructureLoaded, expanded: ReadonlySet<strin
   return rows;
 }
 
-/** The name a row shows for the last step of a field path: its local name, `@` before an attribute's. */
+/**
+ * The name a row shows for the last step of a field path: its local name, `@` before an attribute's, and a JSON
+ * property's name as the schema spells it, its `% / @ { }` decoded (ADR-0007); a JSON root is `$`.
+ */
 export function stepName(path: string): string {
   const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)?.[0] ?? path;
-  return last.replace(/^(@?)Q\{[^}]*\}/, '$1');
+  return decodeURIComponent(last.replace(/^(@?)Q\{[^}]*\}/, '$1'));
 }
 
 /** A field's effective occurrence, `min..max`, with `unbounded` for an absent max. */
@@ -45,16 +48,21 @@ export function occurrenceText(field: FieldDto): string {
  * mapping whose `result` is null has none. The walk stops at an empty input slot, a box it has met, and a missing box.
  */
 export function reachedSourceFields(mapping: TargetFieldMapping | undefined): FieldPath[] {
-  const fields = new Set<FieldPath>();
+  return [...reachedSourceBoxes(mapping).keys()];
+}
+
+/** The reached source fields of `reachedSourceFields`, each with how many reached source-field boxes read it. */
+export function reachedSourceBoxes(mapping: TargetFieldMapping | undefined): Map<FieldPath, number> {
+  const fields = new Map<FieldPath, number>();
   const met = new Set<string>();
   const visit = (ref: BoxReference) => {
     if (ref === null || met.has(ref)) return;
     met.add(ref);
     const box = mapping!.boxes[ref];
     if (box === undefined) return;
-    if (box.kind === 'source') fields.add(box.field);
+    if (box.kind === 'source') fields.set(box.field, (fields.get(box.field) ?? 0) + 1);
     else box.inputs?.forEach(visit);
   };
   if (mapping) visit(mapping.result);
-  return [...fields];
+  return fields;
 }

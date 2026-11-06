@@ -48,5 +48,9 @@ export default defineConfig([
     String.raw`^(${otherSubfolder}|@xyflow/|@dagrejs/)`,
     'Editor subfolders meet through the store; @xyflow/react and dagre stay in function-editor.',
   ),
-  boundary(['src/app/**'], String.raw`^\.\./editor/`, 'app imports the editor only through editor/index.ts.'),
+  boundary(
+    ['src/app/**'],
+    String.raw`^(\.\./editor/|@tanstack/react-virtual$)`,
+    'app imports the editor only through editor/index.ts; @tanstack/react-virtual stays in structure-overview.',
+  ),
 ]);
