@@ -1,6 +1,6 @@
 import type { StructureLoaded } from '../../api/client';
 import type { FieldPath, MappingModel } from '../../generated/mapping-model';
-import { reachedSourceBoxes, type TreeRow } from './rows';
+import { reachedSourceBoxes, STEP, type TreeRow } from './rows';
 
 /** A field link (ADR-0012): one per pair of source field and target field. */
 export interface FieldLink {
@@ -43,9 +43,6 @@ export interface Gutter {
   /** Per side, how many drawn links end at the top edge (↑n) and at the bottom edge (↓n). */
   counts: Record<'source' | 'target', Record<Edge, number>>;
 }
-
-/** The steps of a field path: an EQName's braces may hold a `/` (ADR-0007). */
-const STEP = /(?:\{[^}]*\}|[^/{])+/g;
 
 /**
  * The field links of a model: per target field mapping, one per source field that its `result` reaches, in the order

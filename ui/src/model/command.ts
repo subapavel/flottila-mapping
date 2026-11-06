@@ -43,11 +43,14 @@ export function refusalOf(result: { kind: 'refused' } & Refusal): Refusal {
   return refusal;
 }
 
+/** A refused field's reason and the position of the declaration that causes it, in words. */
+export const describeFieldRefusal = ({ code, file, line, column }: FieldRefusal): string =>
+  `${code}, declared at ${file}:${line}:${column}`;
+
 /** What the editor tells the author about a refusal. */
 export function describeRefusal(refusal: Refusal): string {
   if (refusal.code === 'refused-field') {
-    const { side, field, refusal: why } = refusal;
-    return `The ${side} field ${field} is refused: ${why.code}, declared at ${why.file}:${why.line}:${why.column}.`;
+    return `The ${refusal.side} field ${refusal.field} is refused: ${describeFieldRefusal(refusal.refusal)}.`;
   }
   const { code, id } = refusal;
   switch (code) {

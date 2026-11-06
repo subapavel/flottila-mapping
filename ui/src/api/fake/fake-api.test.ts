@@ -115,6 +115,23 @@ describe('the fake ApiClient over the corpus', () => {
     ]);
   });
 
+  test('loads the same-step structure of the corpus mappings that use a refused field, with its refusals (#116)', async () => {
+    const sameStep = JSON.parse(corpus('mappings/same-step-source-box.mapping.json')) as MappingModel;
+
+    const response = await fakeApiClient().loadStructure({ base: 'mappings', bundle: sameStep.source.bundle, root: sameStep.source.root });
+
+    expect(response.kind).toBe('loaded');
+    if (response.kind !== 'loaded') return;
+    expect(response.fingerprint).toBe(sameStep.source.fingerprint);
+    expect(response.types['/Doc']!.map((f) => `${f.step} ${f.refusal?.code ?? '-'}`)).toEqual([
+      'Id -',
+      'Note ambiguous-field-path',
+      'Code -',
+      'Note ambiguous-field-path',
+      'Head -',
+    ]);
+  });
+
   test('resolves a bundle against the workspace root when the base is empty', async () => {
     const response = await fakeApiClient().loadStructure({
       base: '',

@@ -15,6 +15,7 @@ import {
 } from '../client';
 import { TREE_BUNDLE, TREE_FIELDS, TREE_FILE, TREE_MAPPING, TREE_SEED, generatedMapping, generatedStructure } from './generated-tree';
 import { orderStructure } from './order-structure';
+import { sameStepStructure } from './same-step-structure';
 
 const PROBLEM = 'urn:flottila:mapping:problem:';
 
@@ -44,6 +45,7 @@ function corpusMappings(): Record<string, MappingModel> {
 /** The structures the fake knows, by workspace path of the bundle's one file. */
 const structures: Record<string, () => StructureResponse> = {
   'structures/skeleton/order.xsd': () => orderStructure,
+  'structures/refused/same-step.xsd': () => sameStepStructure,
   [TREE_FILE]: () => generatedTree().structure,
 };
 

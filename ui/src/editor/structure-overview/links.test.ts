@@ -72,7 +72,7 @@ describe('the field links of a model (ADR-0012, "Field links")', () => {
 });
 
 describe('where a field link ends in a tree', () => {
-  const anchor = (expanded: string[]) => rowAnchors(structure, treeRows(structure, new Set(expanded)));
+  const anchor = (expanded: string[]) => rowAnchors(structure, treeRows(structure, new Set(expanded), 'source'));
 
   test('is the field’s own row when it is visible', () => {
     expect(anchor([ORDER])(ORDER_ID)).toEqual({ index: 2, dashed: false });
@@ -99,7 +99,7 @@ describe('where a field link ends in a tree', () => {
   test('is none below a structure field whose type lists no fields', () => {
     const empty: StructureLoaded = { ...structure, types: {} };
 
-    expect(rowAnchors(empty, treeRows(empty, new Set([ORDER])))(ORDER_ID)).toBeUndefined();
+    expect(rowAnchors(empty, treeRows(empty, new Set([ORDER]), 'source'))(ORDER_ID)).toBeUndefined();
   });
 });
 
@@ -110,7 +110,7 @@ describe('anchored field links', () => {
       { source: `${ORDER}/Gone`, target: CHANNEL, boxes: 1 },
       { source: ORDER_ID, target: `${ORDER}/Gone`, boxes: 1 },
     ];
-    const at = rowAnchors(structure, treeRows(structure, new Set([ORDER])));
+    const at = rowAnchors(structure, treeRows(structure, new Set([ORDER]), 'source'));
 
     expect(anchorLinks(links, at, at)).toEqual<AnchoredLink[]>([
       { source: ORDER_ID, target: CHANNEL, boxes: 1, from: { index: 2, dashed: false }, to: { index: 1, dashed: false } },
