@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import corpusMappingText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
-import { ApiProblem, type ApiClient } from '../../api/client';
+import { ApiProblem, type ApiClient, type Diagnostic } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import type { MappingModel } from '../../generated/mapping-model';
 import { canvasKey, type BrowserStateStore } from '../browser-state/browser-state';
@@ -257,6 +257,26 @@ describe('selection', () => {
     await page.getByRole('button', { name: 'Show c1' }).click();
     await expect.element(node('c1')).toHaveClass('selected');
     await expect.element(node('f1')).not.toHaveClass('selected');
+  });
+});
+
+describe('a diagnostic in the Diagnostics panel', () => {
+  test("at a box's authoring id selects its target field and the box; at the mapping's id, no box", async () => {
+    const answer: Diagnostic[] = [
+      { severity: 'warning', code: 'unreachable-box', message: 'not reached', location: { kind: 'authoring-id', authoringId: 'c1' } },
+      { severity: 'error', code: 'unsupported-field', message: 'unsupported', location: { kind: 'authoring-id', authoringId: 't1' } },
+    ];
+    render({ api: fakeApiClient({ [DRAFT]: graphMapping }, { compile: { [DRAFT]: answer } }), field: null });
+
+    await page.getByRole('tab', { name: /^Diagnostics/ }).click();
+    await page.getByRole('button', { name: 'c1', exact: true }).click();
+
+    await expect.element(node('c1')).toHaveClass('selected');
+    await expect.element(node('f1')).not.toHaveClass('selected');
+
+    await page.getByRole('button', { name: 't1', exact: true }).click();
+
+    await expect.element(node('c1')).not.toHaveClass('selected');
   });
 });
 

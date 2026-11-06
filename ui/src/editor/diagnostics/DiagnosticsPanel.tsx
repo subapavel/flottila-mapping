@@ -52,7 +52,18 @@ function Place({
   const model = useStore(store, (s) => s.workingCopy);
   switch (location.kind) {
     case 'authoring-id':
-      return <FieldLink side="target" field={targetFieldOf(model, location.authoringId)} text={location.authoringId} onSelectField={onSelectField} />;
+      // it also becomes the store's selection: a box id selects the box on the canvas, a mapping id no box
+      return (
+        <FieldLink
+          side="target"
+          field={targetFieldOf(model, location.authoringId)}
+          text={location.authoringId}
+          onSelectField={(side, field) => {
+            onSelectField(side, field);
+            store.getState().select(location.authoringId);
+          }}
+        />
+      );
     case 'pointer':
       return <FieldLink side="target" field={targetFieldAt(location.pointer)} text={location.pointer} onSelectField={onSelectField} />;
     case 'field-path':
