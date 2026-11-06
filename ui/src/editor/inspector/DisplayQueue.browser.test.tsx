@@ -160,7 +160,9 @@ describe('the display queue', () => {
   test('shows no target field queue before a test run, and a box asks for one', async () => {
     render(run);
     await expect.element(node('f1')).toBeVisible();
-    await expect.element(inspector).toHaveTextContent('Select a box to inspect it.');
+    // the target field view shows its result box's display queue, which asks for a run
+    await expect.element(boxQueue).toHaveTextContent('Display queueNo trace: run a test.');
+    await expect.element(fieldQueue).not.toBeInTheDocument();
 
     await inspect('f1');
 

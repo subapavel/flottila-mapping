@@ -204,6 +204,8 @@ describe('the orphaned target field mappings (spec #104, stories 46 and 47)', ()
     const onSelect = vi.fn();
     mount(<Host api={statusApi()} onSelect={onSelect} />);
     await expect.element(orphans()).toHaveTextContent(MISSING);
+    // the opening selection (spec #145): the first mapped target field in tree order, once
+    await expect.poll(() => onSelect.mock.calls).toEqual([[QUANTITY]]);
     await expect.element(targetRow(MISSING)).not.toBeInTheDocument();
     await expect.element(fieldLink(AMOUNT, AMOUNT)).toBeInTheDocument();
     await expect.element(fieldLink(ORDER_ID, MISSING)).not.toBeInTheDocument();
@@ -213,7 +215,8 @@ describe('the orphaned target field mappings (spec #104, stories 46 and 47)', ()
     await filter('Orphaned').click();
     await orphans().getByRole('button', { name: MISSING }).click();
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith(MISSING);
+    // the click selects the orphaned mapping's field, exactly once more
+    expect(onSelect.mock.calls).toEqual([[QUANTITY], [MISSING]]);
     await expect.element(page.getByTestId(`sink:${MISSING}`)).toBeVisible();
     await expect.element(page.getByTestId('box:a4')).toBeVisible();
   });

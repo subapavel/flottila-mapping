@@ -309,15 +309,20 @@ describe('selecting a target field (spec #104, story 1)', () => {
   test('Enter on a focused target row selects it too; a source row never selects', async () => {
     const onSelect = vi.fn();
     const [first, second] = [leaves[0]!, leaves[1]!];
+    // the opening selection (spec #145) asks for the first mapped target field in tree order, once
+    const mapped = (await fakeApiClient().getMapping(TREE_MAPPING)).model.targetFieldMappings ?? {};
+    const opened = expandedOrder.find((path) => Object.hasOwn(mapped, path));
+    expect(opened).toBeDefined();
     renderHost(onSelect);
+    await expect.poll(() => onSelect.mock.calls).toEqual([[opened]]);
     await userEvent.click(sourceRow(first));
     await userEvent.keyboard('{Enter}');
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect.mock.calls).toEqual([[opened]]);
 
     (targetRow(second).element() as HTMLElement).focus();
     await userEvent.keyboard('{Enter}');
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith(second);
+    expect(onSelect.mock.calls).toEqual([[opened], [second]]);
     await expect.element(fieldLink(second, second)).toHaveClass('fm-gutter__link--sel');
     await expect.element(fieldLink(first, first)).toHaveClass('fm-gutter__link--dim');
   });

@@ -4,14 +4,15 @@ import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 're
 import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue, StructureLoaded } from '../../api/client';
 import type { CatalogueParam } from '../../generated/function-catalogue';
-import type { AuthoringId, FieldPath, ParamValue, Params, SourceFieldBox, Table, Udfs } from '../../generated/mapping-model';
+import type { AuthoringId, FieldPath, ParamValue, Params, SourceFieldBox, Table, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { BoxQueue, TargetFieldQueue, type LastTrace } from './DisplayQueue';
 import './inspector-panel.css';
-import { boxTitle, duplicateKey, inspected, slotChoices, slotNames, type Inspected, type TableRow } from './inspector-view';
+import { boxTitle, chainText, duplicateKey, inspected, slotChoices, slotNames, type Inspected, type TableRow } from './inspector-view';
 import { remapChoices } from './remap-choices';
+import { placed } from './target-field';
 
 export interface InspectorProps {
   api: ApiClient;
@@ -22,20 +23,25 @@ export interface InspectorProps {
   /** The orphaned source-field boxes, found against the loaded `source`; each offers a remap. */
   orphaned: ReadonlySet<AuthoringId>;
   source: StructureLoaded | undefined;
+  /** The loaded target structure, which gives the selected target field's occurrence and type. */
+  target: StructureLoaded | undefined;
+  /** The selected target field's field status (GLOSSARY) as the structure overview derives it; none for a field without one. */
+  targetStatus: 'mapped' | 'unmapped-mandatory' | 'orphaned' | 'error' | undefined;
   /** Remaps an orphaned source-field box of a target field mapping to a picked source field. */
   onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
 }
 
 /**
  * The inspector (ADR-0012, GLOSSARY), laid out as the prototype's e-inspector-deviation: the selected box's kind and
- * authoring id, its name with the deviation badge, its catalogue documentation as one fidelity line and the deviation
- * note, the toggle that makes it the result or clears it as the result, then the context of a source-field box and,
- * when it is orphaned, a remap picker, or the Inputs (one picker per input slot) and the Parameters (as editors), and
- * last its display queue. The params of a `udf` and an `unresolved` box, and of a function the catalogue lacks, are
- * shown read-only; a catalogue function without params has no Parameters. With no box shown, the selected target
- * field's display queue, when it has a mapping and a test run left a trace.
+ * authoring id with the way back to the target field view, its name with the deviation badge, its catalogue
+ * documentation as one fidelity line and the fidelity note, the toggle that makes it the result or clears it as the
+ * result, then the context of a source-field box and, when it is orphaned, a remap picker, or the Inputs (one picker
+ * per input slot) and the Parameters (as editors), and last its display queue. The params of a `udf` and an
+ * `unresolved` box, and of a function the catalogue lacks, are shown read-only; a catalogue function without params
+ * has no Parameters. With no box shown, the selected target field as the prototype's e-default (spec #145), or, with
+ * no target field selected, a request to select one.
  */
-export function Inspector({ api, store, targetField, orphaned, source, onRemap }: InspectorProps) {
+export function Inspector({ api, store, targetField, orphaned, source, target, targetStatus, onRemap }: InspectorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const model = useStore(store, (s) => s.workingCopy);
   const selection = useStore(store, (s) => s.selection);
@@ -43,16 +49,16 @@ export function Inspector({ api, store, targetField, orphaned, source, onRemap }
   const stale = useStore(store, selectTraceStale);
   const last = { trace, stale };
   const shown = inspected(model, targetField, selection);
-  const mapping = targetField === null ? undefined : model.targetFieldMappings?.[targetField];
 
   return (
     // as wide as the editor's inspector pane, which its splitter sets (ADR-0012)
     <aside aria-label="Inspector" className="fm-inspector">
       {shown === undefined || catalogue.data === undefined ? (
-        <>
-          <p>Select a box to inspect it.</p>
-          {mapping !== undefined && trace !== undefined && <TargetFieldQueue field={targetField!} mapping={mapping} last={last} />}
-        </>
+        targetField === null ? (
+          <p>Select a target field to inspect it.</p>
+        ) : (
+          <TargetFieldView field={targetField} mapping={model.targetFieldMappings?.[targetField]} target={target} status={targetStatus} last={last} />
+        )
       ) : (
         // a box of its own: no draft of one box's editors is left in the next box's
         <BoxInspector
@@ -69,6 +75,55 @@ export function Inspector({ api, store, targetField, orphaned, source, onRemap }
         />
       )}
     </aside>
+  );
+}
+
+/** The text of each field status, and of a field without one. */
+const STATUS = {
+  mapped: 'mapped',
+  'unmapped-mandatory': 'unmapped mandatory',
+  orphaned: 'orphaned',
+  error: 'error',
+  none: 'unmapped',
+} as const;
+
+interface TargetFieldViewProps {
+  field: FieldPath;
+  /** The field's target field mapping; absent when it has none. */
+  mapping: TargetFieldMapping | undefined;
+  target: StructureLoaded | undefined;
+  status: InspectorProps['targetStatus'];
+  last: LastTrace;
+}
+
+/**
+ * The selected target field with no box shown (spec #145, the `!b` branch of the prototype's Inspector): its local
+ * name, its full path, its effective occurrence, type and field status while the target structure has it, and its
+ * mapping's id and expression. Then the mapping's display queue: its result box's before a test run, else the result
+ * queue and the occurrences per parent slot.
+ */
+function TargetFieldView({ field, mapping, target, status, last }: TargetFieldViewProps) {
+  const found = target && placed(target, field)?.field;
+  return (
+    <>
+      <div className="fm-inspector__kind">target field</div>
+      <h3 className="fm-inspector__title">{stepName(field)}</h3>
+      <code className="fm-inspector__path">{field}</code>
+      {found && (
+        <p className="fm-inspector__row">
+          occurrence {found.min}..{found.max ?? 'unbounded'} · {found.valueType ?? 'structure field'} · <strong>{STATUS[status ?? 'none']}</strong>
+        </p>
+      )}
+      {mapping && (
+        <>
+          <p className="fm-inspector__row">
+            mapping <code>{mapping.id}</code>: <code>{chainText(mapping)}</code>
+          </p>
+          {last.trace === undefined ? <BoxQueue id={mapping.result} last={last} /> : <TargetFieldQueue field={field} mapping={mapping} last={last} />}
+        </>
+      )}
+      <p className="fm-inspector__hint">Select a box on the canvas to inspect it.</p>
+    </>
   );
 }
 
@@ -90,7 +145,12 @@ function BoxInspector({ store, targetField, shown, catalogue, udfs, remapSource,
   return (
     <>
       <div className="fm-inspector__kind">
-        {KIND[box.kind]} · <code>{id}</code>
+        <span>
+          {KIND[box.kind]} · <code>{id}</code>
+        </span>
+        <Button variant="link" isInline className="fm-inspector__back" onClick={() => store.getState().select(null)}>
+          target field
+        </Button>
       </div>
       <h3 data-testid={`inspector:${id}`} className="fm-inspector__title">
         {boxTitle(box)}
@@ -155,7 +215,7 @@ const KIND = { source: 'source-field box', function: 'function box', udf: 'UDF b
 function ResultToggle({ store, targetField, shown }: { store: WorkingCopyStore; targetField: FieldPath; shown: Inspected }) {
   const isResult = shown.mapping.result === shown.id;
   return (
-    <Button variant="secondary" onClick={() => store.getState().setResult(targetField, isResult ? null : shown.id)}>
+    <Button variant="secondary" size="sm" className="fm-inspector__result" onClick={() => store.getState().setResult(targetField, isResult ? null : shown.id)}>
       {isResult ? 'Clear result' : 'Make this the result'}
     </Button>
   );
@@ -177,7 +237,8 @@ const EXECUTION_KIND = { single: 'single value', context: 'context', queue: 'que
 
 /**
  * The catalogue entry (ADR-0026) as the prototype's one fidelity line: family, execution kind, fidelity and
- * portability, with every detail, the inputs too, in its title. A deviation's text follows as a note.
+ * portability, with every detail, the inputs too, in its title. A deviation's text follows as a note, as does an
+ * assumed reading's, in the prototype's .insp__fid boxes.
  */
 function Documentation({ entry }: { entry: FunctionCatalogue[string] }) {
   const kind = EXECUTION_KIND[entry.executionKind];
@@ -195,8 +256,14 @@ function Documentation({ entry }: { entry: FunctionCatalogue[string] }) {
       </p>
       {entry.fidelity.level === 'deviation' && (
         // the catalogue has no deviation code to put in bold before the text; the badge is in the title
-        <p role="note" aria-label="Deviation" className="fm-inspector__note">
+        <p role="note" aria-label="Deviation" className="fm-inspector__note fm-inspector__note--deviation">
           {entry.fidelity.text}
+        </p>
+      )}
+      {entry.fidelity.level === 'assumed' && (
+        // the catalogue's assumed reading carries no text of its own
+        <p role="note" aria-label="Assumed reading" className="fm-inspector__note fm-inspector__note--assumed">
+          Assumed reading: one of the function's corpus cases is assumed.
         </p>
       )}
     </section>

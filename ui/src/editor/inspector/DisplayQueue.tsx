@@ -11,10 +11,10 @@ export interface LastTrace {
 }
 
 /**
- * The display queue of a box (GLOSSARY): the queue or value it gave in the last test run. `label` names the region,
- * "Display queue" by default; a second view of a queue on the page names itself apart.
+ * The display queue of a box (GLOSSARY): the queue or value it gave in the last test run; no box (`null`) gave none.
+ * `label` names the region, "Display queue" by default; a second view of a queue on the page names itself apart.
  */
-export function BoxQueue({ id, last, label = 'Display queue' }: { id: AuthoringId; last: LastTrace; label?: string }) {
+export function BoxQueue({ id, last, label = 'Display queue' }: { id: AuthoringId | null; last: LastTrace; label?: string }) {
   return (
     <section aria-label={label} className="fm-queue">
       <h4>Display queue</h4>
