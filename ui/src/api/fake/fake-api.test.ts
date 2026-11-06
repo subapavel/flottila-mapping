@@ -213,6 +213,81 @@ describe('the fake ApiClient over the corpus', () => {
     }
   });
 
+  test('lists its mappings sorted by id, each named by the last segment of its id', async () => {
+    const api = fakeApiClient({ 'b/two': corpusMapping, 'a/deep/one': corpusMapping, 'b/one': corpusMapping });
+
+    expect(await api.listMappings()).toEqual([
+      { id: 'a/deep/one', name: 'one' },
+      { id: 'b/one', name: 'one' },
+      { id: 'b/two', name: 'two' },
+    ]);
+  });
+
+  test('creates a mapping with both fingerprints and no target field mapping; it is listed and opens with its tag', async () => {
+    const api = fakeApiClient();
+    const order = '../structures/skeleton/order.xsd';
+
+    const created = await api.createMapping({
+      id: 'mappings/new-one',
+      source: { bundle: [order], root: { json: '$' } },
+      target: { bundle: [order], root: { element: 'Q{urn:flottila:corpus:skeleton}Order' } },
+    });
+
+    expect(created.model).toEqual({
+      formatVersion: 1,
+      source: { bundle: [order], fingerprint: corpusMapping.source.fingerprint, root: { json: '$' } },
+      target: { bundle: [order], fingerprint: corpusMapping.target.fingerprint, root: { element: 'Q{urn:flottila:corpus:skeleton}Order' } },
+    });
+    expect(created.etag).toMatch(/^"fake:\d+"$/);
+    expect((await api.listMappings()).map((m) => m.id)).toContain('mappings/new-one');
+    expect(await api.getMapping('mappings/new-one')).toEqual(created);
+  });
+
+  test('a create with an id that exists is 409 mapping-exists and keeps what is stored', async () => {
+    const api = fakeApiClient();
+    const before = await api.getMapping('mappings/order-id-copy');
+
+    const problem = await problemOf(
+      api.createMapping({ id: 'mappings/order-id-copy', source: corpusMapping.source, target: corpusMapping.target }),
+    );
+
+    expect(problem.problem.status).toBe(409);
+    expect(problem.problem.type).toBe('urn:flottila:mapping:problem:mapping-exists');
+    expect(await api.getMapping('mappings/order-id-copy')).toEqual(before);
+  });
+
+  test.each(['', 'mappings/../escape', '/mappings/abs', 'mappings//double', 'mappings/test', 'mappings/a b'])(
+    'a create with the id %j, not a workspace path, is 400 invalid-workspace-path',
+    async (id) => {
+      const api = fakeApiClient();
+      const before = await api.listMappings();
+
+      const problem = await problemOf(api.createMapping({ id, source: corpusMapping.source, target: corpusMapping.target }));
+
+      expect(problem.problem.status).toBe(400);
+      expect(problem.problem.type).toBe('urn:flottila:mapping:problem:invalid-workspace-path');
+      expect(await api.listMappings()).toEqual(before);
+    },
+  );
+
+  test.each(['source', 'target'])('a create with a %s bundle it does not know is 422 model-refused with the diagnostic, and creates nothing', async (side) => {
+    const api = fakeApiClient();
+    const unknown = { bundle: ['missing.xsd'], root: { json: '$' as const } };
+
+    const problem = await problemOf(
+      api.createMapping({
+        id: 'mappings/new-one',
+        source: side === 'source' ? unknown : corpusMapping.source,
+        target: side === 'target' ? unknown : corpusMapping.target,
+      }),
+    );
+
+    expect(problem.problem.status).toBe(422);
+    expect(problem.problem.type).toBe('urn:flottila:mapping:problem:model-refused');
+    expect('diagnostics' in problem.problem && problem.problem.diagnostics.map((d) => d.code)).toEqual(['schema-unreadable']);
+    expect((await api.listMappings()).map((m) => m.id)).not.toContain('mappings/new-one');
+  });
+
   test('compile answers the scenario fixture of the mapping, and no diagnostics for a mapping it does not name', async () => {
     const unreachable: Diagnostic = {
       severity: 'warning',
