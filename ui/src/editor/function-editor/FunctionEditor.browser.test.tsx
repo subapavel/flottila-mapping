@@ -738,7 +738,9 @@ describe('editing on the canvas', () => {
 // the prototype's canvas detail (#150): sizes and colours from prototype.css and prototype-round2.css
 describe("the prototype's canvas detail", () => {
   const editor = page.getByRole('region', { name: 'Function editor' });
-  const strip = editor.getByRole('region', { name: 'Display queue', exact: true });
+  const strip = editor.getByRole('region', { name: 'Canvas display queue' });
+  /** The box queue the editor puts into the strip: the inspector's display queue view. */
+  const stripQueue = strip.getByRole('region', { name: 'Display queue', exact: true });
   const styleOf = (element: Element) => getComputedStyle(element);
   const headOf = (id: string) => box(id).element().querySelector('.fm-card__head')!;
 
@@ -821,15 +823,15 @@ describe("the prototype's canvas detail", () => {
     await expect.element(page.getByRole('figure', { name: 'Target message' })).toBeVisible();
     await page.getByRole('tab', { name: 'Editor' }).click();
 
-    await expect.element(strip).toHaveTextContent('Display queueA-');
-    await expect.element(editor.getByText(/^result \(what the target field reads\) f1$/)).toBeVisible();
+    await expect.element(stripQueue).toHaveTextContent('Display queueA-');
+    await expect.element(strip.getByText(/^result \(what the target field reads\) f1$/)).toBeVisible();
     await box('c1').click();
-    await expect.element(strip).toHaveTextContent('Display queue- xs:string');
-    await expect.element(editor.getByText(/^selected box c1$/)).toBeVisible();
+    await expect.element(stripQueue).toHaveTextContent('Display queue- xs:string');
+    await expect.element(strip.getByText(/^selected box c1$/)).toBeVisible();
 
     // under the canvas, the palette beside it, and 130 px high
     const canvas = page.getByRole('group', { name: /^Canvas of / }).element().getBoundingClientRect();
-    const queue = strip.element().parentElement!.getBoundingClientRect();
+    const queue = strip.element().getBoundingClientRect();
     expect(queue.top).toBeGreaterThanOrEqual(canvas.bottom - 0.5);
     expect(queue.height).toBe(130);
   });
@@ -838,11 +840,11 @@ describe("the prototype's canvas detail", () => {
     const target = graphMapping.targetFieldMappings![ORDER_ID]!;
     render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, result: null } } } }) });
 
-    await expect.element(editor.getByText('No box selected, and no result.')).toBeVisible();
-    await expect.element(strip).not.toBeInTheDocument();
+    await expect.element(strip).toHaveTextContent('No box selected, and no result.');
+    await expect.element(stripQueue).not.toBeInTheDocument();
 
     await page.getByRole('button', { name: 'Host: open Note' }).click();
     await expect.element(page.getByTestId(`canvas:${NOTE}`)).toBeVisible();
-    await expect.element(editor.getByText('No box selected, and no result.')).not.toBeInTheDocument();
+    await expect.element(strip).not.toBeInTheDocument();
   });
 });

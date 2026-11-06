@@ -15,13 +15,12 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { ApiClient, FunctionCatalogue } from '../../api/client';
+import type { ApiClient, FunctionCatalogue, TraceEntry } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
 import { localPath } from '../../model/field-path';
 import { reachedBoxes } from '../../model/reached';
-import { BoxQueue, type LastTrace } from '../inspector/DisplayQueue';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { boxIds, boxView, cardHeights, cardView, liveMarks, SINK, wires, type BoxView, type CardView } from './graph';
@@ -54,6 +53,17 @@ export interface FunctionEditorProps {
   orphaned: ReadonlySet<AuthoringId>;
   /** Remaps an orphaned source-field box of a target field mapping to a dropped source field. */
   onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
+  /**
+   * The display queue of a box from the last run, for the strip under the canvas: the editor injects the inspector's
+   * view, as editor subfolders do not import each other (ADR-0013).
+   */
+  boxQueue: (id: AuthoringId, last: LastRun) => ReactNode;
+}
+
+/** The last run's trace by authoring id (`undefined` before a run), and whether it is a stale trace. */
+export interface LastRun {
+  trace: Record<AuthoringId, TraceEntry> | undefined;
+  stale: boolean;
 }
 
 /**
@@ -69,7 +79,7 @@ export interface FunctionEditorProps {
  * boxes as one undo step, Ctrl+C copies the selected boxes and Ctrl+V pastes them. A key typed into a field inside the canvas, quick
  * insert's own, is the field's.
  */
-export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap }: FunctionEditorProps) {
+export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap, boxQueue }: FunctionEditorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const mapping = useStore(store, (s) => (targetField === null ? undefined : s.workingCopy.targetFieldMappings?.[targetField]));
   const udfs = useStore(store, (s) => s.workingCopy.udfs);
@@ -173,7 +183,9 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
               )}
             </div>
           </div>
-          {mapping !== undefined && <QueueStrip subject={selectedBox ?? mapping.result} selected={selectedBox !== null} last={{ trace, stale }} />}
+          {mapping !== undefined && (
+            <QueueStrip subject={selectedBox ?? mapping.result} selected={selectedBox !== null} queue={(id) => boxQueue(id, { trace, stale })} />
+          )}
         </>
       )}
     </section>
@@ -184,9 +196,9 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
  * The display-queue strip under the canvas, after the prototype's .gc__queue: the selected box's display queue, else
  * the result's (what the target field reads), else a line saying there is neither.
  */
-function QueueStrip({ subject, selected, last }: { subject: AuthoringId | null; selected: boolean; last: LastTrace }) {
+function QueueStrip({ subject, selected, queue }: { subject: AuthoringId | null; selected: boolean; queue: (id: AuthoringId) => ReactNode }) {
   return (
-    <div className="fm-function-editor__queue">
+    <section aria-label="Canvas display queue" className="fm-function-editor__queue">
       {subject === null ? (
         <p className="fm-function-editor__queue-subject">No box selected, and no result.</p>
       ) : (
@@ -194,10 +206,10 @@ function QueueStrip({ subject, selected, last }: { subject: AuthoringId | null; 
           <p className="fm-function-editor__queue-subject">
             {selected ? 'selected box' : 'result (what the target field reads)'} <code>{subject}</code>
           </p>
-          <BoxQueue id={subject} last={last} />
+          {queue(subject)}
         </>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -223,7 +235,7 @@ const nodeTypes = { box: BoxNodeView, sink: SinkNodeView };
 /** The input slot of an input handle id, `in-<slot>`. */
 const slotOf = (handle: string) => Number(handle.slice('in-'.length));
 
-interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
+interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField' | 'boxQueue'> {
   mapping: TargetFieldMapping;
   targetField: FieldPath;
   catalogue: FunctionCatalogue;
