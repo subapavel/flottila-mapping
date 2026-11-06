@@ -60,9 +60,11 @@
   padding: var(--pf-t--global--spacer--xs);
 }
 
+/* the count sits at the head's foot, so both trees' counts line up whatever else their heads hold */
 .fm-tree__head {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: var(--pf-t--global--spacer--xs);
   padding: var(--pf-t--global--spacer--xs);
   min-width: 0;
@@ -118,7 +120,7 @@
 
 /* the selected target field, and the source field picked to link by keyboard */
 .fm-tree__row[aria-selected='true'] {
-  background-color: var(--pf-t--global--background--color--highlight--default);
+  background-color: var(--pf-t--global--color--nonstatus--blue--default);
   box-shadow: inset 3px 0 0 var(--pf-t--global--color--brand--default);
 }
 
@@ -141,12 +143,13 @@ button.fm-tree__twisty {
   font-weight: var(--pf-t--global--font--weight--body--bold);
 }
 
+/* PatternFly's purple text colour is the visited link's; the nonstatus purples are fills, too pale for text */
 .fm-tree__name--attribute {
-  color: var(--pf-t--global--color--nonstatus--purple--clicked);
+  color: var(--pf-t--global--text--color--link--visited);
 }
 
 .fm-tree__type {
-  color: var(--pf-t--global--color--nonstatus--green--clicked);
+  color: var(--pf-t--global--text--color--status--success--default);
   font-size: calc(var(--pf-t--global--font--size--xs) * 0.85);
 }
 
