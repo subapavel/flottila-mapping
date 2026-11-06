@@ -1,7 +1,8 @@
 import { createStore } from 'zustand/vanilla';
 import { isSaveConflict, type StoredMapping } from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
-import { link, type Refusal } from '../../model/link';
+import type { Refusal } from '../../model/command';
+import { link } from '../../model/link';
 import { sameModel } from '../../model/same-model';
 
 /** How many edits undo keeps (ADR-0013: at least 100); an older one is dropped. */
