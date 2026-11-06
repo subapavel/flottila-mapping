@@ -1,6 +1,6 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
 import type { FieldPath } from '../../generated/mapping-model';
-import { stepName } from './inspector';
+import { stepName } from '../../model/field-path';
 
 /** A field the remap picker offers: its field path, and the path of its local names to show. */
 export interface RemapChoice {

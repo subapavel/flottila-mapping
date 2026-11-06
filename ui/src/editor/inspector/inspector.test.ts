@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
-import { badges, duplicateKey, inspected, slotChoices, slotNames, stepName } from './inspector';
+import { stepName } from '../../model/field-path';
+import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames } from './inspector';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -71,11 +72,12 @@ describe("a box's input slots", () => {
   });
 });
 
-describe("a field's step name", () => {
-  test("is its last step's local name, @ before an attribute's, and the path itself when it has no step", () => {
-    expect(stepName(ORDER_ID)).toBe('OrderId');
-    expect(stepName('/Q{http://a/b}Order/@Q{urn:x}code')).toBe('@code');
-    expect(stepName('')).toBe('');
+describe("a box's title", () => {
+  test('a source-field box reading an escaped JSON property is titled by its name as the source tree shows it', () => {
+    const field = '/$/order/a%2Fb%25%40%7B%7D';
+
+    expect(boxTitle({ kind: 'source', field })).toBe('a/b%@{}');
+    expect(boxTitle({ kind: 'source', field })).toBe(stepName(field));
   });
 });
 
