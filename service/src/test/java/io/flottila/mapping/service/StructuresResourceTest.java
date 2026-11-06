@@ -428,7 +428,8 @@ class StructuresResourceTest {
     JsonNode parts = types.path(reply.json().path("root").path("type").textValue());
     assertThat(refusals(parts))
         .containsExactly(
-            "Part ambiguous-field-path parts.xsd 10:47", "Part ambiguous-field-path parts.xsd 10:47");
+            "Part ambiguous-field-path parts.xsd 10:47",
+            "Part ambiguous-field-path parts.xsd 10:47");
     for (JsonNode part : parts) {
       assertThat(refusals(types.path(part.path("type").textValue())))
           .as("the child type %s", part.path("type"))
