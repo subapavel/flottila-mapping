@@ -12,6 +12,7 @@ import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { EditorLayout } from './EditorLayout';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
 import { Inspector } from './inspector/Inspector';
+import { ModelJson } from './model-json/ModelJson';
 import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { locate } from './store/locations';
@@ -343,7 +344,8 @@ function OpenMapping({
         <DiagnosticsPanel store={store} onSelectField={selectTreeField} />
       </TabContent>
       <TabContent {...panel('model-json')} className="fm-editor__panel fm-editor__panel--scroll">
-        <p>The working copy as Model JSON is not shown yet.</p>
+        {/* serialised only while it is shown: a large working copy costs no text on every edit behind another tab */}
+        {tab === 'model-json' && <ModelJson store={store} />}
       </TabContent>
       </div>
     </div>

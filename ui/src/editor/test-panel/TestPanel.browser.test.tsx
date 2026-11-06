@@ -56,9 +56,9 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 let consoleError: ReturnType<typeof vi.spyOn>;
 
-/** Opens the corpus mapping over a fake whose test run answers `result`. */
-function render(result: TestResult, overrides: Partial<ApiClient> = {}) {
-  const api: ApiClient = { ...fakeApiClient(undefined, { test: { [MAPPING]: result } }), ...overrides };
+/** Opens the corpus mapping over a fake whose test run answers `result`, or runs the corpus case when there is none. */
+function render(result: TestResult | undefined, overrides: Partial<ApiClient> = {}) {
+  const api: ApiClient = { ...fakeApiClient(undefined, { test: result ? { [MAPPING]: result } : {} }), ...overrides };
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -87,6 +87,47 @@ async function runTest() {
   await page.getByRole('button', { name: 'Run test' }).click();
 }
 
+const generatedTarget = page.getByRole('region', { name: 'Generated target' });
+const errors = page.getByRole('region', { name: 'Errors' });
+
+describe('the Test tab (spec #135)', () => {
+  test('runs the working copy on the input, and the Generated target region shows the target message', async () => {
+    render(undefined);
+    await tab('Test').click();
+    await expect.element(generatedTarget).toMatchTextContent('No run yet');
+
+    await page.getByRole('textbox', { name: 'Input message' }).fill(caseInput);
+    await page.getByRole('button', { name: 'Run test' }).click();
+
+    // the fake runs the corpus case link/direct-copy/001 for this mapping and input
+    await expect.element(generatedTarget.getByRole('figure', { name: 'Target message' })).toMatchTextContent('<OrderId>PO 4711</OrderId>');
+    await expect.element(testPanel.getByText('live', { exact: true })).toBeVisible();
+    await expect.element(errors.getByRole('heading', { name: 'Errors (0)' })).toBeVisible();
+  });
+
+  test("lists the run's error diagnostics with links to their authoring ids, and leaves its warnings to the Diagnostics tab", async () => {
+    render({
+      ...output,
+      diagnostics: [
+        { severity: 'error', code: 'unconnected-input', message: 'input 2 of concat is not connected', location: { kind: 'authoring-id', authoringId: 't1' } },
+        { severity: 'warning', code: 'unreachable-box', message: 'box x9 is not reached', location: { kind: 'authoring-id', authoringId: 'a1' } },
+        { severity: 'error', code: 'fingerprint-mismatch', message: 'the source changed', location: { kind: 'pointer', pointer: '/source/fingerprint' } },
+      ],
+    });
+    await runTest();
+
+    await expect.element(errors.getByRole('heading', { name: 'Errors (2)' })).toBeVisible();
+    await expect.element(errors.getByRole('listitem').first()).toHaveTextContent('unconnected-input input 2 of concat is not connected · Show t1');
+    await expect.element(errors.getByRole('listitem').nth(1)).toHaveTextContent('fingerprint-mismatch the source changed');
+    await expect.element(errors.getByText('unreachable-box')).not.toBeInTheDocument();
+
+    await errors.getByRole('button', { name: 'Show t1' }).click();
+
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
+  });
+});
+
 describe('the test panel', () => {
   test('shows the target message of a run', async () => {
     render(output);
@@ -102,6 +143,8 @@ describe('the test panel', () => {
 
     const error = testPanel.getByRole('heading', { name: /po:MINOCCURS/ });
     await expect.element(error).toBeVisible();
+    // the runtime error counts as one of the run's errors
+    await expect.element(errors.getByRole('heading', { name: 'Errors (1)' })).toBeVisible();
     await expect.element(testPanel.getByText('OrderId occurs 0 times under parent slot 1, at least 1 required')).toBeVisible();
     await expect.element(targetMessage).not.toBeInTheDocument();
 
