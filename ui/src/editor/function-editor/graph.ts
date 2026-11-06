@@ -1,6 +1,8 @@
 import type { FunctionCatalogue } from '../../api/client';
-import type { AuthoringId, Box, BoxReference, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
+import type { AuthoringId, Box, BoxReference, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { localPath, stepName } from '../../model/field-path';
+import { properAncestors } from '../../model/set-context';
+import { badges, type Badge } from './palette';
 
 /** The node id of the sink, the target field itself; no authoring id has a `:` (ADR-0010). */
 export const SINK = ':sink';
@@ -39,18 +41,20 @@ export function wires(mapping: TargetFieldMapping | undefined): Wire[] {
 /** What a box node shows: its title, the names of its input slots, and a constant box's value. */
 export interface BoxView {
   title: string;
+  /** A source-field box's full field path, the tooltip of its title. */
+  path?: FieldPath;
   slots: string[];
   /** A `constant` box's value as JSON, `""` when the param is left out at its default. */
   value?: string;
 }
 
 /**
- * A source-field box shows its field's last step; a function box its function and the catalogue's input names; a
- * `udf` box its declaration's input names; an `unresolved` box its name. Slots without a known name are numbered
- * from 1, as many as the model has.
+ * A source-field box shows its field's local path, the full path as its tooltip; a function box its function and the
+ * catalogue's input names; a `udf` box its declaration's input names; an `unresolved` box its name. Slots without a
+ * known name are numbered from 1, as many as the model has.
  */
 export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | undefined): BoxView {
-  if (box.kind === 'source') return { title: stepName(box.field), slots: [] };
+  if (box.kind === 'source') return { title: localPath(box.field), path: box.field, slots: [] };
   const [title, names] =
     box.kind === 'function'
       ? [box.fn, catalogue[box.fn]?.inputs?.map((input) => input.name)]
@@ -60,6 +64,105 @@ export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | und
   const view: BoxView = { title, slots: names ?? inputsOf(box).map((_, i) => String(i + 1)) };
   if (box.kind === 'function' && box.fn === 'constant') view.value = JSON.stringify(box.params?.value ?? '');
   return view;
+}
+
+/**
+ * A parameter of a box card: a text param's value, or a table param's size. `editable` is a text param of a catalogue
+ * function, as in the inspector; `values` are the choices of a param that takes only those.
+ */
+export interface CardParam {
+  name: string;
+  text: string;
+  table: boolean;
+  editable: boolean;
+  values?: string[];
+}
+
+/** A source-field box's context: the value shown, and the choices, the parent first (as the inspector offers them). */
+export interface CardContext {
+  value: string;
+  choices: { path: string; label: string }[];
+}
+
+/** What a box card shows besides its `BoxView`: its caption, fidelity badges, parameters and a source field's context. */
+export interface CardView {
+  kind: Box['kind'];
+  caption: string;
+  /** The fidelity badges (assumed, deviation) of a function the catalogue knows. */
+  badges: Badge[];
+  params: CardParam[];
+  /** A source-field box's context; the parent's when the model leaves it out. */
+  context?: CardContext;
+}
+
+/**
+ * The card of a box (spec #135): a caption by kind, the fidelity badges of its catalogue entry, its parameters as the
+ * model holds them (a constant's value is its `BoxView.value`, so not repeated), and a source-field box's context. A
+ * field without a proper ancestor shows its own name as its context.
+ */
+export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
+  if (box.kind === 'source') {
+    const ancestors = properAncestors(box.field);
+    const choices = (ancestors.length > 0 ? ancestors : [box.field]).map((path, i) => ({
+      path,
+      label: i === 0 ? `${stepName(path)} (parent)` : stepName(path),
+    }));
+    return { kind: 'source', caption: 'source field', badges: [], params: [], context: { value: box.context ?? choices[0]!.path, choices } };
+  }
+  const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
+  const params =
+    box.kind === 'function' && box.fn === 'constant'
+      ? []
+      : Object.entries(box.params ?? {}).map(([name, value]): CardParam => {
+          if (typeof value !== 'string') return { name, text: `table, ${Object.keys(value).length} rows`, table: true, editable: false };
+          const param = entry?.params?.find((p) => p.name === name);
+          return { name, text: value, table: false, editable: param !== undefined, values: param?.type === 'string' ? param.values : undefined };
+        });
+  return {
+    kind: box.kind,
+    caption: box.kind === 'function' ? 'fn' : box.kind === 'udf' ? 'UDF' : 'unresolved',
+    badges: entry === undefined ? [] : badges(entry).filter((badge) => badge.kind !== 'not-portable'),
+    params,
+  };
+}
+
+/**
+ * Upper bounds, in px, of a card's parts at the default font size: the head's name line with the id below it, the
+ * head's marks line (fidelity badges, "not reached"; function-editor.css keeps each line from wrapping), a row (an
+ * input slot, a param, the Orphaned mark), a source card's context select and a constant's value. They are estimates,
+ * not sizes the CSS sets: FunctionEditor.browser.test.tsx checks rendered cards against them.
+ */
+export const CARD_HEIGHT = { base: 50, marks: 22, row: 22, context: 26, value: 22, slack: 8 } as const;
+
+/**
+ * Each box's card height from its content, for the layout: the head and id, one row per input slot and per param, a
+ * source card's context, a constant's value, and a row for the Orphaned mark of a box in `orphaned`. Every card keeps
+ * room for the marks line, as a wire can make any box unreachable without a new layout. A function of the
+ * model, the catalogue and the orphaned boxes (found against the loaded source structure) only, so the same model and
+ * structures always get the same layout (ADR-0012).
+ */
+export function cardHeights(
+  mapping: TargetFieldMapping,
+  catalogue: FunctionCatalogue,
+  udfs: Udfs | undefined,
+  orphaned: ReadonlySet<AuthoringId>,
+): Record<AuthoringId, number> {
+  return Object.fromEntries(
+    boxIds(mapping).map((id) => {
+      const box = mapping.boxes[id]!;
+      const view = boxView(box, catalogue, udfs);
+      const card = cardView(box, catalogue);
+      const rows = view.slots.length + card.params.length + (orphaned.has(id) ? 1 : 0);
+      const height =
+        CARD_HEIGHT.base +
+        CARD_HEIGHT.marks +
+        CARD_HEIGHT.row * rows +
+        (card.context === undefined ? 0 : CARD_HEIGHT.context) +
+        (view.value === undefined ? 0 : CARD_HEIGHT.value) +
+        CARD_HEIGHT.slack;
+      return [id, height];
+    }),
+  );
 }
 
 /** The live marks of a canvas (ADR-0013): whether `result` is `null`, and the input slots that read no box, by box. */

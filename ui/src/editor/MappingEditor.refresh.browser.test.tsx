@@ -195,7 +195,7 @@ describe('remap (GLOSSARY, stories 48 and 49)', () => {
     await userEvent.dragAndDrop(sourceRow(ORDER_ID), box('a1'));
 
     await expect.element(orphanMark('a1')).not.toBeInTheDocument();
-    await expect.element(box('a1')).toHaveTextContent('OrderId');
+    await expect.element(box('a1')).toMatchTextContent('OrderId');
     // the link is drawn only when result reaches the source field: f1 still reads a1
     await expect.element(page.getByTestId(`field-link:${ORDER_ID}->${NOTE}`)).toBeInTheDocument();
     await expect.element(targetRow(NOTE).getByRole('img', { name: 'Mapped' })).toBeVisible();
@@ -265,7 +265,7 @@ describe('remap (GLOSSARY, stories 48 and 49)', () => {
 
     await userEvent.selectOptions(remapTo, '/Order/OrderId');
 
-    await expect.element(box('a1')).toHaveTextContent('OrderId');
+    await expect.element(box('a1')).toMatchTextContent('OrderId');
     await expect.element(orphanMark('a1')).not.toBeInTheDocument();
     await expect.element(page.getByTestId(`field-link:${ORDER_ID}->${NOTE}`)).toBeInTheDocument();
     await expect.element(remapTo).not.toBeInTheDocument();

@@ -11,7 +11,7 @@ test('the dev host lists the mappings on the fake API, opens one and goes back t
 
   await page.goto('/?api=fake');
 
-  const list = page.getByRole('list', { name: 'Mappings' });
+  const list = page.getByRole('table', { name: 'Mappings' });
   await expect(list.getByRole('button')).toHaveText(['mappings/order-id-copy', 'mappings/order-unmapped', 'mappings/tree-20128']);
   await list.getByRole('button', { name: 'mappings/order-id-copy' }).click();
 

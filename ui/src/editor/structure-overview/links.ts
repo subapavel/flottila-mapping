@@ -65,9 +65,14 @@ export function fieldLinks(model: MappingModel): FieldLink[] {
 
 /**
  * Where a link to a field ends among a tree's visible rows: the field's own row, else its nearest visible ancestor's
- * row, dashed. `undefined` when the structure has no such field, as for an orphaned reference.
+ * row, dashed. `undefined` when the structure has no such field, as for an orphaned reference, and, when the rows are
+ * `searched`, when the field has no row of its own: a search hides its row and the links to it (spec #135).
  */
-export function rowAnchors(structure: StructureLoaded, rows: readonly TreeRow[]): (path: FieldPath) => Anchor | undefined {
+export function rowAnchors(
+  structure: StructureLoaded,
+  rows: readonly TreeRow[],
+  searched = false,
+): (path: FieldPath) => Anchor | undefined {
   const index = new Map(rows.map((row, i) => [row.path, i]));
   return (path) => {
     const steps = fieldPathSteps(path);
@@ -84,7 +89,7 @@ export function rowAnchors(structure: StructureLoaded, rows: readonly TreeRow[])
       const row = index.get(prefix);
       anchor = row === undefined ? { index: anchor.index, dashed: true } : { index: row, dashed: false };
     }
-    return anchor;
+    return searched && !index.has(prefix) ? undefined : anchor;
   };
 }
 

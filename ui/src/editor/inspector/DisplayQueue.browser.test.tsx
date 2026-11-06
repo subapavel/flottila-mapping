@@ -148,9 +148,12 @@ async function inspect(id: string) {
   await expect.element(inspector.getByTestId(`inspector:${id}`)).toBeVisible();
 }
 
+/** Runs a test on the Test page tab (spec #135), then goes back to the Editor tab, whose inspector shows the trace. */
 async function runTest() {
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('button', { name: 'Run test' }).click();
   await expect.element(page.getByRole('figure', { name: 'Target message' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Editor' }).click();
 }
 
 describe('the display queue', () => {

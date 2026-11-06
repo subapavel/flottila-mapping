@@ -86,6 +86,7 @@ test('@stack the JSON gate structure as a source: its tree, then a test run show
   await expectField(page, 'source', '/$/delivery/pickup', 'xs:string', '0..1');
   await expectField(page, 'target', PURCHASE_ORDER, '', '1..1');
 
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/gate/jsonToXsd/001/input.json'), 'utf8'));
   await page.getByRole('button', { name: 'Run test' }).click();
 
@@ -104,10 +105,12 @@ test('@stack the JSON gate structure loads as a target, and a test run gives jso
   await expectField(page, 'target', '/$', '', '1..1');
   await expectField(page, 'target', '/$/lines', '', '1..unbounded');
 
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/gate/jsonTarget/001/input.xml'), 'utf8'));
   await page.getByRole('button', { name: 'Run test' }).click();
 
-  // a run that compile refuses fills the Diagnostics panel (#113)
+  // a run that compile refuses fills the Diagnostics panel (#113) and opens its tab
+  await expect(page.getByRole('tab', { name: /^Diagnostics/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('list', { name: 'Working copy diagnostics' })).toContainText('json-target-unsupported');
   await expect(page.getByRole('figure', { name: 'Target message' })).toBeHidden();
   expect(problems).toEqual([]);

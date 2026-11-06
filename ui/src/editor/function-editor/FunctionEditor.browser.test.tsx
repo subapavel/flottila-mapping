@@ -1,3 +1,5 @@
+// the app's PatternFly tokens (app/main.tsx), so that cards are measured with the fonts, spacing and borders they have
+import '@patternfly/react-core/dist/styles/base.css';
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -5,15 +7,18 @@ import { page, userEvent } from 'vitest/browser';
 import corpusMappingText from '../../../../corpus/mappings/order-id-copy.mapping.json?raw';
 import { ApiProblem, type ApiClient, type Diagnostic } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
-import type { MappingModel } from '../../generated/mapping-model';
+import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { canvasKey, type BrowserStateStore } from '../browser-state/browser-state';
 import { MappingEditor } from '../index';
+import { cardHeights } from './graph';
 import { FUNCTION_DRAG } from './palette';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
 const NOTE = `${ORDER}/Note`;
 const DRAFT = 'drafts/graph';
+/** The title of a box `result` does not reach (GLOSSARY: Unreachable box). */
+const UNREACHABLE = 'Not reached by the result';
 const corpusMapping = JSON.parse(corpusMappingText) as MappingModel;
 
 /** OrderId and a constant into concat, which is the result; toUpperCase reads OrderId but feeds nothing. */
@@ -117,9 +122,13 @@ describe('the canvas of the selected target field', () => {
     render();
 
     for (const id of ['a1', 'c1', 'f1', 'u1']) await expect.element(box(id)).toBeVisible();
-    await expect.element(box('f1')).toHaveTextContent('concatab');
-    await expect.element(box('a1')).toHaveTextContent('OrderId');
-    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toHaveTextContent('OrderId');
+    // a card's text: its caption, title, id, then the input slots (spec #135: the card shows caption and id too)
+    await expect.element(box('f1')).toMatchTextContent(/^fnconcat.*f1ab$/);
+    // a source card and the sink name their field by its local path, the full path in the title (spec #135, #138)
+    await expect.element(box('a1')).toMatchTextContent(/^source fieldOrder\/OrderIda1/);
+    await expect.element(box('a1').getByTitle(ORDER_ID)).toHaveTextContent('Order/OrderId');
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toMatchTextContent(/^target fieldOrder\/OrderId$/);
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`).getByTitle(ORDER_ID)).toHaveTextContent('Order/OrderId');
     await expect.poll(() => edges().elements().map((e) => e.dataset.testid).sort()).toEqual(
       ['rf__edge-a1->f1#0', 'rf__edge-a1->u1#0', 'rf__edge-c1->f1#1', 'rf__edge-f1->:sink'].sort(),
     );
@@ -127,11 +136,230 @@ describe('the canvas of the selected target field', () => {
     await expect.poll(viewportTransform).not.toBe('translate(0px, 0px) scale(1)');
   });
 
-  test('dims an unreachable box', async () => {
+  test("a card shows its authoring id, and its parameter input is labelled by the parameter name", async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const withParam: MappingModel = {
+      ...graphMapping,
+      targetFieldMappings: {
+        [ORDER_ID]: {
+          ...target,
+          boxes: {
+            ...target.boxes,
+            n1: { kind: 'function', fn: 'formatNum', inputs: ['a1'], params: { pattern: '#,##0.00' } },
+            r1: { kind: 'unresolved', name: 'ByExample', origin: 'po', params: { table: { A: 'B', C: 'D' } } },
+            s1: { kind: 'source', field: ORDER },
+            s2: { kind: 'source', field: ORDER_ID, context: ORDER },
+          },
+        },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: withParam }) });
+
+    await expect.element(box('n1')).toMatchTextContent(/^fnformatNum.*n1/);
+    await expect.element(box('n1').getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
+    // a table param shows its size; a source card its context, a field with no ancestor its own name
+    await expect.element(box('r1')).toMatchTextContent(/^unresolvedByExample.*r1.*tabletable, 2 rows$/);
+    await expect.element(box('s1').getByRole('combobox', { name: 'read in' })).toHaveValue(ORDER);
+    await expect.element(box('s2').getByRole('combobox', { name: 'read in' })).toHaveValue(ORDER);
+    // a constant's value is its own mark, not a second input
+    await expect.element(box('c1').getByRole('textbox')).not.toBeInTheDocument();
+    await expect.element(page.getByTestId('value:c1')).toHaveTextContent('"-"');
+  });
+
+  test('a function card shows the fidelity badge of its entry, a deviation with its text', async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const api = fakeApiClient({
+      [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes: { ...target.boxes, d1: { kind: 'function', fn: 'divide' } } } } },
+    });
+    const { divide } = await api.getCatalogue();
+    expect(divide!.fidelity.level).toBe('deviation');
+    render({ api });
+
+    await expect.element(box('d1').getByTitle(divide!.fidelity.level === 'deviation' ? divide!.fidelity.text : '')).toHaveTextContent('deviation');
+  });
+
+  test("the toolbar shows the field's local path, its mapping id and the quick-insert hint; Copy counts the selected boxes", async () => {
     render();
 
-    await expect.element(box('u1')).toHaveStyle({ opacity: '0.4' });
-    for (const id of ['a1', 'c1', 'f1']) await expect.element(box(id)).toHaveStyle({ opacity: '1' });
+    const toolbar = page.getByRole('group', { name: 'Canvas of Order/OrderId' });
+    // the toolbar comes before the cards, whose source card and sink carry the same path
+    await expect.element(toolbar.getByTitle(ORDER_ID).first()).toHaveTextContent('Order/OrderId');
+    await expect.element(toolbar.getByText('type or press / on the canvas to insert a function')).toBeVisible();
+    await expect.element(toolbar.getByText('t1', { exact: true })).toBeVisible();
+    await expect.element(toolbar.getByRole('button', { name: 'Copy (0)' })).toBeDisabled();
+
+    await userEvent.click(box('f1'));
+
+    await expect.element(toolbar.getByRole('button', { name: 'Copy (1)' })).toBeEnabled();
+  });
+
+  test('an unreachable box, and only it, is titled "Not reached by the result" and keeps the whole card opaque', async () => {
+    render();
+
+    await expect.element(box('u1')).toHaveAttribute('title', UNREACHABLE);
+    for (const id of ['a1', 'c1', 'f1']) await expect.element(box(id)).not.toHaveAttribute('title');
+    // the text keeps its contrast: no whole-card opacity (F-31)
+    expect(getComputedStyle(box('u1').element()).opacity).toBe('1');
+  });
+
+  test('the layout reserves at least the rendered height of each card (spec #135)', async () => {
+    // a source card with its context, a function card with input slots, params and a fidelity badge, a deviating
+    // function, a constant, and an orphaned source card; all but a1 and x1 are unreachable, whose caption grows
+    const cards: TargetFieldMapping = {
+      id: 't1',
+      result: 'x1',
+      boxes: {
+        a1: { kind: 'source', field: ORDER_ID },
+        c1: { kind: 'function', fn: 'constant', params: { value: '-' } },
+        d1: { kind: 'function', fn: 'divide', inputs: ['a1', null] },
+        o1: { kind: 'source', field: `${ORDER}/Gone`, context: ORDER },
+        x1: { kind: 'function', fn: 'fixValues', inputs: ['a1'], params: { missing: 'error', table: { A: 'B' } } },
+      },
+    };
+    const api = fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: cards } } });
+    const catalogue = await api.getCatalogue();
+    expect(catalogue.fixValues!.fidelity.level).toBe('assumed');
+    expect(catalogue.divide!.fidelity.level).toBe('deviation');
+    render({ api });
+    await expect.element(page.getByTestId('orphaned:o1')).toBeVisible();
+
+    const reserved = cardHeights(cards, catalogue, undefined, new Set(['o1']));
+    const ids = Object.keys(cards.boxes);
+    for (const id of ids) await expect.element(box(id)).toBeVisible();
+    const taller = ids.flatMap((id) => {
+      const rendered = (box(id).element() as HTMLElement).offsetHeight;
+      return rendered > reserved[id]! ? [`${id}: rendered ${rendered} > reserved ${reserved[id]}`] : [];
+    });
+
+    expect(taller).toEqual([]);
+  });
+
+  test('an orphaned card above another card in its column does not overlap it, its Orphaned row counted', async () => {
+    // a0 and a1 (orphaned) both feed f1: the layout puts them in one column, a1 on top. No result: every card is
+    // unreachable, so it fills its marks line too and the Orphaned row has no spare room to hide in
+    const column: TargetFieldMapping = {
+      id: 't1',
+      result: null,
+      boxes: {
+        a0: { kind: 'source', field: ORDER_ID },
+        a1: { kind: 'source', field: `${ORDER}/Gone`, context: ORDER },
+        f1: { kind: 'function', fn: 'concat', inputs: ['a0', 'a1'] },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: column } } }) });
+    await expect.element(page.getByTestId('orphaned:a1')).toBeVisible();
+    // the orphaned boxes are known once the source structure is loaded: lay the graph out with them
+    await page.getByRole('button', { name: 'Arrange' }).click();
+
+    await expect.poll(() => box('a1').element().getBoundingClientRect().left).toBeCloseTo(box('a0').element().getBoundingClientRect().left, 0);
+    const above = box('a1').element().getBoundingClientRect();
+    const below = box('a0').element().getBoundingClientRect();
+    // the canvas zoom, from a card's rendered height over its layout height
+    const zoom = above.height / (box('a1').element() as HTMLElement).offsetHeight;
+    expect(above.top).toBeLessThan(below.top);
+    expect(above.bottom).toBeLessThanOrEqual(below.top);
+    // and they keep the layout's 16px gap between cards: the orphaned card is no taller than the height reserved for it
+    expect((below.top - above.bottom) / zoom).toBeGreaterThanOrEqual(16 - 0.5);
+  });
+
+  test('a card with a long title shows its badge and its caption in full; only the title is cut', async () => {
+    const api = fakeApiClient({ [DRAFT]: graphMapping });
+    const catalogue = await api.getCatalogue();
+    const long = 'formatWithAVeryLongFunctionName';
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    // unreachable, so they carry "not reached" too: the longest caption, unresolved, and a function with a badge
+    const boxes: typeof target.boxes = { ...target.boxes, l1: { kind: 'function', fn: long }, n1: { kind: 'unresolved', name: long, origin: 'po' } };
+    render({
+      api: {
+        ...fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } }),
+        getCatalogue: async () => ({ ...catalogue, [long]: catalogue.divide! }),
+      },
+    });
+    await expect.element(box('l1')).toHaveAttribute('title', UNREACHABLE);
+
+    const whole = (id: string, text: string) => {
+      const card = box(id).element().getBoundingClientRect();
+      const element = box(id).getByText(text, { exact: true }).element();
+      const { left, right } = element.getBoundingClientRect();
+      return { id, text: element.textContent, cut: element.scrollWidth > element.clientWidth, inside: left >= card.left && right <= card.right };
+    };
+    expect([whole('l1', 'fn'), whole('l1', 'deviation'), whole('l1', 'not reached'), whole('n1', 'unresolved'), whole('n1', 'not reached')]).toEqual([
+      { id: 'l1', text: 'fn', cut: false, inside: true },
+      { id: 'l1', text: 'deviation', cut: false, inside: true },
+      { id: 'l1', text: 'not reached', cut: false, inside: true },
+      { id: 'n1', text: 'unresolved', cut: false, inside: true },
+      { id: 'n1', text: 'not reached', cut: false, inside: true },
+    ]);
+    for (const id of ['l1', 'n1']) {
+      const title = box(id).getByText(long, { exact: true }).element();
+      expect(title.scrollWidth).toBeGreaterThan(title.clientWidth);
+    }
+  });
+
+  test('an unreachable card has a dashed border and a reachable one a solid border (F-31)', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+
+    expect(getComputedStyle(box('u1').element()).borderTopStyle).toBe('dashed');
+    expect(getComputedStyle(box('f1').element()).borderTopStyle).toBe('solid');
+  });
+
+  describe('editing on the card', () => {
+    const pattern = () => box('n1').getByRole('textbox', { name: 'pattern' });
+    const inspector = () => page.getByRole('complementary', { name: 'Inspector' });
+    const withFormatNum = () => {
+      const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+      const boxes: typeof target.boxes = { ...target.boxes, n1: { kind: 'function', fn: 'formatNum', inputs: ['a1'], params: { pattern: '#,##0.00' } } };
+      return fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } });
+    };
+
+    test("a text param typed on the card is the inspector's edit: it shows there, and one Undo restores it", async () => {
+      render({ api: withFormatNum() });
+      await expect.element(pattern()).toHaveValue('#,##0.00');
+
+      await pattern().fill('0.0');
+      await userEvent.tab();
+      await userEvent.click(box('n1').getByText('formatNum', { exact: true }));
+
+      await expect.element(inspector().getByRole('textbox', { name: 'pattern' })).toHaveValue('0.0');
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await expect.element(pattern()).toHaveValue('#,##0.00');
+      await expect.element(inspector().getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
+    });
+
+    test('Enter commits a text param on the card', async () => {
+      render({ api: withFormatNum() });
+
+      await pattern().fill('0.0');
+      await userEvent.keyboard('{Enter}');
+
+      await expect.element(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+    });
+
+    test('a letter typed with a card select focused does not open quick insert', async () => {
+      const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+      const boxes: typeof target.boxes = { ...target.boxes, x1: { kind: 'function', fn: 'fixValues', inputs: ['a1'], params: { missing: 'error' } } };
+      render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } }) });
+      const missing = box('x1').getByRole('combobox', { name: 'missing' });
+      await expect.element(missing).toHaveValue('error');
+
+      (missing.element() as HTMLElement).focus();
+      await userEvent.keyboard('d');
+
+      await expect.element(page.getByRole('combobox', { name: 'Quick insert' })).not.toBeInTheDocument();
+    });
+
+    test('typing a letter in a card input neither opens quick insert nor drags the node', async () => {
+      render({ api: withFormatNum() });
+      await expect.element(pattern()).toHaveClass('nodrag');
+      await expect.element(pattern()).toHaveClass('nokey');
+
+      await pattern().click();
+      await userEvent.keyboard('{End}x');
+
+      await expect.element(pattern()).toHaveValue('#,##0.00x');
+      await expect.element(page.getByRole('combobox', { name: 'Quick insert' })).not.toBeInTheDocument();
+    });
   });
 
   test('without a selected target field it asks for one, and a field without a mapping says so', async () => {
@@ -140,7 +368,7 @@ describe('the canvas of the selected target field', () => {
     unmount();
 
     render({ field: NOTE });
-    await expect.element(page.getByText('Note has no function graph yet.')).toBeVisible();
+    await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
   });
 
   test('a catalogue that cannot be read shows the error instead of the canvas', async () => {
@@ -174,7 +402,8 @@ describe('positions and zoom (browser state, never the model)', () => {
 
   test('Arrange lays the graph out again and clears the kept positions, and keeps the zoom', async () => {
     const browserState = memoryBrowserState();
-    browserState.write(canvasKey(DRAFT, 't1'), { viewport: { x: 10, y: 20, zoom: 0.5 } });
+    // y keeps the sink clear of the pane's top edge, where a drag toward it would pan the viewport
+    browserState.write(canvasKey(DRAFT, 't1'), { viewport: { x: 10, y: 60, zoom: 0.5 } });
     render({ browserState });
     await expect.element(box('u1')).toBeVisible();
     const arranged = transformOf('u1');
@@ -184,7 +413,7 @@ describe('positions and zoom (browser state, never the model)', () => {
     await page.getByRole('button', { name: 'Arrange' }).click();
 
     await expect.poll(() => transformOf('u1')).toBe(arranged);
-    expect(canvasOf(browserState)).toEqual({ viewport: { x: 10, y: 20, zoom: 0.5 } });
+    expect(canvasOf(browserState)).toEqual({ viewport: { x: 10, y: 60, zoom: 0.5 } });
   });
 
   test('a new box appears next to the graph, the boxes already there keep their positions, and so does it', async () => {
@@ -202,8 +431,9 @@ describe('positions and zoom (browser state, never the model)', () => {
     const added = page.getByTestId(/^box:/).elements().map((e) => e.dataset.testid!.slice('box:'.length)).find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
     const placed = transformOf(added);
 
-    // the new box went below the graph; moving another box further down must not move it again
-    await dragBox('u1', page.getByRole('button', { name: 'Run test' }));
+    // the new box went below the graph; moving another box further down (to the canvas's bottom-left controls) must
+    // not move it again
+    await dragBox('u1', page.getByRole('button', { name: 'Fit View' }));
 
     await expect.poll(() => transformOf('u1')).not.toBe(dragged);
     expect(transformOf(added)).toBe(placed);
@@ -280,6 +510,8 @@ describe('a diagnostic in the Diagnostics panel', () => {
     await expect.element(node('c1')).toHaveClass('selected');
     await expect.element(node('f1')).not.toHaveClass('selected');
 
+    // the c1 link opened the Editor tab: the t1 link is back on the Diagnostics tab
+    await page.getByRole('tab', { name: /^Diagnostics/ }).click();
     await page.getByRole('button', { name: 't1', exact: true }).click();
 
     await expect.element(node('c1')).not.toHaveClass('selected');
@@ -307,6 +539,43 @@ describe('the palette', () => {
     await expect.element(page.getByTestId('palette:divide')).toBeVisible();
   });
 
+  test('an entry of a context or queue function names its execution kind; a single-value one names none', async () => {
+    const api = fakeApiClient({ [DRAFT]: graphMapping });
+    const catalogue = await api.getCatalogue();
+    render({
+      api: {
+        ...api,
+        getCatalogue: async () => ({
+          ...catalogue,
+          abs: { ...catalogue.abs!, executionKind: 'context' },
+          divide: { ...catalogue.divide!, executionKind: 'queue' },
+        }),
+      },
+    });
+
+    await expect.element(page.getByTestId('palette:abs')).toMatchTextContent(/context$/);
+    await expect.element(page.getByTestId('palette:divide')).toMatchTextContent(/queue$/);
+    await expect.element(page.getByTestId('palette:toUpperCase')).not.toMatchTextContent(/single|context|queue/);
+  });
+
+  test('runs the full height of the canvas beside it, as in the prototype (d-default)', async () => {
+    render();
+    await expect.element(box('u1')).toBeVisible();
+
+    const palette = page.getByRole('navigation', { name: 'Palette' }).element().getBoundingClientRect();
+    const canvas = page.getByRole('group', { name: /^Canvas of / }).element().getBoundingClientRect();
+    const editor = page.getByRole('region', { name: 'Function editor' }).element().getBoundingClientRect();
+    const entries = page.getByRole('navigation', { name: 'Palette' }).element();
+
+    // the layout contract of the function editor: side by side, top to bottom, and the palette scrolls inside the
+    // pane rather than growing it with the whole catalogue
+    expect(palette.right).toBeLessThanOrEqual(canvas.left);
+    expect(palette.top).toBeCloseTo(canvas.top, 0);
+    expect(palette.bottom).toBeCloseTo(canvas.bottom, 0);
+    expect(palette.bottom).toBeLessThanOrEqual(editor.bottom + 1);
+    expect(entries.scrollHeight).toBeGreaterThan(entries.clientHeight);
+  });
+
   test('an entry that is not portable is described so to assistive technology', async () => {
     const api = fakeApiClient({ [DRAFT]: graphMapping });
     const catalogue = await api.getCatalogue();
@@ -319,6 +588,10 @@ describe('the palette', () => {
 describe('editing on the canvas', () => {
   test('a constant from the palette dropped on a field without a mapping creates the mapping with the box as result', async () => {
     render({ field: NOTE });
+    // the editor fills the window below the host's button, so its canvas ends below the viewport: an HTML drag that
+    // scrolls on its way is lost, so the page is scrolled first
+    await expect.element(page.getByTestId(`canvas:${NOTE}`)).toBeVisible();
+    page.getByTestId(`canvas:${NOTE}`).element().scrollIntoView({ block: 'end' });
 
     await userEvent.dragAndDrop(page.getByTestId('palette:constant'), page.getByTestId(`canvas:${NOTE}`));
 
@@ -345,7 +618,7 @@ describe('editing on the canvas', () => {
 
     await expect.poll(boxCount).toBe(5);
     const added = boxIdsShown().find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
-    await expect.element(box(added)).toHaveStyle({ opacity: '0.4' });
+    await expect.element(box(added)).toHaveAttribute('title', UNREACHABLE);
     await expect.element(page.getByTestId(`unconnected:${added}#0`)).toBeVisible();
     expect(edgeIds()).toContain('f1->:sink');
   });
@@ -374,8 +647,8 @@ describe('editing on the canvas', () => {
 
     await expect.poll(edgeIds).toContain('u1->:sink');
     expect(edgeIds()).not.toContain('f1->:sink');
-    await expect.element(box('u1')).toHaveStyle({ opacity: '1' });
-    await expect.element(box('f1')).toHaveStyle({ opacity: '0.4' });
+    await expect.element(box('u1')).not.toHaveAttribute('title');
+    await expect.element(box('f1')).toHaveAttribute('title', UNREACHABLE);
 
     await userEvent.dragAndDrop(handle('out:c1'), handle('in:u1#0'));
 

@@ -1,0 +1,44 @@
+/* The Diagnostics list: a compact table-like list, one row per diagnostic (ADR-0012, prototype `.err`). */
+.fm-diagnostics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fm-diagnostic {
+  display: grid;
+  /* fixed columns, so the rows line up: severity, code, location, message */
+  grid-template-columns: 5.5rem 14rem 20rem 1fr;
+  column-gap: var(--pf-t--global--spacer--md);
+  align-items: baseline;
+  padding: var(--pf-t--global--spacer--sm) 0;
+  border-bottom: 1px solid var(--pf-t--global--border--color--default);
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+
+/* the severity colours the code: error red, warning orange */
+.fm-diagnostic__code {
+  font-family: var(--pf-t--global--font--family--mono);
+  font-weight: 700;
+  color: var(--pf-t--global--text--color--status--danger--default);
+}
+
+.fm-diagnostic--warning .fm-diagnostic__code {
+  color: var(--pf-t--global--text--color--status--warning--default);
+}
+
+.fm-diagnostic__location {
+  font-family: var(--pf-t--global--font--family--mono);
+  overflow-wrap: anywhere;
+}
+
+/* a field path inside a message: its local path, the full path in the title */
+.fm-diagnostic__path {
+  font-family: var(--pf-t--global--font--family--mono);
+  text-decoration: underline dotted;
+}
+
+/* the colon keeps the text of a row readable as a sentence; the columns make it redundant */
+.fm-diagnostic__colon {
+  display: none;
+}

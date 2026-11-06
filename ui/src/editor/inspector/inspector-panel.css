@@ -1,0 +1,118 @@
+/*
+ * The inspector module's styles (spec #135, #138), imported by Inspector.tsx: the kind and id line, the title with its
+ * badge, the fidelity note box, the sections and the display queue, after the prototype's .insp rules. Classes carry the
+ * fm- prefix; colours and spacing are PatternFly tokens.
+ */
+.fm-inspector {
+  padding: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+.fm-inspector__kind {
+  display: flex;
+  gap: var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  text-transform: uppercase;
+}
+
+.fm-inspector__title {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+.fm-inspector__id {
+  font-size: var(--pf-t--global--font--size--sm);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+/* the fidelity line, after the prototype's one line of SAP name, execution kind and portability */
+.fm-inspector__fidelity {
+  margin: 0;
+}
+
+/* the Inputs and Parameters headings, after the prototype's .insp h4 */
+.fm-inspector__heading {
+  margin: 0 0 var(--pf-t--global--spacer--xs);
+  font-size: var(--pf-t--global--font--size--sm);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+/* the deviation note box, after .insp__fid--deviation */
+.fm-inspector__note {
+  margin: 0;
+  padding: var(--pf-t--global--spacer--sm);
+  border-radius: var(--pf-t--global--border--radius--small);
+  border-left: 3px solid var(--pf-t--global--color--nonstatus--orange--default);
+  background-color: color-mix(in srgb, var(--pf-t--global--color--nonstatus--orange--default) 12%, var(--pf-t--global--background--color--primary--default));
+}
+
+/* the editor wraps under its name in a narrow pane rather than shrinking to nothing */
+.fm-inspector__param,
+.fm-inspector__input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
+}
+
+.fm-inspector__param > span:first-child,
+.fm-inspector__input > span:first-child {
+  min-width: 5.5rem;
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.fm-inspector__param > :not(:first-child),
+.fm-inspector__input > :not(:first-child) {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.fm-inspector__table-row {
+  display: flex;
+  gap: var(--pf-t--global--spacer--xs);
+}
+
+.fm-inspector__table {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+/* a name and its value on one line; the read-only params wrap each pair in a div */
+.fm-inspector__list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 var(--pf-t--global--spacer--md);
+}
+
+.fm-inspector__list > div {
+  display: contents;
+}
+
+.fm-inspector__list dt {
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.fm-inspector__list dd {
+  margin: 0;
+}
+
+/* the display queue, after the prototype's .dq */
+.fm-queue__value {
+  margin-right: var(--pf-t--global--spacer--sm);
+}
+
+.fm-queue {
+  margin-top: var(--pf-t--global--spacer--sm);
+}

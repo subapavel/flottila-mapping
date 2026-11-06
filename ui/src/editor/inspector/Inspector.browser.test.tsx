@@ -105,6 +105,10 @@ afterEach(() => {
 });
 
 const inspector = page.getByRole('complementary', { name: 'Inspector' });
+
+/** The title of a function's fidelity line: every catalogue detail, one per line. */
+const details = (family: string, inputs: string, fidelity: string, portable: string) =>
+  [`Family: ${family}`, 'Execution kind: single value', `Inputs: ${inputs}`, `Fidelity: ${fidelity}`, `Portable: ${portable}`].join('\n');
 const node = (id: string) => page.getByTestId(`rf__node-${id}`);
 
 /** Selects a box on the canvas by keyboard, Enter on its node, and waits for the inspector to show it. */
@@ -134,22 +138,71 @@ describe('the inspector', () => {
     await expect.element(inspector).toBeVisible();
   });
 
-  test("shows a function box's catalogue documentation, its execution kind and fidelity, with its badges", async () => {
+  test("shows a function box's catalogue documentation as one fidelity line, every detail in its title, and a deviation's note", async () => {
     const api = render();
     const catalogue = await api.getCatalogue();
     await inspect('x1');
 
     const documentation = inspector.getByRole('region', { name: 'Documentation' });
     await expect
-      .element(documentation)
-      .toHaveTextContent('FamilyconversionsExecution kindsingle valueInputskeyFidelityassumedPortableyesassumed');
+      .element(documentation.getByTitle(details('conversions', 'key', 'assumed', 'yes'), { exact: true }))
+      .toHaveTextContent('conversions · execution kind single value · fidelity assumed · portable');
+    await expect.element(documentation.getByRole('note', { name: 'Deviation' })).not.toBeInTheDocument();
 
     await inspect('d1');
     const deviation = catalogue.divide!.fidelity;
     expect(deviation.level).toBe('deviation');
-    await expect.element(documentation).toMatchTextContent(/^FamilyarithmeticExecution kindsingle valueInputsdividend, divisorFidelitydeviationPortableyes/);
-    await expect.element(documentation.getByRole('paragraph')).toHaveTextContent(`deviation ${deviation.level === 'deviation' ? deviation.text : ''}`);
-    await expect.element(documentation.getByText('not portable')).not.toBeInTheDocument();
+    await expect
+      .element(documentation.getByTitle(details('arithmetic', 'dividend, divisor', 'deviation', 'yes'), { exact: true }))
+      .toHaveTextContent('arithmetic · execution kind single value · fidelity deviation · portable');
+    await expect.element(documentation.getByRole('note', { name: 'Deviation' })).toHaveTextContent(deviation.level === 'deviation' ? deviation.text : '');
+  });
+
+  test('lays a function box out as e-inspector-deviation: name and badge, fidelity line, deviation note, Inputs, Parameters, display queue', async () => {
+    const catalogue = await fakeApiClient().getCatalogue();
+    // divide deviates; given a param here, its inspector has every part
+    render(mapping, { getCatalogue: async () => ({ ...catalogue, divide: { ...catalogue.divide!, params: [{ name: 'scale', type: 'string', default: '2' }] } }) });
+    await inspect('d1');
+
+    expect(inspector.getByRole('heading').elements().map((heading) => heading.textContent)).toEqual(['dividedeviation', 'Inputs', 'Parameters', 'Display queue']);
+    const parts = [
+      inspector.getByRole('heading', { name: /^divide/ }),
+      inspector.getByRole('region', { name: 'Documentation' }).getByTitle(/^Family: arithmetic/),
+      inspector.getByRole('note', { name: 'Deviation' }),
+      inspector.getByRole('region', { name: 'Inputs' }),
+      inspector.getByRole('region', { name: 'Parameters' }),
+      inspector.getByRole('region', { name: 'Display queue' }),
+    ].map((part) => part.element());
+    const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    parts.slice(1).forEach((part, i) => expect(follows(parts[i]!, part)).toBe(true));
+    await expect.element(inspector.getByRole('region', { name: 'Inputs' }).getByRole('combobox', { name: 'Input divisor' })).toBeVisible();
+    await expect.element(inspector.getByRole('region', { name: 'Parameters' }).getByRole('textbox', { name: 'scale' })).toHaveValue('2');
+
+    // a catalogue function without params has no Parameters heading
+    await inspect('f1');
+    await expect.element(inspector.getByRole('heading', { name: 'Inputs' })).toBeVisible();
+    await expect.element(inspector.getByRole('region', { name: 'Parameters' })).not.toBeInTheDocument();
+  });
+
+  test('names the kind of box with its authoring id, and a deviation next to the function name', async () => {
+    render();
+    const kind = (id: string) => inspector.getByText(id, { exact: true });
+
+    await inspect('x1');
+    await expect.element(kind('x1')).toBeVisible();
+    await expect.element(inspector).toMatchTextContent(/^function box · x1fixValuesconversions · execution kind/);
+    await expect.element(inspector.getByTestId('inspector:x1')).not.toMatchTextContent('deviation');
+
+    await inspect('d1');
+    await expect.element(inspector.getByTestId('inspector:d1')).toHaveTextContent('dividedeviation');
+    // a source-field box is named by its field's local path, the full path in the title of what it reads
+    await inspect('s1');
+    await expect.element(inspector).toMatchTextContent(/^source-field box · s1Order\/Item\/Line\/Code/);
+    await expect.element(inspector.getByTitle(CODE, { exact: true })).toHaveTextContent('Reads Order/Item/Line/Code');
+    await inspect('u1');
+    await expect.element(inspector).toMatchTextContent(/^UDF box · u1/);
+    await inspect('r1');
+    await expect.element(inspector).toMatchTextContent(/^unresolved function · r1/);
   });
 
   test('shows no box while the catalogue cannot be read, even when a diagnostic selects one', async () => {
@@ -172,8 +225,57 @@ describe('the inspector', () => {
     render(mapping, { getCatalogue: async () => ({ ...catalogue, divide: { ...catalogue.divide!, portable: false } }) });
     await inspect('d1');
 
-    await expect.element(inspector.getByText('not portable')).toBeVisible();
-    await expect.element(inspector.getByRole('region', { name: 'Documentation' })).toMatchTextContent('Portableno');
+    await expect
+      .element(inspector.getByRole('region', { name: 'Documentation' }).getByTitle(details('arithmetic', 'dividend, divisor', 'deviation', 'no'), { exact: true }))
+      .toHaveTextContent('arithmetic · execution kind single value · fidelity deviation · not portable');
+  });
+
+  test('an orphaned source-field box says which field the source structure lacks, by its local path', async () => {
+    const orphaned: MappingModel = structuredClone(mapping);
+    orphaned.targetFieldMappings![ORDER_ID]!.boxes.g1 = { kind: 'source', field: `${ORDER}/Gone` };
+    render(orphaned);
+    await inspect('g1');
+
+    await expect.element(inspector.getByRole('region', { name: 'Remap' }).getByTitle(`${ORDER}/Gone`, { exact: true })).toHaveTextContent('The source structure has no field Order/Gone.');
+  });
+});
+
+describe('editing on the box cards', () => {
+  const card = (id: string) => page.getByTestId(`box:${id}`);
+
+  test("a source card's context select is the inspector's edit: it shows there, and one Undo restores it", async () => {
+    render();
+    const context = card('s1').getByRole('combobox', { name: 'read in' });
+    await expect.element(context).toHaveValue(LINE);
+
+    await userEvent.selectOptions(context, ITEM);
+    await inspect('s1');
+
+    await expect.element(inspector.getByRole('combobox', { name: 'Context' })).toHaveValue(ITEM);
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect.element(context).toHaveValue(LINE);
+    await expect.element(inspector.getByRole('combobox', { name: 'Context' })).toHaveValue(LINE);
+  });
+
+  test("a param with values, picked on the card, is the inspector's edit: it shows there, and one Undo restores it", async () => {
+    render();
+    const missing = card('x1').getByRole('combobox', { name: 'missing' });
+    await expect.element(missing).toHaveValue('error');
+
+    await userEvent.selectOptions(missing, 'default');
+    await inspect('x1');
+
+    await expect.element(inspector.getByRole('combobox', { name: 'missing' })).toHaveValue('default');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect.element(missing).toHaveValue('error');
+    await expect.element(inspector.getByRole('combobox', { name: 'missing' })).toHaveValue('error');
+  });
+
+  test('the params of a UDF and an unresolved box stay read-only on the card', async () => {
+    render();
+
+    await expect.element(card('u1').getByRole('textbox', { name: 'loud' })).toHaveAttribute('readonly');
+    await expect.element(card('r1')).toMatchTextContent('tabletable, 1 rows');
   });
 });
 

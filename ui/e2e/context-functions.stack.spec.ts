@@ -32,6 +32,7 @@ test('@stack a mapping with a context function opens, saves through the API byte
   expect(readFileSync(file).equals(original)).toBe(true);
   expect(Buffer.from(await (await request.get(`/api/mappings/${MAPPING}`)).body()).equals(original)).toBe(true);
 
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(input);
   await page.getByRole('button', { name: 'Run test' }).click();
   const output = page.getByRole('figure', { name: 'Target message' });

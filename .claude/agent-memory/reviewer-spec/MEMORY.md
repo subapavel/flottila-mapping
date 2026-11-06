@@ -12,3 +12,6 @@ Durable facts only (AGENTS.md, Memory).
 - A general "accepted" clause in an ADR ("attributes in other namespaces") can hide exceptions the
   code keeps: grep the code for them. Seen: spec #89 review, `vc:` attributes other than
   `minVersion` stay refused.
+- An implementer's "decision" can swap a component the spec names (Table → DataList) for a reason the
+  spec never imposed; check it against the licence list. Seen: #141.
+- `stepName` where a spec says "local path" collapses the path to its leaf; grep `stepName(`. Seen: #138.

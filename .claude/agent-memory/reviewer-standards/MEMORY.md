@@ -42,3 +42,7 @@ Durable facts only (AGENTS.md, Memory).
   wants one parameterised case per seed, the seed in the name.
 - Mutable accumulators (`SchemaFile`, `AttributeOwner`) carry boolean "kind" flags in records;
   watch for a sealed type instead (spec #89 review).
+- UI layout estimates (`cardHeights`) tested only against themselves, and inputs a test recomputes
+  itself, leave the component's wiring untested: ask for a measured-DOM test and a mutant in the
+  component's argument (spec #135).
+- After styles move to CSS, tests drift to class-name assertions: point to role, name and title (spec #135).

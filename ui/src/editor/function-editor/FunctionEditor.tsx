@@ -1,6 +1,8 @@
 import { Button } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Background,
+  BackgroundVariant,
   Controls,
   Handle,
   Position,
@@ -17,13 +19,14 @@ import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
+import { localPath } from '../../model/field-path';
 import { reachedBoxes } from '../../model/reached';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { boxIds, boxView, liveMarks, SINK, wires, type BoxView } from './graph';
+import { boxIds, boxView, cardHeights, cardView, liveMarks, SINK, wires, type BoxView, type CardView } from './graph';
 import { arrange, BOX, place, type Positions } from './layout';
 import { FUNCTION_DRAG } from './palette';
+import './function-editor.css';
 import { PaletteView } from './PaletteView';
 import { QuickInsert } from './QuickInsert';
 
@@ -55,7 +58,8 @@ export interface FunctionEditorProps {
 /**
  * The function editor (ADR-0012): the palette, and the canvas with the function graph of the selected target field
  * mapping, its boxes and wires and a sink for the target field. Dropping a palette entry inserts a box, also into a
- * target field without a mapping. Boxes that `result` cannot reach are dimmed. An orphaned source-field box is marked,
+ * target field without a mapping. A box that `result` cannot reach (an unreachable box) has a dashed border, a muted
+ * head with a "not reached" mark, and a title saying so (F-31). An orphaned source-field box is marked,
  * and a source row dropped on it remaps it. Positions and zoom are browser state only; moving a box never touches the
  * working copy.
  *
@@ -81,7 +85,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   };
 
   const onKeyDown = (event: KeyboardEvent, field: FieldPath) => {
-    if (event.target instanceof HTMLInputElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
     const key = event.key.toLowerCase();
     if (event.ctrlKey && key === 'c') store.getState().copy(field);
     else if (event.ctrlKey && key === 'v') store.getState().paste(field);
@@ -96,8 +100,9 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   };
 
   return (
-    // the canvas fills the height the editor gives it, and never goes below its basis (ADR-0012, "splitter")
-    <section aria-label="Function editor" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    // the canvas fills the height the editor gives it and shrinks with its pane, down to 16rem; below that the pane
+    // scrolls (ADR-0012, "splitter"; spec #135)
+    <section aria-label="Function editor" className="fm-function-editor">
       {targetField === null ? (
         <p>Select a target field to see its function graph.</p>
       ) : catalogue.isPending ? (
@@ -106,16 +111,16 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
         <p role="alert">{catalogue.error.message}</p>
       ) : (
         // the canvas goes below the palette when the two do not fit side by side
-        <div style={{ flex: '1 0 auto', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div className="fm-function-editor__work">
           <PaletteView catalogue={catalogue.data} onInsert={(fn) => store.getState().insertBox(targetField, fn)} />
           <div
             ref={canvas}
             data-testid={`canvas:${targetField}`}
             role="group"
-            aria-label={`Canvas of ${stepName(targetField)}`}
+            aria-label={`Canvas of ${localPath(targetField)}`}
             tabIndex={0}
             onKeyDown={(event) => onKeyDown(event, targetField)}
-            style={{ flex: '1 1 24rem', minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}
+            className="fm-function-editor__canvas"
             // only a palette entry drops here
             onDragOver={(event) => {
               if (event.dataTransfer.types.includes(FUNCTION_DRAG)) event.preventDefault();
@@ -139,7 +144,7 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
             )}
             {mapping === undefined ? (
               <>
-                <p>{stepName(targetField)} has no function graph yet.</p>
+                <p>{localPath(targetField)} has no function graph yet.</p>
                 <p>Drag a function here from the palette, or press / to insert one.</p>
               </>
             ) : (
@@ -165,7 +170,18 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
 }
 
 /** A box node's data; `remap` points an orphaned source-field box at a dropped source field, and is absent otherwise. */
-type BoxNode = Node<{ view: BoxView; reachable: boolean; unconnected: number[]; remap?: (field: FieldPath) => void }, 'box'>;
+type BoxNode = Node<
+  {
+    view: BoxView;
+    card: CardView;
+    reachable: boolean;
+    unconnected: number[];
+    /** The card's edits: the same store commands as the inspector's, so a change is one undo step. */
+    edit: { param: (name: string, value: string) => void; context: (context: FieldPath) => void };
+    remap?: (field: FieldPath) => void;
+  },
+  'box'
+>;
 type SinkNode = Node<{ field: FieldPath; connected: boolean }, 'sink'>;
 
 const nodeTypes = { box: BoxNodeView, sink: SinkNodeView };
@@ -186,12 +202,14 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
 
 function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox, chosen }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
-  const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions) : arrange(mapping)));
+  // each card's height from its content, so that no layout puts two cards over each other
+  const heights = cardHeights(mapping, catalogue, udfs, orphaned);
+  const [positions, setPositions] = useState(() => (opened?.positions ? place(mapping, opened.positions, null, heights) : arrange(mapping, heights)));
   const [measured, setMeasured] = useState<Readonly<Record<string, { width: number; height: number }>>>({});
   const canPaste = useStore(store, (s) => s.clipboard?.targetField === targetField);
 
   // A box added or removed since the last render: place it and keep the others (ADR-0012, "Layout").
-  const shown = place(mapping, positions, selectedBox);
+  const shown = place(mapping, positions, selectedBox, heights);
   if (shown !== positions) setPositions(shown);
 
   const keep = (state: CanvasState) => canvasState.write(mapping.id, { ...canvasState.read(mapping.id), ...state });
@@ -207,7 +225,12 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
         selected: chosen.includes(id),
         data: {
           view: boxView(mapping.boxes[id]!, catalogue, udfs),
+          card: cardView(mapping.boxes[id]!, catalogue),
           reachable: reached.has(id),
+          edit: {
+            param: (name, value) => store.getState().setParam(targetField, id, name, value, catalogue),
+            context: (context) => store.getState().setContext(targetField, id, context),
+          },
           unconnected: marks.unconnectedInputs[id] ?? [],
           remap: orphaned.has(id) ? (field) => onRemap(targetField, id, field) : undefined,
         },
@@ -262,24 +285,30 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
 
   return (
     <>
-      <div>
+      <div className="fm-toolbar">
+        <strong className="fm-toolbar__title" title={targetField}>
+          {localPath(targetField)}
+        </strong>
+        <code className="fm-toolbar__id">{mapping.id}</code>
+        <span className="fm-toolbar__hint">type or press / on the canvas to insert a function</span>
+        <span className="fm-toolbar__spacer" />
+        <Button variant="secondary" isDisabled={chosen.length === 0} onClick={() => store.getState().copy(targetField)}>
+          Copy ({chosen.length})
+        </Button>
+        <Button variant="secondary" isDisabled={!canPaste} onClick={() => store.getState().paste(targetField)}>
+          Paste
+        </Button>
         <Button
           variant="secondary"
           onClick={() => {
-            setPositions(arrange(mapping));
+            setPositions(arrange(mapping, heights));
             canvasState.write(mapping.id, { viewport: canvasState.read(mapping.id)?.viewport });
           }}
         >
           Arrange
-        </Button>{' '}
-        <Button variant="secondary" isDisabled={chosen.length === 0} onClick={() => store.getState().copy(targetField)}>
-          Copy
-        </Button>{' '}
-        <Button variant="secondary" isDisabled={!canPaste} onClick={() => store.getState().paste(targetField)}>
-          Paste
         </Button>
       </div>
-      <div style={{ flex: '1 0 24rem' }}>
+      <div className="fm-function-editor__flow">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -300,14 +329,13 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
           }}
           deleteKeyCode={null}
         >
+          <Background variant={BackgroundVariant.Dots} gap={16} />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
     </>
   );
 }
-
-const MARK = { color: 'var(--pf-t--global--text--color--status--danger--default, #c9190b)' } as const;
 
 /** Only a source row's drag may end on an orphaned source-field box; any other drag goes on to the canvas. */
 const sourceFieldDrag = (event: DragEvent) => event.dataTransfer.types.includes(SOURCE_FIELD_DRAG);
@@ -316,7 +344,7 @@ const sourceFieldDrag = (event: DragEvent) => event.dataTransfer.types.includes(
  * A box: its title, a constant's value, one input handle per input slot with the slot's name and a mark when it reads
  * no box, and its output on the right. An orphaned source-field box is marked and takes a dropped source row.
  */
-function BoxNodeView({ id, data }: NodeProps<BoxNode>) {
+function BoxNodeView({ id, data, selected }: NodeProps<BoxNode>) {
   const { remap } = data;
   return (
     <div
@@ -336,51 +364,129 @@ function BoxNodeView({ id, data }: NodeProps<BoxNode>) {
           remap(event.dataTransfer.getData(SOURCE_FIELD_DRAG));
         })
       }
-      style={{
-        width: BOX.width,
-        minHeight: BOX.height,
-        opacity: data.reachable ? 1 : 0.4,
-        border: '1px solid var(--pf-t--global--border--color--default, #8a8d90)',
-        borderRadius: 4,
-        background: 'var(--pf-t--global--background--color--primary--default, #fff)',
-        padding: '0.25rem 0.5rem',
-      }}
+      // the width is the layout's; an unreachable box has a dashed border and a muted head, not a faded card (F-31)
+      style={{ width: BOX.width }}
+      title={data.reachable ? undefined : 'Not reached by the result'}
+      className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreachable'}`}
     >
-      <strong>{data.view.title}</strong>
-      {data.view.value !== undefined && <code data-testid={`value:${id}`}> {data.view.value}</code>}
+      <div className="fm-card__head">
+        <div className="fm-card__name">
+          <span className="fm-card__kind">{data.card.caption}</span>
+          <strong className="fm-card__title" title={data.view.path}>
+            {data.view.title}
+          </strong>
+        </div>
+        {(data.card.badges.length > 0 || !data.reachable) && (
+          <div className="fm-card__marks">
+            {data.card.badges.map((badge) => (
+              <span key={badge.kind} className={`fm-fid fm-fid--${badge.kind}`} title={badge.kind === 'deviation' ? badge.text : undefined}>
+                {badge.kind}
+              </span>
+            ))}
+            {!data.reachable && <span className="fm-card__reach">not reached</span>}
+          </div>
+        )}
+      </div>
+      <code className="fm-card__id">{id}</code>
+      {data.view.value !== undefined && (
+        <code className="fm-card__value" data-testid={`value:${id}`}>
+          {data.view.value}
+        </code>
+      )}
       {remap && (
-        <div data-testid={`orphaned:${id}`} title="The source structure has no such field: drop a source row here to remap" style={MARK}>
+        <div
+          className="fm-card__mark fm-card__mark--block"
+          data-testid={`orphaned:${id}`}
+          title="The source structure has no such field: drop a source row here to remap"
+        >
           Orphaned
         </div>
       )}
       {data.view.slots.map((name, slot) => (
-        <div key={slot} style={{ position: 'relative' }}>
+        <div key={slot} className="fm-card__slot">
           <Handle type="target" position={Position.Left} id={`in-${slot}`} data-testid={`in:${id}#${slot}`} />
           {name}
           {data.unconnected.includes(slot) && (
-            <span data-testid={`unconnected:${id}#${slot}`} title="Not connected" style={MARK}>
-              {' '}
+            <span className="fm-card__mark" data-testid={`unconnected:${id}#${slot}`} title="Not connected">
               !
             </span>
           )}
         </div>
+      ))}
+      {data.card.context !== undefined && (
+        <label className="fm-card__param">
+          <span>read in</span>
+          <select className="nodrag nokey" value={data.card.context.value} onChange={(event) => data.edit.context(event.target.value)}>
+            {data.card.context.choices.map((choice) => (
+              <option key={choice.path} value={choice.path}>
+                {choice.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {data.card.params.map((param) => (
+        <label key={param.name} className="fm-card__param">
+          <span>{param.name}</span>
+          {param.table ? (
+            <span title={param.text}>{param.text}</span>
+          ) : !param.editable ? (
+            <input className="nodrag nokey" readOnly value={param.text} />
+          ) : param.values ? (
+            <select className="nodrag nokey" value={param.text} onChange={(event) => data.edit.param(param.name, event.target.value)}>
+              {param.values.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <CardText value={param.text} onSet={(value) => data.edit.param(param.name, value)} />
+          )}
+        </label>
       ))}
       <Handle type="source" position={Position.Right} data-testid={`out:${id}`} />
     </div>
   );
 }
 
+/**
+ * A text param on a card: the author's draft is kept until the field loses the focus or Enter is pressed, as in the
+ * inspector; a model change under it (undo, the inspector) shows the model's value. Neither a drag of the node nor a
+ * canvas key starts from it.
+ */
+function CardText({ value, onSet }: { value: string; onSet: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    setShown(value);
+    setDraft(value);
+  }
+  const commit = () => onSet(draft);
+  return (
+    <input
+      className="nodrag nokey"
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') commit();
+      }}
+    />
+  );
+}
+
 /** The sink: the target field, fed by `result`; marked while `result` is `null`. */
 function SinkNodeView({ data }: NodeProps<SinkNode>) {
   return (
-    <div
-      data-testid={`sink:${data.field}`}
-      style={{ width: BOX.width, minHeight: BOX.height, border: '2px solid var(--pf-t--global--border--color--default, #8a8d90)', padding: '0.25rem 0.5rem' }}
-    >
+    <div data-testid={`sink:${data.field}`} className="fm-sink" style={{ width: BOX.width }}>
       <Handle type="target" position={Position.Left} data-testid="in:sink" />
-      {stepName(data.field)}
+      <span className="fm-sink__caption">target field</span>
+      <span className="fm-sink__name" title={data.field}>
+        {localPath(data.field)}
+      </span>
       {!data.connected && (
-        <div data-testid="unconnected:sink" style={MARK}>
+        <div className="fm-card__mark" data-testid="unconnected:sink">
           No result connected
         </div>
       )}

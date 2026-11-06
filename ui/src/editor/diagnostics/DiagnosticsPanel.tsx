@@ -3,8 +3,10 @@ import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { Diagnostic } from '../../api/client';
 import type { FieldPath } from '../../generated/mapping-model';
+import { localPath, proseSegments } from '../../model/field-path';
 import { locate, targetFieldOf } from '../store/locations';
 import type { WorkingCopyStore } from '../store/working-copy';
+import './diagnostics-list.css';
 
 export interface DiagnosticsPanelProps {
   store: WorkingCopyStore;
@@ -30,11 +32,26 @@ export function DiagnosticsPanel({ store, onSelectField }: DiagnosticsPanelProps
       {diagnostics.length === 0 ? (
         <p>No diagnostics</p>
       ) : (
-        <ul aria-label="Working copy diagnostics">
+        <ul className="fm-diagnostics" aria-label="Working copy diagnostics">
           {diagnostics.map((d, i) => (
-            <li key={i}>
-              <Label status={d.severity === 'error' ? 'danger' : 'warning'}>{d.severity}</Label> <code>{d.code}</code>{' '}
-              <Place store={store} location={d.location} onSelectField={onSelectField} />: {d.message}
+            <li key={i} className={`fm-diagnostic fm-diagnostic--${d.severity}`}>
+              <Label status={d.severity === 'error' ? 'danger' : 'warning'}>{d.severity}</Label>{' '}
+              <code className="fm-diagnostic__code">{d.code}</code>{' '}
+              <span className="fm-diagnostic__location">
+                <Place store={store} location={d.location} onSelectField={onSelectField} />
+                <span className="fm-diagnostic__colon">: </span>
+              </span>
+              <span className="fm-diagnostic__message">
+                {proseSegments(d.message).map((s, j) =>
+                  s.path === undefined ? (
+                    s.text
+                  ) : (
+                    <span key={j} className="fm-diagnostic__path" title={s.path}>
+                      {s.text}
+                    </span>
+                  ),
+                )}
+              </span>
             </li>
           ))}
         </ul>
@@ -65,10 +82,23 @@ function Place({
           }}
         />
       );
-    case 'pointer':
-      return <FieldLink side="target" field={target} text={location.pointer} onSelectField={onSelectField} />;
+    case 'pointer': {
+      // a pointer into a target field mapping shows that field's local path, and what the pointer says below it
+      if (target === undefined) return <FieldLink side="target" field={target} text={location.pointer} onSelectField={onSelectField} />;
+      const below = location.pointer.split('/').slice(3).join('/');
+      const text = localPath(target) + (below === '' ? '' : `/${below}`);
+      return <FieldLink side="target" field={target} text={text} title={location.pointer} onSelectField={onSelectField} />;
+    }
     case 'field-path':
-      return <FieldLink side={location.side} field={location.fieldPath} text={location.fieldPath} onSelectField={onSelectField} />;
+      return (
+        <FieldLink
+          side={location.side}
+          field={location.fieldPath}
+          text={localPath(location.fieldPath)}
+          title={location.fieldPath}
+          onSelectField={onSelectField}
+        />
+      );
     case 'file-position':
       return <span>{`${location.file}:${location.line}:${location.column}`}</span>;
   }
@@ -78,11 +108,18 @@ function FieldLink({
   side,
   field,
   text,
+  title,
   onSelectField,
-}: Pick<DiagnosticsPanelProps, 'onSelectField'> & { side: 'source' | 'target'; field: FieldPath | undefined; text: string }) {
+}: Pick<DiagnosticsPanelProps, 'onSelectField'> & {
+  side: 'source' | 'target';
+  field: FieldPath | undefined;
+  text: string;
+  /** The full text of a location shown shortened. */
+  title?: string;
+}) {
   if (field === undefined) return <span>{text}</span>;
   return (
-    <Button variant="link" isInline onClick={() => onSelectField(side, field)}>
+    <Button variant="link" isInline title={title} onClick={() => onSelectField(side, field)}>
       {text}
     </Button>
   );

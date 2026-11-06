@@ -3,7 +3,7 @@ import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mappi
 import type { FieldRefusal } from '../../model/command';
 import { fieldPathSteps } from '../../model/field-path';
 import { targetFieldOf } from '../store/locations';
-import { rowRefusal, type TreeRow } from './rows';
+import { nameMatches, rowRefusal, type TreeRow } from './rows';
 
 /** The mark of a target row (GLOSSARY: Field status); a row without one has no mark. */
 export type FieldStatus = 'mapped' | 'unmapped-mandatory' | 'orphaned' | 'error';
@@ -96,13 +96,15 @@ export function orphanedMappings(model: MappingModel, target: StructureLoaded): 
  * The target rows under a status filter (ADR-0012): every row of status `filter` and each of its ancestors, in tree
  * order, whatever is expanded. An ancestor is shown expanded; a row of that status with no such row below it is shown
  * collapsed. A field path the structure lacks shows no row, nor any ancestor for it. Each row carries the refusal
- * nearest the root on its path in the `side` tree, as `treeRows` gives it (ADR-0027).
+ * nearest the root on its path in the `side` tree, as `treeRows` gives it (ADR-0027). Under a search `query` a row of
+ * that status is shown only when its local name matches the search too (spec #135); the empty query matches all.
  */
 export function filteredRows(
   structure: StructureLoaded,
   statuses: ReadonlyMap<FieldPath, FieldStatus>,
   filter: FieldStatus,
   side: 'source' | 'target',
+  query = '',
 ): TreeRow[] {
   const matches = new Set<FieldPath>();
   const ancestors = new Set<FieldPath>();
@@ -117,7 +119,7 @@ export function filteredRows(
     const refusal = rowRefusal(field, side, above);
     const children = field.type !== undefined && ancestors.has(path) ? (structure.types[field.type] ?? []) : [];
     const below = children.flatMap((child) => visit(child, `${path}/${child.step}`, depth + 1, refusal));
-    if (below.length === 0 && !matches.has(path)) return [];
+    if (below.length === 0 && !(matches.has(path) && nameMatches(field, query))) return [];
     const row = { path, depth, field, expandable: field.type !== undefined, expanded: below.length > 0, ...(refusal && { refusal }) };
     return [row, ...below];
   };

@@ -305,6 +305,23 @@ describe('the target rows under a status filter (ADR-0012, spec #104 story 39)',
     ]);
   });
 
+  test('under a search, are the rows of that status whose local name matches it, with their ancestors (spec #135)', () => {
+    const searched = (query: string) => filteredRows(structure, statuses, 'error', 'target', query).map((r) => [r.path, r.expanded]);
+
+    expect(searched('SKU')).toEqual([
+      [ORDER, true],
+      [ITEM, true],
+      [`${ITEM}/Item`, true],
+      [`${ITEM}/Item/Sku`, false],
+    ]);
+    expect(searched('chan')).toEqual([
+      [ORDER, true],
+      [CHANNEL, false],
+    ]);
+    // Item matches the search but has no status of its own: both must hold
+    expect(searched('item')).toEqual([]);
+  });
+
   test('show the root of that status expanded when a row below it has it too', () => {
     const both = new Map<string, FieldStatus>([
       [ORDER, 'mapped'],
