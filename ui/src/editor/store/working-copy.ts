@@ -1,5 +1,14 @@
 import { createStore } from 'zustand/vanilla';
-import { ApiProblem, describeError, isSaveConflict, type Diagnostic, type FunctionCatalogue, type StoredMapping } from '../../api/client';
+import {
+  ApiProblem,
+  describeError,
+  isSaveConflict,
+  type Diagnostic,
+  type FunctionCatalogue,
+  type StoredMapping,
+  type TestResult,
+  type TraceEntry,
+} from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
 import type { CommandResult, Refusal } from '../../model/command';
 import { deleteBox } from '../../model/delete-box';
@@ -46,10 +55,14 @@ export interface WorkingCopyState {
   refusal: Refusal | null;
   /** A save answered that the file changed on disk: the author chooses Reload or Keep editing (ADR-0027). */
   conflict: boolean;
-  /** The latest diagnostics of the working copy: the last compile's, or a refused save's until the next compile. */
+  /** The latest diagnostics of the working copy: the last compile's, or a refused save's or a test run's until the next compile. */
   diagnostics: Diagnostic[];
   /** The title of the transport error the last compile failed with; `null` once a compile answers. */
   compileFailure: string | null;
+  /** What the last test run answered: output or a runtime error with its trace, or compile's refusal; `null` before a run. */
+  lastRun: TestResult | null;
+  /** The working copy the last test run ran; its trace is a stale trace once the working copy differs from it. */
+  lastRunModel: MappingModel | null;
   /** Links a source field to a target field (the link command in `model/`). */
   link: (sourceField: FieldPath, targetField: FieldPath) => void;
   /** Inserts a box of standard function `fn` into the target field's mapping, with fresh ids. */
@@ -88,12 +101,25 @@ export interface WorkingCopyState {
   scheduleCompile: () => void;
   /** Cancels a compile scheduled or under way; its answer is dropped. */
   cancelCompile: () => void;
+  /**
+   * Keeps what a test run of `sent` answered. Its diagnostics become the latest unless the working copy changed while it
+   * ran; the next compile then brings the newer ones.
+   */
+  recordRun: (sent: MappingModel, result: TestResult) => void;
 }
 
 export type WorkingCopyStore = ReturnType<typeof createWorkingCopyStore>;
 
 /** Whether the working copy has changes the baseline lacks. */
 export const selectUnsaved = (state: WorkingCopyState): boolean => !sameModel(state.workingCopy, state.baseline);
+
+/** The trace of the last test run by authoring id; none before a run or when compile refused it (ADR-0015). */
+export const selectTrace = (state: WorkingCopyState): Record<string, TraceEntry> | undefined =>
+  state.lastRun === null || state.lastRun.kind === 'refused' ? undefined : state.lastRun.trace;
+
+/** Whether the last run's trace is a stale trace: the working copy has changed since that run (GLOSSARY). */
+export const selectTraceStale = (state: WorkingCopyState): boolean =>
+  state.lastRunModel !== null && !sameModel(state.workingCopy, state.lastRunModel);
 
 /** One store per open mapping (ADR-0013). Its actions only call the pure commands of `model/`. */
 export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopyPorts) {
@@ -142,6 +168,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       conflict: false,
       diagnostics: [],
       compileFailure: null,
+      lastRun: null,
+      lastRunModel: null,
 
       link: (sourceField, targetField) =>
         void apply(link(get().workingCopy, { sourceField, targetField, boxId: ports.newId(), mappingId: ports.newId() })),
@@ -237,6 +265,13 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       },
 
       cancelCompile: cancel,
+
+      recordRun: (sent, result) =>
+        set((state) => ({
+          lastRun: result,
+          lastRunModel: sent,
+          ...(sameModel(state.workingCopy, sent) ? { diagnostics: result.diagnostics } : {}),
+        })),
     };
   });
 
