@@ -50,6 +50,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class NestedSlotsAgreementTest {
 
   private static final String MINOCCURS = "po:MINOCCURS";
+  private static final String CREATEIF = "po:CREATEIF";
   private static final long UNBOUNDED = Long.MAX_VALUE;
   private static final QueueType QUEUE = new QueueType();
   private static final FunctionRef CREATE_IF = new FunctionRef("createIf", List.of(QUEUE), QUEUE);
@@ -280,5 +281,67 @@ class NestedSlotsAgreementTest {
 
     assertThat(withVal).as("seeds whose document has a Val").isGreaterThanOrEqualTo(20);
     assertThat(shortfalls).as("mappings that fall short of min").hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  /**
+   * The seed's target over its input as drawn, before {@link #castable}: a createIf may read a
+   * value that is no boolean ({@code o1}, {@code s11}, {@code q11}).
+   */
+  private static Generated drawn(long seed) {
+    return new Generated(orders(new SplittableRandom(seed)), generated(seed).document());
+  }
+
+  /**
+   * F-29 (ADR-0006 as amended with #133): over the inputs as drawn, both back ends stop with the
+   * same error at the same place, {@code po:CREATEIF} at a createIf box or {@code po:MINOCCURS} at
+   * a target field mapping, or write the same document. A queue is read on first use (ADR-0006), so
+   * a createIf under a parent that is never created raises on neither.
+   */
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("seeds")
+  void generatedNestedTargetsAgreeOnTheCastError(long seed) throws Exception {
+    Generated generated = drawn(seed);
+    String what = "seed " + seed + ", input " + generated.input();
+    String stylesheet = XsltExporter.export(generated.document());
+    byte[] input = generated.input().getBytes(UTF_8);
+    Throwable thrown = catchThrowable(() -> ours(generated));
+
+    if (thrown != null) {
+      assertThat(thrown).as(what).isInstanceOf(MappingRunException.class);
+      MappingRunException ours = (MappingRunException) thrown;
+      assertThat(ours.code()).as(what).isIn(CREATEIF, MINOCCURS);
+      SaxonApiException saxon =
+          SaxonRunner.raised(stylesheet, XsltExporter.helperModule(), input, dir, what);
+      SaxonRunner.assertSameError(saxon, ours.code(), what);
+      String place = ours.authoringId().value();
+      SaxonRunner.assertNamesItsPlace(ours.getMessage(), ours.code(), place, what);
+      SaxonRunner.assertNamesItsPlace(saxon.getMessage(), ours.code(), place, what);
+    } else {
+      byte[] saxon = SaxonRunner.run(stylesheet, XsltExporter.helperModule(), input, dir);
+      SaxonRunner.assertAgree(saxon, ours(generated), what);
+    }
+  }
+
+  /**
+   * Witness for the cast agreement: over the seeds, our runtime raises po:CREATEIF at more than one
+   * createIf box, and some seed whose createIf reads a value that is no boolean still writes its
+   * document, as that queue is never read.
+   */
+  @Test
+  void theDrawnSeedsRaiseTheCastErrorAtSeveralBoxes() throws Exception {
+    Set<String> boxes = new TreeSet<>();
+    int unread = 0;
+    for (long seed : seeds().toArray()) {
+      Generated generated = drawn(seed);
+      Throwable thrown = catchThrowable(() -> ours(generated));
+      if (thrown instanceof MappingRunException e && e.code().equals(CREATEIF)) {
+        boxes.add(e.authoringId().value());
+      } else if (thrown == null && !generated.input().equals(generated(seed).input())) {
+        unread++;
+      }
+    }
+
+    assertThat(boxes).as("createIf boxes that raise po:CREATEIF").hasSizeGreaterThanOrEqualTo(2);
+    assertThat(unread).as("seeds whose unread createIf meets no boolean").isPositive();
   }
 }
