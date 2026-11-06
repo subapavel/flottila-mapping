@@ -53,6 +53,22 @@ describe('the insert box command', () => {
     expect(result.kind === 'applied' && result.model.targetFieldMappings?.[QUANTITY]).toEqual({ id: 'tq', result: 'c1', boxes: { c1: constant } });
   });
 
+  describe('refuses a refused target field (ADR-0027), before it looks at ids, and leaves the model as it was', () => {
+    const ambiguous = { code: 'ambiguous-field-path', file: 'order.xsd', line: 14, column: 56 };
+
+    test.each([
+      ['a field without a mapping', unmapped, ORDER_ID],
+      ['a field whose mapping has a result', partlyMapped, NOTE],
+    ])('%s', (_, model, targetField) => {
+      const before = structuredClone(model);
+
+      const result = insertBox(model, { targetField, box: constant, boxId: 'n1', mappingId: 'n1', targetRefusal: ambiguous });
+
+      expect(result).toEqual({ kind: 'refused', code: 'refused-field', side: 'target', field: targetField, refusal: ambiguous });
+      expect(model).toEqual(before);
+    });
+  });
+
   describe('keeps ids fresh and unique: it refuses', () => {
     test.each([
       ['a box id that is a target field mapping id', { boxId: 'tq', mappingId: 't1', targetField: ORDER_ID }, 'duplicate-authoring-id', 'tq'],
