@@ -40,11 +40,11 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
   };
 
   return (
-    <nav aria-label="Palette" style={{ width: '10rem', flex: 'none', maxHeight: '16rem', overflowY: 'auto' }}>
+    <nav aria-label="Palette" className="fm-palette">
       <SearchInput aria-label="Search functions" placeholder="Search" value={search} onChange={(_event, value) => setSearch(value)} onClear={() => setSearch('')} />
       {groups.map(({ family, entries: listed }) => (
-        <ul key={family} aria-label={family} style={{ listStyle: 'none', margin: '0.5rem 0 0', padding: 0 }}>
-          <li aria-hidden style={{ fontWeight: 'bold' }}>
+        <ul key={family} aria-label={family} className="fm-palette__family">
+          <li aria-hidden className="fm-palette__family-name">
             {family}
           </li>
           {listed.map(({ fn, badges }) => (
@@ -61,9 +61,10 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
                 event.dataTransfer.setData(FUNCTION_DRAG, fn);
                 event.dataTransfer.effectAllowed = 'copy';
               }}
-              style={{ cursor: 'grab' }}
+              className="fm-palette__entry"
             >
               {fn} {badges.map((badge) => <BadgeView key={badge.kind} id={badgeId(fn, badge)} badge={badge} />)}
+              {catalogue[fn]!.executionKind !== 'single' && <span className="fm-palette__kind">{catalogue[fn]!.executionKind}</span>}
             </li>
           ))}
         </ul>

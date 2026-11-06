@@ -13,7 +13,7 @@ export interface LastTrace {
 /** The display queue of a box (GLOSSARY): the queue or value it gave in the last test run. */
 export function BoxQueue({ id, last }: { id: AuthoringId; last: LastTrace }) {
   return (
-    <section aria-label="Display queue">
+    <section aria-label="Display queue" className="fm-queue">
       <h4>Display queue</h4>
       <Traced last={last} id={id} />
     </section>
@@ -23,7 +23,7 @@ export function BoxQueue({ id, last }: { id: AuthoringId; last: LastTrace }) {
 /** The display queue of a target field (ADR-0012): its result queue, then its occurrences per parent slot. */
 export function TargetFieldQueue({ field, mapping, last }: { field: FieldPath; mapping: TargetFieldMapping; last: LastTrace }) {
   return (
-    <section aria-label="Display queue of the target field">
+    <section aria-label="Display queue of the target field" className="fm-queue">
       <h4>Display queue of {stepName(field)}</h4>
       <h5>Result queue</h5>
       <Traced last={last} id={mapping.result} />
@@ -91,16 +91,16 @@ function Entry({ entry }: { entry: DisplayEntry }) {
 function Value({ value }: { value: ShownValue }) {
   switch (value.kind) {
     case 'value':
-      return <code style={{ marginRight: '0.5em' }}>{value.text}</code>;
+      return <code className="fm-queue__value">{value.text}</code>;
     case 'empty':
       return (
-        <Label isCompact variant="outline" style={{ marginRight: '0.5em' }}>
+        <Label isCompact variant="outline" className="fm-queue__value">
           ""
         </Label>
       );
     case 'suppress':
       return (
-        <Label isCompact color="grey" style={{ marginRight: '0.5em' }}>
+        <Label isCompact color="grey" className="fm-queue__value">
           SUPPRESS
         </Label>
       );

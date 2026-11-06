@@ -1,6 +1,8 @@
 import type { FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, Box, BoxReference, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
+import { properAncestors } from '../../model/set-context';
+import { badges, type Badge } from './palette';
 
 /** The node id of the sink, the target field itself; no authoring id has a `:` (ADR-0010). */
 export const SINK = ':sink';
@@ -60,6 +62,92 @@ export function boxView(box: Box, catalogue: FunctionCatalogue, udfs: Udfs | und
   const view: BoxView = { title, slots: names ?? inputsOf(box).map((_, i) => String(i + 1)) };
   if (box.kind === 'function' && box.fn === 'constant') view.value = JSON.stringify(box.params?.value ?? '');
   return view;
+}
+
+/**
+ * A parameter of a box card: a text param's value, or a table param's size. `editable` is a text param of a catalogue
+ * function, as in the inspector; `values` are the choices of a param that takes only those.
+ */
+export interface CardParam {
+  name: string;
+  text: string;
+  table: boolean;
+  editable: boolean;
+  values?: string[];
+}
+
+/** A source-field box's context: the value shown, and the choices, the parent first (as the inspector offers them). */
+export interface CardContext {
+  value: string;
+  choices: { path: string; label: string }[];
+}
+
+/** What a box card shows besides its `BoxView`: its caption, fidelity badges, parameters and a source field's context. */
+export interface CardView {
+  kind: Box['kind'];
+  caption: string;
+  /** The fidelity badges (assumed, deviation) of a function the catalogue knows. */
+  badges: Badge[];
+  params: CardParam[];
+  /** A source-field box's context; the parent's when the model leaves it out. */
+  context?: CardContext;
+}
+
+/**
+ * The card of a box (spec #135): a caption by kind, the fidelity badges of its catalogue entry, its parameters as the
+ * model holds them (a constant's value is its `BoxView.value`, so not repeated), and a source-field box's context. A
+ * field without a proper ancestor shows its own name as its context.
+ */
+export function cardView(box: Box, catalogue: FunctionCatalogue): CardView {
+  if (box.kind === 'source') {
+    const ancestors = properAncestors(box.field);
+    const choices = (ancestors.length > 0 ? ancestors : [box.field]).map((path, i) => ({
+      path,
+      label: i === 0 ? `${stepName(path)} (parent)` : stepName(path),
+    }));
+    return { kind: 'source', caption: 'source field', badges: [], params: [], context: { value: box.context ?? choices[0]!.path, choices } };
+  }
+  const entry = box.kind === 'function' ? catalogue[box.fn] : undefined;
+  const params =
+    box.kind === 'function' && box.fn === 'constant'
+      ? []
+      : Object.entries(box.params ?? {}).map(([name, value]): CardParam => {
+          if (typeof value !== 'string') return { name, text: `table, ${Object.keys(value).length} rows`, table: true, editable: false };
+          const param = entry?.params?.find((p) => p.name === name);
+          return { name, text: value, table: false, editable: param !== undefined, values: param?.type === 'string' ? param.values : undefined };
+        });
+  return {
+    kind: box.kind,
+    caption: box.kind === 'function' ? 'fn' : box.kind === 'udf' ? 'UDF' : 'unresolved',
+    badges: entry === undefined ? [] : badges(entry).filter((badge) => badge.kind !== 'not-portable'),
+    params,
+  };
+}
+
+/** The heights, in px, of a card's parts, as function-editor.css sets them (a row is a line of text with its padding). */
+export const CARD_HEIGHT = { base: 50, row: 22, context: 26, value: 22, badges: 22, slack: 8 } as const;
+
+/**
+ * Each box's card height from its content, for the layout: the caption and id, one row per input slot and per param,
+ * a source card's context row, a constant's value, and a row more when fidelity badges make the head wrap. A function
+ * of the model and the catalogue only, so the layout stays deterministic (ADR-0012).
+ */
+export function cardHeights(mapping: TargetFieldMapping, catalogue: FunctionCatalogue, udfs: Udfs | undefined): Record<AuthoringId, number> {
+  return Object.fromEntries(
+    boxIds(mapping).map((id) => {
+      const box = mapping.boxes[id]!;
+      const view = boxView(box, catalogue, udfs);
+      const card = cardView(box, catalogue);
+      const height =
+        CARD_HEIGHT.base +
+        CARD_HEIGHT.row * (view.slots.length + card.params.length) +
+        (card.context === undefined ? 0 : CARD_HEIGHT.context) +
+        (view.value === undefined ? 0 : CARD_HEIGHT.value) +
+        (card.badges.length === 0 ? 0 : CARD_HEIGHT.badges) +
+        CARD_HEIGHT.slack;
+      return [id, height];
+    }),
+  );
 }
 
 /** The live marks of a canvas (ADR-0013): whether `result` is `null`, and the input slots that read no box, by box. */

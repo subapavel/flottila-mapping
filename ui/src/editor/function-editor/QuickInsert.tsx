@@ -37,7 +37,7 @@ export function QuickInsert({ catalogue, initial, onInsert, onCancel, onLeave }:
   };
 
   return (
-    <div style={{ position: 'absolute', zIndex: 10, top: '2.5rem', left: '0.5rem', width: '14rem', background: 'var(--pf-t--global--background--color--primary--default, #fff)', border: '1px solid var(--pf-t--global--border--color--default, #8a8d90)' }}>
+    <div className="fm-quick-insert">
       <input
         role="combobox"
         aria-label="Quick insert"
@@ -53,12 +53,12 @@ export function QuickInsert({ catalogue, initial, onInsert, onCancel, onLeave }:
         }}
         onKeyDown={onKeyDown}
         onBlur={onLeave}
-        style={{ width: '100%', boxSizing: 'border-box' }}
+        className="fm-quick-insert__input"
       />
-      <div id={`${id}-list`} role="listbox" aria-label="Functions" style={{ maxHeight: '12rem', overflowY: 'auto' }}>
+      <div id={`${id}-list`} role="listbox" aria-label="Functions" className="fm-quick-insert__list">
         {groups.map(({ family, entries }) => (
-          <ul key={family} role="group" aria-label={family} style={{ listStyle: 'none', margin: 0, padding: '0 0.25rem' }}>
-            <li role="presentation" aria-hidden style={{ fontWeight: 'bold' }}>
+          <ul key={family} role="group" aria-label={family} className="fm-quick-insert__family">
+            <li role="presentation" aria-hidden className="fm-quick-insert__family-name">
               {family}
             </li>
             {entries.map(({ fn }) => (
@@ -70,7 +70,7 @@ export function QuickInsert({ catalogue, initial, onInsert, onCancel, onLeave }:
                 // keeps the focus in the search field, which would close quick insert on leaving it
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onInsert(fn)}
-                style={{ cursor: 'pointer', background: fn === matches[active] ? 'var(--pf-t--global--background--color--secondary--default, #f0f0f0)' : undefined }}
+                className={fn === matches[active] ? 'fm-quick-insert__option fm-quick-insert__option--active' : 'fm-quick-insert__option'}
               >
                 {fn}
               </li>

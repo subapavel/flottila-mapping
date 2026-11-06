@@ -117,9 +117,10 @@ describe('the canvas of the selected target field', () => {
     render();
 
     for (const id of ['a1', 'c1', 'f1', 'u1']) await expect.element(box(id)).toBeVisible();
-    await expect.element(box('f1')).toHaveTextContent('concatab');
-    await expect.element(box('a1')).toHaveTextContent('OrderId');
-    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toHaveTextContent('OrderId');
+    // a card's text: its caption, title, id, then the input slots (spec #135: the card shows caption and id too)
+    await expect.element(box('f1')).toMatchTextContent(/^fnconcat.*f1ab$/);
+    await expect.element(box('a1')).toMatchTextContent(/^source fieldOrderIda1/);
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toMatchTextContent(/^target fieldOrderId$/);
     await expect.poll(() => edges().elements().map((e) => e.dataset.testid).sort()).toEqual(
       ['rf__edge-a1->f1#0', 'rf__edge-a1->u1#0', 'rf__edge-c1->f1#1', 'rf__edge-f1->:sink'].sort(),
     );
@@ -127,11 +128,130 @@ describe('the canvas of the selected target field', () => {
     await expect.poll(viewportTransform).not.toBe('translate(0px, 0px) scale(1)');
   });
 
-  test('dims an unreachable box', async () => {
+  test("a card shows its authoring id, and its parameter input is labelled by the parameter name", async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const withParam: MappingModel = {
+      ...graphMapping,
+      targetFieldMappings: {
+        [ORDER_ID]: {
+          ...target,
+          boxes: {
+            ...target.boxes,
+            n1: { kind: 'function', fn: 'formatNum', inputs: ['a1'], params: { pattern: '#,##0.00' } },
+            r1: { kind: 'unresolved', name: 'ByExample', origin: 'po', params: { table: { A: 'B', C: 'D' } } },
+            s1: { kind: 'source', field: ORDER },
+            s2: { kind: 'source', field: ORDER_ID, context: ORDER },
+          },
+        },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: withParam }) });
+
+    await expect.element(box('n1')).toMatchTextContent(/^fnformatNum.*n1/);
+    await expect.element(box('n1').getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
+    // a table param shows its size; a source card its context, a field with no ancestor its own name
+    await expect.element(box('r1')).toMatchTextContent(/^unresolvedByExample.*r1.*tabletable, 2 rows$/);
+    await expect.element(box('s1').getByRole('combobox', { name: 'read in' })).toHaveValue(ORDER);
+    await expect.element(box('s2').getByRole('combobox', { name: 'read in' })).toHaveValue(ORDER);
+    // a constant's value is its own mark, not a second input
+    await expect.element(box('c1').getByRole('textbox')).not.toBeInTheDocument();
+    await expect.element(page.getByTestId('value:c1')).toHaveTextContent('"-"');
+  });
+
+  test('a function card shows the fidelity badge of its entry, a deviation with its text', async () => {
+    const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+    const api = fakeApiClient({
+      [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes: { ...target.boxes, d1: { kind: 'function', fn: 'divide' } } } } },
+    });
+    const { divide } = await api.getCatalogue();
+    expect(divide!.fidelity.level).toBe('deviation');
+    render({ api });
+
+    await expect.element(box('d1').getByTitle(divide!.fidelity.level === 'deviation' ? divide!.fidelity.text : '')).toHaveTextContent('deviation');
+  });
+
+  test('the toolbar shows the field, its mapping id and the quick-insert hint; Copy counts the selected boxes', async () => {
     render();
 
-    await expect.element(box('u1')).toHaveStyle({ opacity: '0.4' });
-    for (const id of ['a1', 'c1', 'f1']) await expect.element(box(id)).toHaveStyle({ opacity: '1' });
+    const toolbar = page.getByRole('group', { name: 'Canvas of OrderId' });
+    await expect.element(toolbar.getByText('type or press / on the canvas to insert a function')).toBeVisible();
+    await expect.element(toolbar.getByText('t1', { exact: true })).toBeVisible();
+    await expect.element(toolbar.getByRole('button', { name: 'Copy (0)' })).toBeDisabled();
+
+    await userEvent.click(box('f1'));
+
+    await expect.element(toolbar.getByRole('button', { name: 'Copy (1)' })).toBeEnabled();
+  });
+
+  test('marks an unreachable box, by a class and a description rather than by fading it', async () => {
+    render();
+
+    await expect.element(box('u1')).toHaveClass('fm-card--unreached');
+    await expect.element(box('u1')).toHaveAttribute('title', 'Not reached by the result');
+    for (const id of ['a1', 'c1', 'f1']) {
+      await expect.element(box(id)).not.toHaveClass('fm-card--unreached');
+      await expect.element(box(id)).not.toHaveAttribute('title');
+    }
+    // the text keeps its contrast: no whole-card opacity
+    expect(getComputedStyle(box('u1').element()).opacity).toBe('1');
+  });
+
+  describe('editing on the card', () => {
+    const pattern = () => box('n1').getByRole('textbox', { name: 'pattern' });
+    const inspector = () => page.getByRole('complementary', { name: 'Inspector' });
+    const withFormatNum = () => {
+      const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+      const boxes: typeof target.boxes = { ...target.boxes, n1: { kind: 'function', fn: 'formatNum', inputs: ['a1'], params: { pattern: '#,##0.00' } } };
+      return fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } });
+    };
+
+    test("a text param typed on the card is the inspector's edit: it shows there, and one Undo restores it", async () => {
+      render({ api: withFormatNum() });
+      await expect.element(pattern()).toHaveValue('#,##0.00');
+
+      await pattern().fill('0.0');
+      await userEvent.tab();
+      await userEvent.click(box('n1').getByText('formatNum', { exact: true }));
+
+      await expect.element(inspector().getByRole('textbox', { name: 'pattern' })).toHaveValue('0.0');
+      await page.getByRole('button', { name: 'Undo' }).click();
+      await expect.element(pattern()).toHaveValue('#,##0.00');
+      await expect.element(inspector().getByRole('textbox', { name: 'pattern' })).toHaveValue('#,##0.00');
+    });
+
+    test('Enter commits a text param on the card', async () => {
+      render({ api: withFormatNum() });
+
+      await pattern().fill('0.0');
+      await userEvent.keyboard('{Enter}');
+
+      await expect.element(page.getByRole('button', { name: 'Undo' })).toBeEnabled();
+    });
+
+    test('a letter typed with a card select focused does not open quick insert', async () => {
+      const target = graphMapping.targetFieldMappings![ORDER_ID]!;
+      const boxes: typeof target.boxes = { ...target.boxes, x1: { kind: 'function', fn: 'fixValues', inputs: ['a1'], params: { missing: 'error' } } };
+      render({ api: fakeApiClient({ [DRAFT]: { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { ...target, boxes } } } }) });
+      const missing = box('x1').getByRole('combobox', { name: 'missing' });
+      await expect.element(missing).toHaveValue('error');
+
+      (missing.element() as HTMLElement).focus();
+      await userEvent.keyboard('d');
+
+      await expect.element(page.getByRole('combobox', { name: 'Quick insert' })).not.toBeInTheDocument();
+    });
+
+    test('typing a letter in a card input neither opens quick insert nor drags the node', async () => {
+      render({ api: withFormatNum() });
+      await expect.element(pattern()).toHaveClass('nodrag');
+      await expect.element(pattern()).toHaveClass('nokey');
+
+      await pattern().click();
+      await userEvent.keyboard('{End}x');
+
+      await expect.element(pattern()).toHaveValue('#,##0.00x');
+      await expect.element(page.getByRole('combobox', { name: 'Quick insert' })).not.toBeInTheDocument();
+    });
   });
 
   test('without a selected target field it asks for one, and a field without a mapping says so', async () => {
@@ -174,7 +294,8 @@ describe('positions and zoom (browser state, never the model)', () => {
 
   test('Arrange lays the graph out again and clears the kept positions, and keeps the zoom', async () => {
     const browserState = memoryBrowserState();
-    browserState.write(canvasKey(DRAFT, 't1'), { viewport: { x: 10, y: 20, zoom: 0.5 } });
+    // y keeps the sink clear of the pane's top edge, where a drag toward it would pan the viewport
+    browserState.write(canvasKey(DRAFT, 't1'), { viewport: { x: 10, y: 60, zoom: 0.5 } });
     render({ browserState });
     await expect.element(box('u1')).toBeVisible();
     const arranged = transformOf('u1');
@@ -184,7 +305,7 @@ describe('positions and zoom (browser state, never the model)', () => {
     await page.getByRole('button', { name: 'Arrange' }).click();
 
     await expect.poll(() => transformOf('u1')).toBe(arranged);
-    expect(canvasOf(browserState)).toEqual({ viewport: { x: 10, y: 20, zoom: 0.5 } });
+    expect(canvasOf(browserState)).toEqual({ viewport: { x: 10, y: 60, zoom: 0.5 } });
   });
 
   test('a new box appears next to the graph, the boxes already there keep their positions, and so does it', async () => {
@@ -310,6 +431,25 @@ describe('the palette', () => {
     await expect.element(page.getByTestId('palette:divide')).toBeVisible();
   });
 
+  test('an entry of a context or queue function names its execution kind; a single-value one names none', async () => {
+    const api = fakeApiClient({ [DRAFT]: graphMapping });
+    const catalogue = await api.getCatalogue();
+    render({
+      api: {
+        ...api,
+        getCatalogue: async () => ({
+          ...catalogue,
+          abs: { ...catalogue.abs!, executionKind: 'context' },
+          divide: { ...catalogue.divide!, executionKind: 'queue' },
+        }),
+      },
+    });
+
+    await expect.element(page.getByTestId('palette:abs')).toMatchTextContent(/context$/);
+    await expect.element(page.getByTestId('palette:divide')).toMatchTextContent(/queue$/);
+    await expect.element(page.getByTestId('palette:toUpperCase')).not.toMatchTextContent(/single|context|queue/);
+  });
+
   test('an entry that is not portable is described so to assistive technology', async () => {
     const api = fakeApiClient({ [DRAFT]: graphMapping });
     const catalogue = await api.getCatalogue();
@@ -352,7 +492,7 @@ describe('editing on the canvas', () => {
 
     await expect.poll(boxCount).toBe(5);
     const added = boxIdsShown().find((id) => !['a1', 'c1', 'f1', 'u1'].includes(id))!;
-    await expect.element(box(added)).toHaveStyle({ opacity: '0.4' });
+    await expect.element(box(added)).toHaveClass('fm-card--unreached');
     await expect.element(page.getByTestId(`unconnected:${added}#0`)).toBeVisible();
     expect(edgeIds()).toContain('f1->:sink');
   });
@@ -381,8 +521,8 @@ describe('editing on the canvas', () => {
 
     await expect.poll(edgeIds).toContain('u1->:sink');
     expect(edgeIds()).not.toContain('f1->:sink');
-    await expect.element(box('u1')).toHaveStyle({ opacity: '1' });
-    await expect.element(box('f1')).toHaveStyle({ opacity: '0.4' });
+    await expect.element(box('u1')).not.toHaveClass('fm-card--unreached');
+    await expect.element(box('f1')).toHaveClass('fm-card--unreached');
 
     await userEvent.dragAndDrop(handle('out:c1'), handle('in:u1#0'));
 

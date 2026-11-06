@@ -36,9 +36,12 @@ test('the author path: list, open, link by drag and drop, a function, a constant
 
   // a box parameter and the constant's value, in the inspector
   await page.getByTestId(`box:${substring}`).click();
-  await page.getByRole('textbox', { name: 'start' }).fill('3');
-  await page.getByRole('textbox', { name: 'start' }).press('Enter');
-  await expect(page.getByRole('textbox', { name: 'start' })).toHaveValue('3');
+  // the box card shows the parameter too (read-only): the inspector's field is the one to type into
+  const start = page.getByRole('complementary', { name: 'Inspector' }).getByRole('textbox', { name: 'start' });
+  await start.fill('3');
+  await start.press('Enter');
+  await expect(start).toHaveValue('3');
+  await expect(page.getByTestId(`box:${substring}`).getByRole('textbox', { name: 'start' })).toHaveValue('3');
   await page.getByTestId(`box:${constant}`).click();
   await page.getByRole('textbox', { name: 'value' }).fill('X');
   await page.getByRole('textbox', { name: 'value' }).press('Enter');
