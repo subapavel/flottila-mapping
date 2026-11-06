@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
 import type { TargetFieldMapping } from '../../generated/mapping-model';
-import { occurrenceText, reachedSourceFields, refusalAt, stepName, treeRows } from './rows';
+import { occurrenceText, reachedSourceFields, refusalAt, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
 type StructureLoaded = components['schemas']['StructureLoaded'];
@@ -171,22 +171,6 @@ describe('a refused field in the tree (ADR-0008, ADR-0027)', () => {
 
     expect(refusalAt(rootRefused, '/Doc/Id', 'source')).toEqual(ambiguousNote);
     expect(treeRows(rootRefused, new Set(['/Doc']), 'source')[1]!.refusal).toEqual(ambiguousNote);
-  });
-});
-
-describe('the name of a field path’s last step', () => {
-  test.each([
-    ['/Q{urn:a}Order', 'Order'],
-    ['/Q{urn:a}Order/OrderId', 'OrderId'],
-    ['/Q{urn:a}Order/@channel', '@channel'],
-    ['/Q{http://a/b}Order/Q{http://a/b}Item', 'Item'],
-    ['/Q{http://a/b}Order/@Q{http://a/c}code', '@code'],
-    ['/$', '$'],
-    ['/$/order/items', 'items'],
-    ['/$/order/a%2Fb%25%40%7B%7D', 'a/b%@{}'],
-    ['', ''],
-  ])('%s is %s', (path, name) => {
-    expect(stepName(path)).toBe(name);
   });
 });
 

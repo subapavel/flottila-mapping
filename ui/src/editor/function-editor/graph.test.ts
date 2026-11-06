@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
 import { boxIds, boxView, liveMarks, locate, reachable, SINK, wires } from './graph';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
@@ -73,6 +74,13 @@ describe('the function graph of a target field mapping', () => {
 describe('the view of a box', () => {
   test('a source-field box shows its field step and has no input slot', () => {
     expect(boxView({ kind: 'source', field: `${ORDER}/@Q{urn:x/y}channel` }, catalogue, undefined)).toEqual({ title: '@channel', slots: [] });
+  });
+
+  test('a source-field box reading an escaped JSON property shows its name as the source tree does', () => {
+    const field = '/$/order/a%2Fb%25%40%7B%7D';
+
+    expect(boxView({ kind: 'source', field }, catalogue, undefined).title).toBe('a/b%@{}');
+    expect(boxView({ kind: 'source', field }, catalogue, undefined).title).toBe(stepName(field));
   });
 
   test('a function box shows its function and the catalogue names of its input slots', () => {

@@ -1,6 +1,7 @@
 import type { Diagnostic, FieldDto, StructureLoaded } from '../../api/client';
 import type { AuthoringId, FieldPath, MappingModel } from '../../generated/mapping-model';
 import type { FieldRefusal } from '../../model/command';
+import { fieldPathSteps } from '../../model/field-path';
 import { rowRefusal, type TreeRow } from './rows';
 
 /** The mark of a target row (GLOSSARY: Field status); a row without one has no mark. */
@@ -17,9 +18,6 @@ const UNMAPPED_MANDATORY_LEAF = 'unmapped-mandatory-leaf';
 
 /** The statuses from the least to the most urgent: a row shows the most urgent of its statuses. */
 const PRECEDENCE: readonly FieldStatus[] = ['mapped', 'unmapped-mandatory', 'orphaned', 'error'];
-
-/** The steps of a field path: an EQName's braces may hold a `/` (ADR-0007). */
-const STEP = /(?:\{[^}]*\}|[^/{])+/g;
 
 /** Whether a value read from browser state is a status filter. */
 export function isStatusFilter(value: unknown): value is StatusFilter {
@@ -128,7 +126,7 @@ export function filteredRows(
   for (const [path, status] of statuses) {
     if (status !== filter) continue;
     matches.add(path);
-    const steps = path.match(STEP) ?? [];
+    const steps = fieldPathSteps(path);
     for (let i = 1; i < steps.length; i++) ancestors.add(`/${steps.slice(0, i).join('/')}`);
   }
   // only the branches down to a match are walked, so a recursive type ends (ADR-0008)
@@ -164,7 +162,7 @@ function fieldLookup(structure: StructureLoaded): (path: FieldPath) => FieldDto 
     return byStep.get(step);
   };
   return (path) => {
-    const steps = path.match(STEP) ?? [];
+    const steps = fieldPathSteps(path);
     if (steps[0] !== structure.root.step) return undefined;
     let field: FieldDto | undefined = structure.root;
     for (const step of steps.slice(1)) {

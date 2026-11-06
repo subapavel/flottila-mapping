@@ -1,5 +1,6 @@
 import type { FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, Box, BoxReference, FieldPath, MappingModel, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
 
 /** The node id of the sink, the target field itself; no authoring id has a `:` (ADR-0010). */
 export const SINK = ':sink';
@@ -91,12 +92,6 @@ export function liveMarks(mapping: TargetFieldMapping, catalogue: FunctionCatalo
     if (open.length > 0) unconnectedInputs[id] = open;
   }
   return { resultUnconnected: mapping.result === null, unconnectedInputs };
-}
-
-/** The local name of a field path's last step, `@` before an attribute's. */
-export function stepName(path: FieldPath): string {
-  const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)![0];
-  return last.replace(/^(@?)Q\{[^}]*\}/, '$1');
 }
 
 /** Where an authoring id is: the target field whose mapping has it, and the box when it is a box's id. */

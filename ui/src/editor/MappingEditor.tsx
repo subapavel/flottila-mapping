@@ -6,6 +6,7 @@ import { describeError, type ApiClient, type StoredMapping } from '../api/client
 import type { AuthoringId, FieldPath } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
 import { describeRefusal } from '../model/command';
+import { fieldPathSteps } from '../model/field-path';
 import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
 import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
@@ -280,6 +281,6 @@ function OpenMapping({
 
 /** The field paths from the root down to `fieldPath`, itself last; a step's `{namespace}` may hold a `/` (ADR-0007). */
 function pathsDownTo(fieldPath: FieldPath): FieldPath[] {
-  const steps = [...fieldPath.matchAll(/(?:\{[^}]*\}|[^/{])+/g)].map((step) => step[0]);
+  const steps = fieldPathSteps(fieldPath);
   return steps.map((_, i) => `/${steps.slice(0, i + 1).join('/')}`);
 }

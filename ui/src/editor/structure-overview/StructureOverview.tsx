@@ -6,6 +6,7 @@ import { useStore } from 'zustand';
 import type { ApiClient } from '../../api/client';
 import type { FieldPath, StructureRef } from '../../generated/mapping-model';
 import { describeFieldRefusal, type FieldRefusal } from '../../model/command';
+import { stepName } from '../../model/field-path';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
 import {
@@ -18,7 +19,7 @@ import {
   type StatusFilter,
 } from './field-status';
 import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type Gutter } from './links';
-import { occurrenceText, reachedSourceFields, refusalAt, stepName, treeRows } from './rows';
+import { occurrenceText, reachedSourceFields, refusalAt, treeRows } from './rows';
 
 type Side = 'source' | 'target';
 
