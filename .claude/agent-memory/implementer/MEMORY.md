@@ -149,3 +149,14 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   `getByRole('heading', { name: /…/ })`, not `getByText` (spec #104).
 - Vitest browser: `userEvent.keyboard('{Shift>}z')` sends `z`; send `Z`. `toHaveTextContent('x')`
   compares the whole normalised text (spec #104).
+- React Flow 12 controlled nodes must carry `measured` back on every node object, or they are
+  re-measured and hidden; a node moves only from the second drag event (`dragAndDrop` with
+  `{ steps: 5 }`) (spec #104).
+- The Vitest browser viewport is 414 px wide: a wider host pushes the target tree off-screen and
+  row drag-and-drop fails silently (spec #104).
+- Default e2e uses fixed port 4173, shared by every worktree: if taken, wait (`/proc/net/tcp`
+  `:10AD`) and retry (spec #104).
+- An added endpoint updates three tables in `OpenApiContractTest` (PROBLEMS, successes, 400
+  count); a new `LocationDto` kind updates the union and records maps (spec #104).
+- Worktree-isolated shells refuse compound commands with several git calls, `python3 - <<EOF`
+  and heredoc+chmod chains: one simple command per call, files via Write (spec #104).
