@@ -56,9 +56,9 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 let consoleError: ReturnType<typeof vi.spyOn>;
 
-/** Opens the corpus mapping over a fake whose test run answers `result`. */
-function render(result: TestResult, overrides: Partial<ApiClient> = {}) {
-  const api: ApiClient = { ...fakeApiClient(undefined, { test: { [MAPPING]: result } }), ...overrides };
+/** Opens the corpus mapping over a fake whose test run answers `result`, or runs the corpus case when there is none. */
+function render(result: TestResult | undefined, overrides: Partial<ApiClient> = {}) {
+  const api: ApiClient = { ...fakeApiClient(undefined, { test: result ? { [MAPPING]: result } : {} }), ...overrides };
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -80,15 +80,91 @@ afterEach(() => {
 
 const testPanel = page.getByRole('region', { name: 'Test panel' });
 const targetMessage = page.getByRole('figure', { name: 'Target message' });
-const runTest = () => page.getByRole('button', { name: 'Run test' }).click();
+/** A page tab (spec #135); the test panel is the Test tab's. */
+const tab = (name: string) => page.getByRole('tab', { name });
+async function runTest() {
+  await tab('Test').click();
+  await page.getByRole('button', { name: 'Run test' }).click();
+}
+
+const generatedTarget = page.getByRole('region', { name: 'Generated target' });
+const errors = page.getByRole('region', { name: 'Errors' });
+
+describe('the Test tab (spec #135)', () => {
+  test('runs the working copy on the input, and the Generated target region shows the target message', async () => {
+    render(undefined);
+    await tab('Test').click();
+    await expect.element(generatedTarget).toMatchTextContent('No run yet');
+
+    await page.getByRole('textbox', { name: 'Input message' }).fill(caseInput);
+    await page.getByRole('button', { name: 'Run test' }).click();
+
+    // the fake runs the corpus case link/direct-copy/001 for this mapping and input
+    await expect.element(generatedTarget.getByRole('figure', { name: 'Target message' })).toMatchTextContent('<OrderId>PO 4711</OrderId>');
+    await expect.element(testPanel.getByText('live', { exact: true })).toBeVisible();
+    await expect.element(errors.getByRole('heading', { name: 'Errors (0)' })).toBeVisible();
+  });
+
+  test("lists the run's error diagnostics with links to their authoring ids, and leaves its warnings to the Diagnostics tab", async () => {
+    render({
+      ...output,
+      diagnostics: [
+        { severity: 'error', code: 'unconnected-input', message: 'input 2 of concat is not connected', location: { kind: 'authoring-id', authoringId: 't1' } },
+        { severity: 'warning', code: 'unreachable-box', message: 'box x9 is not reached', location: { kind: 'authoring-id', authoringId: 'a1' } },
+        { severity: 'error', code: 'fingerprint-mismatch', message: 'the source changed', location: { kind: 'pointer', pointer: '/source/fingerprint' } },
+      ],
+    });
+    await runTest();
+
+    await expect.element(errors.getByRole('heading', { name: 'Errors (2)' })).toBeVisible();
+    await expect.element(errors.getByRole('listitem').first()).toHaveTextContent('unconnected-input input 2 of concat is not connected · Show t1');
+    await expect.element(errors.getByRole('listitem').nth(1)).toHaveTextContent('fingerprint-mismatch the source changed');
+    await expect.element(errors.getByText('unreachable-box')).not.toBeInTheDocument();
+
+    await errors.getByRole('button', { name: 'Show t1' }).click();
+
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
+  });
+
+  test("shows a field path in an error's message as local names, with the full path in its title", async () => {
+    const missing = `${ORDER}/Missing/@Q{urn:flottila:corpus:skeleton}code`;
+    render({
+      ...output,
+      diagnostics: [
+        { severity: 'error', code: 'orphaned-reference', message: `source field ${missing} is not in the source structure`, location: { kind: 'authoring-id', authoringId: 'a1' } },
+      ],
+    });
+    await runTest();
+
+    await expect.element(errors.getByRole('listitem')).toHaveTextContent('orphaned-reference source field Order/Missing/@code is not in the source structure · Show a1');
+    await expect.element(errors.getByTitle(missing, { exact: true })).toHaveTextContent('Order/Missing/@code');
+  });
+});
 
 describe('the test panel', () => {
   test('shows the target message of a run', async () => {
     render(output);
     await runTest();
 
-    await expect.element(targetMessage).toHaveTextContent('<Order><OrderId>PO 4711</OrderId></Order>');
+    // indented for display: toHaveTextContent folds its line break and indent into one space
+    await expect.element(targetMessage).toHaveTextContent('<Order> <OrderId>PO 4711</OrderId> </Order>');
     await expect.element(testPanel.getByText('stale')).not.toBeInTheDocument();
+  });
+
+  test('shows an XML target message indented, one element per line, in a pane that scrolls on both axes', async () => {
+    const note = 'leave at the door '.repeat(20);
+    render({ ...output, output: `<?xml version="1.0" encoding="UTF-8"?><Order><OrderId>PO 4711</OrderId><Note>${note}</Note></Order>` });
+    await runTest();
+
+    await expect
+      .poll(() => targetMessage.query()?.textContent)
+      .toBe(['<?xml version="1.0" encoding="UTF-8"?>', '<Order>', '  <OrderId>PO 4711</OrderId>', `  <Note>${note}</Note>`, '</Order>'].join('\n'));
+    // a line wider than the pane is not wrapped or clipped: the pane scrolls to it
+    const pane = targetMessage.element() as HTMLElement;
+    expect(getComputedStyle(pane)).toMatchObject({ overflowX: 'auto', overflowY: 'auto' });
+    expect(getComputedStyle(pane.querySelector('pre')!).whiteSpace).toBe('pre');
+    expect(pane.scrollWidth).toBeGreaterThan(pane.clientWidth);
   });
 
   test('shows a runtime error with its QName and message, and its link selects the target field mapping', async () => {
@@ -97,12 +173,15 @@ describe('the test panel', () => {
 
     const error = testPanel.getByRole('heading', { name: /po:MINOCCURS/ });
     await expect.element(error).toBeVisible();
+    // the runtime error counts as one of the run's errors
+    await expect.element(errors.getByRole('heading', { name: 'Errors (1)' })).toBeVisible();
     await expect.element(testPanel.getByText('OrderId occurs 0 times under parent slot 1, at least 1 required')).toBeVisible();
     await expect.element(targetMessage).not.toBeInTheDocument();
 
     await testPanel.getByRole('button', { name: 'Show t1' }).click();
 
-    // the target field is selected: the function editor shows its graph
+    // the target field is selected: the Editor tab opens, and the function editor shows its graph
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
     await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
     // the target field mapping, no box: the inspector shows the target field's display queue
     const queue = page.getByRole('region', { name: 'Display queue of the target field' });
@@ -132,7 +211,7 @@ describe('the test panel', () => {
     await expect.element(page.getByRole('tab', { name: 'Diagnostics (1)' })).toHaveAttribute('aria-selected', 'true');
     await expect.element(page.getByRole('list', { name: 'Working copy diagnostics' })).toMatchTextContent('json-target-unsupported');
     await expect.element(targetMessage).not.toBeInTheDocument();
-    await page.getByRole('tab', { name: 'Test' }).click();
+    await tab('Test').click();
     await expect.element(testPanel).toMatchTextContent('Compile refused the working copy: nothing ran.');
   });
 
@@ -141,7 +220,9 @@ describe('the test panel', () => {
     await runTest();
     await expect.element(targetMessage).toBeVisible();
 
+    await tab('Editor').click();
     await userEvent.dragAndDrop(page.getByTestId(`source-field:${NOTE}`), page.getByTestId(`target-field:${NOTE}`));
+    await tab('Test').click();
 
     await expect.element(testPanel.getByText('stale')).toBeVisible();
     await expect.element(targetMessage).toMatchTextContent('PO 4711');
@@ -153,6 +234,7 @@ describe('the test panel', () => {
 
   test('uploading a file fills the input message', async () => {
     render(output);
+    await tab('Test').click();
 
     await userEvent.upload(page.getByLabelText('Upload input message'), new File([caseInput], 'input.xml', { type: 'application/xml' }));
 

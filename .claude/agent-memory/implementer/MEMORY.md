@@ -173,3 +173,9 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
 - `npm exec --prefix ui -- vitest` skips `ui/vitest*.config.ts`; use `npm --prefix ui run test[:browser] -- <file>` (spec #104).
 - Vitest browser viewport defaults to 414 px; a tree-row-to-box drag needs `page.viewport(1280, 1400)` (spec #104).
 - The ratchet holds `ui/src/model` and `ui/src/editor/store` at 100 %: a constant-only file needs a test importing it (spec #104).
+- A fresh worktree has no `ui/node_modules`: run `npm --prefix ui ci` first (spec #135).
+- `ui/src/file-names.test.ts` forbids `X.css` next to `X.tsx`: name a module's css after the module (F-29, spec #135).
+- Every commit, including a merge, carries the §11 trailers, exactly `Co-authored-by: Claude <noreply@anthropic.com>` (case-sensitive); run `scripts/check-trailers.sh <base>..HEAD` before you push (#141, #142).
+- Parallel e2e runs clash on port 4173 (`--strictPort`): wait and retry; never kill the other run (spec #135).
+- A browser test that measures sizes or styles must import PatternFly's base css, or every token is unset (spec #135).
+- PF react-table `Table` defaults to `role="grid"`; a static table sets `role="table"` (spec #135).

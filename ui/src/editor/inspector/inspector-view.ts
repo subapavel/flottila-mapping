@@ -1,8 +1,6 @@
 import type { FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, Box, FieldPath, MappingModel, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
-import { stepName } from '../../model/field-path';
-
-type CatalogueEntry = FunctionCatalogue[string];
+import { localPath } from '../../model/field-path';
 
 /** The box the inspector shows, with its target field mapping. */
 export interface Inspected {
@@ -21,11 +19,11 @@ export function inspected(model: MappingModel, targetField: FieldPath | null, se
   return { id: selection, box: mapping.boxes[selection]!, mapping };
 }
 
-/** What a box is called: its source field's last step, its function, its UDF or its original name. */
+/** What a box is called: its source field's local path (as on its card), its function, its UDF or its original name. */
 export function boxTitle(box: Box): string {
   switch (box.kind) {
     case 'source':
-      return stepName(box.field);
+      return localPath(box.field);
     case 'function':
       return box.fn;
     case 'udf':
@@ -51,19 +49,6 @@ export function slotChoices(mapping: TargetFieldMapping, target: AuthoringId): {
     .sort()
     .filter((id) => id !== target)
     .map((id) => ({ id, title: boxTitle(mapping.boxes[id]!) }));
-}
-
-/** A mark of a catalogue entry (ADR-0026): an assumed reading, a deviation with its text, an export that needs Flottila. */
-export type Badge = { kind: 'assumed' } | { kind: 'deviation'; text: string } | { kind: 'not-portable' };
-
-/** The fidelity badge, if the function is not exact, then "not portable" if its export is not portable. */
-export function badges(entry: CatalogueEntry): Badge[] {
-  const { fidelity } = entry;
-  const marks: Badge[] = [];
-  if (fidelity.level === 'assumed') marks.push({ kind: 'assumed' });
-  if (fidelity.level === 'deviation') marks.push({ kind: 'deviation', text: fidelity.text });
-  if (!entry.portable) marks.push({ kind: 'not-portable' });
-  return marks;
 }
 
 /** One row of a table parameter's editor. */

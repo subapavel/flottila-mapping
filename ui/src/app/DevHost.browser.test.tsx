@@ -12,7 +12,9 @@ const ORDER_XSD = '../structures/skeleton/order.xsd';
 
 const sourceRow = (path: string) => page.getByTestId(`source-field:${path}`);
 const targetRow = (path: string) => page.getByTestId(`target-field:${path}`);
-const mappingList = () => page.getByRole('list', { name: 'Mappings' });
+const mappingList = () => page.getByRole('table', { name: 'Mappings' });
+/** The list's body rows, one per mapping: every row but the header row, which holds the column headers. */
+const mappingRows = () => mappingList().getByRole('row').filter({ hasNot: page.getByRole('columnheader') });
 const back = () => page.getByRole('button', { name: 'All mappings' });
 const guard = () => page.getByRole('dialog', { name: 'Unsaved changes' });
 
@@ -67,7 +69,9 @@ describe('the mapping list', () => {
   test("lists the workspace's mappings; one opens in the editor, and All mappings goes back to the list", async () => {
     render(fakeApiClient());
 
-    await expect.element(mappingList()).toHaveTextContent('mappings/order-id-copymappings/order-unmappedmappings/tree-20128');
+    await expect.element(mappingList()).toHaveTextContent(
+      'NameMapping idorder-id-copymappings/order-id-copyorder-unmappedmappings/order-unmappedtree-20128mappings/tree-20128',
+    );
     await page.getByRole('button', { name: 'mappings/order-unmapped' }).click();
 
     await expect.element(page.getByRole('heading', { name: 'mappings/order-unmapped' })).toBeVisible();
@@ -78,6 +82,38 @@ describe('the mapping list', () => {
 
     await expect.element(mappingList()).toBeVisible();
     await expect.element(page.getByRole('tree', { name: 'Target structure' })).not.toBeInTheDocument();
+  });
+
+  test('the list is a table with a Name and a Mapping id column and one row per mapping, titled with its name, with its id as a button', async () => {
+    render(fakeApiClient());
+
+    await expect.element(page.getByRole('heading', { name: 'Mappings (3)' })).toBeVisible();
+    const headers = mappingList().getByRole('columnheader');
+    await expect.element(headers).toHaveLength(2);
+    await expect.element(headers.first()).toHaveTextContent('Name');
+    await expect.element(headers.nth(1)).toHaveTextContent('Mapping id');
+    const rows = mappingRows();
+    await expect.element(rows).toHaveLength(3);
+    for (const [id, name] of [
+      ['mappings/order-id-copy', 'order-id-copy'],
+      ['mappings/order-unmapped', 'order-unmapped'],
+      ['mappings/tree-20128', 'tree-20128'],
+    ] as const) {
+      const row = rows.filter({ has: page.getByRole('button', { name: id }) });
+      // the name is the row's header cell, the title the row is read by
+      await expect.element(row.getByRole('rowheader')).toHaveTextContent(name);
+      await expect.element(row).toHaveTextContent(`${name}${id}`);
+    }
+  });
+
+  test('a row whose name equals its id shows the id alone', async () => {
+    const api = { ...fakeApiClient(), listMappings: async () => [{ id: 'same', name: 'same' }, { id: 'a/b', name: 'B' }] };
+    render(api);
+
+    await expect.element(page.getByRole('heading', { name: 'Mappings (2)' })).toBeVisible();
+    const rows = mappingRows();
+    await expect.element(rows.filter({ has: page.getByRole('button', { name: 'same' }) })).toHaveTextContent('same');
+    await expect.element(rows.filter({ has: page.getByRole('button', { name: 'a/b' }) })).toHaveTextContent('Ba/b');
   });
 
   test('a mapping named at start opens directly', async () => {
