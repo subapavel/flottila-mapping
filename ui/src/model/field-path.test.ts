@@ -10,8 +10,8 @@ describe('the local path of a field path', () => {
     expect(localPath('/Q{urn:a}Order/Item/@Q{urn:x}id')).toBe('Order/Item/@id');
   });
 
-  test('drops the ~n occurrence and slot suffixes of a target field mapping path', () => {
-    expect(localPath('/Q{urn:a}Order/Q{urn:a}Item~1/Q{urn:a}Name~12/@id~2')).toBe('Order/Item/Name/@id');
+  test('keeps every character of a step, a literal ~1 of a JSON property included', () => {
+    expect(localPath('/$/order/a~1/b~0')).toBe('$/order/a~1/b~0');
   });
 
   test("a slash inside an EQName's namespace does not split a step (ADR-0007)", () => {

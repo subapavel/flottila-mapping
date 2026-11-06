@@ -107,6 +107,14 @@ describe('the Diagnostics panel', () => {
     await expect.element(link).toHaveAttribute('title', pointer);
   });
 
+  test("a pointer's escaped key is read as a field path: ~1 is a slash, and an attribute keeps its @", async () => {
+    const pointer = '/targetFieldMappings/~1Q{urn:flottila:corpus:gate:po}PurchaseOrder~1Q{urn:flottila:corpus:gate:po}Line~1@no';
+    render([{ severity: 'error', code: 'unmapped-mandatory-leaf', message: 'unmapped', location: { kind: 'pointer', pointer } }]);
+
+    const link = item('unmapped-mandatory-leaf').getByRole('button', { name: 'PurchaseOrder/Line/@no' });
+    await expect.element(link).toHaveAttribute('title', pointer);
+  });
+
   test('a field path shows as its local path, the full path in its title', async () => {
     render([
       { severity: 'error', code: 'orphaned-reference', message: 'gone', location: { kind: 'field-path', side: 'source', fieldPath: NOTE } },

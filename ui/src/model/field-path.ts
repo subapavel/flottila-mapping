@@ -23,12 +23,12 @@ export function stepName(path: string): string {
 }
 
 /**
- * A field path as its steps' local names joined by `/`, for display: each as `stepName` shows it, and the `~n`
- * occurrence and slot suffix of a target field mapping path's step dropped. A path with no step shows itself.
+ * A field path as its steps' local names joined by `/`, for display: each as `stepName` shows it.
+ * A path with no step shows itself.
  */
 export function localPath(path: string): string {
   const steps = fieldPathSteps(path);
-  return steps.length === 0 ? path : steps.map((step) => decodeName(step.replace(/~\d+$/, ''))).join('/');
+  return steps.length === 0 ? path : steps.map(decodeName).join('/');
 }
 
 function decodeName(step: string): string {
