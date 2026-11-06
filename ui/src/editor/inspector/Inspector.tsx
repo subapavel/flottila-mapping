@@ -5,10 +5,11 @@ import { useStore } from 'zustand';
 import type { ApiClient, FunctionCatalogue, StructureLoaded } from '../../api/client';
 import type { CatalogueParam } from '../../generated/function-catalogue';
 import type { AuthoringId, FieldPath, ParamValue, Params, SourceFieldBox, Table, Udfs } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
 import { properAncestors } from '../../model/set-context';
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { BoxQueue, TargetFieldQueue, type LastTrace } from './DisplayQueue';
-import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames, stepName, type Badge, type Inspected, type TableRow } from './inspector';
+import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames, type Badge, type Inspected, type TableRow } from './inspector';
 import { remapChoices } from './remap-choices';
 
 export interface InspectorProps {

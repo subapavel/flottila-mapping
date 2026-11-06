@@ -1,5 +1,6 @@
 import type { FunctionCatalogue } from '../../api/client';
-import type { AuthoringId, Box, BoxReference, FieldPath, MappingModel, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import type { AuthoringId, Box, BoxReference, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
 
 /** The node id of the sink, the target field itself; no authoring id has a `:` (ADR-0010). */
 export const SINK = ':sink';
@@ -33,20 +34,6 @@ export function wires(mapping: TargetFieldMapping | undefined): Wire[] {
   const result = mapping?.result ?? null;
   if (result !== null) all.push({ id: `${result}->${SINK}`, source: result, target: SINK });
   return all;
-}
-
-/** The boxes `result` reaches through the input slots; any other box is an unreachable box (ADR-0013). */
-export function reachable(mapping: TargetFieldMapping | undefined): Set<AuthoringId> {
-  const reached = new Set<AuthoringId>();
-  const pending: BoxReference[] = [mapping?.result ?? null];
-  while (pending.length > 0) {
-    const id = pending.pop()!;
-    // an empty slot, a box met before (a model written by hand may hold a cycle), a reference to no box
-    if (id === null || reached.has(id) || !Object.hasOwn(mapping!.boxes, id)) continue;
-    reached.add(id);
-    pending.push(...inputsOf(mapping!.boxes[id]!));
-  }
-  return reached;
 }
 
 /** What a box node shows: its title, the names of its input slots, and a constant box's value. */
@@ -91,19 +78,4 @@ export function liveMarks(mapping: TargetFieldMapping, catalogue: FunctionCatalo
     if (open.length > 0) unconnectedInputs[id] = open;
   }
   return { resultUnconnected: mapping.result === null, unconnectedInputs };
-}
-
-/** The local name of a field path's last step, `@` before an attribute's. */
-export function stepName(path: FieldPath): string {
-  const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)![0];
-  return last.replace(/^(@?)Q\{[^}]*\}/, '$1');
-}
-
-/** Where an authoring id is: the target field whose mapping has it, and the box when it is a box's id. */
-export function locate(model: MappingModel, id: AuthoringId): { field: FieldPath; box: AuthoringId | null } | undefined {
-  for (const [field, mapping] of Object.entries(model.targetFieldMappings ?? {})) {
-    if (mapping.id === id) return { field, box: null };
-    if (Object.hasOwn(mapping.boxes, id)) return { field, box: id };
-  }
-  return undefined;
 }

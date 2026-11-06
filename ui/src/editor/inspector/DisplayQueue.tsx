@@ -1,8 +1,8 @@
 import { Label } from '@patternfly/react-core';
 import type { TraceEntry } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
 import { displayEntry, type DisplayEntry, type OccurrenceRow, type ShownValue } from './display-queue';
-import { stepName } from './inspector';
 
 /** The last run's trace by authoring id (`undefined` before a run), and whether it is a stale trace. */
 export interface LastTrace {

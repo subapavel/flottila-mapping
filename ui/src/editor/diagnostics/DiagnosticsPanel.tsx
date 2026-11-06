@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { Diagnostic } from '../../api/client';
 import type { FieldPath } from '../../generated/mapping-model';
+import { locate, targetFieldOf } from '../store/locations';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { targetFieldAt, targetFieldOf } from './locations';
 
 export interface DiagnosticsPanelProps {
   store: WorkingCopyStore;
@@ -50,13 +50,14 @@ function Place({
   onSelectField,
 }: Pick<DiagnosticsPanelProps, 'store' | 'onSelectField'> & { location: Diagnostic['location'] }): ReactNode {
   const model = useStore(store, (s) => s.workingCopy);
+  const target = targetFieldOf(location, (id) => locate(model, id)?.field);
   switch (location.kind) {
     case 'authoring-id':
       // it also becomes the store's selection: a box id selects the box on the canvas, a mapping id no box
       return (
         <FieldLink
           side="target"
-          field={targetFieldOf(model, location.authoringId)}
+          field={target}
           text={location.authoringId}
           onSelectField={(side, field) => {
             onSelectField(side, field);
@@ -65,7 +66,7 @@ function Place({
         />
       );
     case 'pointer':
-      return <FieldLink side="target" field={targetFieldAt(location.pointer)} text={location.pointer} onSelectField={onSelectField} />;
+      return <FieldLink side="target" field={target} text={location.pointer} onSelectField={onSelectField} />;
     case 'field-path':
       return <FieldLink side={location.side} field={location.fieldPath} text={location.fieldPath} onSelectField={onSelectField} />;
     case 'file-position':

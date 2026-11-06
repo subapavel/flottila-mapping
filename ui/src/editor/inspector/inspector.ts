@@ -1,5 +1,6 @@
 import type { FunctionCatalogue } from '../../api/client';
 import type { AuthoringId, Box, FieldPath, MappingModel, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { stepName } from '../../model/field-path';
 
 type CatalogueEntry = FunctionCatalogue[string];
 
@@ -18,12 +19,6 @@ export function inspected(model: MappingModel, targetField: FieldPath | null, se
   const mapping = targetField === null ? undefined : model.targetFieldMappings?.[targetField];
   if (mapping === undefined || selection === null || !Object.hasOwn(mapping.boxes, selection)) return undefined;
   return { id: selection, box: mapping.boxes[selection]!, mapping };
-}
-
-/** The local name of a field path's last step, `@` before an attribute's. */
-export function stepName(path: FieldPath): string {
-  const last = /(?:\{[^}]*\}|[^/{])+$/.exec(path)?.[0] ?? path;
-  return last.replace(/^(@?)Q\{[^}]*\}/, '$1');
 }
 
 /** What a box is called: its source field's last step, its function, its UDF or its original name. */

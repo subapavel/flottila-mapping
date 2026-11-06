@@ -1,6 +1,7 @@
 import { produce } from 'immer';
 import type { AuthoringId, FieldPath, MappingModel, SourceFieldBox } from '../generated/mapping-model';
 import { applied, refused, refuseReference, type CommandResult } from './command';
+import { fieldPathSteps } from './field-path';
 
 /** Sets the context of source-field box `box` to the field `context`, from the inspector's context picker. */
 export interface SetContextCommand {
@@ -9,12 +10,9 @@ export interface SetContextCommand {
   context: FieldPath;
 }
 
-/** The steps of a field path: an EQName's braces may hold a `/` (ADR-0007). */
-const STEP = /(?:\{[^}]*\}|[^/{])+/g;
-
 /** The proper ancestors of a field, by its path text as the model check reads it: the parent first, the root last. */
 export function properAncestors(field: FieldPath): FieldPath[] {
-  const steps = field.match(STEP) ?? [];
+  const steps = fieldPathSteps(field);
   return steps.slice(0, -1).map((_, i, above) => `/${above.slice(0, above.length - i).join('/')}`);
 }
 
