@@ -113,6 +113,78 @@ describe('the working-copy store', () => {
   });
 });
 
+describe('editing the function graph', () => {
+  test('inserting a function box into a field without a mapping creates it with the box as result, as one undo step', () => {
+    const s = store({ newId: ids('c1', 't1') });
+
+    s.getState().insertBox(ORDER_ID, 'constant');
+
+    expect(s.getState().workingCopy.targetFieldMappings).toEqual({
+      [ORDER_ID]: { id: 't1', result: 'c1', boxes: { c1: { kind: 'function', fn: 'constant' } } },
+    });
+    expect(s.getState().past).toEqual([baseline]);
+  });
+
+  test('wire, unwire, set result and delete box each run their command as one undo step', () => {
+    const s = store({ newId: ids('c1', 't1', 'f1', 'unused') });
+    s.getState().insertBox(ORDER_ID, 'constant');
+    s.getState().insertBox(ORDER_ID, 'toUpperCase');
+    const mapping = () => s.getState().workingCopy.targetFieldMappings?.[ORDER_ID];
+
+    s.getState().wire(ORDER_ID, 'c1', 'f1', 0);
+    expect(mapping()?.boxes.f1).toEqual({ kind: 'function', fn: 'toUpperCase', inputs: ['c1'] });
+    s.getState().setResult(ORDER_ID, 'f1');
+    expect(mapping()?.result).toBe('f1');
+    s.getState().unwire(ORDER_ID, 'f1', 0);
+    expect(mapping()?.boxes.f1).toEqual({ kind: 'function', fn: 'toUpperCase', inputs: [null] });
+    s.getState().deleteBox('f1');
+    expect(mapping()).toEqual({ id: 't1', result: null, boxes: { c1: { kind: 'function', fn: 'constant' } } });
+
+    expect(s.getState().past).toHaveLength(6);
+  });
+
+  test('a refused wire leaves the working copy as it was and records why; an edit that changes nothing is no undo step', () => {
+    const s = store({ newId: ids('c1', 't1', 'f1', 'unused') });
+    s.getState().insertBox(ORDER_ID, 'constant');
+    s.getState().insertBox(ORDER_ID, 'toUpperCase');
+    s.getState().wire(ORDER_ID, 'c1', 'f1', 0);
+    const wired = s.getState().workingCopy;
+
+    s.getState().wire(ORDER_ID, 'f1', 'f1', 0);
+    expect(s.getState().workingCopy).toBe(wired);
+    expect(s.getState().refusal).toEqual({ code: 'box-cycle', id: 'f1' });
+
+    s.getState().wire(ORDER_ID, 'c1', 'f1', 0);
+    expect(s.getState().workingCopy).toBe(wired);
+    expect(s.getState().past).toHaveLength(3);
+    expect(s.getState().refusal).toBeNull();
+  });
+
+  test('deleting the selected box clears the selection; deleting another box keeps it', () => {
+    const s = store({ newId: ids('c1', 't1', 'f1', 'unused') });
+    s.getState().insertBox(ORDER_ID, 'constant');
+    s.getState().insertBox(ORDER_ID, 'toUpperCase');
+    s.getState().select('c1');
+
+    s.getState().deleteBox('f1');
+    expect(s.getState().selection).toBe('c1');
+
+    s.getState().deleteBox('c1');
+    expect(s.getState().selection).toBeNull();
+    expect(s.getState().workingCopy).toEqual(baseline);
+  });
+
+  test('a refused delete keeps the selection', () => {
+    const s = store();
+    s.getState().select('zz');
+
+    s.getState().deleteBox('zz');
+
+    expect(s.getState().refusal).toEqual({ code: 'unknown-box-reference', id: 'zz' });
+    expect(s.getState().selection).toBe('zz');
+  });
+});
+
 describe('undo and redo', () => {
   test('undo steps back through each edit to the baseline, and redo steps forward again', () => {
     const s = store({ newId: ids('b1', 'm1', 'b2', 'm2') });
