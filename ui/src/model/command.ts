@@ -1,6 +1,9 @@
 import type { AuthoringId, BoxReference, FieldPath, MappingModel, TargetFieldMapping } from '../generated/mapping-model';
 
-/** Why a command was refused, by the model check's codes (ADR-0011, ADR-0013). */
+/**
+ * Why a command was refused, by the model check's codes (ADR-0011, ADR-0013); `not-source-field-box` is the editor's
+ * own, as no model check sees a remap.
+ */
 export interface Refusal {
   code:
     | 'duplicate-authoring-id'
@@ -11,7 +14,8 @@ export interface Refusal {
     | 'context-not-ancestor'
     | 'unknown-parameter'
     | 'wrong-parameter-type'
-    | 'invalid-parameter-value';
+    | 'invalid-parameter-value'
+    | 'not-source-field-box';
   id: AuthoringId;
 }
 
@@ -43,6 +47,8 @@ export function describeRefusal({ code, id }: Refusal): string {
       return `That value has the wrong type for the parameter of box ${id}.`;
     case 'invalid-parameter-value':
       return `That value is not one the parameter of box ${id} takes.`;
+    case 'not-source-field-box':
+      return `Box ${id} reads no source field, so it cannot be remapped.`;
   }
 }
 
