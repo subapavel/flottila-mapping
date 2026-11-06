@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { ApiClient, StructureLoaded } from '../../api/client';
-import type { StructureRef } from '../../generated/mapping-model';
+import type { ApiClient } from '../../api/client';
+import type { FieldPath, StructureRef } from '../../generated/mapping-model';
 import type { WorkingCopyStore } from '../store/working-copy';
+import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type Gutter } from './links';
 import { occurrenceText, reachedSourceFields, stepName, treeRows } from './rows';
 
 type Side = 'source' | 'target';
@@ -14,22 +16,38 @@ export type Expanded = Partial<Record<Side, string[]>>;
 /** The drag data of a source row: its field path. */
 const SOURCE_FIELD = 'application/x-flottila-source-field';
 
+/** Every row has this height, so the virtualiser and the link gutter place rows by index alone. */
+const ROW_HEIGHT = 28;
+const TREE_HEIGHT = 420;
+const GUTTER_WIDTH = 120;
+
 export interface StructureOverviewProps {
   mappingId: string;
   api: ApiClient;
   store: WorkingCopyStore;
   expanded: Expanded;
   onExpandedChange: (expanded: Expanded) => void;
+  /** The selected target field: its links are highlighted and the others dimmed. */
+  selectedField?: FieldPath | null;
 }
 
 /**
- * The top half of the editor (ADR-0012): the source tree and the target tree side by side. Dropping a source row on
- * a target row links the two fields; so does Enter on a source row, then Enter on a target row.
+ * The top half of the editor (ADR-0012): the source tree and the target tree side by side, virtualised, with the
+ * field links drawn in the link gutter between them. Dropping a source row on a target row links the two fields; so
+ * does Enter on a source row, then Enter on a target row.
  */
-export function StructureOverview({ mappingId, api, store, expanded, onExpandedChange }: StructureOverviewProps) {
-  const source = useStore(store, (s) => s.workingCopy.source);
-  const target = useStore(store, (s) => s.workingCopy.target);
+export function StructureOverview({ mappingId, api, store, expanded, onExpandedChange, selectedField = null }: StructureOverviewProps) {
+  const model = useStore(store, (s) => s.workingCopy);
+  const source = useTree(mappingId, api, model.source, expanded.source);
+  const target = useTree(mappingId, api, model.target, expanded.target);
   const [picked, setPicked] = useState<string | null>(null);
+
+  const links = useMemo(() => fieldLinks(model), [model]);
+  const anchored = useMemo(
+    () => (source.anchors && target.anchors ? anchorLinks(links, source.anchors, target.anchors) : []),
+    [links, source.anchors, target.anchors],
+  );
+  const gutter = linkGutter(anchored, source.viewport, target.viewport, ROW_HEIGHT, selectedField);
 
   const toggle = (side: Side, rootPath: string, path: string) => {
     const open = new Set(expanded[side] ?? [rootPath]);
@@ -44,13 +62,10 @@ export function StructureOverview({ mappingId, api, store, expanded, onExpandedC
   };
 
   return (
-    <div style={{ display: 'flex', gap: '2rem' }}>
-      <StructureTree
+    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <TreePane
         side="source"
-        mappingId={mappingId}
-        api={api}
-        structureRef={source}
-        expanded={expanded.source}
+        tree={source}
         onToggle={toggle}
         row={(path) => ({
           draggable: true,
@@ -62,12 +77,10 @@ export function StructureOverview({ mappingId, api, store, expanded, onExpandedC
           onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
         })}
       />
-      <StructureTree
+      <LinkGutter gutter={gutter} />
+      <TreePane
         side="target"
-        mappingId={mappingId}
-        api={api}
-        structureRef={target}
-        expanded={expanded.target}
+        tree={target}
         onToggle={toggle}
         row={(path) => ({
           onDragOver: (e) => {
@@ -93,28 +106,56 @@ function activated(e: KeyboardEvent) {
   return true;
 }
 
-interface StructureTreeProps {
+/** One tree: its structure, its visible rows, where links end among them, and its virtualiser. */
+function useTree(mappingId: string, api: ApiClient, ref: StructureRef, expanded: string[] | undefined) {
+  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
+  const query = useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+  const structure = query.data?.kind === 'loaded' ? query.data : undefined;
+  const rootPath = structure ? `/${structure.root.step}` : '';
+  const rows = useMemo(
+    () => (structure ? treeRows(structure, new Set(expanded ?? [rootPath])) : []),
+    [structure, expanded, rootPath],
+  );
+  const anchors = useMemo(() => (structure ? rowAnchors(structure, rows) : undefined), [structure, rows]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    getItemKey: (index) => rows[index]!.path,
+    overscan: 8,
+  });
+  const viewport = { scrollTop: virtualizer.scrollOffset ?? 0, height: virtualizer.scrollRect?.height ?? 0 };
+  return { query, rootPath, rows, anchors, scrollRef, virtualizer, viewport };
+}
+
+type Tree = ReturnType<typeof useTree>;
+
+interface TreePaneProps {
   side: Side;
-  mappingId: string;
-  api: ApiClient;
-  structureRef: StructureRef;
-  expanded: string[] | undefined;
+  tree: Tree;
   onToggle: (side: Side, rootPath: string, path: string) => void;
-  row: (path: string) => HTMLAttributes<HTMLLIElement>;
+  row: (path: string) => HTMLAttributes<HTMLDivElement>;
   mark?: (path: string) => ReactNode;
 }
 
-function StructureTree({ side, mappingId, api, structureRef, expanded, onToggle, row, mark }: StructureTreeProps) {
-  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: structureRef.bundle, root: structureRef.root };
-  const structure = useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
+  const { query, rootPath, rows, scrollRef, virtualizer } = tree;
   const label = side === 'source' ? 'Source structure' : 'Target structure';
+  const pane = { flex: 1, minWidth: 0, height: TREE_HEIGHT };
 
-  if (structure.isPending) return <p>Loading the {side} structure…</p>;
-  if (structure.isError) return <p role="alert">{structure.error.message}</p>;
-  if (structure.data.kind === 'refused') {
+  if (query.isPending) return <p style={pane}>Loading the {side} structure…</p>;
+  if (query.isError) {
     return (
-      <ul aria-label={`${label} diagnostics`}>
-        {structure.data.diagnostics.map((d, i) => (
+      <p role="alert" style={pane}>
+        {query.error.message}
+      </p>
+    );
+  }
+  if (query.data.kind === 'refused') {
+    return (
+      <ul aria-label={`${label} diagnostics`} style={pane}>
+        {query.data.diagnostics.map((d, i) => (
           <li key={i}>
             {d.severity} <code>{d.code}</code>: {d.message}
           </li>
@@ -122,50 +163,108 @@ function StructureTree({ side, mappingId, api, structureRef, expanded, onToggle,
       </ul>
     );
   }
-  return <Tree side={side} label={label} structure={structure.data} expanded={expanded} onToggle={onToggle} row={row} mark={mark} />;
+  return (
+    <div ref={scrollRef} role="tree" aria-label={label} style={{ ...pane, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div role="presentation" style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const r = rows[item.index]!;
+          return (
+            <div
+              key={item.key}
+              role="treeitem"
+              aria-level={r.depth + 1}
+              aria-expanded={r.expandable ? r.expanded : undefined}
+              aria-label={stepName(r.path)}
+              title={r.path}
+              data-testid={`${side}-field:${r.path}`}
+              tabIndex={0}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: ROW_HEIGHT,
+                transform: `translateY(${item.start}px)`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                whiteSpace: 'nowrap',
+                paddingLeft: `${r.depth * 1.25}rem`,
+              }}
+              {...row(r.path)}
+            >
+              {r.expandable && (
+                <button
+                  type="button"
+                  aria-label={`${r.expanded ? 'Collapse' : 'Expand'} ${side} ${stepName(r.path)}`}
+                  onClick={() => onToggle(side, rootPath, r.path)}
+                >
+                  <span aria-hidden="true">{r.expanded ? '▾' : '▸'}</span>
+                </button>
+              )}
+              <span>{stepName(r.path)}</span>
+              <span>{r.field.valueType}</span>
+              <span>{occurrenceText(r.field)}</span>
+              {mark?.(r.path)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function Tree({
-  side,
-  label,
-  structure,
-  expanded,
-  onToggle,
-  row,
-  mark,
-}: Omit<StructureTreeProps, 'mappingId' | 'api' | 'structureRef'> & { label: string; structure: StructureLoaded }) {
-  const rootPath = `/${structure.root.step}`;
-  const rows = treeRows(structure, new Set(expanded ?? [rootPath]));
+/**
+ * The link gutter (ADR-0012): a line per field link, dashed when it ends at a collapsed row's ancestor, with the fx
+ * count when several source-field boxes stand behind it, and per side the ↑n and ↓n of the ends scrolled away.
+ */
+function LinkGutter({ gutter }: { gutter: Gutter }) {
+  const mid = GUTTER_WIDTH / 2;
+  const count = (side: Side, edge: 'above' | 'below') => {
+    const n = gutter.counts[side][edge];
+    if (n === 0) return null;
+    return (
+      <text
+        data-testid={`link-count:${side}:${edge}`}
+        x={side === 'source' ? 2 : GUTTER_WIDTH - 2}
+        y={edge === 'above' ? 10 : TREE_HEIGHT - 2}
+        textAnchor={side === 'source' ? 'start' : 'end'}
+        fontSize={10}
+      >
+        {edge === 'above' ? '↑' : '↓'}
+        {n}
+      </text>
+    );
+  };
   return (
-    <ul role="tree" aria-label={label} style={{ listStyle: 'none', padding: 0, flex: 1 }}>
-      {rows.map((r) => (
-        <li
-          key={r.path}
-          role="treeitem"
-          aria-level={r.depth + 1}
-          aria-expanded={r.expandable ? r.expanded : undefined}
-          aria-label={stepName(r.path)}
-          data-testid={`${side}-field:${r.path}`}
-          tabIndex={0}
-          style={{ display: 'flex', gap: '0.5rem', paddingLeft: `${r.depth * 1.25}rem` }}
-          {...row(r.path)}
-        >
-          {r.expandable && (
-            <button
-              type="button"
-              aria-label={`${r.expanded ? 'Collapse' : 'Expand'} ${side} ${stepName(r.path)}`}
-              onClick={() => onToggle(side, rootPath, r.path)}
-            >
-              <span aria-hidden="true">{r.expanded ? '▾' : '▸'}</span>
-            </button>
-          )}
-          <span>{stepName(r.path)}</span>
-          <span>{r.field.valueType}</span>
-          <span>{occurrenceText(r.field)}</span>
-          {mark?.(r.path)}
-        </li>
-      ))}
-    </ul>
+    <svg aria-label="Field links" width={GUTTER_WIDTH} height={TREE_HEIGHT} style={{ flex: 'none' }}>
+      {gutter.lines.map((l) => {
+        const key = `${l.source}->${l.target}`;
+        return (
+          <g key={key}>
+            <path
+              data-testid={`field-link:${key}`}
+              data-emphasis={l.emphasis}
+              d={`M0 ${l.y1} C${mid} ${l.y1} ${mid} ${l.y2} ${GUTTER_WIDTH} ${l.y2}`}
+              fill="none"
+              stroke={l.emphasis === 'highlighted' ? 'var(--pf-t--global--border--color--clicked, #0066cc)' : 'currentColor'}
+              strokeWidth={l.emphasis === 'highlighted' ? 2 : 1}
+              strokeOpacity={l.emphasis === 'dimmed' ? 0.25 : 0.8}
+              strokeDasharray={l.dashed ? '4 3' : undefined}
+            />
+            {l.boxes > 1 && (
+              <text data-testid={`link-fx:${key}`} x={mid} y={(l.y1 + l.y2) / 2 - 2} textAnchor="middle" fontSize={10}>
+                fx {l.boxes}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {count('source', 'above')}
+      {count('source', 'below')}
+      {count('target', 'above')}
+      {count('target', 'below')}
+    </svg>
   );
 }
 
