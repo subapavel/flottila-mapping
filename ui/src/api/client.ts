@@ -26,6 +26,9 @@ export type { FunctionCatalogue };
  */
 export type TestRequest = Omit<Schemas['TestRequest'], 'model'> & { model: MappingModel };
 
+/** The answer of a refresh (ADR-0027), with the model typed as `TestRequest`'s is. */
+export type RefreshResponse = Omit<Schemas['RefreshResponse'], 'model'> & { model: MappingModel };
+
 /** A mapping as the service stored it: the canonical model and its strong ETag (ADR-0024). */
 export interface StoredMapping {
   model: MappingModel;
@@ -80,6 +83,11 @@ export interface ApiClient {
   runTest(id: string, request: TestRequest): Promise<TestResult>;
   /** Compiles the working copy (ADR-0015, ADR-0027); `signal` cancels the call. */
   compile(id: string, model: MappingModel, signal?: AbortSignal): Promise<CompileResponse>;
+  /**
+   * Refreshes the working copy's structures (ADR-0010, ADR-0027): each side whose bundle loads gets the fingerprint of
+   * the structure just read, a side whose bundle fails keeps its own and gives its load errors. Writes nothing.
+   */
+  refresh(id: string, model: MappingModel): Promise<RefreshResponse>;
   /** The packed function catalogue, keyed by function id (ADR-0026, ADR-0027). */
   getCatalogue(): Promise<FunctionCatalogue>;
 }

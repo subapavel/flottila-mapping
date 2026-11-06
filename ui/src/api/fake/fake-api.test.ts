@@ -291,6 +291,52 @@ describe('the fake ApiClient over the corpus', () => {
     expect(problem.problem.status).toBe(404);
   });
 
+  describe('refresh', () => {
+    const stale = { ...corpusMapping, source: { ...corpusMapping.source, fingerprint: 'sha256:stale' } };
+    const orphaned: Diagnostic = {
+      severity: 'error',
+      code: 'orphaned-reference',
+      message: 'the structure has no field /Q{urn:flottila:corpus:skeleton}Order/Gone',
+      location: { kind: 'authoring-id', authoringId: 'a1' },
+    };
+
+    test('derives each fingerprint from the structure it loads, and answers the scenario fixture as the diagnostics', async () => {
+      const api = fakeApiClient(undefined, { refresh: { 'mappings/order-id-copy': [orphaned] } });
+
+      const answer = await api.refresh('mappings/order-id-copy', stale);
+
+      expect(answer).toEqual({ model: corpusMapping, diagnostics: [orphaned] });
+    });
+
+    test('answers no diagnostics for a mapping the scenario does not name, and keeps the stored file as it is', async () => {
+      const api = fakeApiClient();
+
+      expect(await api.refresh('mappings/order-id-copy', stale)).toEqual({ model: corpusMapping, diagnostics: [] });
+      expect((await api.getMapping('mappings/order-id-copy')).model).toEqual(corpusMapping);
+    });
+
+    test('a side whose bundle does not load keeps its fingerprint and gives its load errors as the only diagnostics', async () => {
+      const broken = { ...stale, target: { ...stale.target, bundle: ['missing.xsd'] as [string], fingerprint: 'sha256:kept' } };
+      const api = fakeApiClient(undefined, { refresh: { 'mappings/order-id-copy': [orphaned] } });
+
+      const answer = await api.refresh('mappings/order-id-copy', broken);
+
+      expect(answer.model).toEqual({ ...broken, source: corpusMapping.source });
+      expect(answer.diagnostics).toEqual([
+        {
+          severity: 'error',
+          code: 'schema-unreadable',
+          message: 'the fake API has no structure for mappings/missing.xsd',
+          location: { kind: 'file-position', file: 'missing.xsd', line: 1, column: 1 },
+        },
+      ]);
+    });
+
+    test('of a mapping it does not know is a not-found problem', async () => {
+      expect((await problemOf(fakeApiClient().refresh('mappings/missing', corpusMapping))).problem.status).toBe(404);
+    });
+  });
+
   test('a fake seeded with its own mappings opens those instead of the corpus', async () => {
     const api = fakeApiClient({ 'drafts/one': corpusMapping });
 
