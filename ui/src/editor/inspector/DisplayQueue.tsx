@@ -10,8 +10,8 @@ export interface LastTrace {
   stale: boolean;
 }
 
-/** The display queue of a box (GLOSSARY): the queue or value it gave in the last test run. */
-export function BoxQueue({ id, last }: { id: AuthoringId; last: LastTrace }) {
+/** The display queue of a box (GLOSSARY): the queue or value it gave in the last test run; no box (`null`) gave none. */
+export function BoxQueue({ id, last }: { id: AuthoringId | null; last: LastTrace }) {
   return (
     <section aria-label="Display queue" className="fm-queue">
       <h4>Display queue</h4>

@@ -12,12 +12,13 @@ import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { EditorLayout } from './EditorLayout';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
 import { Inspector } from './inspector/Inspector';
+import { openingField } from './inspector/target-field';
 import { ModelJson } from './model-json/ModelJson';
 import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { locate } from './store/locations';
 import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
-import { isStatusFilter, orphanedBoxes, type StatusFilter } from './structure-overview/field-status';
+import { fieldStatuses, isStatusFilter, orphanedBoxes, type StatusFilter } from './structure-overview/field-status';
 import { refusalAt } from './structure-overview/rows';
 import { StructureOverview, useStructure, type Expanded } from './structure-overview/StructureOverview';
 import { TestPanel } from './test-panel/TestPanel';
@@ -159,7 +160,11 @@ function OpenMapping({
   const sourceQuery = useStructure(mappingId, api, model.source);
   const source = sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined;
   const targetQuery = useStructure(mappingId, api, model.target);
+  const target = targetQuery.data?.kind === 'loaded' ? targetQuery.data : undefined;
   const orphaned = useMemo(() => orphanedBoxes(model, source), [model, source]);
+  // the selected target field's status, as its target row shows it, for the inspector's target field view
+  const diagnostics = useStore(store, (s) => s.diagnostics);
+  const statuses = useMemo(() => fieldStatuses(model, diagnostics, source), [model, diagnostics, source]);
   const mappingCount = Object.keys(model.targetFieldMappings ?? {}).length;
   const summary = `${rootName(sourceQuery.data)} → ${rootName(targetQuery.data)} · ${counted(mappingCount, 'target field mapping')}`;
   // A remap to a refused source field is refused as a link to it is (ADR-0027); only an orphaned box is remapped, and
@@ -191,6 +196,21 @@ function OpenMapping({
     setTab(next);
     browserState.write(tabKey, next);
   };
+
+  // Opening selection (spec #145): the selected target field is kept per mapping; once the target structure has loaded,
+  // a mapping the host opens on no field selects the kept one, or the first mapped one in tree order (`openingField`).
+  const fieldKey = `mapping:${mappingId}:target-field`;
+  useEffect(() => {
+    // the host's null before the opening selection must not drop the kept field
+    if (selectedField !== null) browserState.write(fieldKey, selectedField);
+  }, [browserState, fieldKey, selectedField]);
+  const opening = useRef(true);
+  useEffect(() => {
+    if (!opening.current || target === undefined) return;
+    opening.current = false;
+    const field = selectedField === null ? openingField(target, store.getState().workingCopy, browserState.read(fieldKey)) : undefined;
+    if (field !== undefined) onSelectField?.(field);
+  }, [target, selectedField, store, browserState, fieldKey, onSelectField]);
 
   // The working copy is compiled on open, then after every change of it (ADR-0013).
   useEffect(() => {
@@ -339,7 +359,18 @@ function OpenMapping({
           functionEditor={
             <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} orphaned={orphaned} onRemap={remap} />
           }
-          inspector={<Inspector api={api} store={store} targetField={selectedField} orphaned={orphaned} source={source} onRemap={remap} />}
+          inspector={
+            <Inspector
+              api={api}
+              store={store}
+              targetField={selectedField}
+              orphaned={orphaned}
+              source={source}
+              target={target}
+              targetStatus={selectedField === null ? undefined : statuses.get(selectedField)}
+              onRemap={remap}
+            />
+          }
         />
       </TabContent>
       <TabContent {...panel('test')} className="fm-editor__panel fm-editor__panel--scroll">

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
-import type { MappingModel } from '../../generated/mapping-model';
+import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { localPath } from '../../model/field-path';
-import { boxTitle, duplicateKey, inspected, slotChoices, slotNames } from './inspector-view';
+import { boxTitle, chainText, duplicateKey, inspected, slotChoices, slotNames } from './inspector-view';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -79,6 +79,36 @@ describe("a box's title", () => {
     expect(boxTitle({ kind: 'source', field: '/Q{urn:x}Order/@Q{urn:y}code' })).toBe('Order/@code');
     expect(boxTitle({ kind: 'source', field })).toBe('$/order/a/b%@{}');
     expect(boxTitle({ kind: 'source', field })).toBe(localPath(field));
+  });
+});
+
+describe("a target field mapping's expression (spec #145)", () => {
+  const of = (boxes: Record<string, unknown>, result: string | null = 'r') => chainText({ id: 't', result, boxes } as unknown as TargetFieldMapping);
+
+  test("is the result box's function chain: a source field by its path in local names, a constant by its value, params sorted", () => {
+    expect(chainText(mapping)).toBe('concat(/Order/OrderId)');
+    expect(
+      of({
+        r: { kind: 'function', fn: 'fixValues', inputs: ['s', 'c'], params: { table: { A: 'B', C: 'D' }, missing: 'error' } },
+        s: { kind: 'source', field: `${ORDER}/@Q{urn:y}code`, context: ORDER },
+        c: { kind: 'function', fn: 'constant', params: { value: 'EUR' } },
+      }),
+    ).toBe('fixValues(/Order/@code @ctx Order, "EUR", missing="error", table={2 rows})');
+  });
+
+  test('names a UDF and an unresolved function, writes ∅ for no result, an unconnected or unknown input, and "" for a constant without value', () => {
+    expect(of({ r: { kind: 'udf', udf: 'shout', inputs: [null, 'gone', 'u'] }, u: { kind: 'unresolved', name: 'FormatByExample', origin: 'po' } })).toBe(
+      'shout(∅, ∅, FormatByExample?())',
+    );
+    expect(of({ r: { kind: 'function', fn: 'constant' } })).toBe('""');
+    expect(of({}, null)).toBe('∅');
+    expect(of({}, 'r')).toBe('∅');
+  });
+
+  test('writes a box met a second time as ↺ and its name, so a fan-out or a cycle ends', () => {
+    expect(of({ r: { kind: 'function', fn: 'concat', inputs: ['u', 'u'] }, u: { kind: 'function', fn: 'trim', inputs: ['r'] } })).toBe(
+      'concat(trim(↺concat), ↺trim)',
+    );
   });
 });
 
