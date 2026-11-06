@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { components } from '../../generated/api';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
-import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type AnchoredLink, type FieldLink } from './links';
+import { anchorLinks, fieldLinks, fxMarks, linkGutter, markedRows, rowAnchors, type AnchoredLink, type FieldLink, type MarkedRow } from './links';
 import { searchRows, treeRows } from './rows';
 
 type FieldDto = components['schemas']['FieldDto'];
@@ -237,5 +237,27 @@ describe('the link gutter (ADR-0012)', () => {
     const gutter = linkGutter([link(1, 1, { contextChanged: true }), link(2, 2)], view(0), view(0), ROW, null);
 
     expect(gutter.lines.map((l) => l.contextChanged)).toEqual([true, undefined]);
+  });
+});
+
+describe('the fx marks (spec #145, "Gutter")', () => {
+  test('stand at the own row of each target field mapping’s field, none at a collapsed row’s ancestor or a missing field', () => {
+    const at = rowAnchors(structure, treeRows(structure, new Set([ORDER]), 'target'));
+
+    expect(markedRows([ORDER_ID, `${ITEM}/Sku`, `${ORDER}/Gone`, CHANNEL], at)).toEqual<MarkedRow[]>([
+      { target: ORDER_ID, index: 2 },
+      { target: CHANNEL, index: 1 },
+    ]);
+  });
+
+  test('are drawn at their rows’ centres while those are on screen, an edge row included', () => {
+    const rows: MarkedRow[] = [0, 1, 2, 6, 7].map((index) => ({ target: `t${index}`, index }));
+
+    // rows 1 to 6 have their centres in 0..100 px
+    expect(fxMarks(rows, { scrollTop: 30, height: 100 }, 20)).toEqual([
+      { target: 't1', y: 0 },
+      { target: 't2', y: 20 },
+      { target: 't6', y: 100 },
+    ]);
   });
 });

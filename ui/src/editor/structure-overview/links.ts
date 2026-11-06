@@ -141,6 +141,31 @@ export function linkGutter(
   return { lines, counts };
 }
 
+/** A target field mapping's own row: the row its fx mark stands at. */
+export interface MarkedRow {
+  target: FieldPath;
+  index: number;
+}
+
+/**
+ * The rows of the target fields that have a target field mapping, in the order of `targets`: a field whose own row is
+ * not shown, as for a collapsed row's descendant or a field the structure lacks, has no fx mark (LinkedTrees.tsx).
+ */
+export function markedRows(targets: readonly FieldPath[], anchor: (path: FieldPath) => Anchor | undefined): MarkedRow[] {
+  return targets.flatMap((target) => {
+    const at = anchor(target);
+    return at === undefined || at.dashed ? [] : [{ target, index: at.index }];
+  });
+}
+
+/** The fx marks on screen for the target tree's scroll state: each marked row's field and its centre, in px. */
+export function fxMarks(rows: readonly MarkedRow[], view: Viewport, rowHeight: number): { target: FieldPath; y: number }[] {
+  return rows.flatMap(({ target, index }) => {
+    const { y, edge } = place(index, view, rowHeight);
+    return edge ? [] : [{ target, y }];
+  });
+}
+
 /** A row's centre in the viewport, or the edge it is scrolled past. */
 function place(index: number, view: Viewport, rowHeight: number): { y: number; edge?: Edge } {
   const y = index * rowHeight + rowHeight / 2 - view.scrollTop;

@@ -211,15 +211,21 @@ button.fm-tree__twisty {
   color: #c9190b;
 }
 
-/* the link gutter, after the prototype's .lt__gutter, .lk, .fx and .lt__count */
+/* a source field the mapping reads: .mk.mk--used */
+.fm-used {
+  font-size: 12px;
+  color: var(--pf-t--global--color--brand--default);
+}
+
+/* the link gutter, after the prototype's .lt__gutter, .lk*, .fx* and .lt__count* (prototype-round2.css) */
 .fm-gutter {
   grid-column: 3;
   grid-row: 2;
   position: relative;
   min-height: 0;
   overflow: hidden;
-  background-color: var(--pf-t--global--background--color--secondary--default);
-  border-inline: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--subtle);
+  background-color: #fbfbfb;
+  border-inline: 1px solid #eee;
 }
 
 .fm-gutter svg {
@@ -234,53 +240,61 @@ button.fm-tree__twisty {
   opacity: 0.8;
 }
 
-.fm-gutter__link[data-emphasis='dimmed'] {
+/* the links of a target field other than the selected one */
+.fm-gutter__link--dim {
   opacity: 0.18;
 }
 
-.fm-gutter__link[data-emphasis='highlighted'] {
+/* the selected target field's links */
+.fm-gutter__link--sel {
   stroke-width: 2.6;
   opacity: 1;
 }
 
+/* an fx mark: blue for mapped, red for unmapped mandatory and error, orange for orphaned */
 .fm-gutter__fx rect {
-  fill: var(--pf-t--global--background--color--primary--default);
+  fill: #e7f1fa;
   stroke: var(--pf-t--global--color--brand--default);
 }
 
 .fm-gutter__fx text,
 .fm-gutter__label {
-  font-family: var(--pf-t--global--font--family--mono);
-  font-size: calc(var(--pf-t--global--font--size--xs) * 0.75);
-  font-weight: var(--pf-t--global--font--weight--body--bold);
-  fill: var(--pf-t--global--color--brand--clicked);
+  font: 700 9px monospace;
+  fill: #004080;
 }
 
 .fm-gutter__fx text {
   text-anchor: middle;
 }
 
-.fm-gutter__fx[data-emphasis='highlighted'] rect {
+.fm-gutter__fx--error rect,
+.fm-gutter__fx--unmapped-mandatory rect {
+  stroke: #c9190b;
+  fill: #faeae8;
+}
+
+.fm-gutter__fx--orphaned rect {
+  stroke: #ec7a08;
+  fill: #fff6ec;
+}
+
+/* the selected field's mark is filled whatever its status; it follows the status rules, so its fill wins (.fx.is-sel) */
+.fm-gutter__fx--selected rect {
   fill: var(--pf-t--global--color--brand--default);
 }
 
-.fm-gutter__fx[data-emphasis='highlighted'] text {
+.fm-gutter__fx--selected text {
   fill: var(--pf-t--global--text--color--inverse);
-}
-
-.fm-gutter__fx[data-emphasis='dimmed'] {
-  opacity: 0.4;
 }
 
 /* ↑n and ↓n: the links whose end on that side is scrolled away */
 .fm-gutter__count {
   position: absolute;
-  padding: 0 var(--pf-t--global--spacer--xs);
-  border-radius: var(--pf-t--global--border--radius--pill);
-  background-color: var(--pf-t--global--background--color--inverse--default);
+  padding: 0 5px;
+  border-radius: 8px;
+  background-color: #151515;
   color: var(--pf-t--global--text--color--inverse);
-  font-size: calc(var(--pf-t--global--font--size--xs) * 0.85);
-  line-height: 1.4;
+  font-size: 10px;
 }
 
 .fm-gutter__count--source {

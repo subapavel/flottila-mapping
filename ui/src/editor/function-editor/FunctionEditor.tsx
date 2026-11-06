@@ -15,14 +15,14 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { ApiClient, FunctionCatalogue } from '../../api/client';
+import type { ApiClient, FunctionCatalogue, TraceEntry } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
 import { localPath } from '../../model/field-path';
 import { reachedBoxes } from '../../model/reached';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
-import type { WorkingCopyStore } from '../store/working-copy';
+import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { boxIds, boxView, cardHeights, cardView, liveMarks, SINK, wires, type BoxView, type CardView } from './graph';
 import { arrange, BOX, place, type Positions } from './layout';
 import { FUNCTION_DRAG } from './palette';
@@ -53,6 +53,17 @@ export interface FunctionEditorProps {
   orphaned: ReadonlySet<AuthoringId>;
   /** Remaps an orphaned source-field box of a target field mapping to a dropped source field. */
   onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
+  /**
+   * The display queue of a box from the last run, for the strip under the canvas, its region named `label`: the editor
+   * injects the inspector's view, as editor subfolders do not import each other (ADR-0013).
+   */
+  boxQueue: (id: AuthoringId, last: LastRun, label: string) => ReactNode;
+}
+
+/** The last run's trace by authoring id (`undefined` before a run), and whether it is a stale trace. */
+export interface LastRun {
+  trace: Record<AuthoringId, TraceEntry> | undefined;
+  stale: boolean;
 }
 
 /**
@@ -60,14 +71,15 @@ export interface FunctionEditorProps {
  * mapping, its boxes and wires and a sink for the target field. Dropping a palette entry inserts a box, also into a
  * target field without a mapping. A box that `result` cannot reach (an unreachable box) has a dashed border, a muted
  * head with a "not reached" mark, and a title saying so (F-31). An orphaned source-field box is marked,
- * and a source row dropped on it remaps it. Positions and zoom are browser state only; moving a box never touches the
- * working copy.
+ * and a source row dropped on it remaps it, and a box an error diagnostic points at has a red border. Positions and zoom
+ * are browser state only; moving a box never touches the working copy. Under the palette and the canvas, a strip shows
+ * the selected box's display queue, or the result's when no box is selected (the prototype's f-default).
  *
  * The canvas takes the focus and its keys: `/` or a typed character opens quick insert, Delete deletes the selected
  * boxes as one undo step, Ctrl+C copies the selected boxes and Ctrl+V pastes them. A key typed into a field inside the canvas, quick
  * insert's own, is the field's.
  */
-export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap }: FunctionEditorProps) {
+export function FunctionEditor({ api, store, targetField, canvasState, orphaned, onRemap, boxQueue }: FunctionEditorProps) {
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const mapping = useStore(store, (s) => (targetField === null ? undefined : s.workingCopy.targetFieldMappings?.[targetField]));
   const udfs = useStore(store, (s) => s.workingCopy.udfs);
@@ -76,6 +88,11 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   // the store's selection may be a box of another target field mapping: it is not on this canvas
   const selectedBox = mapping !== undefined && selection !== null && Object.hasOwn(mapping.boxes, selection) ? selection : null;
   const selectedBoxes = mapping === undefined ? [] : selected.filter((id) => Object.hasOwn(mapping.boxes, id));
+  const trace = useStore(store, selectTrace);
+  const stale = useStore(store, selectTraceStale);
+  const diagnostics = useStore(store, (s) => s.diagnostics);
+  // the boxes an error diagnostic points at by their authoring id; a warning leaves a box as it is
+  const errorBoxes = new Set(diagnostics.flatMap((d) => (d.severity === 'error' && d.location.kind === 'authoring-id' ? [d.location.authoringId] : [])));
   const canvas = useRef<HTMLDivElement>(null);
   /** The search quick insert opened with; `null` while it is closed. */
   const [quickInsert, setQuickInsert] = useState<string | null>(null);
@@ -100,8 +117,8 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
   };
 
   return (
-    // the canvas fills the height the editor gives it and shrinks with its pane, down to 16rem; below that the pane
-    // scrolls (ADR-0012, "splitter"; spec #135)
+    // the canvas fills the height the editor gives it and shrinks with its pane, down to 10rem; below that the pane
+    // scrolls (ADR-0012, "splitter"; spec #135, #150)
     <section aria-label="Function editor" className="fm-function-editor">
       {targetField === null ? (
         <p>Select a target field to see its function graph.</p>
@@ -110,60 +127,88 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
       ) : catalogue.isError ? (
         <p role="alert">{catalogue.error.message}</p>
       ) : (
-        // the canvas goes below the palette when the two do not fit side by side
-        <div className="fm-function-editor__work">
-          <PaletteView catalogue={catalogue.data} onInsert={(fn) => store.getState().insertBox(targetField, fn)} />
-          <div
-            ref={canvas}
-            data-testid={`canvas:${targetField}`}
-            role="group"
-            aria-label={`Canvas of ${localPath(targetField)}`}
-            tabIndex={0}
-            onKeyDown={(event) => onKeyDown(event, targetField)}
-            className="fm-function-editor__canvas"
-            // only a palette entry drops here
-            onDragOver={(event) => {
-              if (event.dataTransfer.types.includes(FUNCTION_DRAG)) event.preventDefault();
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              store.getState().insertBox(targetField, event.dataTransfer.getData(FUNCTION_DRAG));
-            }}
-          >
-            {quickInsert !== null && (
-              <QuickInsert
-                catalogue={catalogue.data}
-                initial={quickInsert}
-                onInsert={(fn) => {
-                  store.getState().insertBox(targetField, fn);
-                  closeQuickInsert(true);
-                }}
-                onCancel={() => closeQuickInsert(true)}
-                onLeave={() => closeQuickInsert(false)}
-              />
-            )}
-            {mapping === undefined ? (
-              <>
-                <p>{localPath(targetField)} has no function graph yet.</p>
-                <p>Drag a function here from the palette, or press / to insert one.</p>
-              </>
-            ) : (
-              <Canvas
-                key={mapping.id}
-                store={store}
-                mapping={mapping}
-                targetField={targetField}
-                catalogue={catalogue.data}
-                udfs={udfs}
-                canvasState={canvasState}
-                orphaned={orphaned}
-                onRemap={onRemap}
-                selectedBox={selectedBox}
-                chosen={selectedBoxes}
-              />
-            )}
+        <>
+          {/* the canvas goes below the palette when the two do not fit side by side */}
+          <div className="fm-function-editor__work">
+            <PaletteView catalogue={catalogue.data} onInsert={(fn) => store.getState().insertBox(targetField, fn)} />
+            <div
+              ref={canvas}
+              data-testid={`canvas:${targetField}`}
+              role="group"
+              aria-label={`Canvas of ${localPath(targetField)}`}
+              tabIndex={0}
+              onKeyDown={(event) => onKeyDown(event, targetField)}
+              className="fm-function-editor__canvas"
+              // only a palette entry drops here
+              onDragOver={(event) => {
+                if (event.dataTransfer.types.includes(FUNCTION_DRAG)) event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                store.getState().insertBox(targetField, event.dataTransfer.getData(FUNCTION_DRAG));
+              }}
+            >
+              {quickInsert !== null && (
+                <QuickInsert
+                  catalogue={catalogue.data}
+                  initial={quickInsert}
+                  onInsert={(fn) => {
+                    store.getState().insertBox(targetField, fn);
+                    closeQuickInsert(true);
+                  }}
+                  onCancel={() => closeQuickInsert(true)}
+                  onLeave={() => closeQuickInsert(false)}
+                />
+              )}
+              {mapping === undefined ? (
+                <>
+                  <p>{localPath(targetField)} has no function graph yet.</p>
+                  <p>Drag a function here from the palette, or press / to insert one.</p>
+                </>
+              ) : (
+                <Canvas
+                  key={mapping.id}
+                  store={store}
+                  mapping={mapping}
+                  targetField={targetField}
+                  catalogue={catalogue.data}
+                  udfs={udfs}
+                  canvasState={canvasState}
+                  orphaned={orphaned}
+                  onRemap={onRemap}
+                  selectedBox={selectedBox}
+                  chosen={selectedBoxes}
+                  errors={errorBoxes}
+                />
+              )}
+            </div>
           </div>
-        </div>
+          {mapping !== undefined && (
+            <QueueStrip subject={selectedBox ?? mapping.result} selected={selectedBox !== null} queue={(id, label) => boxQueue(id, { trace, stale }, label)} />
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The display-queue strip under the canvas, after the prototype's .gc__queue: the selected box's display queue, else
+ * the result's (what the target field reads), else a line saying there is neither.
+ */
+function QueueStrip({ subject, selected, queue }: { subject: AuthoringId | null; selected: boolean; queue: (id: AuthoringId, label: string) => ReactNode }) {
+  return (
+    <section aria-label="Canvas display queue" className="fm-function-editor__queue">
+      {subject === null ? (
+        <p className="fm-function-editor__queue-subject">No box selected, and no result.</p>
+      ) : (
+        <>
+          <p className="fm-function-editor__queue-subject">
+            {selected ? 'selected box' : 'result (what the target field reads)'} <code>{subject}</code>
+          </p>
+          {/* named apart from the inspector's "Display queue" region */}
+          {queue(subject, selected ? 'Display queue of the selected box' : 'Display queue of the result')}
+        </>
       )}
     </section>
   );
@@ -175,6 +220,8 @@ type BoxNode = Node<
     view: BoxView;
     card: CardView;
     reachable: boolean;
+    /** An error diagnostic points at the box. */
+    error: boolean;
     unconnected: number[];
     /** The card's edits: the same store commands as the inspector's, so a change is one undo step. */
     edit: { param: (name: string, value: string) => void; context: (context: FieldPath) => void };
@@ -189,7 +236,7 @@ const nodeTypes = { box: BoxNodeView, sink: SinkNodeView };
 /** The input slot of an input handle id, `in-<slot>`. */
 const slotOf = (handle: string) => Number(handle.slice('in-'.length));
 
-interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
+interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField' | 'boxQueue'> {
   mapping: TargetFieldMapping;
   targetField: FieldPath;
   catalogue: FunctionCatalogue;
@@ -198,9 +245,11 @@ interface CanvasProps extends Omit<FunctionEditorProps, 'api' | 'targetField'> {
   selectedBox: AuthoringId | null;
   /** The selected boxes of this canvas, in the order selected. */
   chosen: readonly AuthoringId[];
+  /** The boxes an error diagnostic points at. */
+  errors: ReadonlySet<AuthoringId>;
 }
 
-function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox, chosen }: CanvasProps) {
+function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orphaned, onRemap, selectedBox, chosen, errors }: CanvasProps) {
   const [opened] = useState(() => canvasState.read(mapping.id));
   // each card's height from its content, so that no layout puts two cards over each other
   const heights = cardHeights(mapping, catalogue, udfs, orphaned);
@@ -227,6 +276,7 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
           view: boxView(mapping.boxes[id]!, catalogue, udfs),
           card: cardView(mapping.boxes[id]!, catalogue),
           reachable: reached.has(id),
+          error: errors.has(id),
           edit: {
             param: (name, value) => store.getState().setParam(targetField, id, name, value, catalogue),
             context: (context) => store.getState().setContext(targetField, id, context),
@@ -292,14 +342,15 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
         <code className="fm-toolbar__id">{mapping.id}</code>
         <span className="fm-toolbar__hint">type or press / on the canvas to insert a function</span>
         <span className="fm-toolbar__spacer" />
-        <Button variant="secondary" isDisabled={chosen.length === 0} onClick={() => store.getState().copy(targetField)}>
+        <Button size="sm" variant="plain" isDisabled={chosen.length === 0} onClick={() => store.getState().copy(targetField)}>
           Copy ({chosen.length})
         </Button>
-        <Button variant="secondary" isDisabled={!canPaste} onClick={() => store.getState().paste(targetField)}>
+        <Button size="sm" variant="plain" isDisabled={!canPaste} onClick={() => store.getState().paste(targetField)}>
           Paste
         </Button>
         <Button
-          variant="secondary"
+          size="sm"
+          variant="link"
           onClick={() => {
             setPositions(arrange(mapping, heights));
             canvasState.write(mapping.id, { viewport: canvasState.read(mapping.id)?.viewport });
@@ -367,7 +418,8 @@ function BoxNodeView({ id, data, selected }: NodeProps<BoxNode>) {
       // the width is the layout's; an unreachable box has a dashed border and a muted head, not a faded card (F-31)
       style={{ width: BOX.width }}
       title={data.reachable ? undefined : 'Not reached by the result'}
-      className={`fm-card fm-card--${data.card.kind}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreachable'}`}
+      // the head is tinted by kind; a constant (the one card with a value) has a tint of its own
+      className={`fm-card fm-card--${data.card.kind}${data.view.value === undefined ? '' : ' fm-card--constant'}${selected ? ' fm-card--selected' : ''}${remap ? ' fm-card--orphaned' : ''}${data.reachable ? '' : ' fm-card--unreachable'}${data.error ? ' fm-card--error' : ''}`}
     >
       <div className="fm-card__head">
         <div className="fm-card__name">
