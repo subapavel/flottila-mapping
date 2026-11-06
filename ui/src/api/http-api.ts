@@ -2,6 +2,8 @@ import type { MappingModel } from '../generated/mapping-model';
 import {
   ApiProblem,
   type ApiClient,
+  type CreateMappingRequest,
+  type MappingSummary,
   type Problem,
   type StoredMapping,
   type StructureRequest,
@@ -30,6 +32,8 @@ export function httpApiClient(baseUrl = '', fetchPort: typeof fetch = (input, in
   }
 
   return {
+    listMappings: () => call<MappingSummary[]>(`${baseUrl}/api/mappings`, 'GET'),
+    createMapping: async (request: CreateMappingRequest) => storedOf(await send(`${baseUrl}/api/mappings`, 'POST', request)),
     getMapping: async (id) => storedOf(await send(mapping(id), 'GET')),
     saveMapping: async (id, model, etag) => storedOf(await send(mapping(id), 'PUT', model, { 'if-match': etag })),
     loadStructure: (request: StructureRequest) => call<StructureResponse>(`${baseUrl}/api/structures`, 'POST', request),
