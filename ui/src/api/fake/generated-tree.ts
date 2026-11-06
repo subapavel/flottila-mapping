@@ -83,7 +83,10 @@ function field(
   };
 }
 
-/** Every field path of a structure whose types are each used once, in tree order: structure fields and leaves. */
+/**
+ * Every field path of a generated structure, in tree order: structure fields and leaves. Each of its types is used
+ * once and has an entry, as `generatedStructure` writes them.
+ */
 export function structurePaths(structure: StructureLoaded): { expandable: string[]; leaves: string[] } {
   const expandable: string[] = [];
   const leaves: string[] = [];
@@ -93,7 +96,7 @@ export function structurePaths(structure: StructureLoaded): { expandable: string
       return;
     }
     expandable.push(path);
-    for (const child of structure.types[f.type] ?? []) visit(child, `${path}/${child.step}`);
+    for (const child of structure.types[f.type]!) visit(child, `${path}/${child.step}`);
   };
   visit(structure.root, `/${structure.root.step}`);
   return { expandable, leaves };
