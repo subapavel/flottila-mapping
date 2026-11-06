@@ -237,6 +237,22 @@ describe('undo, redo and the unsaved flag', () => {
     expect(onUnsavedChange.mock.calls).toEqual([[true], [false], [true]]);
   });
 
+  test('a host that passes a new onUnsavedChange is told through the new one only', async () => {
+    const api = fakeApiClient();
+    const browserState = memoryBrowserState();
+    const first = vi.fn();
+    const second = vi.fn();
+    render('mappings/order-unmapped', api, browserState, first);
+    await expect.element(targetRow(ORDER_ID)).toBeVisible();
+
+    root!.render(<MappingEditor mappingId="mappings/order-unmapped" api={api} browserState={browserState} onUnsavedChange={second} />);
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(ORDER_ID));
+
+    await expect.element(linked(ORDER_ID)).toBeVisible();
+    expect(second.mock.calls).toEqual([[true]]);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   test('Ctrl+Z undoes and Ctrl+Shift+Z redoes; z alone, Ctrl+Y and Ctrl+Z in a text field do neither', async () => {
     render('mappings/order-unmapped', fakeApiClient());
     await userEvent.click(sourceRow(ORDER_ID));
@@ -252,7 +268,8 @@ describe('undo, redo and the unsaved flag', () => {
     await userEvent.keyboard('{Control>}z{/Control}');
     await expect.element(linked(ORDER_ID)).not.toBeInTheDocument();
 
-    await userEvent.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
+    // with Shift held a keyboard reports the key as a capital Z
+    await userEvent.keyboard('{Control>}{Shift>}Z{/Shift}{/Control}');
     await expect.element(linked(ORDER_ID)).toBeVisible();
 
     await userEvent.click(page.getByRole('textbox', { name: 'Input message' }));
