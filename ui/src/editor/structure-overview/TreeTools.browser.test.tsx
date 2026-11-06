@@ -102,6 +102,9 @@ describe('the tree search (spec #135, stories 14 and 15)', () => {
 
     await expect.poll(shown('Source')).toEqual([PO, HEADER, HEADER_CURRENCY, ITEM, PRICE, PRICE_CURRENCY]);
     expect(shown('Target')()).toEqual([PO, `${PO}/@version`, HEADER, ITEM]);
+    // the search decides what is open, so its rows offer no toggle; the other tree's rows still do
+    await expect.element(tree('Source').getByRole('button')).not.toBeInTheDocument();
+    await expect.element(page.getByRole('button', { name: 'Expand target Header' })).toBeVisible();
 
     await userEvent.fill(search('Source'), 'version');
     await expect.poll(shown('Source')).toEqual([PO, `${PO}/@version`]);
@@ -143,8 +146,25 @@ describe('the tree search (spec #135, stories 14 and 15)', () => {
     render();
     await userEvent.fill(search('Target'), 'name');
     await expect.poll(shown('Target')).toEqual([PO, HEADER, `${HEADER}/BuyerParty`, `${HEADER}/BuyerParty/Name`]);
+    await expect.element(tree('Target').getByRole('button')).not.toBeInTheDocument();
 
     await expect.element(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  });
+});
+
+describe('a collapsed tree (ADR-0012, "splitter")', () => {
+  test('leaves the whole width of the trees to the other tree', async () => {
+    render();
+    const sides = page.getByRole('separator', { name: 'Resize the source and the target structure' });
+    await expect.element(tree('Target')).toBeVisible();
+    const trees = (sides.element() as HTMLElement).parentElement!;
+
+    (sides.element() as HTMLElement).focus();
+    await userEvent.keyboard('{Home}');
+
+    // hidden, the source tree leaves the accessibility tree
+    await expect.element(tree('Source')).not.toBeInTheDocument();
+    await expect.poll(() => (tree('Target').element() as HTMLElement).offsetWidth).toBeGreaterThan(0.9 * trees.clientWidth);
   });
 });
 
@@ -187,6 +207,10 @@ describe('the counts (spec #135, story 17)', () => {
     await userEvent.fill(search('Target'), 'zzz');
 
     await expect.element(tree('Target')).toHaveAccessibleDescription('Target structure: 15 fields, 0 visible rows');
+
+    await userEvent.fill(search('Target'), '  purchase ');
+
+    await expect.element(tree('Target')).toHaveAccessibleDescription('Target structure: 15 fields, 1 visible row');
   });
 });
 
