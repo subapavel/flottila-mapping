@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
-import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames } from './inspector';
+import { badges, boxTitle, duplicateKey, inspected, slotChoices, slotNames } from './inspector-view';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
