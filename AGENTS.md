@@ -93,9 +93,10 @@ guard and the owner's no-approval-prompt rule from stopping a run.
 - Run one plain command per shell call: no `&&` or `;` chains, no heredocs, no chmod chains. Use
   `git -C <dir> <subcommand>` for git, with one git call per shell call. The one exception is a
   gate the architect names, run as a single `bash -c`.
-- Use Read, Grep and Glob to look at files and Write or Edit to change them. Write a commit message
-  to a scratch file with Write, then `git commit -F <file>`.
-- Script in shell or the build tool; the worktree guard refuses `python3 - <<EOF`.
+- Read files only with Read, Grep and Glob (not `cat`, `head`, `tail`, `sed -n` or `less`); read a
+  log's tail with Read and an offset. Change files with Write or Edit. Write a commit message to a
+  scratch file with Write, then `git commit -F <file>`.
+- Script in bash files run as `bash <script>`, or in the build tool; python is out, in any form.
 - Run long checks (mutant sweeps, gates, `gh pr checks --watch`) in the foreground and hand back
   after they finish. A hand-back that says "waiting for" a running check is not a hand-back.
 
