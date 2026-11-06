@@ -3,8 +3,11 @@ import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tansta
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient, type StoredMapping } from '../api/client';
+import type { AuthoringId, FieldPath } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
-import type { BrowserStateStore } from './browser-state/browser-state';
+import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
+import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
+import { locate } from './function-editor/graph';
 import { RefusedMapping } from './RefusedMapping';
 import { SaveConflict } from './SaveConflict';
 import { createWorkingCopyStore, selectUnsaved, watchUnsaved } from './store/working-copy';
@@ -20,6 +23,10 @@ export interface MappingEditorProps {
   browserState: BrowserStateStore;
   /** Told each time the working copy starts or stops having unsaved changes, so the host can guard leaving. */
   onUnsavedChange?: (unsaved: boolean) => void;
+  /** The selected target field, controlled by the host (ADR-0013); the function editor shows its graph. */
+  selectedField?: FieldPath | null;
+  /** Asks the host to select a target field. */
+  onSelectField?: (field: FieldPath) => void;
 }
 
 /** The mapping editor (ADR-0013): router-free, over injected ports, with its own query client. */
@@ -58,7 +65,15 @@ function undoKey(event: KeyboardEvent): 'undo' | 'redo' | undefined {
   return event.shiftKey ? 'redo' : 'undo';
 }
 
-function OpenMapping({ mappingId, api, browserState, onUnsavedChange, opened }: MappingEditorProps & { opened: StoredMapping }) {
+function OpenMapping({
+  mappingId,
+  api,
+  browserState,
+  onUnsavedChange,
+  selectedField = null,
+  onSelectField,
+  opened,
+}: MappingEditorProps & { opened: StoredMapping }) {
   const [store] = useState(() =>
     createWorkingCopyStore(opened, {
       newId: () => newAuthoringId(),
@@ -87,6 +102,19 @@ function OpenMapping({ mappingId, api, browserState, onUnsavedChange, opened }: 
     store.getState()[step]();
   };
 
+  const [selectedBox, setSelectedBox] = useState<AuthoringId | null>(null);
+  /** Selects what an authoring id names: its target field, and the box when it is a box's id. */
+  const select = (id: AuthoringId) => {
+    const where = locate(store.getState().workingCopy, id);
+    if (!where) return;
+    onSelectField?.(where.field);
+    setSelectedBox(where.box);
+  };
+  const [canvasState] = useState(() => ({
+    read: (tfm: AuthoringId) => browserState.read(canvasKey(mappingId, tfm)) as CanvasState | undefined,
+    write: (tfm: AuthoringId, state: CanvasState) => browserState.write(canvasKey(mappingId, tfm), state),
+  }));
+
   return (
     <div onKeyDown={onKeyDown}>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -105,9 +133,14 @@ function OpenMapping({ mappingId, api, browserState, onUnsavedChange, opened }: 
         <Alert variant="danger" isInline title={failure.title}>
           <p>{failure.detail}</p>
           <ul aria-label="Save diagnostics">
-            {failure.diagnostics.map((d, i) => (
+            {failure.diagnostics.map(({ severity, code, message, location }, i) => (
               <li key={i}>
-                {d.severity} <code>{d.code}</code>: {d.message}
+                {severity} <code>{code}</code>: {message}
+                {location.kind === 'authoring-id' && (
+                  <Button variant="link" isInline onClick={() => select(location.authoringId)}>
+                    Show {location.authoringId}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -120,6 +153,14 @@ function OpenMapping({ mappingId, api, browserState, onUnsavedChange, opened }: 
         store={store}
         expanded={expanded}
         onExpandedChange={changeExpanded}
+      />
+      <FunctionEditor
+        api={api}
+        store={store}
+        targetField={selectedField}
+        selectedBox={selectedBox}
+        onSelectBox={setSelectedBox}
+        canvasState={canvasState}
       />
       <TestPanel mappingId={mappingId} api={api} store={store} />
     </div>

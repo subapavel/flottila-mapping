@@ -28,4 +28,4 @@ Memory (`.claude/agent-memory/reviewer-standards/MEMORY.md`, read first; new fac
 120 lines.
 
 Verdict first: `review: PASS` or `review: FAIL — <one line per blocking reason with file:line>`,
-then at most 10 lines of non-blocking observations. Under 400 words.
+then at most 10 lines of non-blocking observations. Label each with `carry` or `ticket` at the end of its line; the criteria are those of `run-spec` §2 step 6 (`.claude/skills/run-spec/SKILL.md`), not restated here. Under 400 words.

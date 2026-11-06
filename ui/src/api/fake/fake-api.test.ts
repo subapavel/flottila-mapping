@@ -276,4 +276,14 @@ describe('the fake ApiClient over the corpus', () => {
     expect((await api.getMapping('drafts/one')).model).toEqual(corpusMapping);
     expect((await problemOf(api.getMapping('mappings/order-id-copy'))).problem.status).toBe(404);
   });
+
+  test('serves the committed function catalogue of contract/ (ADR-0027)', async () => {
+    const committed = readFileSync(new URL('../../../../contract/function-catalogue.json', import.meta.url), 'utf8');
+
+    const catalogue = await fakeApiClient().getCatalogue();
+
+    expect(catalogue).toEqual(JSON.parse(committed));
+    // witness: spec 2's functions are in it
+    expect(catalogue.useOneAsMany?.family).toBe('context');
+  });
 });
