@@ -3,9 +3,12 @@ import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { splitKey, type BrowserStateStore } from './browser-state/browser-state';
 import { Splitter } from './layout/Splitter';
 import { readSplit, type Split, type SplitRules } from './layout/split';
+import type { Sides } from './structure-overview/StructureOverview';
 
 /** Either half collapses fully; Enter collapses the structure overview (ADR-0012). */
 const HALVES: SplitRules = { initial: 0.5, collapsible: ['start', 'end'] };
+/** Either tree collapses fully; Enter collapses the source tree (ADR-0012). */
+const SIDES: SplitRules = { initial: 0.5, collapsible: ['start', 'end'] };
 /** Only the inspector collapses; its collapsed state is the closed inspector. */
 const INSPECTOR: SplitRules = { initial: 0.7, collapsible: ['end'] };
 /** The height the halves share: at the initial ratio, about the trees' and the canvas's fixed heights before #104's splitters. */
@@ -13,7 +16,8 @@ const HEIGHT = '56rem';
 
 export interface EditorLayoutProps {
   browserState: BrowserStateStore;
-  overview: ReactNode;
+  /** The structure overview, given how its trees share the width and the splitter to draw between them. */
+  overview: (sides: Sides, splitter: ReactNode) => ReactNode;
   functionEditor: ReactNode;
   /** Rendered only while the inspector is open. */
   inspector: ReactNode;
@@ -21,21 +25,40 @@ export interface EditorLayoutProps {
 
 /**
  * The split view of ADR-0012: the structure overview on top, the function editor below with the inspector on its
- * right. A splitter sets the ratio between the halves, and either half collapses fully; a second one sets the
- * inspector's width and closes it, as does the inspector button. Both are kept per user in the browser (ADR-0013).
+ * right. A splitter sets the ratio between the halves, and either half collapses fully; a second one, between the
+ * source and the target tree, collapses either tree fully; a third sets the inspector's width and closes it, as does
+ * the inspector button. All three are kept per user in the browser (ADR-0013).
  */
 export function EditorLayout({ browserState, overview, functionEditor, inspector }: EditorLayoutProps) {
   const id = useId();
   const [halves, changeHalves] = useKeptSplit(browserState, 'halves', HALVES);
+  const [trees, changeTrees] = useKeptSplit(browserState, 'sides', SIDES);
   const [side, changeSide] = useKeptSplit(browserState, 'inspector', INSPECTOR);
   const inspectorOpen = side.collapsed === null;
   const [top, bottom] = paneStyles(halves);
   const [main, aside] = paneStyles(side);
+  const [source, target] = grows(trees);
+  const sides: Sides = {
+    source,
+    target,
+    collapsed: trees.collapsed === 'start' ? 'source' : trees.collapsed === 'end' ? 'target' : null,
+    sourceId: `${id}source`,
+  };
 
   return (
     <div style={{ height: HEIGHT, display: 'flex', flexDirection: 'column' }}>
       <div id={`${id}overview`} style={top}>
-        {overview}
+        {overview(
+          sides,
+          <Splitter
+            orientation="vertical"
+            label="Resize the source and the target structure"
+            controls={sides.sourceId}
+            split={trees}
+            rules={SIDES}
+            onChange={changeTrees}
+          />,
+        )}
       </div>
       <Splitter
         orientation="horizontal"
@@ -79,9 +102,14 @@ export function EditorLayout({ browserState, overview, functionEditor, inspector
 }
 
 /**
- * The styles of the panes before and after a splitter: each grows by its share of the space the splitter leaves. A
- * collapsed pane is hidden, and the other one grows by 1, since flex shares that sum below 1 leave space unused.
+ * The flex grow of the panes before and after a splitter: each its share of the space the splitter leaves. With one
+ * pane collapsed the other grows by 1, since flex shares that sum below 1 leave space unused.
  */
+function grows(split: Split): [number, number] {
+  return [split.collapsed === 'end' ? 1 : split.ratio, split.collapsed === 'start' ? 1 : 1 - split.ratio];
+}
+
+/** The styles of the panes before and after a splitter: they grow by `grows`, and a collapsed pane is hidden. */
 function paneStyles(split: Split): [CSSProperties, CSSProperties] {
   const style = (grow: number, hidden: boolean): CSSProperties => ({
     flex: `${grow} 1 0`,
@@ -90,14 +118,12 @@ function paneStyles(split: Split): [CSSProperties, CSSProperties] {
     overflow: 'auto',
     display: hidden ? 'none' : undefined,
   });
-  return [
-    style(split.collapsed === 'end' ? 1 : split.ratio, split.collapsed === 'start'),
-    style(split.collapsed === 'start' ? 1 : 1 - split.ratio, split.collapsed === 'end'),
-  ];
+  const [start, end] = grows(split);
+  return [style(start, split.collapsed === 'start'), style(end, split.collapsed === 'end')];
 }
 
 /** A splitter's state, read once from the browser state and written back on every change. */
-function useKeptSplit(browserState: BrowserStateStore, splitter: 'halves' | 'inspector', rules: SplitRules) {
+function useKeptSplit(browserState: BrowserStateStore, splitter: 'halves' | 'sides' | 'inspector', rules: SplitRules) {
   const [split, setSplit] = useState(() => readSplit(browserState.read(splitKey(splitter)), rules));
   const change = (next: Split) => {
     setSplit(next);

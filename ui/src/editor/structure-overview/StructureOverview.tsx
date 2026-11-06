@@ -45,6 +45,18 @@ export interface StructureOverviewProps {
   /** The target rows shown: all, or those of one field status. */
   statusFilter: StatusFilter;
   onStatusFilterChange: (filter: StatusFilter) => void;
+  /** How the two trees share the width; the host keeps it and draws `splitter` between them (ADR-0012). */
+  sides: Sides;
+  /** The splitter between the source tree and the link gutter. */
+  splitter: ReactNode;
+}
+
+/** The trees' shares of the width (their flex grow), the side collapsed fully, if any, and the source tree's id. */
+export interface Sides {
+  source: number;
+  target: number;
+  collapsed: Side | null;
+  sourceId: string;
 }
 
 /** The text of each status filter value, and of each field status mark. */
@@ -82,6 +94,8 @@ export function StructureOverview({
   onSelectField,
   statusFilter,
   onStatusFilterChange,
+  sides,
+  splitter,
 }: StructureOverviewProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const diagnostics = useStore(store, (s) => s.diagnostics);
@@ -97,7 +111,9 @@ export function StructureOverview({
     () => (source.anchors && target.anchors ? anchorLinks(links, source.anchors, target.anchors) : []),
     [links, source.anchors, target.anchors],
   );
-  const gutter = linkGutter(anchored, source.viewport, target.viewport, ROW_HEIGHT, selectedField);
+  // With a side collapsed the gutter draws nothing: a link has no end on that side, and the other side's ↑n and ↓n
+  // count the drawn links that run off its edge, of which there are none.
+  const gutter = sides.collapsed === null ? linkGutter(anchored, source.viewport, target.viewport, ROW_HEIGHT, selectedField) : undefined;
   // the trees share one height; a tree still loading has none yet
   const gutterHeight = Math.max(source.viewport.height, target.viewport.height);
 
@@ -136,6 +152,9 @@ export function StructureOverview({
       <div style={{ display: 'flex', flex: `1 1 ${TREE_HEIGHT}px`, minHeight: 4 * ROW_HEIGHT }}>
         <TreePane
           side="source"
+          id={sides.sourceId}
+          grow={sides.source}
+          hidden={sides.collapsed === 'source'}
           tree={source}
           onToggle={toggle}
           row={(path) => ({
@@ -148,9 +167,12 @@ export function StructureOverview({
             onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
           })}
         />
-        <LinkGutter gutter={gutter} height={gutterHeight} />
+        {splitter}
+        {gutter && <LinkGutter gutter={gutter} height={gutterHeight} />}
         <TreePane
           side="target"
+          grow={sides.target}
+          hidden={sides.collapsed === 'target'}
           tree={target}
           // under a filter, the rows of that status and their ancestors are shown whatever is expanded
           onToggle={statusFilter === 'all' ? toggle : undefined}
@@ -281,6 +303,11 @@ type Tree = ReturnType<typeof useTree>;
 
 interface TreePaneProps {
   side: Side;
+  /** The pane's element id, which the splitter between the trees names as the pane it resizes. */
+  id?: string;
+  /** The pane's share of the width; a hidden pane is collapsed fully. */
+  grow: number;
+  hidden: boolean;
   tree: Tree;
   /** Expands or collapses a row; without it the rows offer no toggle. */
   onToggle?: (side: Side, rootPath: string, path: string) => void;
@@ -288,22 +315,28 @@ interface TreePaneProps {
   mark?: (path: string) => ReactNode;
 }
 
-function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
+function TreePane({ side, id, grow, hidden, tree, onToggle, row, mark }: TreePaneProps) {
   const { query, rootPath, rows, scrollRef, virtualizer } = tree;
   const label = side === 'source' ? 'Source structure' : 'Target structure';
-  const pane = { flex: 1, minWidth: 0 };
+  const pane = { flex: `${grow} 1 0`, minWidth: 0, display: hidden ? 'none' : undefined };
 
-  if (query.isPending) return <p style={pane}>Loading the {side} structure…</p>;
+  if (query.isPending) {
+    return (
+      <p id={id} style={pane}>
+        Loading the {side} structure…
+      </p>
+    );
+  }
   if (query.isError) {
     return (
-      <p role="alert" style={pane}>
+      <p id={id} role="alert" style={pane}>
         {query.error.message}
       </p>
     );
   }
   if (query.data.kind === 'refused') {
     return (
-      <ul aria-label={`${label} diagnostics`} style={pane}>
+      <ul id={id} aria-label={`${label} diagnostics`} style={pane}>
         {query.data.diagnostics.map((d, i) => (
           <li key={i}>
             {d.severity} <code>{d.code}</code>: {d.message}
@@ -313,7 +346,7 @@ function TreePane({ side, tree, onToggle, row, mark }: TreePaneProps) {
     );
   }
   return (
-    <div ref={scrollRef} role="tree" aria-label={label} style={{ ...pane, overflowY: 'auto', overflowX: 'hidden' }}>
+    <div ref={scrollRef} id={id} role="tree" aria-label={label} style={{ ...pane, overflowY: 'auto', overflowX: 'hidden' }}>
       <div role="presentation" style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => {
           const r = rows[item.index]!;

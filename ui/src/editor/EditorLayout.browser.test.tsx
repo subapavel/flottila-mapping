@@ -11,6 +11,8 @@ const ORDER_ID = '/Q{urn:flottila:corpus:skeleton}Order/OrderId';
 
 const halves = page.getByRole('separator', { name: 'Resize the structure overview and the function editor' });
 const inspectorSplit = page.getByRole('separator', { name: 'Resize the function editor and the inspector' });
+const sides = page.getByRole('separator', { name: 'Resize the source and the target structure' });
+const targetTree = page.getByRole('tree', { name: 'Target structure', includeHidden: true });
 // a collapsed half stays in the document, hidden
 const sourceTree = page.getByRole('tree', { name: 'Source structure', includeHidden: true });
 const functionEditor = page.getByRole('region', { name: 'Function editor', includeHidden: true });
@@ -176,6 +178,52 @@ describe('the editor layout', () => {
     reload();
 
     await expect.element(halves).toHaveAttribute('aria-valuenow', '50');
+  });
+
+  test('the source and target splitter: its ratio and a collapsed side survive a reload, and a double-click resets it', async () => {
+    render();
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '50');
+    await expect.element(sourceTree).toBeVisible();
+    const width = () => (sourceTree.element() as HTMLElement).clientWidth;
+    const before = width();
+
+    await press(sides, '{ArrowRight}{ArrowRight}');
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '60');
+    await expect.poll(width).toBeGreaterThan(before);
+
+    reload();
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '60');
+    await press(sides, '{End}');
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '100');
+    await expect.element(targetTree).not.toBeVisible();
+    await expect.element(sourceTree).toBeVisible();
+
+    reload();
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '100');
+    await expect.element(targetTree).not.toBeVisible();
+    await press(sides, '{Enter}');
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '60');
+    await press(sides, '{Home}');
+    await expect.element(sourceTree).not.toBeVisible();
+    await expect.element(targetTree).toBeVisible();
+
+    await userEvent.dblClick(sides);
+    await expect.element(sides).toHaveAttribute('aria-valuenow', '50');
+    await expect.element(sourceTree).toBeVisible();
+    await expect.element(targetTree).toBeVisible();
+  });
+
+  test('with one side collapsed the link gutter draws nothing, neither links nor counts; restored, it draws again', async () => {
+    render('mappings/order-id-copy');
+    const link = page.getByTestId(`field-link:${ORDER_ID}->${ORDER_ID}`);
+    await expect.element(link).toBeInTheDocument();
+
+    await press(sides, '{Home}');
+    await expect.element(page.getByLabelText('Field links')).not.toBeInTheDocument();
+    await press(sides, '{Enter}');
+    await expect.element(link).toBeInTheDocument();
+    await press(sides, '{End}');
+    await expect.element(page.getByLabelText('Field links')).not.toBeInTheDocument();
   });
 
   test('the inspector button closes and opens the inspector, and its state is kept', async () => {

@@ -52,5 +52,6 @@ describe('the keys of the browser state (ADR-0013, "Browser state")', () => {
   test('each splitter keeps its ratio and collapsed pane per user, under one key for every mapping', () => {
     expect(splitKey('halves')).toBe('user:split:halves');
     expect(splitKey('inspector')).toBe('user:split:inspector');
+    expect(splitKey('sides')).toBe('user:split:sides');
   });
 });

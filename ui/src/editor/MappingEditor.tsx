@@ -236,7 +236,7 @@ function OpenMapping({
       <SaveConflict store={store} />
       <EditorLayout
         browserState={browserState}
-        overview={
+        overview={(sides, splitter) => (
           <StructureOverview
             mappingId={mappingId}
             api={api}
@@ -247,8 +247,10 @@ function OpenMapping({
             onSelectField={onSelectField}
             statusFilter={statusFilter}
             onStatusFilterChange={changeStatusFilter}
+            sides={sides}
+            splitter={splitter}
           />
-        }
+        )}
         functionEditor={
           <FunctionEditor api={api} store={store} targetField={selectedField} canvasState={canvasState} orphaned={orphaned} onRemap={remap} />
         }
