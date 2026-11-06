@@ -140,3 +140,12 @@ Durable facts only (AGENTS.md, Memory). No ticket state.
   share an empty, reachable case (spec #89 review).
 - The worktree guard also refuses `-Dtest=Class#method*`, `git -C … | …`, `sed -n` with a variable
   file and multi-`sed -i` chains: put them in a scratch script and run `bash <script>`.
+- The scratchpad is shared by sibling agents: prefix scratch files with the ticket number (spec #104).
+- Service mutants: `-pl service -am … -Dsurefire.failIfNoSpecifiedTests=false`; count a kill only on a
+  `Tests run:.*Failures: [1-9]` line, a resolution failure also exits non-zero (spec #104).
+- react-hooks 7 (`react-hooks/refs`) refuses a ref read in a `useState` initialiser's closures:
+  subscribe store listeners in a `useEffect` (spec #104).
+- PF 6 Alert titles are headings with an SR prefix ("Danger alert:"): query
+  `getByRole('heading', { name: /…/ })`, not `getByText` (spec #104).
+- Vitest browser: `userEvent.keyboard('{Shift>}z')` sends `z`; send `Z`. `toHaveTextContent('x')`
+  compares the whole normalised text (spec #104).

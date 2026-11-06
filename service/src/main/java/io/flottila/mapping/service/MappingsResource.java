@@ -30,6 +30,7 @@ import io.flottila.mapping.structure.importer.ReferenceResolver;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.PathParam;
@@ -50,6 +51,7 @@ import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
@@ -74,6 +76,9 @@ public class MappingsResource {
   private static final String ID = "{id: .+}";
 
   private static final String ETAG = "\"sha256:<hex>\" of the canonical bytes (ADR-0024)";
+
+  /** Held from a conditional save's tag comparison to its write (ADR-0027). */
+  private static final Object SAVES = new Object();
 
   private final Workspace workspace;
   private final ObjectMapper json;
@@ -220,7 +225,12 @@ public class MappingsResource {
 
   /**
    * Save (ADR-0015): stages 1 and 2 only, so a stage 3 error still saves. The id and its mapping
-   * model file are checked before the body is read. {@code If-Match} is not enforced until spec 5.
+   * model file are checked before the body is read. With {@code If-Match} (ADR-0027) the save is
+   * conditional: the tag must equal the stored file's canonical ETag, compared as a string, so a
+   * weak tag or a list never matches; otherwise 409 {@code mapping-changed} and nothing is written.
+   * The tag is compared before the body is parsed (RFC 9110, 13.2.1), and the comparison and the
+   * write hold one lock, so two saves with the same tag cannot both pass. Without the header the
+   * save is unconditional.
    */
   @PUT
   @jakarta.ws.rs.Path(ID)
@@ -247,6 +257,11 @@ public class MappingsResource {
       content =
           @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
   @APIResponse(
+      responseCode = "409",
+      description = "mapping-changed: If-Match differs from the stored file's ETag",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
       responseCode = "415",
       description = "unsupported-media-type",
       content =
@@ -260,17 +275,41 @@ public class MappingsResource {
               schema = @Schema(implementation = RefusedProblem.class)))
   public Response save(
       @PathParam("id") String id,
+      @Parameter(description = "The ETag the editor read; absent, the save is unconditional")
+          @HeaderParam("If-Match")
+          String ifMatch,
       @RequestBody(content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
           InputStream body)
       throws IOException,
           WorkspacePathException,
           MalformedJsonException,
           ModelRefusedException,
+          MappingChangedException,
           NoSuchAlgorithmException {
     workspace.existing(id);
-    byte[] canonical = canonical(body.readAllBytes());
-    workspace.save(id, canonical);
-    return model(Response.ok(), canonical);
+    byte[] sent = body.readAllBytes();
+    synchronized (SAVES) {
+      if (ifMatch != null && !storedEtag(id).equals(Optional.of(ifMatch))) {
+        throw new MappingChangedException(
+            "the mapping changed on disk since the If-Match tag was read; nothing was saved");
+      }
+      byte[] canonical = canonical(sent);
+      workspace.save(id, canonical);
+      return model(Response.ok(), canonical);
+    }
+  }
+
+  /**
+   * The ETag a GET answers for the stored file, or empty when the stored file is refused: no {@code
+   * If-Match} can match a file that no GET could tag.
+   */
+  private Optional<String> storedEtag(String id)
+      throws IOException, WorkspacePathException, NoSuchAlgorithmException {
+    try {
+      return Optional.of(etag(canonical(workspace.read(id))));
+    } catch (MalformedJsonException | ModelRefusedException e) {
+      return Optional.empty();
+    }
   }
 
   /**
@@ -436,12 +475,17 @@ public class MappingsResource {
   /** A model answer: the canonical bytes and their ETag (ADR-0024). */
   private static Response model(Response.ResponseBuilder response, byte[] canonical)
       throws NoSuchAlgorithmException {
-    String sha256 =
-        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
     return response
         .type(APPLICATION_JSON)
-        .header("ETag", "\"sha256:" + sha256 + "\"")
+        .header("ETag", etag(canonical))
         .entity(canonical)
         .build();
+  }
+
+  /** {@code "sha256:<hex>"} of the canonical bytes, quoted: a strong tag (ADR-0024). */
+  private static String etag(byte[] canonical) throws NoSuchAlgorithmException {
+    String sha256 =
+        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
+    return "\"sha256:" + sha256 + "\"";
   }
 }

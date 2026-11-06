@@ -1,7 +1,7 @@
 # Handoff
 
 state: RUNNING — spec 5 (#104) on `spec/104-mapping-editor` from main 54be243 (2026-11-06). Status comment 6673105155.
-in flight: #105 `t/105-compile-diagnostics` @54be243 · #106 `t/106-canvas` @54be243 · #109 `t/109-undo-save` @54be243 (implementers, class B).
+in flight: #105 `t/105-compile-diagnostics` @78e737a (gate queued) · #106 `t/106-canvas` @ef1adae (gate running) · #111 `t/111-virtual-trees` · #121 `t/121-review-labels` · #122 `t/122-trailers-zero` (implementers). merged: #109 → d405831.
 next action: on a hand-back, ticket gate → merge → record; refill from the frontier (#111, #121, #122, #123 next). A ticket assigned with no merge into the integration branch is in flight: resume from its pushed branch.
 spec 5 tickets: #105-#117 (editor) and #121-#127 (spec-4 retro process tickets).
 grilling (spec 5, 2026-11-05): 26 decisions in 3 rounds, all recommendations accepted. Recorded in ADR-0027 (conditional save with If-Match and 409 mapping-changed, PUT without the header unconditional, no Overwrite; refusals on /api/structures; the compile endpoint with unreachable-box; refresh on open as one undo step; the packed function catalogue committed in contract/). ADR-0027 refines ADR-0008, 0010, 0015, 0024 and 0026 without amending them. GLOSSARY: Palette, Quick insert, Field status, Orphaned target field mapping, Remap, Diagnostics panel, Stale trace, Save conflict.

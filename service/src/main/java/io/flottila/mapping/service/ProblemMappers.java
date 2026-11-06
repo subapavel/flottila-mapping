@@ -62,6 +62,12 @@ public class ProblemMappers {
     return problem(409, "mapping-exists", "Mapping exists", "a mapping with this id exists");
   }
 
+  /** Not ADR-0024's {@code mapping-exists}, which answers a create (ADR-0027). */
+  @ServerExceptionMapper
+  public Response mappingChanged(MappingChangedException e) {
+    return problem(409, "mapping-changed", "Mapping changed", e.getMessage());
+  }
+
   @ServerExceptionMapper
   public Response unsupportedMediaType(NotSupportedException e) {
     return problem(415, "unsupported-media-type", "Unsupported media type", e.getMessage());
