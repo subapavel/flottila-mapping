@@ -75,6 +75,7 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
   expect(boxes[constant]).toEqual({ kind: 'function', fn: 'constant', params: { value: '-X' } });
 
   // the saved graph runs
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8'));
   await page.getByRole('button', { name: 'Run test' }).click();
   await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711-X</OrderId>');
@@ -82,6 +83,7 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
   // the file changes on disk; the next save is refused with 409, writes nothing, and the dialog offers Reload
   const changed = saved.toString('utf8').replace('"-X"', '"-DISK"');
   writeFileSync(file, changed);
+  await page.getByRole('tab', { name: 'Editor' }).click();
   await page.getByRole('textbox', { name: 'value' }).fill('-Y');
   await page.getByRole('textbox', { name: 'value' }).press('Enter');
   const refused = page.waitForResponse((response) => response.request().method() === 'PUT');
@@ -120,6 +122,7 @@ test('@stack a schema changed on disk: opening the mapping refreshes it, marks t
   await expect(page.getByTestId('box:a1')).toContainText('OrderNumber');
 
   const input = readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8').replaceAll('OrderId>', 'OrderNumber>');
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(input);
   await page.getByRole('button', { name: 'Run test' }).click();
   await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711</OrderId>');
@@ -133,6 +136,7 @@ test('@stack an attribute source field and an attribute target field map by drag
   await link(page, ORDER_ID, ORDER_ID);
   await link(page, CHANNEL, CHANNEL);
   await expect(page.getByTestId(`target-field:${CHANNEL}`)).toContainText('← @channel');
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/link/attribute/001/input.xml'), 'utf8'));
   await page.getByRole('button', { name: 'Run test' }).click();
 

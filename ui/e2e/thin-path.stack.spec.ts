@@ -21,6 +21,7 @@ test('@stack the real service: open, link, save, run a test, and the saved file 
   await expect(page.getByText('Unsaved')).toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Unsaved')).toBeHidden();
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(input);
   await page.getByRole('button', { name: 'Run test' }).click();
 

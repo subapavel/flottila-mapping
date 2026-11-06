@@ -19,6 +19,7 @@ test('the dev host opens a mapping on the fake API, links a field, saves and run
   await expect(page.getByText('Unsaved')).toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Unsaved')).toBeHidden();
+  await page.getByRole('tab', { name: 'Test' }).click();
   await page.getByRole('textbox', { name: 'Input message' }).fill(input);
   await page.getByRole('button', { name: 'Run test' }).click();
 

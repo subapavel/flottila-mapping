@@ -80,7 +80,12 @@ afterEach(() => {
 
 const testPanel = page.getByRole('region', { name: 'Test panel' });
 const targetMessage = page.getByRole('figure', { name: 'Target message' });
-const runTest = () => page.getByRole('button', { name: 'Run test' }).click();
+/** A page tab (spec #135); the test panel is the Test tab's. */
+const tab = (name: string) => page.getByRole('tab', { name });
+async function runTest() {
+  await tab('Test').click();
+  await page.getByRole('button', { name: 'Run test' }).click();
+}
 
 describe('the test panel', () => {
   test('shows the target message of a run', async () => {
@@ -102,7 +107,8 @@ describe('the test panel', () => {
 
     await testPanel.getByRole('button', { name: 'Show t1' }).click();
 
-    // the target field is selected: the function editor shows its graph
+    // the target field is selected: the Editor tab opens, and the function editor shows its graph
+    await expect.element(tab('Editor')).toHaveAttribute('aria-selected', 'true');
     await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
     // the target field mapping, no box: the inspector shows the target field's display queue
     const queue = page.getByRole('region', { name: 'Display queue of the target field' });
@@ -132,7 +138,7 @@ describe('the test panel', () => {
     await expect.element(page.getByRole('tab', { name: 'Diagnostics (1)' })).toHaveAttribute('aria-selected', 'true');
     await expect.element(page.getByRole('list', { name: 'Working copy diagnostics' })).toMatchTextContent('json-target-unsupported');
     await expect.element(targetMessage).not.toBeInTheDocument();
-    await page.getByRole('tab', { name: 'Test' }).click();
+    await tab('Test').click();
     await expect.element(testPanel).toMatchTextContent('Compile refused the working copy: nothing ran.');
   });
 
@@ -141,7 +147,9 @@ describe('the test panel', () => {
     await runTest();
     await expect.element(targetMessage).toBeVisible();
 
+    await tab('Editor').click();
     await userEvent.dragAndDrop(page.getByTestId(`source-field:${NOTE}`), page.getByTestId(`target-field:${NOTE}`));
+    await tab('Test').click();
 
     await expect.element(testPanel.getByText('stale')).toBeVisible();
     await expect.element(targetMessage).toMatchTextContent('PO 4711');
@@ -153,6 +161,7 @@ describe('the test panel', () => {
 
   test('uploading a file fills the input message', async () => {
     render(output);
+    await tab('Test').click();
 
     await userEvent.upload(page.getByLabelText('Upload input message'), new File([caseInput], 'input.xml', { type: 'application/xml' }));
 
