@@ -280,6 +280,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mappings/{id}/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["mapping-model.schema"];
+                };
+            };
+            responses: {
+                /** @description The working copy's diagnostics, none when it compiles with every box reached */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CompileResponse"];
+                    };
+                };
+                /** @description invalid-workspace-path or malformed-json */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description not-found: the mapping's directory */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+                /** @description unsupported-media-type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["Problem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mappings/{id}/refresh": {
         parameters: {
             query?: never;
@@ -505,6 +574,9 @@ export interface components {
              */
             kind: "authoring-id";
             authoringId: string;
+        };
+        CompileResponse: {
+            diagnostics: components["schemas"]["DiagnosticDto"][];
         };
         CreateMappingRequest: {
             id: string;

@@ -77,6 +77,8 @@ class OpenApiContractTest {
           Map.entry("RuntimeErrorDto", "authoringId code message | code message"),
           Map.entry("StructureLoaded", "fingerprint kind root types | fingerprint kind root types"),
           Map.entry("StructureRefused", "diagnostics kind | diagnostics kind"),
+          // ADR-0015, ADR-0027: compile answers its diagnostics alone (#105)
+          Map.entry("CompileResponse", "diagnostics | diagnostics"),
           Map.entry(
               "FieldDto",
               "kind localName max min namespace nillable step type valueType"
@@ -306,6 +308,8 @@ class OpenApiContractTest {
           "post /api/mappings/{id}/test", Set.of("400", "404", "415"),
           // #99: a stage 1 or 2 refusal is 422, as for Save; a structure load error is a 200
           "post /api/mappings/{id}/refresh", Set.of("400", "404", "415", "422"),
+          // #105: every stage's diagnostics are a 200 (ADR-0015, ADR-0027)
+          "post /api/mappings/{id}/compile", Set.of("400", "404", "415"),
           "post /api/structures", Set.of("400", "404", "415"));
 
   /** Problems are in the contract, so the ui hand-writes no payload type (#28 rulings, #21). */
@@ -362,8 +366,9 @@ class OpenApiContractTest {
   /**
    * Every operation declares exactly one 2xx, {@code application/json}, of the schema the #28
    * design names: the list's {@code MappingSummary[]}, the model schema for GET, PUT and create,
-   * {@code TestResult} for a test run, {@code RefreshResponse} for a refresh (#99) and {@code
-   * StructureResponse} for a structure (#28 round 3).
+   * {@code TestResult} for a test run, {@code RefreshResponse} for a refresh (#99), {@code
+   * CompileResponse} for a compile (#105) and {@code StructureResponse} for a structure (#28 round
+   * 3).
    */
   @Test
   void everyOperationDeclaresTheSchemaOfItsSuccess() throws IOException {
@@ -378,6 +383,7 @@ class OpenApiContractTest {
             "put /api/mappings/{id}", "200 " + model,
             "post /api/mappings/{id}/test", "200 " + SCHEMAS + "TestResult",
             "post /api/mappings/{id}/refresh", "200 " + SCHEMAS + "RefreshResponse",
+            "post /api/mappings/{id}/compile", "200 " + SCHEMAS + "CompileResponse",
             "post /api/structures", "200 " + SCHEMAS + "StructureResponse");
     Map<String, JsonNode> operations = operations(contract());
     assertThat(operations.keySet()).isEqualTo(successes.keySet());
@@ -464,7 +470,7 @@ class OpenApiContractTest {
 
   /**
    * No 400 in the contract lacks our {@code Problem}: smallrye's generated "Bad Request" answer is
-   * switched off ({@code auto-add-bad-request-response=false}). The witness: the six operations
+   * switched off ({@code auto-add-bad-request-response=false}). The witness: the seven operations
    * with a parameter or a body each declare a 400, so the check is never over an empty set.
    */
   @Test
@@ -488,7 +494,7 @@ class OpenApiContractTest {
             .isEqualTo(SCHEMAS + "Problem");
       }
     }
-    assertThat(badRequests).as("operations that declare a 400").isEqualTo(6);
+    assertThat(badRequests).as("operations that declare a 400").isEqualTo(7);
   }
 
   // --- helpers ---

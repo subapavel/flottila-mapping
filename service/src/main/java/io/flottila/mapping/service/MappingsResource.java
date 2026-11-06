@@ -321,6 +321,48 @@ public class MappingsResource {
   }
 
   /**
+   * Compile (ADR-0015, ADR-0027): the working copy in the body, never the stored file, answers its
+   * diagnostics, the {@code unreachable-box} warnings among them (ADR-0011, ADR-0013). A model that
+   * stage 1, 2 or 3 refuses is a 200 too; only a transport error is a problem. Nothing is saved.
+   * The id only locates the directory the bundle references are relative to.
+   */
+  @POST
+  @jakarta.ws.rs.Path(ID + "/compile")
+  @Consumes(APPLICATION_JSON)
+  @Produces(APPLICATION_JSON)
+  @APIResponse(
+      responseCode = "200",
+      description = "The working copy's diagnostics, none when it compiles with every box reached",
+      content =
+          @Content(
+              mediaType = APPLICATION_JSON,
+              schema = @Schema(implementation = CompileResponse.class)))
+  @APIResponse(
+      responseCode = "400",
+      description = "invalid-workspace-path or malformed-json",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "404",
+      description = "not-found: the mapping's directory",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  @APIResponse(
+      responseCode = "415",
+      description = "unsupported-media-type",
+      content =
+          @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
+  public CompileResponse compile(
+      @PathParam("id") String id,
+      @RequestBody(content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(ref = MODEL)))
+          InputStream body)
+      throws IOException, WorkspacePathException, MalformedJsonException {
+    ReferenceResolver resolver = workspace.resolver(workspace.mappingDirectory(id));
+    return new CompileResponse(
+        DiagnosticDto.all(facade.diagnostics(body.readAllBytes(), resolver)));
+  }
+
+  /**
    * Refresh (ADR-0015, ADR-0009 as amended on 2026-11-05): the working copy in the body, never the
    * stored file, comes back in canonical form with both fingerprints re-derived, with its orphaned
    * references and every other stage-3 diagnostic. A side whose bundle fails to load keeps its
