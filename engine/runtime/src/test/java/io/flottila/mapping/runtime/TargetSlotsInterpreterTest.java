@@ -716,7 +716,7 @@ class TargetSlotsInterpreterTest {
                     param("numeric", "k1"),
                     param("ascending", "k1"))),
             orders(order("A", "<Tag>1</Tag>")),
-            orders(order("A", "<Tag>1</Tag><Tag>no</Tag>")),
+            orders(order("A", "<Tag>1</Tag><Tag>0</Tag>")),
             "po:SORTBYKEY",
             "k1",
             "sortByKey"));
@@ -742,6 +742,26 @@ class TargetSlotsInterpreterTest {
 
     assertRuntimeError(() -> run(document, misfits), code, box);
     assertThatThrownBy(() -> run(document, misfits)).hasMessageContaining(function);
+  }
+
+  /**
+   * F-29 (ADR-0006 as amended with #133): createIf over a value that is no boolean stops the run
+   * with {@code po:CREATEIF} at its box, PO's text after the place; false and 0 give SUPPRESS.
+   */
+  @Test
+  void createIfOverAValueThatIsNoBooleanRaisesAtItsBox() throws Exception {
+    TargetDocument document =
+        document(
+            OUT,
+            node(ITEM, 2, createIf("c1", source("a1", 1, ORDERS, ORDER, ID)), 0, UNBOUNDED, "t1"));
+    // witness: false and 0 give SUPPRESS, so only the true Id creates an Item
+    assertThat(run(document, orders(order("false"), order("TRUE"), order("0"))))
+        .isEqualTo(DECLARATION + "<Out><Item/></Out>");
+
+    assertRuntimeError(
+        () -> run(document, orders(order("1"), order("no"), order("skip"))), "po:CREATEIF", "c1");
+    assertThatThrownBy(() -> run(document, orders(order("1"), order("no"), order("skip"))))
+        .hasMessage("the function box c1: Cannot cast 'no' to boolean");
   }
 
   // --- generated nested targets against a reference of ADR-0006 "Target fields"
@@ -795,7 +815,40 @@ class TargetSlotsInterpreterTest {
     return xml.append("</Orders>").toString();
   }
 
-  /** A queue of the reference: contexts of values, SUPPRESS as null. */
+  /** {@code value}, or {@code false} where it is no boolean that createIf casts (F-29). */
+  private static String castable(String value) {
+    return value == null || value.equals("1") || value.equals("0") || value.equalsIgnoreCase("true")
+        ? value
+        : "false";
+  }
+
+  /**
+   * {@code orders} with the field of each level that reads it through createIf cast to booleans PO
+   * accepts: an Id, Sku or Qty that is no boolean becomes {@code false}, which createIf reads as
+   * SUPPRESS, as it read that value before #133, so no run raises {@code po:CREATEIF}. A field a
+   * level reads as it is keeps its values, which tell its contexts apart.
+   */
+  private static List<GeneratedOrder> castable(
+      List<GeneratedOrder> orders, boolean ids, boolean skus, boolean qtys) {
+    return orders.stream()
+        .map(
+            order ->
+                new GeneratedOrder(
+                    ids ? castable(order.id()) : order.id(),
+                    order.lines().stream()
+                        .map(
+                            line ->
+                                new GeneratedLine(
+                                    skus ? castable(line.sku()) : line.sku(),
+                                    qtys ? castable(line.qty()) : line.qty()))
+                        .toList()))
+        .toList();
+  }
+
+  /**
+   * A queue of the reference: contexts of values, SUPPRESS as null. Its values are booleans
+   * createIf casts ({@link #castable(List, boolean, boolean, boolean)}).
+   */
   private static List<List<String>> referenceCreateIf(List<List<String>> queue) {
     return queue.stream()
         .map(
@@ -913,54 +966,44 @@ class TargetSlotsInterpreterTest {
   @MethodSource("seeds")
   void generatedNestedTargetsMatchTheReference(long seed) throws Exception {
     RandomGenerator random = new SplittableRandom(seed);
-    List<GeneratedOrder> orders = generatedOrders(random);
+    List<GeneratedOrder> drawn = generatedOrders(random);
+    // the draws in the order they were made before #133, so each seed makes the same target
+    long grpMin = random.nextInt(2);
+    boolean grpCreateIf = !random.nextBoolean();
+    long grpMax = max(random, grpMin);
+    long rowMin = random.nextInt(3);
+    int rowChoice = random.nextInt(3);
+    long rowMax = max(random, rowMin);
+    long valMin = random.nextInt(2);
+    int valChoice = random.nextInt(3);
+    long valMax = max(random, valMin);
+    List<GeneratedOrder> orders = castable(drawn, grpCreateIf, rowChoice == 1, valChoice == 2);
     List<Level> levels = new ArrayList<>();
     // Grp: Id in the root's context, or createIf over it
     SourceQueue ids = source("a1", 1, ORDERS, ORDER, ID);
     List<List<String>> idQueue = referenceQueue("Id", 1, orders);
-    long grpMin = random.nextInt(2);
     levels.add(
-        random.nextBoolean()
-            ? new Level(GRP, "t1", ids, idQueue, grpMin, max(random, grpMin))
-            : new Level(
-                GRP,
-                "t1",
-                createIf("c1", ids),
-                referenceCreateIf(idQueue),
-                grpMin,
-                max(random, grpMin)));
+        grpCreateIf
+            ? new Level(GRP, "t1", createIf("c1", ids), referenceCreateIf(idQueue), grpMin, grpMax)
+            : new Level(GRP, "t1", ids, idQueue, grpMin, grpMax));
     // Row: Sku in Order's context, createIf over it, or Sku in the root's context
-    long rowMin = random.nextInt(3);
-    int rowChoice = random.nextInt(3);
     int rowDepth = rowChoice == 2 ? 1 : 2;
     SourceQueue skus = source("a2", rowDepth, ORDERS, ORDER, LINE, SKU);
     List<List<String>> skuQueue = referenceQueue("Sku", rowDepth, orders);
     levels.add(
         rowChoice == 1
             ? new Level(
-                ROW,
-                "t2",
-                createIf("c2", skus),
-                referenceCreateIf(skuQueue),
-                rowMin,
-                max(random, rowMin))
-            : new Level(ROW, "t2", skus, skuQueue, rowMin, max(random, rowMin)));
+                ROW, "t2", createIf("c2", skus), referenceCreateIf(skuQueue), rowMin, rowMax)
+            : new Level(ROW, "t2", skus, skuQueue, rowMin, rowMax));
     // Val: Qty in Line's context, in Order's context, or createIf over Qty in Line's context
-    long valMin = random.nextInt(2);
-    int valChoice = random.nextInt(3);
     int valDepth = valChoice == 1 ? 2 : 3;
     SourceQueue qtys = source("a3", valDepth, ORDERS, ORDER, LINE, QTY);
     List<List<String>> qtyQueue = referenceQueue("Qty", valDepth, orders);
     levels.add(
         valChoice == 2
             ? new Level(
-                VAL,
-                "t3",
-                createIf("c3", qtys),
-                referenceCreateIf(qtyQueue),
-                valMin,
-                max(random, valMin))
-            : new Level(VAL, "t3", qtys, qtyQueue, valMin, max(random, valMin)));
+                VAL, "t3", createIf("c3", qtys), referenceCreateIf(qtyQueue), valMin, valMax)
+            : new Level(VAL, "t3", qtys, qtyQueue, valMin, valMax));
     Level val = levels.get(2);
     Level row = levels.get(1);
     Level grp = levels.get(0);

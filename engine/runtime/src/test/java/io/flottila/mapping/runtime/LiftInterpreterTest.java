@@ -204,13 +204,13 @@ class LiftInterpreterTest {
 
   /**
    * ADR-0006: a SUPPRESS slot creates nothing, and SUPPRESS slots do not count toward {@code max}.
-   * createIf over {@code false, 1, no, TRUE, true} gives SUPPRESS, "", SUPPRESS, "", "".
+   * createIf over {@code false, 1, 0, TRUE, true} gives SUPPRESS, "", SUPPRESS, "", "".
    */
   @Test
   void aTargetLeafSkipsSuppressAndItDoesNotCountTowardMax() throws Exception {
     FunCall createIf = new FunCall(CREATE_IF, List.of(underRoot("Note", "a1")), id("c1"));
     String notes =
-        "<Note>false</Note><Note>1</Note><Note>no</Note><Note>TRUE</Note><Note>true</Note>";
+        "<Note>false</Note><Note>1</Note><Note>0</Note><Note>TRUE</Note><Note>true</Note>";
     Tracer tracer = new Tracer();
 
     String unbounded = run(leaf(createIf, UNBOUNDED), true, notes, tracer);
@@ -238,7 +238,7 @@ class LiftInterpreterTest {
             slotVar("in2", "l1"),
             id("l1"));
     String notes =
-        "<Note>false</Note><Note>1</Note><Note>no</Note><Note>TRUE</Note><Note>true</Note>";
+        "<Note>false</Note><Note>1</Note><Note>0</Note><Note>TRUE</Note><Note>true</Note>";
 
     String two = run(leaf(lift, 2), false, notes, new Tracer());
 

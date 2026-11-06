@@ -23,7 +23,8 @@ final class SuppressQueues {
 
   /**
    * Values a source queue holds: {@code ""} is a value and whitespace is part of it. Some are what
-   * createIf takes as true ({@code 1}, {@code true} in any case), some what it does not.
+   * createIf takes as true ({@code 1}, {@code true} in any case), some as false ({@code 0}, {@code
+   * false}), and some no boolean, on which it raises its data error (#133).
    */
   static final String[] SAMPLE = {
     "", "a", " b ", "1", "true", "TRUE", "True", "0", "false", "yes", " true", "Grüße", "x\ty"

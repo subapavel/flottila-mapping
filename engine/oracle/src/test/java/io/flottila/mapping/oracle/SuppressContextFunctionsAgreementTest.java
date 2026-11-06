@@ -53,7 +53,10 @@ class SuppressContextFunctionsAgreementTest {
   private static final QueueType QUEUE = new QueueType();
   private static final AtomicType STRING = AtomicType.STRING;
   private static final AuthoringId T1 = new AuthoringId("t1");
-  private static final List<String> CONDITIONS = List.of("true", "false", "1", "0", "TRUE", "");
+  // the booleans createIf casts (ADR-0006 as amended with #133); the last was "" before #133,
+  // which createIf now refuses (F-29), and the list keeps its size, so each seed draws as it did
+  private static final List<String> CONDITIONS =
+      List.of("true", "false", "1", "0", "TRUE", "FALSE");
   private static final List<String> NUMBERS = List.of("1", "1.0", "-2", "10", "3", " 2 ", "0");
   private static final List<String> WORDS = List.of("a", "B", "b", "A", "", "c", "ä", "Ä");
   private static final List<String> COMPARISONS =
@@ -125,7 +128,7 @@ class SuppressContextFunctionsAgreementTest {
       List<String> tags = new ArrayList<>();
       for (int l = 0; l < lines; l++) {
         String tag = CONDITIONS.get(random.nextInt(CONDITIONS.size()));
-        xml.append(tag.isEmpty() ? "<Tag/>" : "<Tag>" + tag + "</Tag>");
+        xml.append("<Tag>").append(tag).append("</Tag>");
         tags.add(tag);
       }
       for (int l = 0; l < lines; l++) {

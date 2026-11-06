@@ -79,7 +79,9 @@ class NestedSlotsAgreementTest {
 
   /**
    * Up to three Orders, each with an Id or none and up to three Lines, each with a Sku and a Qty or
-   * none; the values include createIf's true (1, TRUE, true) and false ones.
+   * none; the values include createIf's true (1, TRUE, true) and false (0) ones, and ones that tell
+   * the contexts apart ({@code o1}, {@code s11}, {@code q11}), which are no boolean ({@link
+   * #castable}).
    */
   private static String orders(RandomGenerator random) {
     StringBuilder xml = new StringBuilder("<Orders>");
@@ -101,6 +103,19 @@ class NestedSlotsAgreementTest {
       xml.append("</Order>");
     }
     return xml.append("</Orders>").toString();
+  }
+
+  /**
+   * {@code input} with each {@code field} value that is no boolean ({@code prefix} and digits) as
+   * {@code false}, where createIf reads the field: createIf reads false as SUPPRESS, as it read
+   * those values before #133, and raises {@code po:CREATEIF} on them since (F-29).
+   */
+  private static String castable(String input, boolean cast, String field, String prefix) {
+    return cast
+        ? input.replaceAll(
+            "<" + field + ">" + prefix + "\\d+</" + field + ">",
+            "<" + field + ">false</" + field + ">")
+        : input;
   }
 
   private static long max(RandomGenerator random, long min) {
@@ -142,10 +157,11 @@ class NestedSlotsAgreementTest {
 
   private static Generated generated(long seed) {
     RandomGenerator random = new SplittableRandom(seed);
-    String input = orders(random);
+    String drawn = orders(random);
     // Grp: Id in the root's context, or createIf over it
     long grpMin = random.nextInt(2);
-    Expr grpQueue = queue(random.nextBoolean(), "1", 1, ORDERS, ORDER, ID);
+    boolean grpCreateIf = random.nextBoolean();
+    Expr grpQueue = queue(grpCreateIf, "1", 1, ORDERS, ORDER, ID);
     long grpMax = max(random, grpMin);
     // Row: Sku in Order's context, createIf over it, or Sku in the root's context
     long rowMin = random.nextInt(3);
@@ -157,6 +173,12 @@ class NestedSlotsAgreementTest {
     int valChoice = random.nextInt(3);
     Expr valQueue = queue(valChoice == 2, "3", valChoice == 1 ? 2 : 3, ORDERS, ORDER, LINE, QTY);
     long valMax = max(random, valMin);
+    String input =
+        castable(
+            castable(castable(drawn, grpCreateIf, "Id", "o"), rowChoice == 1, "Sku", "s"),
+            valChoice == 2,
+            "Qty",
+            "q");
 
     AuthoringId t3 = id("t3");
     TargetSlots val =
