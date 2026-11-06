@@ -85,6 +85,20 @@ commands run with evidence word and log path, remaining uncertainty, proposed ne
 failure quotes the failing test and at most 10 lines of its section. A turn cap returns partial
 work, marked partial. No agent other than the architect comments on, labels or closes issues.
 
+## Command rules
+
+Every agent that runs commands follows these; packets do not restate them. They keep the worktree
+guard and the owner's no-approval-prompt rule from stopping a run.
+
+- Run one plain command per shell call: no `&&` or `;` chains, no heredocs, no chmod chains. Use
+  `git -C <dir> <subcommand>` for git, with one git call per shell call. The one exception is a
+  gate the architect names, run as a single `bash -c`.
+- Use Read, Grep and Glob to look at files and Write or Edit to change them. Write a commit message
+  to a scratch file with Write, then `git commit -F <file>`.
+- Script in shell or the build tool; the worktree guard refuses `python3 - <<EOF`.
+- Run long checks (mutant sweeps, gates, `gh pr checks --watch`) in the foreground and hand back
+  after they finish. A hand-back that says "waiting for" a running check is not a hand-back.
+
 ## Evidence vocabulary
 
 Every check reported anywhere (hand-back, issue comment, PR body) carries one of:

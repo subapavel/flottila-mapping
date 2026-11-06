@@ -13,7 +13,7 @@ worktrees; you never touch their branches. Read `CLAUDE.md` and `GLOSSARY.md`, t
 ticket id and URL (read it with `gh issue view`), worktree branch and base, allowed paths, the red
 that defines done, ADRs, checks, constraints. The packet and the ticket are your whole context; ask
 for a missing fact in the hand-back instead of guessing it. Read `docs/agents/environment.md`
-before your first build.
+before your first build. Follow the command rules in `AGENTS.md` (Command rules).
 
 How:
 - Class C: the test-author's tests define done; do not change them except to fix a wrong
