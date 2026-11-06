@@ -83,6 +83,8 @@ Boxes for target field `Out/All`:
 
 Target wires: C1 -> `Out/All`. Nothing else is mapped.
 
+Superseded by `obs-target-creation-2` (#134, F-29): PO's `createIf` ends the run on any value but `true` / `false` / `1` / `0`, so this input fails before its question. Skip this run; #134 asks the question again with inputs PO accepts.
+
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
 | `fn/createIf/002` | `createIf-002.xml` | One context of six conditions: TRUE, 1, yes, 0, " true" and "". Only TRUE and 1 are true, so two empty All. A case-sensitive rule gives one, a rule that trims or takes yes gives three. |
@@ -100,6 +102,8 @@ Boxes for target field `Out/All`:
 | C2 | `createIf` | in1 = C1 |
 
 Target wires: C2 -> `Out/All`. Nothing else is mapped.
+
+Superseded by `obs-target-creation-2` (#134, F-29): PO's `createIf` ends the run on any value but `true` / `false` / `1` / `0`, so this input fails before its question. Skip this run; #134 asks the question again with inputs PO accepts.
 
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
