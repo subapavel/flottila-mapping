@@ -1,4 +1,4 @@
-import { Label, SearchInput } from '@patternfly/react-core';
+import { SearchInput } from '@patternfly/react-core';
 import { useId, useState, type KeyboardEvent } from 'react';
 import type { FunctionCatalogue } from '../../api/client';
 import { FUNCTION_DRAG, paletteGroups, type Badge } from './palette';
@@ -63,8 +63,14 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
               }}
               className="fm-palette__entry"
             >
-              {fn} {badges.map((badge) => <BadgeView key={badge.kind} id={badgeId(fn, badge)} badge={badge} />)}
-              {catalogue[fn]!.executionKind !== 'single' && <span className="fm-palette__kind">{catalogue[fn]!.executionKind}</span>}
+              {fn}{' '}
+              {/* the badges and the execution kind at the entry's right, as in the prototype's .gc__pitem */}
+              <span className="fm-palette__marks">
+                {badges.map((badge) => (
+                  <BadgeView key={badge.kind} id={badgeId(fn, badge)} badge={badge} />
+                ))}
+                {catalogue[fn]!.executionKind !== 'single' && <span className="fm-palette__kind">{catalogue[fn]!.executionKind}</span>}
+              </span>
             </li>
           ))}
         </ul>
@@ -74,35 +80,18 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
 }
 
 /**
- * A badge, its words under `id` for the entry's description; a deviation's text is its hover title and, for assistive
- * technology, part of its description.
+ * A badge as one glyph square, after the prototype's .gc__pitem .fid: `?` for an assumed reading, `≠` for a deviation;
+ * the prototype has no not-portable badge, so it gets `⊘`. Its words, a deviation's with its text, are its hover title
+ * and its name, under `id` for the entry's description.
  */
 function BadgeView({ id, badge }: { id: string; badge: Badge }) {
-  switch (badge.kind) {
-    case 'assumed':
-      return (
-        <Label id={id} isCompact color="blue">
-          assumed
-        </Label>
-      );
-    case 'deviation':
-      return (
-        <>
-          <span title={badge.text}>
-            <Label isCompact color="orange">
-              deviation
-            </Label>
-          </span>
-          <span id={id} hidden>
-            deviation: {badge.text}
-          </span>
-        </>
-      );
-    case 'not-portable':
-      return (
-        <Label id={id} isCompact color="grey">
-          not portable
-        </Label>
-      );
-  }
+  const words = badge.kind === 'deviation' ? `deviation: ${badge.text}` : BADGE_WORDS[badge.kind];
+  return (
+    <span id={id} role="img" aria-label={words} title={words} className={`fm-fid fm-fid--${badge.kind}`}>
+      {GLYPH[badge.kind]}
+    </span>
+  );
 }
+
+const BADGE_WORDS = { assumed: 'assumed', 'not-portable': 'not portable' } as const;
+const GLYPH = { assumed: '?', deviation: '≠', 'not-portable': '⊘' } as const;

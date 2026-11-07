@@ -46,6 +46,16 @@ export function displayEntry(entry: TraceEntry): DisplayEntry {
   }
 }
 
+/**
+ * A queue's size as the prototype's .dq__meta says it, "n contexts, n slots", from the run's totals, so a capped
+ * queue counts what it cut too; no other entry, and no entry, has one.
+ */
+export function queueSize(entry: TraceEntry | undefined): string | undefined {
+  if (entry?.kind !== 'queue') return undefined;
+  const { contextCount, slotCount } = entry;
+  return `${contextCount} context${contextCount === 1 ? '' : 's'}, ${slotCount} slot${slotCount === 1 ? '' : 's'}`;
+}
+
 /** The parent slots in run order, with a `left-out` row where the numbers of two kept ones are not consecutive. */
 function occurrenceRows({ parents, min }: Occurrences): OccurrenceRow[] {
   const rows: OccurrenceRow[] = [];

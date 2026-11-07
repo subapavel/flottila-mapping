@@ -159,16 +159,16 @@ describe('the link gutter', () => {
     await expect.element(page.getByTestId('link-count:target:below')).toMatchTextContent(/^↓[1-9]\d*$/);
   });
 
-  test('marks a link’s target end with fx while that end is on screen (spec #135)', async () => {
+  test('marks a mapped target row with fx while it is on screen (spec #135, #145)', async () => {
     render(TREE_MAPPING, fakeApiClient(), expandedState(TREE_MAPPING));
     const first = leaves[0]!;
-    await expect.element(page.getByTestId(`link-mark:${first}->${first}`)).toBeInTheDocument();
+    await expect.element(page.getByTestId(`fx-mark:${first}`)).toBeInTheDocument();
 
     await scrollTo('Target', expandedOrder[expandedOrder.indexOf(first) + 1]!);
 
     await expect.element(page.getByTestId('link-count:target:above')).toBeInTheDocument();
     await expect.element(fieldLink(first, first)).toBeInTheDocument();
-    await expect.element(page.getByTestId(`link-mark:${first}->${first}`)).not.toBeInTheDocument();
+    await expect.element(page.getByTestId(`fx-mark:${first}`)).not.toBeInTheDocument();
   });
 
   test('dashes a link to a collapsed row to its nearest visible ancestor', async () => {
@@ -187,8 +187,8 @@ describe('the link gutter', () => {
     const [first, second] = [leaves[0]!, leaves[1]!];
     render(TREE_MAPPING, fakeApiClient(), expandedState(TREE_MAPPING), second);
 
-    await expect.element(fieldLink(second, second)).toHaveAttribute('data-emphasis', 'highlighted');
-    await expect.element(fieldLink(first, first)).toHaveAttribute('data-emphasis', 'dimmed');
+    await expect.element(fieldLink(second, second)).toHaveClass('fm-gutter__link--sel');
+    await expect.element(fieldLink(first, first)).toHaveClass('fm-gutter__link--dim');
   });
 
   test('shows the fx count of a link with several source-field boxes', async () => {
@@ -303,22 +303,27 @@ describe('selecting a target field (spec #104, story 1)', () => {
 
     expect(onSelect).toHaveBeenCalledWith(target);
     await scrollTo('Source', target);
-    await expect.element(fieldLink(target, target)).toHaveAttribute('data-emphasis', 'highlighted');
+    await expect.element(fieldLink(target, target)).toHaveClass('fm-gutter__link--sel');
   });
 
   test('Enter on a focused target row selects it too; a source row never selects', async () => {
     const onSelect = vi.fn();
     const [first, second] = [leaves[0]!, leaves[1]!];
+    // the opening selection (spec #145) asks for the first mapped target field in tree order, once
+    const mapped = (await fakeApiClient().getMapping(TREE_MAPPING)).model.targetFieldMappings ?? {};
+    const opened = expandedOrder.find((path) => Object.hasOwn(mapped, path));
+    expect(opened).toBeDefined();
     renderHost(onSelect);
+    await expect.poll(() => onSelect.mock.calls).toEqual([[opened]]);
     await userEvent.click(sourceRow(first));
     await userEvent.keyboard('{Enter}');
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelect.mock.calls).toEqual([[opened]]);
 
     (targetRow(second).element() as HTMLElement).focus();
     await userEvent.keyboard('{Enter}');
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith(second);
-    await expect.element(fieldLink(second, second)).toHaveAttribute('data-emphasis', 'highlighted');
-    await expect.element(fieldLink(first, first)).toHaveAttribute('data-emphasis', 'dimmed');
+    expect(onSelect.mock.calls).toEqual([[opened], [second]]);
+    await expect.element(fieldLink(second, second)).toHaveClass('fm-gutter__link--sel');
+    await expect.element(fieldLink(first, first)).toHaveClass('fm-gutter__link--dim');
   });
 });

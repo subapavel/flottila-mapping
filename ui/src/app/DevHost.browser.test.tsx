@@ -134,28 +134,34 @@ describe('the mapping list', () => {
     await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
 
     await back().click();
-    await page.getByRole('button', { name: 'mappings/order-id-copy' }).click();
+    // a mapping on the same structures with no mapped field: the opening selection (spec #145) selects none there, so a
+    // field the host kept would still show (OrderId has no function graph yet)
+    await page.getByRole('button', { name: 'mappings/order-unmapped' }).click();
 
     await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
     await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).not.toBeInTheDocument();
   });
 
   test('the host selects the field the editor asks for', async () => {
-    const refused = {
+    // the refusal names the new Note mapping by its authoring id, which the editor makes up when it links
+    const refused = (id: string) => ({
       type: 'urn:flottila:mapping:problem:model-refused',
       title: 'Model refused',
       status: 422,
       detail: 'the mapping model is refused by validation stage 1 or 2',
-      diagnostics: [{ severity: 'error' as const, code: 'unknown-function', message: 'no such function', location: { kind: 'authoring-id' as const, authoringId: 't1' } }],
-    };
-    render({ ...fakeApiClient(), saveMapping: () => Promise.reject(new ApiProblem(refused)) }, { mapping: 'mappings/order-id-copy' });
-    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(`/${ORDER}/Note`));
+      diagnostics: [{ severity: 'error' as const, code: 'unknown-function', message: 'no such function', location: { kind: 'authoring-id' as const, authoringId: id } }],
+    });
+    const NOTE = `/${ORDER}/Note`;
+    const saveMapping: ApiClient['saveMapping'] = (_id, model) => Promise.reject(new ApiProblem(refused(model.targetFieldMappings![NOTE]!.id)));
+    // a mapping with no mapped field opens on none (spec #145, "Opening selection")
+    render({ ...fakeApiClient(), saveMapping }, { mapping: 'mappings/order-unmapped' });
+    await userEvent.dragAndDrop(sourceRow(ORDER_ID), targetRow(NOTE));
     await page.getByRole('button', { name: 'Save' }).click();
     await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Show t1' }).click();
+    await page.getByRole('button', { name: /^Show / }).click();
 
-    await expect.element(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
+    await expect.element(page.getByTestId(`sink:${NOTE}`)).toBeVisible();
   });
 
   test('an empty workspace says so', async () => {

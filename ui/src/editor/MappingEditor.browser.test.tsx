@@ -7,7 +7,7 @@ import corpusMappingText from '../../../corpus/mappings/order-id-copy.mapping.js
 import { ApiProblem, type ApiClient, type Diagnostic } from '../api/client';
 import { fakeApiClient } from '../api/fake/fake-api';
 import type { MappingModel } from '../generated/mapping-model';
-import type { BrowserStateStore } from './browser-state/browser-state';
+import { targetFieldKey, type BrowserStateStore } from './browser-state/browser-state';
 import { MappingEditor } from './index';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
@@ -706,5 +706,97 @@ describe('the Diagnostics panel', () => {
     await expect
       .element(page.getByRole('list', { name: 'Working copy diagnostics' }))
       .toHaveTextContent('error box-cycle t1: a cycle');
+  });
+});
+
+describe('the opening selection (spec #145)', () => {
+  const AMOUNT = `${ORDER}/Amount`;
+  const copied = (id: string, field: string) => ({ id, result: `${id}s`, boxes: { [`${id}s`]: { kind: 'source' as const, field } } });
+  const node = (id: string) => page.getByTestId(`rf__node-${id}`);
+
+  /** A host that owns the selected target field (ADR-0013), none or `field` at first, and can clear it. */
+  function Host({ mappingId, api, browserState, field = null }: { mappingId: string; api: ApiClient; browserState: BrowserStateStore; field?: string | null }) {
+    const [selected, setSelected] = useState<string | null>(field);
+    return (
+      <>
+        <button onClick={() => setSelected(null)}>Host: select none</button>
+        <MappingEditor mappingId={mappingId} api={api} browserState={browserState} selectedField={selected} onSelectField={setSelected} />
+      </>
+    );
+  }
+
+  function open(mappingId: string, api: ApiClient, browserState: BrowserStateStore = memoryBrowserState(), field?: string | null) {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    root.render(<Host mappingId={mappingId} api={api} browserState={browserState} field={field} />);
+  }
+
+  test('with no kept selection the first mapped target field in tree order is selected, and the canvas shows its boxes', async () => {
+    // the model lists an orphaned mapping, then Note, then Amount; Amount comes first in the target structure
+    const model: MappingModel = {
+      ...corpusMapping,
+      targetFieldMappings: { [`${ORDER}/Missing`]: copied('m', ORDER_ID), [NOTE]: copied('n', NOTE), [AMOUNT]: copied('p', ORDER_ID) },
+    };
+    open('drafts/three', fakeApiClient({ 'drafts/three': model }));
+
+    await expect.element(targetRow(AMOUNT)).toHaveAttribute('aria-selected', 'true');
+    await expect.element(node('ps')).toBeVisible();
+    await expect.element(targetRow(NOTE)).toHaveAttribute('aria-selected', 'false');
+  });
+
+  test('a mapped root comes before its fields, whichever the model lists first', async () => {
+    for (const order of [[ORDER_ID, ORDER], [ORDER, ORDER_ID]]) {
+      const model: MappingModel = { ...corpusMapping, targetFieldMappings: Object.fromEntries(order.map((path, i) => [path, copied(`r${i}`, ORDER_ID)])) };
+      open('drafts/rooted', fakeApiClient({ 'drafts/rooted': model }));
+
+      await expect.element(targetRow(ORDER)).toHaveAttribute('aria-selected', 'true');
+      await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'false');
+      unmount();
+    }
+  });
+
+  test('the selected target field is kept in the browser state and selected on the next open; a kept field the structure lacks is not', async () => {
+    const browserState = memoryBrowserState();
+    const api = fakeApiClient();
+    open('mappings/order-id-copy', api, browserState);
+    await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(targetRow(NOTE));
+    await expect.element(targetRow(NOTE)).toHaveAttribute('aria-selected', 'true');
+    unmount();
+
+    open('mappings/order-id-copy', api, browserState);
+    await expect.element(targetRow(NOTE)).toHaveAttribute('aria-selected', 'true');
+    await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
+    unmount();
+
+    browserState.write(targetFieldKey('mappings/order-id-copy'), `${ORDER}/Gone`);
+    open('mappings/order-id-copy', api, browserState);
+    await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('a mapping with no mapped target field opens on none, and the inspector asks for one', async () => {
+    open('mappings/order-unmapped', fakeApiClient());
+
+    await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
+    await expect.element(page.getByRole('complementary', { name: 'Inspector' })).toHaveTextContent('Select a target field to inspect it.');
+  });
+
+  test('the selection is made on open only: a host that clears it later keeps none', async () => {
+    open('mappings/order-id-copy', fakeApiClient());
+    await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'true');
+
+    await page.getByRole('button', { name: 'Host: select none' }).click();
+
+    await expect.element(page.getByText('Select a target field to see its function graph.')).toBeVisible();
+    await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'false');
+  });
+
+  test('a target field the host selects at open stays selected', async () => {
+    open('mappings/order-id-copy', fakeApiClient(), memoryBrowserState(), NOTE);
+
+    await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
+    await expect.element(targetRow(NOTE)).toHaveAttribute('aria-selected', 'true');
+    await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'false');
   });
 });

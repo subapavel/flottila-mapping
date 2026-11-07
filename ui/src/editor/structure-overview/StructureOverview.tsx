@@ -6,7 +6,7 @@ import { useStore } from 'zustand';
 import type { ApiClient } from '../../api/client';
 import type { FieldPath, StructureRef } from '../../generated/mapping-model';
 import { describeFieldRefusal, type FieldRefusal } from '../../model/command';
-import { stepName } from '../../model/field-path';
+import { localPath, stepName } from '../../model/field-path';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { WorkingCopyStore } from '../store/working-copy';
 import {
@@ -18,7 +18,7 @@ import {
   type FieldStatus,
   type StatusFilter,
 } from './field-status';
-import { anchorLinks, fieldLinks, linkGutter, rowAnchors, type Gutter } from './links';
+import { anchorLinks, fieldLinks, fxMarks, linkGutter, markedRows, rowAnchors, type Gutter, type LinkLine } from './links';
 import { expandAllPaths, fieldCount, occurrenceText, reachedSourceFields, refusalAt, searchRows, treeRows, type TreeRow } from './rows';
 import './structure-overview.css';
 
@@ -27,10 +27,11 @@ type Side = 'source' | 'target';
 /** The expanded branches of both trees, by field path; a side without an entry has only its root expanded. */
 export type Expanded = Partial<Record<Side, string[]>>;
 
-/** Every row has this height, so the virtualiser and the link gutter place rows by index alone. */
-const ROW_HEIGHT = 28;
-const GUTTER_WIDTH = 120;
-/** The width of an fx mark at a link's target end. */
+/** Every row has this height, so the virtualiser and the link gutter place rows by index alone (the prototype's ROW_H). */
+const ROW_HEIGHT = 26;
+/** The prototype's GUTTER_W. */
+const GUTTER_WIDTH = 130;
+/** The width of an fx mark, at the gutter's right edge. */
 const FX_WIDTH = 17;
 
 export interface StructureOverviewProps {
@@ -112,14 +113,29 @@ export function StructureOverview({
   const selectedOrphan = orphaned.find((path) => path === selectedField);
   const [picked, setPicked] = useState<string | null>(null);
 
-  const links = useMemo(() => filteredLinks(fieldLinks(model), statuses, statusFilter), [model, statuses, statusFilter]);
+  const allLinks = useMemo(() => fieldLinks(model), [model]);
+  const links = useMemo(() => filteredLinks(allLinks, statuses, statusFilter), [allLinks, statuses, statusFilter]);
+  // the source fields the mapping reads, whatever the status filter shows: prototype.css .mk--used
+  const used = useMemo(() => new Set(allLinks.map((link) => link.source)), [allLinks]);
   const anchored = useMemo(
     () => (source.anchors && target.anchors ? anchorLinks(links, source.anchors, target.anchors) : []),
     [links, source.anchors, target.anchors],
   );
+  const marked = useMemo(
+    () => (target.anchors ? markedRows(Object.keys(model.targetFieldMappings ?? {}), target.anchors) : []),
+    [model, target.anchors],
+  );
   // With a side collapsed the gutter draws nothing: a link has no end on that side, and the other side's ↑n and ↓n
   // count the drawn links that run off its edge, of which there are none.
   const gutter = sides.collapsed === null ? linkGutter(anchored, source.viewport, target.viewport, ROW_HEIGHT, selectedField) : undefined;
+  const marks = (): FxMark[] =>
+    fxMarks(marked, target.viewport, ROW_HEIGHT).map(({ target: field, y }) => ({
+      field,
+      y,
+      // every target field mapping has a status, mapped at least
+      status: statuses.get(field)!,
+      selected: field === selectedField,
+    }));
   // the trees share one height; a tree still loading has none yet
   const gutterHeight = Math.max(source.viewport.height, target.viewport.height);
   // the columns: source tree, splitter, gutter, target tree; a collapsed tree takes no width
@@ -165,9 +181,16 @@ export function StructureOverview({
             },
             onKeyDown: (e) => activated(e) && setPicked(picked === path ? null : path),
           })}
+          mark={(path) =>
+            used.has(path) && (
+              <span className="fm-used" title="used by the mapping">
+                ●
+              </span>
+            )
+          }
         />
         {splitter}
-        {gutter && <LinkGutter gutter={gutter} height={gutterHeight} />}
+        {gutter && <LinkGutter gutter={gutter} marks={marks()} height={gutterHeight} />}
         <TreePane
           side="target"
           hidden={sides.collapsed === 'target'}
@@ -413,7 +436,8 @@ function TreePane({ side, id, hidden, tree, search, onSearch, onExpanded, tools,
                 data-testid={`${side}-field:${r.path}`}
                 tabIndex={0}
                 className="fm-tree__row"
-                style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)`, paddingLeft: `${r.depth * 1.25}rem` }}
+                // the prototype's indent: 4px, then 14px a level
+                style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)`, paddingLeft: 4 + r.depth * 14 }}
                 {...row(r.path)}
               >
                 {r.expandable && onToggle ? (
@@ -446,19 +470,41 @@ function TreePane({ side, id, hidden, tree, search, onSearch, onExpanded, tools,
   );
 }
 
+/** An fx mark as the gutter draws it: its target field, its row's centre, the field's status, and whether it is selected. */
+interface FxMark {
+  field: FieldPath;
+  y: number;
+  status: FieldStatus;
+  selected: boolean;
+}
+
+/** The emphasis of a link, as LinkedTrees.tsx classes it: lk--sel and lk--dim. */
+const EMPHASIS_CLASSES: Record<LinkLine['emphasis'], string> = {
+  highlighted: ' fm-gutter__link--sel',
+  dimmed: ' fm-gutter__link--dim',
+  plain: '',
+};
+
 /**
- * The link gutter (ADR-0012): a line per field link, dashed when it ends at a collapsed row's ancestor, with an fx
- * mark at its target end while that end is on screen, the fx count when several source-field boxes stand behind it,
- * a ctx mark at its source end when one of them has a context that is not the parent, and per side the ↑n and ↓n of
- * the ends scrolled away.
+ * The link gutter (ADR-0012, after LinkedTrees.tsx): a line per field link, titled with its two fields, dashed when it
+ * ends at a collapsed row's ancestor, the fx count when several source-field boxes stand behind it, and a ctx mark at
+ * its source end when one of them has a context that is not the parent; an fx mark per target field mapping whose own
+ * row is on screen, in the colour of its field status and filled when selected; and per side the ↑n and ↓n of the
+ * link ends scrolled away, in the gutter's corners.
  */
-function LinkGutter({ gutter, height }: { gutter: Gutter; height: number }) {
+function LinkGutter({ gutter, marks, height }: { gutter: Gutter; marks: FxMark[]; height: number }) {
   const mid = GUTTER_WIDTH / 2;
+  // a link ends at the fx mark's left edge
+  const end = GUTTER_WIDTH - FX_WIDTH - 1;
   const count = (side: Side, edge: 'above' | 'below') => {
     const n = gutter.counts[side][edge];
     if (n === 0) return null;
     return (
-      <span data-testid={`link-count:${side}:${edge}`} className={`fm-gutter__count fm-gutter__count--${side} fm-gutter__count--${edge}`}>
+      <span
+        data-testid={`link-count:${side}:${edge}`}
+        title={`links to ${side} rows scrolled ${edge}`}
+        className={`fm-gutter__count fm-gutter__count--${side} fm-gutter__count--${edge}`}
+      >
         {edge === 'above' ? '↑' : '↓'}
         {n}
       </span>
@@ -473,24 +519,12 @@ function LinkGutter({ gutter, height }: { gutter: Gutter; height: number }) {
             <g key={key}>
               <path
                 data-testid={`field-link:${key}`}
-                data-emphasis={l.emphasis}
-                className="fm-gutter__link"
-                d={`M0 ${l.y1} C${mid} ${l.y1} ${mid} ${l.y2} ${GUTTER_WIDTH} ${l.y2}`}
+                className={`fm-gutter__link${EMPHASIS_CLASSES[l.emphasis]}`}
+                d={`M0 ${l.y1} C${mid} ${l.y1} ${mid} ${l.y2} ${end} ${l.y2}`}
                 strokeDasharray={l.dashed ? '4 3' : undefined}
-              />
-              {l.targetEdge === undefined && (
-                <g
-                  data-testid={`link-mark:${key}`}
-                  data-emphasis={l.emphasis}
-                  className="fm-gutter__fx"
-                  transform={`translate(${GUTTER_WIDTH - FX_WIDTH - 1} ${l.y2 - 8})`}
-                >
-                  <rect width={FX_WIDTH} height={16} rx={3} />
-                  <text x={FX_WIDTH / 2} y={11.5}>
-                    fx
-                  </text>
-                </g>
-              )}
+              >
+                <title>{`${localPath(l.source)} → ${localPath(l.target)}`}</title>
+              </path>
               {l.boxes > 1 && (
                 <text data-testid={`link-fx:${key}`} className="fm-gutter__label" x={mid} y={(l.y1 + l.y2) / 2 - 2} textAnchor="middle">
                   fx {l.boxes}
@@ -505,6 +539,20 @@ function LinkGutter({ gutter, height }: { gutter: Gutter; height: number }) {
             </g>
           );
         })}
+        {marks.map((m) => (
+          <g
+            key={m.field}
+            data-testid={`fx-mark:${m.field}`}
+            className={`fm-gutter__fx fm-gutter__fx--${m.status}${m.selected ? ' fm-gutter__fx--selected' : ''}`}
+            transform={`translate(${end} ${m.y - 8})`}
+          >
+            <title>{STATUS_LABELS[m.status]}</title>
+            <rect width={FX_WIDTH} height={16} rx={3} />
+            <text x={FX_WIDTH / 2} y={12}>
+              fx
+            </text>
+          </g>
+        ))}
       </svg>
       {count('source', 'above')}
       {count('source', 'below')}
