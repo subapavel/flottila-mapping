@@ -54,10 +54,11 @@ export interface FunctionEditorProps {
   /** Remaps an orphaned source-field box of a target field mapping to a dropped source field. */
   onRemap: (targetField: FieldPath, box: AuthoringId, field: FieldPath) => void;
   /**
-   * The display queue of a box from the last run, for the strip under the canvas, its region named `label`: the editor
-   * injects the inspector's view, as editor subfolders do not import each other (ADR-0013).
+   * The display queue of a box from the last run, for the strip under the canvas, its region named `label` and its
+   * heading line naming `subject`: the editor injects the inspector's view, as editor subfolders do not import each
+   * other (ADR-0013).
    */
-  boxQueue: (id: AuthoringId, last: LastRun, label: string) => ReactNode;
+  boxQueue: (id: AuthoringId, last: LastRun, label: string, subject: string) => ReactNode;
 }
 
 /** The last run's trace by authoring id (`undefined` before a run), and whether it is a stale trace. */
@@ -184,7 +185,11 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
             </div>
           </div>
           {mapping !== undefined && (
-            <QueueStrip subject={selectedBox ?? mapping.result} selected={selectedBox !== null} queue={(id, label) => boxQueue(id, { trace, stale }, label)} />
+            <QueueStrip
+              subject={selectedBox ?? mapping.result}
+              selected={selectedBox !== null}
+              queue={(id, label, subject) => boxQueue(id, { trace, stale }, label, subject)}
+            />
           )}
         </>
       )}
@@ -194,21 +199,29 @@ export function FunctionEditor({ api, store, targetField, canvasState, orphaned,
 
 /**
  * The display-queue strip under the canvas, after the prototype's .gc__queue: the selected box's display queue, else
- * the result's (what the target field reads), else a line saying there is neither.
+ * the result's (what the target field reads), each naming what it shows inline after its heading, else a line saying
+ * there is neither.
  */
-function QueueStrip({ subject, selected, queue }: { subject: AuthoringId | null; selected: boolean; queue: (id: AuthoringId, label: string) => ReactNode }) {
+function QueueStrip({
+  subject,
+  selected,
+  queue,
+}: {
+  subject: AuthoringId | null;
+  selected: boolean;
+  queue: (id: AuthoringId, label: string, subject: string) => ReactNode;
+}) {
   return (
     <section aria-label="Canvas display queue" className="fm-function-editor__queue">
       {subject === null ? (
-        <p className="fm-function-editor__queue-subject">No box selected, and no result.</p>
+        <p>No box selected, and no result.</p>
       ) : (
-        <>
-          <p className="fm-function-editor__queue-subject">
-            {selected ? 'selected box' : 'result (what the target field reads)'} <code>{subject}</code>
-          </p>
-          {/* named apart from the inspector's "Display queue" region */}
-          {queue(subject, selected ? 'Display queue of the selected box' : 'Display queue of the result')}
-        </>
+        // named apart from the inspector's "Display queue" region
+        queue(
+          subject,
+          selected ? 'Display queue of the selected box' : 'Display queue of the result',
+          selected ? 'selected box' : 'result (what the target field reads)',
+        )
       )}
     </section>
   );
@@ -232,6 +245,9 @@ type BoxNode = Node<
 type SinkNode = Node<{ field: FieldPath; connected: boolean }, 'sink'>;
 
 const nodeTypes = { box: BoxNodeView, sink: SinkNodeView };
+
+/** How a canvas opened without a kept zoom fits its graph into view. */
+const FIT_VIEW = { padding: 0.15, maxZoom: 1 } as const;
 
 /** The input slot of an input handle id, `in-<slot>`. */
 const slotOf = (handle: string) => Number(handle.slice('in-'.length));
@@ -371,6 +387,8 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
           onMoveEnd={(_event, viewport) => keep({ viewport })}
           defaultViewport={opened?.viewport}
           fitView={opened?.viewport === undefined}
+          // the prototype's fit (GraphCanvas.tsx): a margin of 0.15, and a small graph never zoomed above 1
+          fitViewOptions={FIT_VIEW}
           onConnect={connect}
           // A wire's end dropped off any input removes the wire. Dropped on an input, the wire stays as it was:
           // moving a wire's end is not offered; drag a new wire instead. onReconnect is what makes ends draggable.

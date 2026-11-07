@@ -156,7 +156,10 @@
   margin: 0;
 }
 
-/* the display queue, after the prototype's .dq */
+/*
+ * the display queue, after the prototype's compact .dq (prototype.css .dq*), here and in the function editor's strip
+ * alike: the heading line, then each context a bracketed row of value boxes with "ctx n" above it
+ */
 .fm-queue__value {
   margin-right: var(--pf-t--global--spacer--sm);
 }
@@ -165,4 +168,93 @@
   display: flex;
   flex-direction: column;
   gap: var(--pf-t--global--spacer--xs);
+}
+
+/* .dq__head: the heading, what the queue is of in mono, its id and its size muted, on one line */
+.fm-queue__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--pf-t--global--spacer--sm);
+}
+
+.fm-queue__head > h4,
+.fm-queue__head > h5 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 700;
+}
+
+.fm-queue__subject {
+  font-family: var(--pf-t--global--font--family--mono);
+}
+
+.fm-queue__id,
+.fm-queue__size {
+  color: #6a6e73;
+}
+
+.fm-queue__size {
+  font-size: 11px;
+}
+
+/* .dq__row and .dq__ctx: contexts side by side, each opened by a 3 px bar, the last one closed by one */
+.fm-queue__contexts {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: fm-context fm-slot;
+}
+
+.fm-queue__contexts > li {
+  counter-increment: fm-context;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: var(--pf-t--global--spacer--xs);
+  padding: 12px 6px 4px;
+  border-left: 3px solid #151515;
+}
+
+.fm-queue__contexts > li:last-child {
+  border-right: 3px solid #151515;
+}
+
+/* .dq__ctxno */
+.fm-queue__contexts > li::before {
+  content: 'ctx ' counter(fm-context);
+  position: absolute;
+  top: 0;
+  left: 4px;
+  font-size: 9px;
+  color: #6a6e73;
+}
+
+/*
+ * .dq__slot: a value in a 1 px box, its slot number superscript before it, counted across the contexts; "" and
+ * SUPPRESS keep their labels and count too
+ */
+.fm-queue__contexts .fm-queue__value {
+  counter-increment: fm-slot;
+  margin: 0;
+}
+
+.fm-queue__contexts code.fm-queue__value::before {
+  content: counter(fm-slot);
+  margin-right: 2px;
+  vertical-align: super;
+  font-size: 8px;
+  color: #8a8d90;
+}
+
+.fm-queue__contexts code.fm-queue__value {
+  padding: 1px 5px;
+  border: var(--pf-t--global--border--width--regular) solid #b8bbbe;
+  border-radius: 2px;
+  background-color: var(--pf-t--global--background--color--primary--default);
+  font-family: var(--pf-t--global--font--family--mono);
+  white-space: nowrap;
 }

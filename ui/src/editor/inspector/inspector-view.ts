@@ -52,7 +52,7 @@ export function slotChoices(mapping: TargetFieldMapping, target: AuthoringId): {
 }
 
 /**
- * A target field mapping's expression (spec #145): the function chain of box `id`, its `result` by default, after the
+ * A target field mapping's function chain (spec #145): the chain of box `id`, its `result` by default, after the
  * prototype's `chainText`. A box is its name with its inputs, then its params sorted by name, in brackets, as
  * `formatDate(/PO/Date, outputPattern="yyyyMMdd")`; a source-field box is its field's path in local names, with
  * ` @ctx` and the context's name when it has one; a constant is its value in quotes; an unresolved function's name

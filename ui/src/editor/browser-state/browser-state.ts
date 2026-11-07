@@ -13,6 +13,11 @@ export function canvasKey(mappingId: string, targetFieldMappingId: string): stri
   return `mapping:${mappingId}:canvas:${targetFieldMappingId}`;
 }
 
+/** The key of a mapping's selected target field, selected again on the next open (spec #145, F-32). */
+export function targetFieldKey(mappingId: string): string {
+  return `mapping:${mappingId}:target-field`;
+}
+
 /**
  * The key of a splitter's ratio and collapsed pane, kept per user and so the same for every mapping (ADR-0013):
  * `halves` between the structure overview and the function editor, `sides` between the source and the target tree,

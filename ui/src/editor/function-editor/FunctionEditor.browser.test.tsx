@@ -45,6 +45,8 @@ const sourceRow = (path: string) => page.getByTestId(`source-field:${path}`);
 const targetRow = (path: string) => page.getByTestId(`target-field:${path}`);
 const transformOf = (id: string) => (node(id).element() as HTMLElement).style.transform;
 const viewportTransform = () => (document.querySelector('.react-flow__viewport') as HTMLElement).style.transform;
+/** The canvas zoom, from the viewport's transform. */
+const zoomOf = () => Number(/scale\(([\d.]+)\)$/.exec(viewportTransform())![1]);
 const handle = (id: string) => page.getByTestId(id);
 const edgeIds = () => edges().elements().map((e) => e.dataset.testid!.slice('rf__edge-'.length)).sort();
 const boxCount = () => page.getByTestId(/^box:/).elements().length;
@@ -135,6 +137,46 @@ describe('the canvas of the selected target field', () => {
     );
     // opened without a kept zoom, the canvas fits the graph into view
     await expect.poll(viewportTransform).not.toBe('translate(0px, 0px) scale(1)');
+  });
+
+  test('a small graph is fitted at zoom 1 at most (the prototype GraphCanvas, maxZoom 1)', async () => {
+    const small: MappingModel = { ...graphMapping, targetFieldMappings: { [ORDER_ID]: { id: 't1', result: 'a1', boxes: { a1: { kind: 'source', field: ORDER_ID } } } } };
+    render({ api: fakeApiClient({ [DRAFT]: small }) });
+    await expect.element(box('a1')).toBeVisible();
+
+    await expect.poll(viewportTransform).not.toBe('translate(0px, 0px) scale(1)');
+    expect(zoomOf()).toBe(1);
+  });
+
+  test("a graph wider than the canvas is fitted with the prototype's padding of 0.15 at each side", async () => {
+    // a1 into u1 into u2 into u3, the result: five columns, wider than the canvas, never taller
+    const wide: MappingModel = {
+      ...graphMapping,
+      targetFieldMappings: {
+        [ORDER_ID]: {
+          id: 't1',
+          result: 'u3',
+          boxes: {
+            a1: { kind: 'source', field: ORDER_ID },
+            u1: { kind: 'function', fn: 'toUpperCase', inputs: ['a1'] },
+            u2: { kind: 'function', fn: 'toUpperCase', inputs: ['u1'] },
+            u3: { kind: 'function', fn: 'toUpperCase', inputs: ['u2'] },
+          },
+        },
+      },
+    };
+    render({ api: fakeApiClient({ [DRAFT]: wide }) });
+    await expect.element(box('u3')).toBeVisible();
+    await expect.poll(viewportTransform).not.toBe('translate(0px, 0px) scale(1)');
+
+    const flow = pane.element().getBoundingClientRect();
+    const nodes = page.getByTestId(/^rf__node-/).elements().map((n) => n.getBoundingClientRect());
+    const left = Math.min(...nodes.map((r) => r.left)) - flow.left;
+    const right = flow.right - Math.max(...nodes.map((r) => r.right));
+    expect(zoomOf()).toBeLessThan(1);
+    // React Flow turns a padding p into (w - w / (1 + p)) / 2 at each side: 6.5 % of the width for 0.15, 4.5 % for 0.1
+    expect(Math.min(left, right) / flow.width).toBeGreaterThan(0.06);
+    expect(Math.min(left, right) / flow.width).toBeLessThan(0.07);
   });
 
   test("a card shows its authoring id, and its parameter input is labelled by the parameter name", async () => {
@@ -531,9 +573,10 @@ describe('the palette', () => {
     const palette = page.getByRole('navigation', { name: 'Palette' });
 
     await expect.element(palette.getByRole('list', { name: 'constant' }).getByTestId('palette:constant')).toBeVisible();
-    await expect.element(page.getByTestId('palette:toUpperCase')).toHaveTextContent('toUpperCase assumed');
-    await expect.element(page.getByTestId('palette:abs')).toHaveTextContent('abs not portable');
-    await expect.element(page.getByTestId('palette:divide').getByTitle(/^Quotient scale follows Saxon-HE/)).toHaveTextContent('deviation');
+    // each badge is a glyph named by its word, after the prototype's .gc__pitem
+    await expect.element(page.getByTestId('palette:toUpperCase').getByRole('img', { name: 'assumed', exact: true })).toHaveTextContent('?');
+    await expect.element(page.getByTestId('palette:abs').getByRole('img', { name: 'not portable', exact: true })).toBeVisible();
+    await expect.element(page.getByTestId('palette:divide').getByTitle(/^deviation: Quotient scale follows Saxon-HE/)).toHaveTextContent('≠');
 
     await page.getByLabelText('Search functions').fill('UPPER');
     await expect.element(page.getByTestId('palette:constant')).not.toBeInTheDocument();
@@ -769,6 +812,23 @@ describe("the prototype's canvas detail", () => {
     expect(styleOf(page.getByTestId('palette:abs').element()).fontSize).toBe('11px');
   });
 
+  test('a palette badge is one glyph square of about 14 px, its word in its title and name, so its entry keeps to one line', async () => {
+    render();
+    const formatNum = page.getByTestId('palette:formatNum');
+    const badge = formatNum.getByRole('img', { name: 'assumed', exact: true });
+    await expect.element(badge).toBeVisible();
+
+    await expect.element(badge).toHaveAttribute('title', 'assumed');
+    await expect.element(badge).toHaveTextContent('?');
+    const square = badge.element().getBoundingClientRect();
+    expect(square.width).toBeGreaterThanOrEqual(13);
+    expect(square.width).toBeLessThanOrEqual(15);
+    expect(square.height).toBeCloseTo(square.width, 0);
+    // "formatNum" and its badge on one line: the entry is as high as one without a badge
+    expect(formatNum.element().getBoundingClientRect().height).toBe(page.getByTestId('palette:abs').element().getBoundingClientRect().height);
+    await expect.element(page.getByTestId('palette:divide').getByRole('img', { name: /^deviation: / })).toHaveTextContent('≠');
+  });
+
   test('a box head is tinted by kind: function, source, constant, UDF and unresolved each differ', async () => {
     const target = graphMapping.targetFieldMappings![ORDER_ID]!;
     const kinds: MappingModel = {
@@ -829,13 +889,22 @@ describe("the prototype's canvas detail", () => {
     await expect.element(page.getByRole('figure', { name: 'Target message' })).toBeVisible();
     await page.getByRole('tab', { name: 'Editor' }).click();
 
-    await expect.element(resultQueue).toHaveTextContent('Display queueA-');
-    await expect.element(strip.getByText(/^result \(what the target field reads\) f1$/)).toBeVisible();
+    // the heading line, after .dq__head: what the strip shows, its id and the queue's size, then the contexts
+    await expect.element(resultQueue).toHaveTextContent('Display queue result (what the target field reads) f1 · 1 context, 1 slotA-');
+    // the inspector's compact look: each context a bracketed row of 1 px value boxes
+    const context = resultQueue.getByTitle('context 1', { exact: true }).element();
+    expect(styleOf(context).borderLeftWidth).toBe('3px');
+    expect(styleOf(resultQueue.getByText('A-', { exact: true }).element()).borderTopWidth).toBe('1px');
     await box('c1').click();
-    await expect.element(selectedQueue).toHaveTextContent('Display queue- xs:string');
+    await expect.element(selectedQueue).toHaveTextContent('Display queue selected box c1- xs:string');
     // the inspector's "Display queue" region is the only one so named
     await expect.element(page.getByRole('region', { name: 'Display queue', exact: true })).toHaveTextContent('Display queue- xs:string');
-    await expect.element(strip.getByText(/^selected box c1$/)).toBeVisible();
+    // the subject stands inline after the heading, as in the prototype's f-default
+    const heading = selectedQueue.getByRole('heading', { name: 'Display queue' }).element().getBoundingClientRect();
+    const subject = selectedQueue.getByText('selected box', { exact: true }).element().getBoundingClientRect();
+    expect(subject.left).toBeGreaterThanOrEqual(heading.right);
+    expect(subject.left - heading.right).toBeLessThan(16);
+    expect(Math.abs(subject.bottom - heading.bottom)).toBeLessThan(4);
 
     // under the canvas, the palette beside it, and 130 px high
     const canvas = page.getByRole('group', { name: /^Canvas of / }).element().getBoundingClientRect();

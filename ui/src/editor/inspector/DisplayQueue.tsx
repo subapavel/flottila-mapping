@@ -2,7 +2,9 @@ import { Label } from '@patternfly/react-core';
 import type { TraceEntry } from '../../api/client';
 import type { AuthoringId, FieldPath, TargetFieldMapping } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
-import { displayEntry, type DisplayEntry, type OccurrenceRow, type ShownValue } from './display-queue';
+import { displayEntry, queueSize, type DisplayEntry, type OccurrenceRow, type ShownValue } from './display-queue';
+// the module's styles go with the component, which the function editor's strip shows too (F-29)
+import './inspector-panel.css';
 
 /** The last run's trace by authoring id (`undefined` before a run), and whether it is a stale trace. */
 export interface LastTrace {
@@ -10,14 +12,32 @@ export interface LastTrace {
   stale: boolean;
 }
 
+export interface BoxQueueProps {
+  id: AuthoringId | null;
+  last: LastTrace;
+  /** Names the region, "Display queue" by default; a second view of a queue on the page names itself apart. */
+  label?: string;
+  /** What the queue is of, as "result" or "selected box": shown with the box's id after the heading. */
+  subject?: string;
+}
+
 /**
  * The display queue of a box (GLOSSARY): the queue or value it gave in the last test run; no box (`null`) gave none.
- * `label` names the region, "Display queue" by default; a second view of a queue on the page names itself apart.
+ * Its heading line, after the prototype's .dq__head, holds the subject and id when given, and a queue's size.
  */
-export function BoxQueue({ id, last, label = 'Display queue' }: { id: AuthoringId | null; last: LastTrace; label?: string }) {
+export function BoxQueue({ id, last, label = 'Display queue', subject }: BoxQueueProps) {
   return (
     <section aria-label={label} className="fm-queue">
-      <h4>Display queue</h4>
+      <div className="fm-queue__head">
+        <h4>Display queue</h4>
+        {subject !== undefined && (
+          <>
+            {' '}
+            <span className="fm-queue__subject">{subject}</span> <code className="fm-queue__id">{id}</code>
+          </>
+        )}
+        <Size last={last} id={id} after={subject === undefined ? ' ' : ' · '} />
+      </div>
       <Traced last={last} id={id} />
     </section>
   );
@@ -28,11 +48,28 @@ export function TargetFieldQueue({ field, mapping, last }: { field: FieldPath; m
   return (
     <section aria-label="Display queue of the target field" className="fm-queue">
       <h4>Display queue of {stepName(field)}</h4>
-      <h5>Result queue</h5>
+      <div className="fm-queue__head">
+        <h5>Result queue</h5> <code className="fm-queue__id">{mapping.result}</code>
+        <Size last={last} id={mapping.result} after=" · " />
+      </div>
       <Traced last={last} id={mapping.result} />
       <h5>Occurrences</h5>
       <Traced last={last} id={mapping.id} />
     </section>
+  );
+}
+
+/**
+ * A traced queue's size on the heading line, "n contexts, n slots" after the text `after` (" · " when it follows an
+ * id), after .dq__meta; nothing for any other entry.
+ */
+function Size({ last: { trace }, id, after }: { last: LastTrace; id: AuthoringId | null; after: string }) {
+  const size = queueSize(id === null ? undefined : trace?.[id]);
+  return size === undefined ? null : (
+    <span className="fm-queue__size">
+      {after}
+      {size}
+    </span>
   );
 }
 
@@ -64,9 +101,10 @@ function Entry({ entry }: { entry: DisplayEntry }) {
       return (
         <>
           <Capped text={entry.capped} />
-          <ol aria-label="Contexts">
+          {/* each context a bracketed row of value boxes, "ctx n" above it (inspector-panel.css), after .dq__ctx */}
+          <ol aria-label="Contexts" className="fm-queue__contexts">
             {entry.contexts.map((context, i) => (
-              <li key={i}>
+              <li key={i} title={`context ${i + 1}`}>
                 {context.length === 0 ? <em>no values</em> : context.map((value, j) => <Value key={j} value={value} />)}
               </li>
             ))}

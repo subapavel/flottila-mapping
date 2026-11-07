@@ -99,7 +99,7 @@ interface TargetFieldViewProps {
 /**
  * The selected target field with no box shown (spec #145, the `!b` branch of the prototype's Inspector): its local
  * name, its full path, its effective occurrence, type and field status while the target structure has it, and its
- * mapping's id and expression. Then the mapping's display queue: its result box's before a test run, else the result
+ * mapping's id and function chain. Then the mapping's display queue: its result box's before a test run, else the result
  * queue and the occurrences per parent slot.
  */
 function TargetFieldView({ field, mapping, target, status, last }: TargetFieldViewProps) {
@@ -119,7 +119,7 @@ function TargetFieldView({ field, mapping, target, status, last }: TargetFieldVi
           <p className="fm-inspector__row">
             mapping <code>{mapping.id}</code>: <code>{chainText(mapping)}</code>
           </p>
-          {last.trace === undefined ? <BoxQueue id={mapping.result} last={last} /> : <TargetFieldQueue field={field} mapping={mapping} last={last} />}
+          {last.trace === undefined ? <BoxQueue id={mapping.result} last={last} subject="result" /> : <TargetFieldQueue field={field} mapping={mapping} last={last} />}
         </>
       )}
       <p className="fm-inspector__hint">Select a box on the canvas to inspect it.</p>

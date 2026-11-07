@@ -1,7 +1,7 @@
 /*
  * The function editor module's styles (spec #135, #145), imported by FunctionEditor.tsx: the palette, the canvas
  * toolbar, the box cards, the target node, quick insert and the display-queue strip. Sizes and colours are the
- * prototype's (branch prototype/mapping-editor: prototype.css .fbox, .fnode, .fid, .dq; prototype-round2.css .gc, .qi),
+ * prototype's (branch prototype/mapping-editor: prototype.css .fbox, .fnode, .fid; prototype-round2.css .gc, .qi),
  * a PatternFly --pf-t--global-* token where one has the value, the prototype's value where none does. Classes carry the
  * fm- prefix. Sizes set at run time (a box's width from the layout) stay inline.
  */
@@ -147,6 +147,18 @@
 
 .fm-palette__marks:empty {
   display: none;
+}
+
+/* a palette badge is one 14 px glyph square, after .gc__pitem .fid; its word is its title */
+.fm-palette .fm-fid {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  line-height: 1;
 }
 
 /* after .palette__kind */
@@ -406,9 +418,8 @@
   background-color: #e7f1fa;
 }
 
-/* the display-queue strip under the canvas, after .gc__queue */
+/* the display-queue strip under the canvas, after .gc__queue; the queue in it is the inspector's (inspector-panel.css) */
 .fm-function-editor__queue {
-  position: relative;
   flex: none;
   height: 130px;
   box-sizing: border-box;
@@ -417,73 +428,4 @@
   border-top: var(--pf-t--global--border--width--strong) solid #d2d2d2;
   background-color: #fcfcfc;
   font-size: var(--pf-t--global--font--size--xs);
-}
-
-/* what the strip shows, on the heading's line at its right, after .dq__head */
-.fm-function-editor__queue-subject {
-  position: absolute;
-  top: var(--pf-t--global--spacer--xs);
-  right: var(--pf-t--global--spacer--sm);
-  font-family: var(--pf-t--global--font--family--mono);
-}
-
-.fm-function-editor__queue-subject:only-child {
-  position: static;
-}
-
-.fm-function-editor__queue-subject code {
-  color: #6a6e73;
-  font-size: 11px;
-}
-
-/* the inspector's display queue in the strip, after .dq: the heading, then each context a bracketed row of slots */
-.fm-function-editor__queue .fm-queue {
-  margin-top: 0;
-}
-
-.fm-function-editor__queue .fm-queue h4 {
-  font-size: var(--pf-t--global--font--size--xs);
-  font-weight: 700;
-}
-
-.fm-function-editor__queue ol {
-  display: flex;
-  flex-wrap: wrap;
-  margin: var(--pf-t--global--spacer--xs) 0 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: fm-context;
-}
-
-.fm-function-editor__queue ol > li {
-  counter-increment: fm-context;
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  margin-bottom: var(--pf-t--global--spacer--xs);
-  padding: 12px 6px 4px;
-  border-left: 3px solid #151515;
-}
-
-.fm-function-editor__queue ol > li:last-child {
-  border-right: 3px solid #151515;
-}
-
-.fm-function-editor__queue ol > li::before {
-  content: 'ctx ' counter(fm-context);
-  position: absolute;
-  top: 0;
-  left: 4px;
-  font-size: 9px;
-  color: #6a6e73;
-}
-
-.fm-function-editor__queue code.fm-queue__value {
-  margin: 0;
-  padding: 1px 5px;
-  border: var(--pf-t--global--border--width--regular) solid #b8bbbe;
-  border-radius: 2px;
-  background-color: var(--pf-t--global--background--color--primary--default);
-  white-space: nowrap;
 }

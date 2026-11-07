@@ -161,7 +161,7 @@ describe('the display queue', () => {
     render(run);
     await expect.element(node('f1')).toBeVisible();
     // the target field view shows its result box's display queue, which asks for a run
-    await expect.element(boxQueue).toHaveTextContent('Display queueNo trace: run a test.');
+    await expect.element(boxQueue).toHaveTextContent('Display queue result f1No trace: run a test.');
     await expect.element(fieldQueue).not.toBeInTheDocument();
 
     await inspect('f1');
@@ -174,6 +174,8 @@ describe('the display queue', () => {
     await runTest();
     await inspect('f1');
 
+    // the box's own view has its id in the kind line: the heading line holds the queue's size alone
+    await expect.element(boxQueue).toMatchTextContent(/^Display queue 3 contexts, 3 slotsA-/);
     const contexts = boxQueue.getByRole('list', { name: 'Contexts' }).getByRole('listitem');
     await expect.element(contexts.nth(0)).toHaveTextContent('A-""');
     await expect.element(contexts.nth(0).getByText('""')).toHaveClass(/pf-v6-c-label/);
