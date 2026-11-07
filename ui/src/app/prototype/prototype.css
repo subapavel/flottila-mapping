@@ -1,0 +1,353 @@
+/*
+ * PROTOTYPE (spec #145, ticket #145) — throwaway. The prototype route loads neither app.css nor editor.css, so no
+ * 13 px body text. This file holds three things:
+ *   1. layout helpers that let the work area fill the PF Page's main area;
+ *   2. React Flow themed with PF tokens, per PatternFly's React Flow guide (owner decision 1);
+ *   3. overrides that put the reused editor components back on PF sizes. Each block names the component that would
+ *      need rework to be PF-native on its own.
+ */
+
+/* ---------- 1. layout ---------- */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.proto-pf.pf-v6-c-page {
+  height: 100vh;
+}
+
+/* the main area is a column the filled section can share without the page scrolling */
+.proto-pf .pf-v6-c-page__main-container.pf-m-fill {
+  min-height: 0;
+}
+.proto-pf .pf-v6-c-page__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 0;
+}
+.proto-pf .pf-v6-c-page__main-section.pf-m-fill.proto-fill {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+/* PageSection wraps its children in a PageBody: the body of a filled section is the column too */
+.proto-pf .pf-v6-c-page__main-section.proto-fill > .pf-v6-c-page__main-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-fill {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+}
+.proto-column {
+  display: flex;
+  flex-direction: column;
+}
+.proto-gap {
+  gap: var(--pf-t--global--spacer--sm);
+}
+.proto-pad {
+  padding: var(--pf-t--global--spacer--md);
+}
+.proto-scroll {
+  overflow: auto;
+}
+.proto-two,
+.proto-three {
+  display: grid;
+  gap: var(--pf-t--global--spacer--lg);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: 100%;
+  box-sizing: border-box;
+}
+.proto-three {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+}
+
+/* the Drawer fills the work area; its content body is the column the halves share */
+.proto-pf .pf-v6-c-drawer.proto-fill {
+  height: 100%;
+}
+.proto-pf .pf-v6-c-drawer__content {
+  display: flex;
+  flex-direction: column;
+}
+.proto-pf .pf-v6-c-drawer__body.proto-fill {
+  padding: 0;
+  height: 100%;
+}
+.proto-pf .pf-v6-c-drawer__panel-body.proto-scroll {
+  min-height: 0;
+}
+
+/* the FileUpload's text preview is the input editor: it takes the column's height, monospace */
+.proto-upload {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.proto-upload .pf-v6-c-file-upload__file-details {
+  flex: 1 1 0;
+  min-height: 12rem;
+}
+.proto-upload textarea {
+  height: 100%;
+  font-family: var(--pf-t--global--font--family--mono);
+}
+
+.proto-code {
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+/* Variant C: a wider object browser, so mapping names fit */
+.proto-c.pf-v6-c-page {
+  --pf-v6-c-page__sidebar--Width: 22rem;
+}
+.proto-c-browser .pf-v6-c-page__sidebar-body.proto-scroll {
+  min-height: 0;
+}
+
+/* ---------- 2. React Flow with PF tokens (PatternFly's React Flow guide) ---------- */
+.proto-pf .react-flow {
+  --xy-node-border-radius-default: var(--pf-t--global--border--radius--medium);
+  --xy-edge-stroke-default: var(--pf-t--global--border--color--default);
+  --xy-edge-stroke-width-default: var(--pf-t--global--border--width--regular);
+  --xy-edge-stroke-selected-default: var(--pf-t--global--border--color--clicked);
+  --xy-background-pattern-dots-color-default: var(--pf-t--global--border--color--disabled);
+  --xy-node-color-default: var(--pf-t--global--text--color--regular);
+  --xy-node-border-default: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+  --xy-node-background-color-default: var(--pf-t--global--background--color--primary--default);
+  --xy-node-boxshadow-selected-default: var(--pf-t--global--box-shadow--md);
+  --xy-handle-background-color-default: var(--pf-t--global--color--brand--default);
+  --xy-attribution-background-color-default: transparent;
+  --xy-controls-button-background-color-default: var(--pf-t--global--background--color--primary--default);
+  --xy-controls-button-color-default: var(--pf-t--global--icon--color--regular);
+  --xy-controls-button-border-color-default: var(--pf-t--global--border--color--default);
+  font-family: var(--pf-t--global--font--family--body);
+}
+
+/*
+ * FunctionEditor.tsx / function-editor.css — the box cards (.fm-card) are hand-made divs, not PF Cards, at 9–11 px.
+ * Their geometry is fixed in JS (layout.ts BOX 180 × 96, graph.ts card heights from 20 px slots), so here they take
+ * PF's small body size and PF tokens; a PF-native card needs the geometry measured instead of computed.
+ */
+.proto-pf .fm-card {
+  border: var(--xy-node-border-default);
+  border-radius: var(--xy-node-border-radius-default);
+  box-shadow: var(--pf-t--global--box-shadow--sm);
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+.proto-pf .fm-card--selected {
+  outline: none;
+  border-color: var(--pf-t--global--border--color--clicked);
+  box-shadow: var(--xy-node-boxshadow-selected-default);
+}
+.proto-pf .fm-card__head {
+  border-radius: var(--xy-node-border-radius-default) var(--xy-node-border-radius-default) 0 0;
+  border-bottom-color: var(--pf-t--global--border--color--default);
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+.proto-pf .fm-card--source .fm-card__head {
+  background-color: var(--pf-t--global--color--nonstatus--blue--default);
+}
+.proto-pf .fm-card--constant .fm-card__head {
+  background-color: var(--pf-t--global--color--nonstatus--green--default);
+}
+.proto-pf .fm-card--udf .fm-card__head {
+  background-color: var(--pf-t--global--color--nonstatus--purple--default);
+}
+.proto-pf .fm-card__kind,
+.proto-pf .fm-card__reach,
+.proto-pf .fm-card__id,
+.proto-pf .fm-fid,
+.proto-pf .fm-sink__caption,
+.proto-pf .fm-palette__kind {
+  font-size: var(--pf-t--global--font--size--body--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  text-transform: none;
+}
+.proto-pf .fm-card__param input,
+.proto-pf .fm-card__param select {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+.proto-pf .fm-sink {
+  border-radius: var(--xy-node-border-radius-default);
+  border-color: var(--pf-t--global--color--status--success--default);
+  background-color: var(--pf-t--global--background--color--primary--default);
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+
+/* ---------- 3. the reused components back on PF sizes ---------- */
+
+/* FunctionEditor.tsx canvas toolbar (.fm-toolbar): a hand-made bar at 12 px; a PF Toolbar would replace it */
+.proto-pf .fm-toolbar {
+  font-size: var(--pf-t--global--font--size--body--default);
+  padding: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
+  border-bottom-color: var(--pf-t--global--border--color--default);
+}
+.proto-pf .fm-toolbar__id {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+
+/* PaletteView.tsx (.fm-palette): 118 px of 11 px entries and a squeezed SearchInput; a PF Menu or DataList fits */
+.proto-pf .fm-palette {
+  width: 12rem;
+  padding: var(--pf-t--global--spacer--sm);
+  border-right-color: var(--pf-t--global--border--color--default);
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+.proto-pf .fm-palette .pf-v6-c-text-input-group {
+  --pf-v6-c-text-input-group__FontSize: var(--pf-t--global--font--size--body--default);
+  --pf-v6-c-text-input-group__text-input--PaddingBlockStart: var(--pf-t--global--spacer--control--vertical--default);
+  --pf-v6-c-text-input-group__text-input--PaddingBlockEnd: var(--pf-t--global--spacer--control--vertical--default);
+  --pf-v6-c-text-input-group__text-input--PaddingInlineEnd: var(--pf-t--global--spacer--control--horizontal--default);
+  --pf-v6-c-text-input-group__icon--FontSize: var(--pf-t--global--icon--size--font--body--default);
+  --pf-v6-c-text-input-group__icon--InsetInlineStart: var(--pf-t--global--spacer--control--horizontal--default);
+  --pf-v6-c-text-input-group__main--m-icon__text-input--PaddingInlineStart: calc(var(--pf-t--global--spacer--control--horizontal--default) + var(--pf-t--global--icon--size--font--body--default) + var(--pf-t--global--spacer--gap--text-to-element--default));
+}
+.proto-pf .fm-palette__family {
+  margin-top: var(--pf-t--global--spacer--md);
+}
+.proto-pf .fm-palette__family-name {
+  font-size: var(--pf-t--global--font--size--body--sm);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-bottom: var(--pf-t--global--spacer--xs);
+}
+.proto-pf .fm-palette__entry {
+  font-size: var(--pf-t--global--font--size--body--default);
+  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
+  margin: var(--pf-t--global--spacer--xs) 0;
+  border-color: var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+}
+
+/* the display-queue strip (FunctionEditor QueueStrip + DisplayQueue.tsx, inspector-panel.css): 9–12 px */
+.proto-pf .fm-function-editor__queue,
+.proto-pf .fm-queue,
+.proto-pf .fm-queue__size {
+  font-size: var(--pf-t--global--font--size--body--default);
+}
+.proto-pf .fm-function-editor__queue {
+  padding: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
+  border-top: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+}
+.proto-pf .fm-queue__contexts > li::before,
+.proto-pf .fm-queue__contexts code.fm-queue__value::before {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+
+/* Inspector.tsx (inspector-panel.css): 12 px text, 10 px kind, hand-made headings; inside the PF Drawer */
+.proto-pf .fm-inspector {
+  font-size: var(--pf-t--global--font--size--body--default);
+  padding: 0;
+  border: 0;
+  width: auto;
+}
+.proto-pf .fm-inspector__kind,
+.proto-pf .fm-inspector__path {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+.proto-pf .fm-inspector__title {
+  font-size: var(--pf-t--global--font--size--heading--sm);
+}
+
+/* StructureOverview.tsx (structure-overview.css): rows at 12 px in a 26 px virtualised row (ROW_HEIGHT), 11 px heads */
+.proto-pf .fm-tree__row {
+  font-size: var(--pf-t--global--font--size--body--default);
+}
+.proto-pf .fm-tree__count,
+.proto-pf .fm-tree__type,
+.proto-pf .fm-tree__occurrence,
+.proto-pf .fm-tree__head > .pf-v6-c-toggle-group .pf-v6-c-toggle-group__button {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+.proto-pf .fm-tree__head > .pf-v6-c-toggle-group {
+  margin: 0 0 var(--pf-t--global--spacer--sm);
+}
+.proto-pf .fm-tree__head > .pf-v6-c-toggle-group .pf-v6-c-toggle-group__button {
+  padding: var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--sm);
+}
+.proto-pf .fm-tree__count {
+  padding: 0 0 var(--pf-t--global--spacer--xs);
+  color: var(--pf-t--global--text--color--subtle);
+}
+.proto-pf .fm-tree__tools {
+  padding: 0 0 var(--pf-t--global--spacer--sm);
+}
+.proto-pf .fm-gutter__label,
+.proto-pf .fm-gutter__count,
+.proto-pf .fm-status-count {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+.proto-pf .fm-tree {
+  border-color: var(--pf-t--global--border--color--default);
+}
+
+/* Splitter.tsx (layout.css): 8 px grey bar with 8 px glyph buttons; kept, as PF has no splitter outside the Drawer */
+.proto-pf .fm-splitter {
+  background: var(--pf-t--global--border--color--default);
+}
+.proto-pf .fm-splitter--horizontal {
+  height: 6px;
+}
+.proto-pf .fm-splitter__button {
+  font-size: var(--pf-t--global--font--size--body--sm);
+}
+
+/* StructureOverview head: keep search, Expand all and Collapse on one line; status filter labels never break */
+.proto-pf .fm-tree__tools {
+  flex-wrap: nowrap;
+}
+.proto-pf .fm-tree__search {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.proto-pf .fm-tree__head > .pf-v6-c-toggle-group {
+  flex-wrap: wrap;
+}
+.proto-pf .fm-tree__head > .pf-v6-c-toggle-group .pf-v6-c-toggle-group__button {
+  white-space: nowrap;
+}
+
+.proto-a-diag {
+  flex: 0 1 auto;
+  max-height: 40%;
+}
+
+/* ---------- the switcher: deliberately not PF, so it reads as not part of the design ---------- */
+.proto-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #111;
+  color: #ffd400;
+  font: 600 13px/1.2 system-ui, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.proto-switcher button {
+  border: 0;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  background: #333;
+  color: #ffd400;
+  font-size: 15px;
+  cursor: pointer;
+}

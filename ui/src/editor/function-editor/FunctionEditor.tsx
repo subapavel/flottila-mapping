@@ -377,6 +377,8 @@ function Canvas({ store, mapping, targetField, catalogue, udfs, canvasState, orp
       </div>
       <div className="fm-function-editor__flow">
         <ReactFlow
+          // PROTOTYPE (#145): an accessible name for the flow, per PatternFly's React Flow guide
+          aria-label={`Function graph of ${localPath(targetField)}`}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
