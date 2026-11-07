@@ -7,7 +7,7 @@ import corpusMappingText from '../../../corpus/mappings/order-id-copy.mapping.js
 import { ApiProblem, type ApiClient, type Diagnostic } from '../api/client';
 import { fakeApiClient } from '../api/fake/fake-api';
 import type { MappingModel } from '../generated/mapping-model';
-import type { BrowserStateStore } from './browser-state/browser-state';
+import { targetFieldKey, type BrowserStateStore } from './browser-state/browser-state';
 import { MappingEditor } from './index';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
@@ -770,7 +770,7 @@ describe('the opening selection (spec #145)', () => {
     await expect.element(page.getByText('Order/Note has no function graph yet.')).toBeVisible();
     unmount();
 
-    browserState.write('mapping:mappings/order-id-copy:target-field', `${ORDER}/Gone`);
+    browserState.write(targetFieldKey('mappings/order-id-copy'), `${ORDER}/Gone`);
     open('mappings/order-id-copy', api, browserState);
     await expect.element(targetRow(ORDER_ID)).toHaveAttribute('aria-selected', 'true');
   });

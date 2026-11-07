@@ -82,7 +82,7 @@ describe("a box's title", () => {
   });
 });
 
-describe("a target field mapping's expression (spec #145)", () => {
+describe("a target field mapping's function chain (spec #145)", () => {
   const of = (boxes: Record<string, unknown>, result: string | null = 'r') => chainText({ id: 't', result, boxes } as unknown as TargetFieldMapping);
 
   test("is the result box's function chain: a source field by its path in local names, a constant by its value, params sorted", () => {

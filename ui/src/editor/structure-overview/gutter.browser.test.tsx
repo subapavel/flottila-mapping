@@ -183,4 +183,15 @@ describe('the link gutter (spec #145, "Gutter")', () => {
     await expect.element(sourceRow(line(9)).getByTitle('used by the mapping')).not.toBeInTheDocument();
     await expect.element(targetRow(line(1)).getByTitle('used by the mapping')).not.toBeInTheDocument();
   });
+
+  test('a source field keeps its used mark when the status filter hides its link (the prototype reads the model, not the drawn links)', async () => {
+    render();
+    await expect.element(fieldLink(line(1), line(1))).toBeInTheDocument();
+
+    await page.getByRole('group', { name: 'Status filter' }).getByRole('button', { name: 'Error', exact: true }).click();
+
+    await expect.element(fieldLink(line(6), line(6))).toBeInTheDocument();
+    await expect.element(fieldLink(line(1), line(1))).not.toBeInTheDocument();
+    await expect.element(sourceRow(line(1)).getByTitle('used by the mapping')).toBeVisible();
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { canvasKey, splitKey, storageBrowserState } from './browser-state';
+import { canvasKey, splitKey, storageBrowserState, targetFieldKey } from './browser-state';
 
 /** A Storage port over a Map; `failing` makes every call throw, as a blocked or full localStorage does. */
 function fakeStorage(failing = false) {
@@ -47,6 +47,10 @@ describe('the browser state store over a Storage', () => {
 describe('the keys of the browser state (ADR-0013, "Browser state")', () => {
   test('a target field mapping keeps its canvas under its mapping and its own authoring id', () => {
     expect(canvasKey('mappings/order', 't1')).toBe('mapping:mappings/order:canvas:t1');
+  });
+
+  test('a mapping keeps its selected target field under its own key', () => {
+    expect(targetFieldKey('mappings/order')).toBe('mapping:mappings/order:target-field');
   });
 
   test('each splitter keeps its ratio and collapsed pane per user, under one key for every mapping', () => {

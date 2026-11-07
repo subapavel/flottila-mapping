@@ -80,33 +80,18 @@ export function PaletteView({ catalogue, onInsert }: PaletteViewProps) {
 }
 
 /**
- * A badge, after the prototype's 9 px .fid, its words under `id` for the entry's description; a deviation's text is its
- * hover title and, for assistive technology, part of its description.
+ * A badge as one glyph square, after the prototype's .gc__pitem .fid: `?` for an assumed reading, `≠` for a deviation;
+ * the prototype has no not-portable badge, so it gets `⊘`. Its words, a deviation's with its text, are its hover title
+ * and its name, under `id` for the entry's description.
  */
 function BadgeView({ id, badge }: { id: string; badge: Badge }) {
-  switch (badge.kind) {
-    case 'assumed':
-      return (
-        <span id={id} className="fm-fid fm-fid--assumed">
-          assumed
-        </span>
-      );
-    case 'deviation':
-      return (
-        <>
-          <span title={badge.text} className="fm-fid fm-fid--deviation">
-            deviation
-          </span>
-          <span id={id} hidden>
-            deviation: {badge.text}
-          </span>
-        </>
-      );
-    case 'not-portable':
-      return (
-        <span id={id} className="fm-fid fm-fid--not-portable">
-          not portable
-        </span>
-      );
-  }
+  const words = badge.kind === 'deviation' ? `deviation: ${badge.text}` : BADGE_WORDS[badge.kind];
+  return (
+    <span id={id} role="img" aria-label={words} title={words} className={`fm-fid fm-fid--${badge.kind}`}>
+      {GLYPH[badge.kind]}
+    </span>
+  );
 }
+
+const BADGE_WORDS = { assumed: 'assumed', 'not-portable': 'not portable' } as const;
+const GLYPH = { assumed: '?', deviation: '≠', 'not-portable': '⊘' } as const;

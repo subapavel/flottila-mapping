@@ -242,7 +242,7 @@ describe('the inspector', () => {
 });
 
 describe('the target field view (spec #145, e-default)', () => {
-  test("with no box selected it shows the target field: its name, full path, occurrence, type and status, its mapping's expression and result queue", async () => {
+  test("with no box selected it shows the target field: its name, full path, occurrence, type and status, its mapping's function chain and result queue", async () => {
     render();
 
     await expect.element(inspector.getByRole('heading', { name: 'OrderId', exact: true })).toBeVisible();
@@ -250,11 +250,18 @@ describe('the target field view (spec #145, e-default)', () => {
     await expect.element(inspector).toMatchTextContent(/^target fieldOrderId\/Order\/OrderIdoccurrence 0\.\.unbounded · xs:string · mapped/);
     await expect.element(inspector).toMatchTextContent('mapping t1: concat(fixValues(/Order/Item/Line/Code, missing="error"))');
     // no test has run: the result box's display queue says so
-    await expect.element(inspector.getByRole('region', { name: 'Display queue', exact: true })).toHaveTextContent('Display queueNo trace: run a test.');
+    await expect.element(inspector.getByRole('region', { name: 'Display queue', exact: true })).toHaveTextContent('Display queue result f1No trace: run a test.');
     await expect.element(inspector).toMatchTextContent(/Select a box on the canvas to inspect it\.$/);
   });
 
-  test('a field without a mapping shows its status and no expression; an error at its mapping is its status', async () => {
+  test('a field with a bounded occurrence shows its maximum', async () => {
+    const bounded: StructureLoaded = { ...structure, types: { ...structure.types, order: [field('OrderId', { min: 1, max: 3 }), ...structure.types.order!.slice(1)] } };
+    render(mapping, { loadStructure: async () => bounded });
+
+    await expect.element(inspector).toMatchTextContent(/^target fieldOrderId\/Order\/OrderIdoccurrence 1\.\.3 · xs:string · mapped/);
+  });
+
+  test('a field without a mapping shows its status and no function chain; an error at its mapping is its status', async () => {
     render(mapping, {}, ITEM);
     await expect.element(inspector).toMatchTextContent(/^target fieldItem\/Order\/Itemoccurrence 0\.\.unbounded · structure field · unmappedSelect a box/);
     await expect.element(inspector.getByRole('region', { name: 'Display queue', exact: true })).not.toBeInTheDocument();
@@ -267,7 +274,7 @@ describe('the target field view (spec #145, e-default)', () => {
     await expect.element(inspector).toMatchTextContent('xs:string · error');
   });
 
-  test('a target field mapping the target structure lacks shows its path and expression, and no occurrence', async () => {
+  test('a target field mapping the target structure lacks shows its path and function chain, and no occurrence', async () => {
     const GONE = `${ORDER}/Gone`;
     render({ ...mapping, targetFieldMappings: { [GONE]: { id: 'g1', result: 'g2', boxes: { g2: { kind: 'source', field: ORDER_ID, context: ORDER } } } } }, {}, GONE);
 

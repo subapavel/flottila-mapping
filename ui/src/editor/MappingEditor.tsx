@@ -7,7 +7,7 @@ import type { AuthoringId, FieldPath } from '../generated/mapping-model';
 import { newAuthoringId } from '../model/authoring-id';
 import { describeRefusal } from '../model/command';
 import { fieldPathSteps, stepName } from '../model/field-path';
-import { canvasKey, type BrowserStateStore } from './browser-state/browser-state';
+import { canvasKey, targetFieldKey, type BrowserStateStore } from './browser-state/browser-state';
 import { DiagnosticsPanel } from './diagnostics/DiagnosticsPanel';
 import { EditorLayout } from './EditorLayout';
 import { FunctionEditor, type CanvasState } from './function-editor/FunctionEditor';
@@ -200,7 +200,7 @@ function OpenMapping({
 
   // Opening selection (spec #145): the selected target field is kept per mapping; once the target structure has loaded,
   // a mapping the host opens on no field selects the kept one, or the first mapped one in tree order (`openingField`).
-  const fieldKey = `mapping:${mappingId}:target-field`;
+  const fieldKey = targetFieldKey(mappingId);
   useEffect(() => {
     // the host's null before the opening selection must not drop the kept field
     if (selectedField !== null) browserState.write(fieldKey, selectedField);
@@ -365,7 +365,7 @@ function OpenMapping({
               canvasState={canvasState}
               orphaned={orphaned}
               onRemap={remap}
-              boxQueue={(id, last, label) => <BoxQueue id={id} last={last} label={label} />}
+              boxQueue={(id, last, label, subject) => <BoxQueue id={id} last={last} label={label} subject={subject} />}
             />
           }
           inspector={
