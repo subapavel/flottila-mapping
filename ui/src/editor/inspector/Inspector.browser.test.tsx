@@ -73,8 +73,8 @@ function memoryBrowserState(): BrowserStateStore {
   return { read: (key) => structuredClone(values.get(key)), write: (key, value) => void values.set(key, structuredClone(value)) };
 }
 
-function Host({ api }: { api: ApiClient }) {
-  const [selected, setSelected] = useState<string | null>(ORDER_ID);
+function Host({ api, field }: { api: ApiClient; field: string }) {
+  const [selected, setSelected] = useState<string | null>(field);
   return <MappingEditor mappingId={DRAFT} api={api} browserState={memoryBrowserState()} selectedField={selected} onSelectField={setSelected} />;
 }
 
@@ -82,12 +82,12 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 let consoleError: ReturnType<typeof vi.spyOn>;
 
-function render(model: MappingModel = mapping, overrides: Partial<ApiClient> = {}): ApiClient {
+function render(model: MappingModel = mapping, overrides: Partial<ApiClient> = {}, field = ORDER_ID): ApiClient {
   const api: ApiClient = { ...fakeApiClient({ [DRAFT]: model }), loadStructure: async () => structure, ...overrides };
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  root.render(<Host api={api} />);
+  root.render(<Host api={api} field={field} />);
   return api;
 }
 
@@ -130,7 +130,7 @@ async function saved(api: ApiClient): Promise<TargetFieldMapping> {
 describe('the inspector', () => {
   test('asks for a box until one is selected, and collapses and opens again', async () => {
     render();
-    await expect.element(inspector).toHaveTextContent('Select a box to inspect it.');
+    await expect.element(inspector).toMatchTextContent(/Select a box on the canvas to inspect it\.$/);
 
     await page.getByRole('button', { name: 'Hide inspector' }).click();
     await expect.element(inspector).not.toBeInTheDocument();
@@ -190,14 +190,15 @@ describe('the inspector', () => {
 
     await inspect('x1');
     await expect.element(kind('x1')).toBeVisible();
-    await expect.element(inspector).toMatchTextContent(/^function box · x1fixValuesconversions · execution kind/);
+    // the kind line ends with the way back to the target field view
+    await expect.element(inspector).toMatchTextContent(/^function box · x1target fieldfixValuesconversions · execution kind/);
     await expect.element(inspector.getByTestId('inspector:x1')).not.toMatchTextContent('deviation');
 
     await inspect('d1');
     await expect.element(inspector.getByTestId('inspector:d1')).toHaveTextContent('dividedeviation');
     // a source-field box is named by its field's local path, the full path in the title of what it reads
     await inspect('s1');
-    await expect.element(inspector).toMatchTextContent(/^source-field box · s1Order\/Item\/Line\/Code/);
+    await expect.element(inspector).toMatchTextContent(/^source-field box · s1target fieldOrder\/Item\/Line\/Code/);
     await expect.element(inspector.getByTitle(CODE, { exact: true })).toHaveTextContent('Reads Order/Item/Line/Code');
     await inspect('u1');
     await expect.element(inspector).toMatchTextContent(/^UDF box · u1/);
@@ -217,7 +218,7 @@ describe('the inspector', () => {
     await page.getByRole('button', { name: 'x1', exact: true }).click();
 
     await expect.element(page.getByRole('region', { name: 'Function editor' }).getByRole('alert')).toHaveTextContent('Failed to fetch');
-    await expect.element(inspector).toHaveTextContent('Select a box to inspect it.');
+    await expect.element(inspector).toMatchTextContent(/^target fieldOrderId.*Select a box on the canvas to inspect it\.$/);
   });
 
   test('shows "not portable" for an entry whose export is not portable', async () => {
@@ -237,6 +238,70 @@ describe('the inspector', () => {
     await inspect('g1');
 
     await expect.element(inspector.getByRole('region', { name: 'Remap' }).getByTitle(`${ORDER}/Gone`, { exact: true })).toHaveTextContent('The source structure has no field Order/Gone.');
+  });
+});
+
+describe('the target field view (spec #145, e-default)', () => {
+  test("with no box selected it shows the target field: its name, full path, occurrence, type and status, its mapping's function chain and result queue", async () => {
+    render();
+
+    await expect.element(inspector.getByRole('heading', { name: 'OrderId', exact: true })).toBeVisible();
+    await expect.element(inspector.getByText(ORDER_ID, { exact: true })).toBeVisible();
+    await expect.element(inspector).toMatchTextContent(/^target fieldOrderId\/Order\/OrderIdoccurrence 0\.\.unbounded · xs:string · mapped/);
+    await expect.element(inspector).toMatchTextContent('mapping t1: concat(fixValues(/Order/Item/Line/Code, missing="error"))');
+    // no test has run: the result box's display queue says so
+    await expect.element(inspector.getByRole('region', { name: 'Display queue', exact: true })).toHaveTextContent('Display queue result f1No trace: run a test.');
+    await expect.element(inspector).toMatchTextContent(/Select a box on the canvas to inspect it\.$/);
+  });
+
+  test('a field with a bounded occurrence shows its maximum', async () => {
+    const bounded: StructureLoaded = { ...structure, types: { ...structure.types, order: [field('OrderId', { min: 1, max: 3 }), ...structure.types.order!.slice(1)] } };
+    render(mapping, { loadStructure: async () => bounded });
+
+    await expect.element(inspector).toMatchTextContent(/^target fieldOrderId\/Order\/OrderIdoccurrence 1\.\.3 · xs:string · mapped/);
+  });
+
+  test('a field without a mapping shows its status and no function chain; an error at its mapping is its status', async () => {
+    render(mapping, {}, ITEM);
+    await expect.element(inspector).toMatchTextContent(/^target fieldItem\/Order\/Itemoccurrence 0\.\.unbounded · structure field · unmappedSelect a box/);
+    await expect.element(inspector.getByRole('region', { name: 'Display queue', exact: true })).not.toBeInTheDocument();
+    root!.unmount();
+    host!.remove();
+
+    render(mapping, {
+      compile: async () => ({ diagnostics: [{ severity: 'error', code: 'box-cycle', message: 'a cycle', location: { kind: 'authoring-id', authoringId: 't1' } }] }),
+    });
+    await expect.element(inspector).toMatchTextContent('xs:string · error');
+  });
+
+  test('a target field mapping the target structure lacks shows its path and function chain, and no occurrence', async () => {
+    const GONE = `${ORDER}/Gone`;
+    render({ ...mapping, targetFieldMappings: { [GONE]: { id: 'g1', result: 'g2', boxes: { g2: { kind: 'source', field: ORDER_ID, context: ORDER } } } } }, {}, GONE);
+
+    await expect.element(inspector).toMatchTextContent(/^target fieldGone\/Order\/Gonemapping g1: \/Order\/OrderId @ctx Order/);
+    await expect.element(inspector).not.toMatchTextContent('occurrence');
+  });
+
+  test('the target field link in the box view returns to the target field view', async () => {
+    render();
+    await inspect('x1');
+
+    await inspector.getByRole('button', { name: 'target field' }).click();
+
+    await expect.element(inspector.getByTestId('inspector:x1')).not.toBeInTheDocument();
+    await expect.element(inspector.getByRole('heading', { name: 'OrderId', exact: true })).toBeVisible();
+    await expect.element(inspector).toMatchTextContent('mapping t1: ');
+  });
+
+  test("a function whose reading is assumed has the assumed note box, a deviation's has the deviation box", async () => {
+    render();
+    await inspect('x1');
+    await expect.element(inspector.getByRole('note', { name: 'Assumed reading' })).toBeVisible();
+    await expect.element(inspector.getByRole('note', { name: 'Deviation' })).not.toBeInTheDocument();
+
+    await inspect('d1');
+    await expect.element(inspector.getByRole('note', { name: 'Deviation' })).toBeVisible();
+    await expect.element(inspector.getByRole('note', { name: 'Assumed reading' })).not.toBeInTheDocument();
   });
 });
 

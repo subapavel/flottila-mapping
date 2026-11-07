@@ -1,30 +1,35 @@
-/* The Diagnostics list: a compact table-like list, one row per diagnostic (ADR-0012, prototype `.err`). */
+/*
+ * The Diagnostics list: a compact table-like list, one row per diagnostic (ADR-0012, prototype `.err`), at the
+ * prototype's sizes and colours (prototype.css @ 3a5ed86, spec #145, ticket #146): a PatternFly token where one has the
+ * value, the prototype's value where none does.
+ */
 .fm-diagnostics {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
+/* .testpanel__errors: 12px */
 .fm-diagnostic {
   display: grid;
   /* fixed columns, so the rows line up: severity, code, location, message */
   grid-template-columns: 5.5rem 14rem 20rem 1fr;
   column-gap: var(--pf-t--global--spacer--md);
   align-items: baseline;
-  padding: var(--pf-t--global--spacer--sm) 0;
-  border-bottom: 1px solid var(--pf-t--global--border--color--default);
-  font-size: var(--pf-t--global--font--size--body--sm);
+  padding: var(--pf-t--global--spacer--xs) 0;
+  border-bottom: 1px solid #eee;
+  font-size: var(--pf-t--global--font--size--xs);
 }
 
-/* the severity colours the code: error red, warning orange */
+/* the severity colours the code: error red, warning orange (.err__code, .err--orphaned-reference) */
 .fm-diagnostic__code {
   font-family: var(--pf-t--global--font--family--mono);
   font-weight: 700;
-  color: var(--pf-t--global--text--color--status--danger--default);
+  color: #c9190b;
 }
 
 .fm-diagnostic--warning .fm-diagnostic__code {
-  color: var(--pf-t--global--text--color--status--warning--default);
+  color: #ec7a08;
 }
 
 .fm-diagnostic__location {

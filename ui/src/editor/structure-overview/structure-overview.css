@@ -1,9 +1,10 @@
 /*
  * The structure overview module's styles (spec #135), imported by StructureOverview.tsx, after the prototype's .ftree*
- * and link gutter classes (prototype.css, prototype-round2.css @ 3a5ed86). Classes carry the fm- prefix; colours and
- * spacing are PatternFly tokens. Values set at run time stay inline: the trees' shares of the width, a collapsed tree,
- * a row's virtualiser offset and indent, and the row height the virtualiser and the gutter share. The file is named
- * after its module: a CSS file beside StructureOverview.tsx would share its path once the extension is ignored
+ * and link gutter classes (prototype.css, prototype-round2.css @ 3a5ed86). Classes carry the fm- prefix. The trees'
+ * sizes and colours are the prototype's (spec #145, ticket #146): a PatternFly token where one has the value, the
+ * prototype's value where none does. Values set at run time stay inline: the trees' shares of the width, a collapsed
+ * tree, a row's virtualiser offset and indent, and the row height the virtualiser and the gutter share. The file is
+ * named after its module: a CSS file beside StructureOverview.tsx would share its path once the extension is ignored
  * (file-names.test.ts, #131).
  */
 .fm-overview {
@@ -60,13 +61,14 @@
   padding: var(--pf-t--global--spacer--xs);
 }
 
-/* the count sits at the head's foot, so both trees' counts line up whatever else their heads hold */
+/*
+ * The head, after .ftree__tools, .ftree__count and round 2's .f__filter: the tools padded 4px, the status filter below
+ * them, the count at the head's foot, so both trees' counts line up whatever else their heads hold.
+ */
 .fm-tree__head {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: var(--pf-t--global--spacer--xs);
-  padding: var(--pf-t--global--spacer--xs);
   min-width: 0;
 }
 
@@ -75,15 +77,27 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0 var(--pf-t--global--spacer--xs);
+  padding: var(--pf-t--global--spacer--xs);
 }
 
 .fm-tree__search {
-  flex: 1 1 12rem;
+  flex: 1 1 200px;
+}
+
+/* the target tree's status filter, compact: .f__filter */
+.fm-tree__head > .pf-v6-c-toggle-group {
+  margin: -2px var(--pf-t--global--spacer--xs) var(--pf-t--global--spacer--xs);
+}
+
+.fm-tree__head > .pf-v6-c-toggle-group .pf-v6-c-toggle-group__button {
+  font-size: 11px;
+  padding: 2px 6px;
 }
 
 .fm-tree__count {
-  color: var(--pf-t--global--text--color--subtle);
-  font-size: var(--pf-t--global--font--size--xs);
+  padding: 0 6px 2px;
+  color: #6a6e73;
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -94,13 +108,14 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  border-top: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--subtle);
+  border-top: 1px solid #eee;
 }
 
 .fm-tree__rows {
   position: relative;
 }
 
+/* a row, after .ftree__row: name, occurrence and type, then the marks at its end */
 .fm-tree__row {
   position: absolute;
   top: 0;
@@ -108,29 +123,29 @@
   right: 0;
   display: flex;
   align-items: center;
-  gap: var(--pf-t--global--spacer--xs);
+  gap: 6px;
   white-space: nowrap;
   font-size: var(--pf-t--global--font--size--xs);
   cursor: default;
 }
 
 .fm-tree__row:hover {
-  background-color: var(--pf-t--global--background--color--primary--hover);
+  background-color: #f0f0f0;
 }
 
-/* the selected target field, and the source field picked to link by keyboard */
+/* the selected target field, and the source field picked to link by keyboard: .ftree__row.is-selected */
 .fm-tree__row[aria-selected='true'] {
-  background-color: var(--pf-t--global--color--nonstatus--blue--default);
+  background-color: #e7f1fa;
   box-shadow: inset 3px 0 0 var(--pf-t--global--color--brand--default);
 }
 
 .fm-tree__twisty {
   flex: none;
-  width: 1rem;
+  width: 12px;
   padding: 0;
   border: 0;
   background: none;
-  color: var(--pf-t--global--icon--color--subtle);
+  color: #6a6e73;
   font: inherit;
   text-align: center;
 }
@@ -140,70 +155,77 @@ button.fm-tree__twisty {
 }
 
 .fm-tree__name--group {
-  font-weight: var(--pf-t--global--font--weight--body--bold);
+  font-weight: var(--pf-t--global--font--weight--200);
 }
 
-/* PatternFly's purple text colour is the visited link's; the nonstatus purples are fills, too pale for text */
 .fm-tree__name--attribute {
-  color: var(--pf-t--global--text--color--link--visited);
+  color: #8a4baf;
+}
+
+/* the prototype shows the occurrence before the type */
+.fm-tree__occurrence {
+  order: 1;
+  color: #6a6e73;
+  font-size: 11px;
 }
 
 .fm-tree__type {
-  color: var(--pf-t--global--text--color--status--success--default);
-  font-size: calc(var(--pf-t--global--font--size--xs) * 0.85);
+  order: 2;
+  color: #3c6e1e;
+  font-size: 10px;
 }
 
-.fm-tree__occurrence {
-  color: var(--pf-t--global--text--color--subtle);
-  font-size: calc(var(--pf-t--global--font--size--xs) * 0.9);
-}
-
-/* the refusal mark, the field links and the status mark, at the row's end */
+/* the refusal mark, the field links and the status mark, at the row's end: .ftree__marker */
 .fm-tree__marks {
+  order: 3;
   margin-left: auto;
-  padding-right: var(--pf-t--global--spacer--sm);
+  padding-right: 6px;
   display: flex;
   align-items: center;
   gap: var(--pf-t--global--spacer--xs);
-  color: var(--pf-t--global--text--color--subtle);
+  color: #6a6e73;
 }
 
+/* a status mark is a dot of the prototype's .mk glyph size, in its .st--<status> colour */
 .fm-status {
   flex: none;
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
 }
 
 .fm-status[data-status='mapped'] {
-  background-color: var(--pf-t--global--color--status--success--default);
+  background-color: #3e8635;
 }
 
-.fm-status[data-status='unmapped-mandatory'] {
-  background-color: var(--pf-t--global--color--status--warning--default);
+.fm-status[data-status='unmapped-mandatory'],
+.fm-status[data-status='error'] {
+  background-color: #c9190b;
 }
 
 .fm-status[data-status='orphaned'] {
-  background-color: var(--pf-t--global--color--nonstatus--purple--default);
-}
-
-.fm-status[data-status='error'] {
-  background-color: var(--pf-t--global--color--status--danger--default);
+  background-color: #ec7a08;
 }
 
 .fm-refused {
-  color: var(--pf-t--global--color--status--danger--default);
+  color: #c9190b;
 }
 
-/* the link gutter, after the prototype's .lt__gutter, .lk, .fx and .lt__count */
+/* a source field the mapping reads: .mk.mk--used */
+.fm-used {
+  font-size: 12px;
+  color: var(--pf-t--global--color--brand--default);
+}
+
+/* the link gutter, after the prototype's .lt__gutter, .lk*, .fx* and .lt__count* (prototype-round2.css) */
 .fm-gutter {
   grid-column: 3;
   grid-row: 2;
   position: relative;
   min-height: 0;
   overflow: hidden;
-  background-color: var(--pf-t--global--background--color--secondary--default);
-  border-inline: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--subtle);
+  background-color: #fbfbfb;
+  border-inline: 1px solid #eee;
 }
 
 .fm-gutter svg {
@@ -218,53 +240,61 @@ button.fm-tree__twisty {
   opacity: 0.8;
 }
 
-.fm-gutter__link[data-emphasis='dimmed'] {
+/* the links of a target field other than the selected one */
+.fm-gutter__link--dim {
   opacity: 0.18;
 }
 
-.fm-gutter__link[data-emphasis='highlighted'] {
+/* the selected target field's links */
+.fm-gutter__link--sel {
   stroke-width: 2.6;
   opacity: 1;
 }
 
+/* an fx mark: blue for mapped, red for unmapped mandatory and error, orange for orphaned */
 .fm-gutter__fx rect {
-  fill: var(--pf-t--global--background--color--primary--default);
+  fill: #e7f1fa;
   stroke: var(--pf-t--global--color--brand--default);
 }
 
 .fm-gutter__fx text,
 .fm-gutter__label {
-  font-family: var(--pf-t--global--font--family--mono);
-  font-size: calc(var(--pf-t--global--font--size--xs) * 0.75);
-  font-weight: var(--pf-t--global--font--weight--body--bold);
-  fill: var(--pf-t--global--color--brand--clicked);
+  font: 700 9px monospace;
+  fill: #004080;
 }
 
 .fm-gutter__fx text {
   text-anchor: middle;
 }
 
-.fm-gutter__fx[data-emphasis='highlighted'] rect {
+.fm-gutter__fx--error rect,
+.fm-gutter__fx--unmapped-mandatory rect {
+  stroke: #c9190b;
+  fill: #faeae8;
+}
+
+.fm-gutter__fx--orphaned rect {
+  stroke: #ec7a08;
+  fill: #fff6ec;
+}
+
+/* the selected field's mark is filled whatever its status; it follows the status rules, so its fill wins (.fx.is-sel) */
+.fm-gutter__fx--selected rect {
   fill: var(--pf-t--global--color--brand--default);
 }
 
-.fm-gutter__fx[data-emphasis='highlighted'] text {
+.fm-gutter__fx--selected text {
   fill: var(--pf-t--global--text--color--inverse);
-}
-
-.fm-gutter__fx[data-emphasis='dimmed'] {
-  opacity: 0.4;
 }
 
 /* ↑n and ↓n: the links whose end on that side is scrolled away */
 .fm-gutter__count {
   position: absolute;
-  padding: 0 var(--pf-t--global--spacer--xs);
-  border-radius: var(--pf-t--global--border--radius--pill);
-  background-color: var(--pf-t--global--background--color--inverse--default);
+  padding: 0 5px;
+  border-radius: 8px;
+  background-color: #151515;
   color: var(--pf-t--global--text--color--inverse);
-  font-size: calc(var(--pf-t--global--font--size--xs) * 0.85);
-  line-height: 1.4;
+  font-size: 10px;
 }
 
 .fm-gutter__count--source {

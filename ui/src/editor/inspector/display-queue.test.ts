@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { TraceEntry } from '../../api/client';
-import { displayEntry } from './display-queue';
+import { displayEntry, queueSize } from './display-queue';
 
 describe('the display-queue view model', () => {
   test('a queue keeps its contexts in order, and tells SUPPRESS, "" and a value apart', () => {
@@ -21,6 +21,18 @@ describe('the display-queue view model', () => {
     const entry: TraceEntry = { kind: 'queue', contexts: [['a', 'b'], ['c']], capped: true, slotCount: 20, contextCount: 7 };
 
     expect(displayEntry(entry)).toMatchObject({ capped: 'showing the first 3 of 20 values, in 2 of 7 contexts' });
+  });
+
+  test("a queue's size is its run's totals, after the prototype's .dq__meta; a capped queue counts what the run had", () => {
+    expect(queueSize({ kind: 'queue', contexts: [['a', 'b'], ['c']], capped: true, slotCount: 20, contextCount: 7 })).toBe('7 contexts, 20 slots');
+    expect(queueSize({ kind: 'queue', contexts: [['a']], capped: false, slotCount: 1, contextCount: 1 })).toBe('1 context, 1 slot');
+    expect(queueSize({ kind: 'queue', contexts: [], capped: false, slotCount: 0, contextCount: 0 })).toBe('0 contexts, 0 slots');
+  });
+
+  test('an atomic value, occurrences and no entry have no queue size', () => {
+    expect(queueSize({ kind: 'atomic', type: 'xs:string', value: 'PO' })).toBeUndefined();
+    expect(queueSize({ kind: 'occurrences', min: 0, capped: false, parents: [] })).toBeUndefined();
+    expect(queueSize(undefined)).toBeUndefined();
   });
 
   test('an atomic value shows its type and its value; "" is the empty value', () => {

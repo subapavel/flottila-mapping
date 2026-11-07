@@ -1,6 +1,6 @@
 import type { FunctionCatalogue } from '../../api/client';
-import type { AuthoringId, Box, FieldPath, MappingModel, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
-import { localPath } from '../../model/field-path';
+import type { AuthoringId, Box, FieldPath, MappingModel, Params, TargetFieldMapping, Udfs } from '../../generated/mapping-model';
+import { localPath, stepName } from '../../model/field-path';
 
 /** The box the inspector shows, with its target field mapping. */
 export interface Inspected {
@@ -49,6 +49,36 @@ export function slotChoices(mapping: TargetFieldMapping, target: AuthoringId): {
     .sort()
     .filter((id) => id !== target)
     .map((id) => ({ id, title: boxTitle(mapping.boxes[id]!) }));
+}
+
+/**
+ * A target field mapping's function chain (spec #145): the chain of box `id`, its `result` by default, after the
+ * prototype's `chainText`. A box is its name with its inputs, then its params sorted by name, in brackets, as
+ * `formatDate(/PO/Date, outputPattern="yyyyMMdd")`; a source-field box is its field's path in local names, with
+ * ` @ctx` and the context's name when it has one; a constant is its value in quotes; an unresolved function's name
+ * ends in `?`. No box, an unconnected input and an id the mapping lacks are `∅`; a box met a second time is `↺` and its
+ * name, so that a fan-out is written once and a cycle ends.
+ */
+export function chainText(mapping: TargetFieldMapping, id: AuthoringId | null = mapping.result, seen = new Set<AuthoringId>()): string {
+  const box = id === null ? undefined : mapping.boxes[id];
+  if (box === undefined) return '∅';
+  if (box.kind === 'source') return `/${localPath(box.field)}${box.context === undefined ? '' : ` @ctx ${stepName(box.context)}`}`;
+  if (box.kind === 'function' && box.fn === 'constant') return `"${box.params?.value ?? ''}"`;
+  const name = box.kind === 'function' ? box.fn : box.kind === 'udf' ? box.udf : `${box.name}?`;
+  if (seen.has(id!)) return `↺${name}`;
+  seen.add(id!);
+  const inputs = (box.inputs ?? []).map((input) => chainText(mapping, input, seen));
+  return `${name}(${[...inputs, ...paramTexts(box.params)].join(', ')})`;
+}
+
+/** A box's params as `name="value"`, a table as `name={n rows}`, sorted by name. */
+function paramTexts(params: Params | undefined): string[] {
+  return Object.keys(params ?? {})
+    .sort()
+    .map((name) => {
+      const value = params![name]!;
+      return typeof value === 'string' ? `${name}="${value}"` : `${name}={${Object.keys(value).length} rows}`;
+    });
 }
 
 /** One row of a table parameter's editor. */

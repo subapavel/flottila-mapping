@@ -1,6 +1,35 @@
 # Handoff
 
-state: SPEC_DONE — spec #135 "the editor looks like the chosen prototype" (2026-11-06). Integration branch `spec/135-editor-look` from main 4ad242e; the PR comes from `spec/135-editor-look-pr`, one squash commit with the same tree, because the architect's merge commits on the integration branch lack the exact `Co-authored-by: Claude` trailer that CI checks, and a history rewrite was refused.
+state: SPEC_DONE — spec #145 "port the prototype's density and detail" (2026-11-07). Integration branch `spec/145-prototype-detail` from main 022f5f2; every merge commit carries the exact trailers, so the PR comes from the integration branch itself.
+spec #145 origin: the owner judged spec #135's result "still primitive" next to the chosen prototype. Root cause: #135's tickets cited the prototype screenshots, not its source, and review read prose rather than pixels. In #145 every ticket ports from the prototype source (prototype/mapping-editor @ 3a5ed86) and hands back a 1440×900 screenshot beside the prototype's.
+spec #145 tickets, all merged and closed: #149 babcf16 · #146 1a6a6c1 · #150 2d4cc98 · #148 fe59d25 · #147 727fa5c. Review fix `t/145-review-fix` 48062fb.
+spec #145 gate: full gate (`scripts/gate-spec.sh 145`) on 727fa5c VERIFIED_PASS: build 1244 tests, PIT at the floors, oracle 616 and differential 313, ui 573/254/7, stack e2e 11, ratchet unchanged; JMH NOT_RUN, no benchmarks.jar. The review fix 7589c5d ticket-gated VERIFIED_PASS: ui 576/260/7, stack package and stack e2e 11, ratchet OK.
+spec #145 review:
+- round 1: FAIL on both axes (#145 comment 6699093152). Spec: canvas fitView not ported (2× zoom), inspector queue not compact, no head screenshot. Standards: "expression" in test names.
+- fix round: fitView `{padding: 0.15, maxZoom: 1}`, a shared compact queue, glyph badges, inline strip subject, `targetFieldKey`, F-32.
+- round 2: PASS on both axes. Head screenshots are fix-d/e/f in the architect's scratchpad.
+spec #145 findings: F-32 (ADR-0013's browser-state list misses page tab and selected target field). Owner questions:
+- one ADR-0013 amendment for F-29 to F-32;
+- ADR-0012 says off-screen links end at the gutter edge with ↑n/↓n, while the prototype only counts them; kept per the ADR.
+spec #145 carried:
+- tree head 86 px against 65 px (12 rows against 14);
+- `1..unbounded` against `1..n`;
+- "← Source" text on target rows;
+- status marks are dots;
+- the "Hide inspector" line;
+- the inspector's Occurrences block is a plain list;
+- no SAP name or deviation id in the catalogue;
+- `#151515` literal in inspector-panel.css;
+- the counter test checks the declaration only;
+- no test for the `⊘` glyph;
+- `boxQueue` takes 4 positional arguments;
+- hand-copied `FieldStatus`/`LastRun` types across the ADR-0013 boundary;
+- a third copy of the structure step walk (`target-field.ts`);
+- class-name assertions;
+- "value boxes" naming (should be slots).
+next action: owner — merge the spec #145 PR, then `/retro` for spec 5, #135 and #145 (deferred to next week).
+
+previous: SPEC_DONE — spec #135 "the editor looks like the chosen prototype" (2026-11-06). Integration branch `spec/135-editor-look` from main 4ad242e; the PR comes from `spec/135-editor-look-pr`, one squash commit with the same tree, because the architect's merge commits on the integration branch lack the exact `Co-authored-by: Claude` trailer that CI checks, and a history rewrite was refused.
 spec #135 tickets, all merged and closed: #136 bd64f76 · #140 5d0a457 · #139 a097ba3 · #141 c5a207f · #138 abb15d3 · #142 33ab8d4 · #137 d5189ce · #143 42a371e.
 spec #135 origin: the owner ran spec 5 locally. The look of the prototype (#10, branch prototype/mapping-editor @ 3a5ed86) never reached ADR-0012 or spec 5. Owner decisions 2026-11-06: page tabs Editor/Test/Diagnostics/Model JSON, a header bar, tree search, Model JSON, a mapping list, local paths in diagnostics, and screenshots plus review as the visual check.
 spec #135 gate: full gate on 42a371e VERIFIED_PASS (e2e passed on a retry after a port clash; JMH NOT_RUN, spec 6; ratchet unchanged). UI and stack re-gate on 10a21c7 VERIFIED_PASS. Later fixes are UI-only, with ticket-gate evidence.
