@@ -69,6 +69,9 @@ public final class SchemaStage {
     found.add(SCHEMAS.document(), document);
     for (IJsonValue mapping : members(document, "targetFieldMappings")) {
       found.add(SCHEMAS.targetFieldMapping(), mapping);
+      for (IJsonValue position : members(member(mapping, "layout"), "boxes")) {
+        found.add(SCHEMAS.boxPosition(), position);
+      }
       for (IJsonValue box : members(mapping, "boxes")) {
         found.add(SCHEMAS.box(box), box);
         for (IJsonValue param : members(box, "params")) {
@@ -93,9 +96,14 @@ public final class SchemaStage {
 
   /** The values of the object {@code name} of {@code value}; none when there is no such object. */
   private static Collection<IJsonValue> members(IJsonValue value, String name) {
-    return value instanceof IJsonObject object && object.get(name) instanceof IJsonObject map
+    return member(value, name) instanceof IJsonObject map
         ? map.getProperties().values()
         : List.of();
+  }
+
+  /** The member {@code name} of {@code value}, or {@code null} when it has none or is no object. */
+  private static IJsonValue member(IJsonValue value, String name) {
+    return value instanceof IJsonObject object ? object.get(name) : null;
   }
 
   /** The RFC 6901 text of a pointer. */
@@ -184,7 +192,15 @@ public final class SchemaStage {
             case REQUIRED -> MappingDiagnostics.MISSING_MEMBER;
             case TYPE -> MappingDiagnostics.WRONG_TYPE;
             case PATTERN -> MappingDiagnostics.PATTERN_MISMATCH;
-            case ENUM, CONST, MIN_ITEMS, MIN_PROPERTIES, UNIQUE_ITEMS ->
+            // ADR-0029 adds minimum, maximum and maxLength
+            case ENUM,
+                CONST,
+                MIN_ITEMS,
+                MIN_PROPERTIES,
+                UNIQUE_ITEMS,
+                MINIMUM,
+                MAXIMUM,
+                MAX_LENGTH ->
                 MappingDiagnostics.INVALID_VALUE;
             default -> MappingDiagnostics.SCHEMA_VIOLATION; // fails closed on any other keyword
           };
@@ -211,6 +227,7 @@ public final class SchemaStage {
   private record Schemas(
       Schema document,
       Schema targetFieldMapping,
+      Schema boxPosition,
       Map<String, Schema> boxKinds,
       Schema anyBox,
       Schema paramValue,
@@ -227,6 +244,7 @@ public final class SchemaStage {
       return new Schemas(
           new SchemaLoader(contract).load(),
           definition(contract, "targetFieldMapping"),
+          definition(contract, "boxPosition"),
           Map.of(
               "source", definition(contract, "sourceFieldBox"),
               "function", definition(contract, "standardFunctionBox"),

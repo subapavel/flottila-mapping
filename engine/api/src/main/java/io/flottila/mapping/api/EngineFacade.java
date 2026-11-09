@@ -133,25 +133,41 @@ public final class EngineFacade {
 
   /**
    * A new mapping model in {@code formatVersion} 1 (ADR-0010) between two structures, with no
-   * target field mapping and no UDF.
+   * description, no target field mapping and no UDF.
    *
    * @param source the source structure's schema bundle, root and fingerprint
    * @param target the target structure's schema bundle, root and fingerprint
    * @return the model, not yet saved
    */
   public MappingModel newMapping(StructureRef source, StructureRef target) {
-    return new MappingModel(1, source, target, Map.of(), Map.of());
+    return newMapping(Optional.empty(), Optional.of(source), Optional.of(target));
+  }
+
+  /**
+   * A new mapping model in {@code formatVersion} 1 (ADR-0010) with no target field mapping and no
+   * UDF, and the structures chosen so far: a new mapping may have neither until the Signature tab
+   * chooses them (ADR-0029).
+   *
+   * @param description the mapping's description, if any
+   * @param source the source structure's schema bundle, root and fingerprint, if chosen
+   * @param target the target structure's schema bundle, root and fingerprint, if chosen
+   * @return the model, not yet saved
+   */
+  public MappingModel newMapping(
+      Optional<String> description, Optional<StructureRef> source, Optional<StructureRef> target) {
+    return new MappingModel(1, description, source, target, Map.of(), Map.of());
   }
 
   /**
    * Compiles a mapping model (ADR-0016): load with stages 1 and 2, the source and target
    * structures, stage 3 and lowering, the optimiser if {@code options} ask for it, then the closure
    * compile. The first of these that refuses the model gives the result; the structures are both
-   * read before either refusal is reported. Stage 3 checks each side's stored fingerprint against
-   * the structure just read (ADR-0009 as amended on 2026-11-05, #91), and a mismatch is reported
-   * with lowering's diagnostics. The compiled mapping keeps the occurrence of each target field
-   * mapping's field, which a generating function's trace entry shows (#83). An unchecked exception
-   * from {@code resolver} passes through unchanged.
+   * read before either refusal is reported. A model without its source or target is refused with
+   * {@code missing-structure} before any bundle is read (ADR-0029). Stage 3 checks each side's
+   * stored fingerprint against the structure just read (ADR-0009 as amended on 2026-11-05, #91),
+   * and a mismatch is reported with lowering's diagnostics. The compiled mapping keeps the
+   * occurrence of each target field mapping's field, which a generating function's trace entry
+   * shows (#83). An unchecked exception from {@code resolver} passes through unchanged.
    *
    * @param model the mapping model's bytes
    * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
@@ -228,15 +244,16 @@ public final class EngineFacade {
 
   /**
    * Refreshes a mapping model (ADR-0009 as amended on 2026-11-05, ADR-0015): load with stages 1 and
-   * 2, then the source and target structures. Each side whose bundle loads gets the fingerprint of
-   * the structure just read; a side whose bundle fails to load keeps its stored fingerprint and
-   * gives every load error (#93). When both load, the refreshed model goes through stage 3 and
-   * lowering, whose diagnostics, the orphaned references among them, are the result's; it has no
-   * {@code fingerprint-mismatch}, as both fingerprints were just derived, and no occurrence or type
-   * warning. When a side fails to load, stage 3 is not run, and the load errors are the result's
-   * only diagnostics. Nothing else in the model changes, and it comes back in canonical form
-   * (ADR-0010); nothing is written. An unchecked exception from {@code resolver} passes through
-   * unchanged.
+   * 2, then the source and target structures the model has; a side not chosen yet is not read and
+   * stays absent (ADR-0029). Each side whose bundle loads gets the fingerprint of the structure
+   * just read; a side whose bundle fails to load keeps its stored fingerprint and gives every load
+   * error (#93). When the model has both sides and both load, the refreshed model goes through
+   * stage 3 and lowering, whose diagnostics, the orphaned references among them, are the result's;
+   * it has no {@code fingerprint-mismatch}, as both fingerprints were just derived, and no
+   * occurrence or type warning. Otherwise stage 3 is not run, and the load errors, if any, are the
+   * result's only diagnostics. Nothing else in the model changes, its description and layouts
+   * included, and it comes back in canonical form (ADR-0010); nothing is written. An unchecked
+   * exception from {@code resolver} passes through unchanged.
    *
    * @param model the mapping model's bytes
    * @param resolver the host's resolver of the model's schema bundle references (ADR-0014
@@ -251,17 +268,22 @@ public final class EngineFacade {
       case Refused r -> new RefreshResult.Refused(r.diagnostics());
       case Loaded(MappingModel loaded) -> {
         List<Diagnostic> diagnostics = new ArrayList<>();
-        Optional<Structure> source = structure(resolver, loaded.source(), diagnostics);
-        Optional<Structure> target = structure(resolver, loaded.target(), diagnostics);
+        Optional<Structure> source =
+            loaded.source().flatMap(ref -> structure(resolver, ref, diagnostics));
+        Optional<Structure> target =
+            loaded.target().flatMap(ref -> structure(resolver, ref, diagnostics));
         MappingModel refreshed =
             new MappingModel(
                 loaded.formatVersion(),
-                refreshed(loaded.source(), source),
-                refreshed(loaded.target(), target),
+                loaded.description(),
+                loaded.source().map(ref -> refreshed(ref, source)),
+                loaded.target().map(ref -> refreshed(ref, target)),
                 loaded.targetFieldMappings(),
                 loaded.udfs());
-        if (diagnostics.isEmpty()
-            && Lowering.lower(refreshed, source.orElseThrow(), target.orElseThrow())
+        // both structures are there exactly when the model has both sides and both loaded
+        if (source.isPresent()
+            && target.isPresent()
+            && Lowering.lower(refreshed, source.get(), target.get())
                 instanceof Refused(List<Diagnostic> stage3)) {
           diagnostics.addAll(stage3);
         }
@@ -278,12 +300,13 @@ public final class EngineFacade {
   }
 
   /**
-   * The chain compile and export share: load with stages 1 and 2, the source and target structures,
-   * then stage 3 and lowering. The first of these that refuses the model gives {@code refused} its
-   * diagnostics, which the result sorts; the structures are both read before either refusal is
-   * reported. Stage 3 is the fingerprint check of both sides and lowering, whose diagnostics are
-   * reported together (#91). A model that lowers with both fingerprints matching gives {@code
-   * lowered} its unoptimised IR, with the model and the target structure it was lowered from.
+   * The chain compile and export share: load with stages 1 and 2, a check that the model has both
+   * sides (ADR-0029), the source and target structures, then stage 3 and lowering. The first of
+   * these that refuses the model gives {@code refused} its diagnostics, which the result sorts; the
+   * structures are both read before either refusal is reported. Stage 3 is the fingerprint check of
+   * both sides and lowering, whose diagnostics are reported together (#91). A model that lowers
+   * with both fingerprints matching gives {@code lowered} its unoptimised IR, with the model and
+   * the target structure it was lowered from.
    */
   private static <R> R loadAndLower(
       byte[] model,
@@ -297,20 +320,31 @@ public final class EngineFacade {
     };
   }
 
-  /** {@link #loadAndLower} after a load that passed stages 1 and 2. */
+  /**
+   * {@link #loadAndLower} after a load that passed stages 1 and 2. A model without its source or
+   * target is refused with {@code missing-structure} at each side it lacks before any bundle is
+   * read, and no further stage runs (ADR-0029).
+   */
   private static <R> R lower(
       MappingModel loaded,
       ReferenceResolver resolver,
       Function<List<Diagnostic>, R> refused,
       Function<LoweredModel, R> lowered) {
     List<Diagnostic> refusals = new ArrayList<>();
-    Optional<Structure> source = structure(resolver, loaded.source(), refusals);
-    Optional<Structure> target = structure(resolver, loaded.target(), refusals);
+    missingStructure(loaded.source(), "/source", "source", refusals);
+    missingStructure(loaded.target(), "/target", "target", refusals);
     if (!refusals.isEmpty()) {
       return refused.apply(refusals);
     }
-    fingerprint(loaded.source(), source.orElseThrow(), "/source/fingerprint", refusals);
-    fingerprint(loaded.target(), target.orElseThrow(), "/target/fingerprint", refusals);
+    StructureRef sourceRef = loaded.source().orElseThrow();
+    StructureRef targetRef = loaded.target().orElseThrow();
+    Optional<Structure> source = structure(resolver, sourceRef, refusals);
+    Optional<Structure> target = structure(resolver, targetRef, refusals);
+    if (!refusals.isEmpty()) {
+      return refused.apply(refusals);
+    }
+    fingerprint(sourceRef, source.orElseThrow(), "/source/fingerprint", refusals);
+    fingerprint(targetRef, target.orElseThrow(), "/target/fingerprint", refusals);
     return switch (Lowering.lower(loaded, source.orElseThrow(), target.orElseThrow())) {
       case Refused r -> {
         refusals.addAll(r.diagnostics());
@@ -321,6 +355,25 @@ public final class EngineFacade {
               ? lowered.apply(new LoweredModel(loaded, target.orElseThrow(), document))
               : refused.apply(refusals);
     };
+  }
+
+  /**
+   * Adds {@code missing-structure} at {@code pointer} to {@code refusals} when the model has no
+   * {@code side} (ADR-0029).
+   */
+  private static void missingStructure(
+      Optional<StructureRef> ref, String pointer, String side, List<Diagnostic> refusals) {
+    if (ref.isEmpty()) {
+      refusals.add(
+          new Diagnostic(
+              Severity.ERROR,
+              MappingDiagnostics.MISSING_STRUCTURE,
+              new AtPointer(pointer),
+              "the mapping has no "
+                  + side
+                  + " structure yet: choose it on the Signature tab before compile, test or"
+                  + " export"));
+    }
   }
 
   /** A model that lowers, the target structure it was lowered over, and its unoptimised IR. */

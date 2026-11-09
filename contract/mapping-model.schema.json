@@ -2,14 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:flottila:mapping-model:1",
   "title": "MappingModel",
-  "description": "A Flottila mapping model, formatVersion 1 (ADR-0010, ADR-0011). Its canonical form is written by the engine's one writer.",
+  "description": "A Flottila mapping model, formatVersion 1 (ADR-0010, ADR-0011, ADR-0029). Its canonical form is written by the engine's one writer. source and target are absent until the Signature tab chooses them.",
   "type": "object",
-  "required": ["formatVersion", "source", "target"],
+  "required": ["formatVersion"],
   "additionalProperties": false,
   "properties": {
     "formatVersion": {
       "description": "The version of this format. A reader refuses a newer one.",
       "const": 1
+    },
+    "description": {
+      "description": "The mapping's free text, at most 4,000 characters (code points), which the engine ignores (ADR-0029). An empty one is not written.",
+      "type": "string",
+      "maxLength": 4000
     },
     "source": {
       "$ref": "#/$defs/structureRef"
@@ -195,8 +200,53 @@
             }
           },
           "additionalProperties": false
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
         }
       }
+    },
+    "layout": {
+      "title": "Layout",
+      "description": "The positions of this target field mapping's target and boxes, which the engine ignores (ADR-0029). A position whose box no longer exists is dropped on save; an empty layout is not written.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/boxPosition"
+        },
+        "boxes": {
+          "title": "LayoutBoxes",
+          "description": "The boxes' positions, keyed by their authoring id. A box without a position is placed by the studio.",
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z0-9_-]{1,64}$": {
+              "$ref": "#/$defs/boxPosition"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "boxPosition": {
+      "title": "BoxPosition",
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y": {
+          "$ref": "#/$defs/coordinate"
+        }
+      }
+    },
+    "coordinate": {
+      "description": "An integer position; the studio rounds before it writes.",
+      "type": "integer",
+      "minimum": -1000000,
+      "maximum": 1000000
     },
     "box": {
       "oneOf": [

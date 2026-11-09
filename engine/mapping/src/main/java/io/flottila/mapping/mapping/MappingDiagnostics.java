@@ -23,7 +23,10 @@ public final class MappingDiagnostics {
   /** A string that does not match its pattern. */
   public static final String PATTERN_MISMATCH = "pattern-mismatch";
 
-  /** A value outside its {@code enum}, {@code const}, minimum or uniqueness. */
+  /**
+   * A value outside its {@code enum}, {@code const}, minimum, maximum, maximum length (ADR-0029) or
+   * uniqueness.
+   */
   public static final String INVALID_VALUE = "invalid-value";
 
   /** Any other schema keyword failed: stage 1 fails closed. */
@@ -53,6 +56,13 @@ public final class MappingDiagnostics {
   public static final String UNDECLARED_UDF = "undeclared-udf";
 
   // stage 3, compile (#26)
+
+  /**
+   * A model without its source or target structure, at {@code /source} or {@code /target}
+   * (ADR-0029): a new mapping has none until the Signature tab chooses them. Compile, test and
+   * export report it before any bundle is read, and run no further stage.
+   */
+  public static final String MISSING_STRUCTURE = "missing-structure";
 
   /**
    * A box that {@code result} reaches and that this engine does not compile yet, at the box: a UDF

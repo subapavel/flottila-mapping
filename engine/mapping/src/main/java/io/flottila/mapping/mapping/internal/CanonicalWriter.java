@@ -4,6 +4,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.Box;
+import io.flottila.mapping.mapping.BoxPosition;
+import io.flottila.mapping.mapping.Layout;
 import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.ParamValue;
 import io.flottila.mapping.mapping.SourceFieldBox;
@@ -88,12 +90,16 @@ public final class CanonicalWriter {
     model.targetFieldMappings().forEach((path, m) -> mappings.put(path, targetFieldMapping(m)));
     ObjectNode udfs = new ObjectNode();
     model.udfs().forEach((name, udf) -> udfs.put(name, udf(udf)));
-    return new ObjectNode()
-        .put("formatVersion", new NumberNode(model.formatVersion()))
-        .put("source", structureRef(model.source()))
-        .put("target", structureRef(model.target()))
-        .putUnlessEmpty("targetFieldMappings", mappings)
-        .putUnlessEmpty("udfs", udfs);
+    ObjectNode root =
+        new ObjectNode()
+            .put("formatVersion", new NumberNode(model.formatVersion()))
+            .putUnlessEmpty("targetFieldMappings", mappings)
+            .putUnlessEmpty("udfs", udfs);
+    // ADR-0029: an empty description is left out, and so is a structure not chosen yet
+    model.description().filter(d -> !d.isEmpty()).ifPresent(d -> root.put("description", d));
+    model.source().ifPresent(source -> root.put("source", structureRef(source)));
+    model.target().ifPresent(target -> root.put("target", structureRef(target)));
+    return root;
   }
 
   private static ObjectNode structureRef(StructureRef ref) {
@@ -129,7 +135,26 @@ public final class CanonicalWriter {
     return new ObjectNode()
         .put("boxes", boxes)
         .put("id", mapping.id().value())
+        .putUnlessEmpty("layout", layout(mapping.layout()))
         .put("result", reference(mapping.result()));
+  }
+
+  /**
+   * A layout (ADR-0029): no {@code boxes} without a box position, and an empty object, left out by
+   * the caller, without any position. The record holds no stale position.
+   */
+  private static ObjectNode layout(Layout layout) {
+    ObjectNode boxes = new ObjectNode();
+    layout.boxes().forEach((id, position) -> boxes.put(id.value(), position(position)));
+    ObjectNode node = new ObjectNode().putUnlessEmpty("boxes", boxes);
+    layout.target().ifPresent(target -> node.put("target", position(target)));
+    return node;
+  }
+
+  private static ObjectNode position(BoxPosition position) {
+    return new ObjectNode()
+        .put("x", new NumberNode(position.x()))
+        .put("y", new NumberNode(position.y()));
   }
 
   private static ObjectNode box(Box box) {
