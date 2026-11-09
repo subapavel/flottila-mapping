@@ -561,7 +561,9 @@ class MappingModelSchemaStageTest {
         Arguments.of("a string as the layout", withLayout("\"auto\""), LAYOUT),
         Arguments.of("null as the layout", withLayout("null"), LAYOUT),
         Arguments.of(
-            "an array as the target's position", withLayout("{\"target\": [1, 2]}"), LAYOUT + "/target"),
+            "an array as the target's position",
+            withLayout("{\"target\": [1, 2]}"),
+            LAYOUT + "/target"),
         Arguments.of(
             "an array as the layout's boxes",
             withLayout("{\"boxes\": [{\"x\": 1, \"y\": 2}]}"),
@@ -572,11 +574,13 @@ class MappingModelSchemaStageTest {
             LAYOUT + "/target/x"),
         Arguments.of(
             "a fraction as the first box's y",
-            withLayout("{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0.5}, \"b1\": {\"x\": 0, \"y\": 0}}}"),
+            withLayout(
+                "{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0.5}, \"b1\": {\"x\": 0, \"y\": 0}}}"),
             LAYOUT + "/boxes/a1/y"),
         Arguments.of(
             "null as the second box's x",
-            withLayout("{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"x\": null, \"y\": 0}}}"),
+            withLayout(
+                "{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"x\": null, \"y\": 0}}}"),
             LAYOUT + "/boxes/b1/x"),
         Arguments.of(
             "a number as the second box's position",
@@ -662,7 +666,9 @@ class MappingModelSchemaStageTest {
   static Stream<Arguments> missingCoordinates() {
     return Stream.of(
         Arguments.of(
-            "y of the target's position", withLayout("{\"target\": {\"x\": 0}}"), LAYOUT + "/target"),
+            "y of the target's position",
+            withLayout("{\"target\": {\"x\": 0}}"),
+            LAYOUT + "/target"),
         Arguments.of(
             "x of the second box's position",
             withLayout("{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"y\": 0}}}"),
