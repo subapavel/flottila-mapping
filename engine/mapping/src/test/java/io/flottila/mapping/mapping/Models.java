@@ -35,12 +35,24 @@ final class Models {
     return out;
   }
 
+  /** A model with both its structures and no description. */
   static MappingModel model(
       StructureRef source,
       StructureRef target,
       Map<String, TargetFieldMapping> targetFieldMappings,
       Map<String, UdfDeclaration> udfs) {
-    return new MappingModel(1, source, target, targetFieldMappings, udfs);
+    return model(
+        Optional.empty(), Optional.of(source), Optional.of(target), targetFieldMappings, udfs);
+  }
+
+  /** A model as ADR-0029 allows it: a description, and either structure not chosen yet. */
+  static MappingModel model(
+      Optional<String> description,
+      Optional<StructureRef> source,
+      Optional<StructureRef> target,
+      Map<String, TargetFieldMapping> targetFieldMappings,
+      Map<String, UdfDeclaration> udfs) {
+    return new MappingModel(1, description, source, target, targetFieldMappings, udfs);
   }
 
   static StructureRef elementRoot(String element, String fingerprint, String... files) {
@@ -79,10 +91,37 @@ final class Models {
     return out;
   }
 
+  /** A target field mapping without a layout. */
   static TargetFieldMapping targetFieldMapping(
       String id, String resultOrNull, Map<AuthoringId, Box> boxes) {
+    return targetFieldMapping(id, resultOrNull, boxes, noLayout());
+  }
+
+  static TargetFieldMapping targetFieldMapping(
+      String id, String resultOrNull, Map<AuthoringId, Box> boxes, Layout layout) {
     return new TargetFieldMapping(
-        id(id), Optional.ofNullable(resultOrNull).map(AuthoringId::new), boxes);
+        id(id), Optional.ofNullable(resultOrNull).map(AuthoringId::new), boxes, layout);
+  }
+
+  /** The layout of a target field mapping nobody has arranged: no position at all. */
+  static Layout noLayout() {
+    return new Layout(Optional.empty(), Map.of());
+  }
+
+  /**
+   * A layout: the target field's position, or {@code null} when it has none, then alternating box
+   * id and position.
+   */
+  static Layout layout(BoxPosition targetOrNull, Object... idThenPosition) {
+    Map<AuthoringId, BoxPosition> boxes = new LinkedHashMap<>();
+    for (int k = 0; k < idThenPosition.length; k += 2) {
+      boxes.put(id((String) idThenPosition[k]), (BoxPosition) idThenPosition[k + 1]);
+    }
+    return new Layout(Optional.ofNullable(targetOrNull), boxes);
+  }
+
+  static BoxPosition at(int x, int y) {
+    return new BoxPosition(x, y);
   }
 
   /** Alternating authoring id and box. */

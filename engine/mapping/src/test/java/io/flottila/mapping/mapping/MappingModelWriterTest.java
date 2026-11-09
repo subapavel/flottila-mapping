@@ -3,12 +3,15 @@ package io.flottila.mapping.mapping;
 import static io.flottila.mapping.mapping.Fixtures.assertBytes;
 import static io.flottila.mapping.mapping.Fixtures.utf8;
 import static io.flottila.mapping.mapping.LoadResults.loaded;
+import static io.flottila.mapping.mapping.Models.at;
 import static io.flottila.mapping.mapping.Models.boxes;
 import static io.flottila.mapping.mapping.Models.elementRoot;
 import static io.flottila.mapping.mapping.Models.function;
 import static io.flottila.mapping.mapping.Models.inputs;
+import static io.flottila.mapping.mapping.Models.layout;
 import static io.flottila.mapping.mapping.Models.model;
 import static io.flottila.mapping.mapping.Models.names;
+import static io.flottila.mapping.mapping.Models.noLayout;
 import static io.flottila.mapping.mapping.Models.noParams;
 import static io.flottila.mapping.mapping.Models.params;
 import static io.flottila.mapping.mapping.Models.source;
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.flottila.mapping.structure.WsdlDirection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -899,6 +903,121 @@ class MappingModelWriterTest {
             }
             """,
         saved);
+  }
+
+  /**
+   * The record drops a stale position itself (ADR-0029), so no model holds one: neither one a test
+   * builds nor one a caller saves.
+   */
+  @Test
+  void aTargetFieldMappingKeepsOnlyThePositionsOfItsOwnBoxes() {
+    TargetFieldMapping mapping =
+        targetFieldMapping(
+            "t1",
+            "a1",
+            boxes("a1", source("/Order/Number")),
+            layout(at(7, 8), "zz", at(1, 2), "a1", at(-3, 4), "t1", at(5, 6)));
+
+    assertThat(mapping.layout()).isEqualTo(layout(at(7, 8), "a1", at(-3, 4)));
+    assertThat(targetFieldMapping("t2", null, boxes(), layout(null, "zz", at(1, 2))).layout())
+        .isEqualTo(noLayout());
+  }
+
+  @Test
+  void saveOfARecordWithAStalePositionWritesOnlyTheOthers() {
+    MappingModel model =
+        model(
+            ORDER,
+            INVOICE,
+            targetFieldMappings(
+                "/Invoice/Number",
+                targetFieldMapping(
+                    "t1",
+                    "a1",
+                    boxes("a1", source("/Order/Number")),
+                    layout(null, "zz", at(1, 2), "a1", at(-3, 4)))),
+            Map.of());
+
+    assertBytes(
+        utf8(
+            HEADER
+                + """
+                  "targetFieldMappings": {
+                    "/Invoice/Number": {
+                      "boxes": {
+                        "a1": {
+                          "field": "/Order/Number",
+                          "kind": "source"
+                        }
+                      },
+                      "id": "t1",
+                      "layout": {
+                        "boxes": {
+                          "a1": {
+                            "x": -3,
+                            "y": 4
+                          }
+                        }
+                      },
+                      "result": "a1"
+                    }
+                  }
+                }
+                """),
+        MappingModelFormat.save(model));
+  }
+
+  @Test
+  void saveOfARecordLeavesOutAnEmptyDescriptionAndAnEmptyLayout() {
+    MappingModel model =
+        model(
+            Optional.of(""),
+            Optional.of(ORDER),
+            Optional.of(INVOICE),
+            targetFieldMappings(
+                "/Invoice/Number",
+                targetFieldMapping("t1", "a1", boxes("a1", source("/Order/Number")), noLayout())),
+            Map.of());
+
+    assertBytes(utf8(MINIMAL_TEXT), MappingModelFormat.save(model));
+  }
+
+  @Test
+  void saveOfAModelWithoutStructuresWritesItsFormatVersionAlone() {
+    MappingModel bare =
+        model(Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), Map.of());
+
+    assertBytes(utf8("{\n  \"formatVersion\": 1\n}\n"), MappingModelFormat.save(bare));
+  }
+
+  @Test
+  void saveWritesTheDescriptionFirstAndOnlyTheSideAModelHas() {
+    MappingModel onlyTarget =
+        model(
+            Optional.of("Rechnung – Entwurf"),
+            Optional.empty(),
+            Optional.of(INVOICE),
+            Map.of(),
+            Map.of());
+
+    assertBytes(
+        utf8(
+            """
+            {
+              "description": "Rechnung – Entwurf",
+              "formatVersion": 1,
+              "target": {
+                "bundle": [
+                  "invoice.xsd"
+                ],
+                "fingerprint": "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+                "root": {
+                  "element": "Invoice"
+                }
+              }
+            }
+            """),
+        MappingModelFormat.save(onlyTarget));
   }
 
   @Test

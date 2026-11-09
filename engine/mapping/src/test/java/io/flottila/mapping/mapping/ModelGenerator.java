@@ -63,7 +63,52 @@ final class ModelGenerator {
     for (int k = 0; k < count; k++) {
       mappings.put(targetPath(k), targetFieldMapping(List.copyOf(udfs.keySet())));
     }
-    return new MappingModel(1, structureRef("Order"), structureRef("Invoice"), mappings, udfs);
+    // ADR-0029: a description, and either structure not chosen yet
+    Optional<String> description =
+        random.nextInt(3) == 0 ? Optional.empty() : Optional.of(description());
+    Optional<StructureRef> source =
+        random.nextInt(4) == 0 ? Optional.empty() : Optional.of(structureRef("Order"));
+    Optional<StructureRef> target =
+        random.nextInt(4) == 0 ? Optional.empty() : Optional.of(structureRef("Invoice"));
+    return new MappingModel(1, description, source, target, mappings, udfs);
+  }
+
+  /** A non-empty description, an empty one is not written; sometimes at its 4000 code points. */
+  private String description() {
+    if (random.nextInt(8) == 0) {
+      return "😀".repeat(3999) + "é";
+    }
+    String text = text();
+    return text.isEmpty() ? "é" : text;
+  }
+
+  /**
+   * A layout of {@code boxes} (ADR-0029): no position, some or all, each coordinate at a limit, at
+   * 0 or anywhere between.
+   */
+  private Layout layout(Set<AuthoringId> boxes) {
+    Optional<BoxPosition> target =
+        random.nextBoolean() ? Optional.empty() : Optional.of(position());
+    Map<AuthoringId, BoxPosition> positions = new LinkedHashMap<>();
+    for (AuthoringId box : boxes) {
+      if (random.nextBoolean()) {
+        positions.put(box, position());
+      }
+    }
+    return new Layout(target, positions);
+  }
+
+  private BoxPosition position() {
+    return new BoxPosition(coordinate(), coordinate());
+  }
+
+  private int coordinate() {
+    return switch (random.nextInt(5)) {
+      case 0 -> -1_000_000;
+      case 1 -> 1_000_000;
+      case 2 -> 0;
+      default -> random.nextInt(-1_000_000, 1_000_001);
+    };
   }
 
   private StructureRef structureRef(String rootName) {
@@ -116,7 +161,7 @@ final class ModelGenerator {
     }
     Optional<AuthoringId> result =
         random.nextInt(4) == 0 ? Optional.empty() : Optional.of(pick(earlier));
-    return new TargetFieldMapping(id, result, boxes);
+    return new TargetFieldMapping(id, result, boxes, layout(boxes.keySet()));
   }
 
   private Box box(List<AuthoringId> earlier, List<String> udfNames) {

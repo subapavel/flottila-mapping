@@ -60,7 +60,9 @@ class MappingModelRoundTripTest {
     return Stream.of(
         Arguments.of("every-box-kind.mapping.json", FixtureModels.everyBoxKind()),
         Arguments.of("new-mapping.mapping.json", FixtureModels.newMapping()),
-        Arguments.of("escapes.mapping.json", FixtureModels.escapes()));
+        Arguments.of("escapes.mapping.json", FixtureModels.escapes()),
+        Arguments.of("studio-members.mapping.json", FixtureModels.studioMembers()),
+        Arguments.of("no-structures.mapping.json", FixtureModels.noStructures()));
   }
 
   @ParameterizedTest(name = "{0}")
@@ -313,5 +315,36 @@ class MappingModelRoundTripTest {
     MappingModel model = new ModelGenerator(seed).model();
 
     assertThat(loaded(MappingModelFormat.load(MappingModelFormat.save(model)))).isEqualTo(model);
+  }
+
+  /**
+   * Witness for {@link #savedModelReloadsEqual}: its seeds reach every member ADR-0029 adds, so the
+   * property cannot pass on models that never have them.
+   */
+  @Test
+  void theGeneratedModelsReachTheDescriptionTheLayoutAndAMissingSide() {
+    List<MappingModel> models = seeds().mapToObj(seed -> new ModelGenerator(seed).model()).toList();
+    List<Layout> layouts =
+        models.stream()
+            .flatMap(m -> m.targetFieldMappings().values().stream())
+            .map(TargetFieldMapping::layout)
+            .toList();
+    List<Integer> coordinates =
+        layouts.stream()
+            .flatMap(l -> Stream.concat(l.target().stream(), l.boxes().values().stream()))
+            .flatMap(p -> Stream.of(p.x(), p.y()))
+            .toList();
+
+    assertThat(models).anyMatch(m -> m.source().isEmpty()).anyMatch(m -> m.target().isEmpty());
+    assertThat(models)
+        .anyMatch(m -> m.description().isPresent())
+        .anyMatch(m -> m.description().isEmpty())
+        .anyMatch(
+            m -> m.description().map(d -> d.codePointCount(0, d.length()) == 4000).orElse(false));
+    assertThat(layouts)
+        .anyMatch(l -> l.target().isPresent())
+        .anyMatch(l -> !l.boxes().isEmpty())
+        .anyMatch(l -> l.target().isEmpty() && l.boxes().isEmpty());
+    assertThat(coordinates).contains(-1_000_000, 0, 1_000_000);
   }
 }
