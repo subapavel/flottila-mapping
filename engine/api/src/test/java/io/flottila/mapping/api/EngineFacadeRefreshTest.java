@@ -264,8 +264,8 @@ class EngineFacadeRefreshTest {
   }
 
   /**
-   * {@link #MODEL} with a description and a layout (ADR-0029), canonical, from {@code order.xsd} with
-   * fingerprint {@code %1$s} to {@code order.xsd} with fingerprint {@code %2$s}.
+   * {@link #MODEL} with a description and a layout (ADR-0029), canonical, from {@code order.xsd}
+   * with fingerprint {@code %1$s} to {@code order.xsd} with fingerprint {@code %2$s}.
    */
   private static final String STUDIO_MODEL =
       """

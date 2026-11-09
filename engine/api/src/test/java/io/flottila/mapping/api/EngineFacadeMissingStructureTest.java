@@ -10,10 +10,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.api.Test;
 
 /**
  * A mapping without its source or target structure (ADR-0029, #153): a new mapping has none until
@@ -33,7 +33,10 @@ class EngineFacadeMissingStructureTest {
   /** A well-formed fingerprint that no structure gives. */
   private static final String STALE = "sha256:" + "0".repeat(64);
 
-  /** A side: the bundle file {@code %s} under the root {@code Order}, storing fingerprint {@code %s}. */
+  /**
+   * A side: the bundle file {@code %s} under the root {@code Order}, storing fingerprint {@code
+   * %s}.
+   */
   private static final String SIDE =
       """
       {"bundle": ["%s"], "fingerprint": "%s", "root": {"element": "Q{urn:flottila:corpus:skeleton}Order"}}""";
@@ -95,7 +98,10 @@ class EngineFacadeMissingStructureTest {
             .map(
                 p ->
                     new Diagnostic(
-                        Severity.ERROR, "missing-structure", new AtPointer(p), "the side is missing"))
+                        Severity.ERROR,
+                        "missing-structure",
+                        new AtPointer(p),
+                        "the side is missing"))
             .toList());
   }
 
@@ -167,8 +173,7 @@ class EngineFacadeMissingStructureTest {
    * the same model gives the load error instead.
    */
   @Test
-  void aMissingSideIsTheOnlyDiagnosticEvenWhenTheOtherSideAndStage3WouldFail()
-      throws Exception {
+  void aMissingSideIsTheOnlyDiagnosticEvenWhenTheOtherSideAndStage3WouldFail() throws Exception {
     String missingFile = side("missing.xsd", FINGERPRINT);
     byte[] noTarget = model(source(missingFile) + linked("null"));
     byte[] withTarget = model(source(missingFile) + target(ORDER) + linked("null"));
@@ -178,7 +183,8 @@ class EngineFacadeMissingStructureTest {
         .anySatisfy(d -> assertThat(d).contains("schema-unreadable"));
 
     RecordingResolver resolver = resolver();
-    List<Diagnostic> diagnostics = refusal(facade.compile(noTarget, resolver, CompileOptions.DEPLOY));
+    List<Diagnostic> diagnostics =
+        refusal(facade.compile(noTarget, resolver, CompileOptions.DEPLOY));
 
     assertThat(described(diagnostics)).containsExactlyElementsOf(missingAt("/target"));
     assertThat(resolver.calls()).isEmpty();
@@ -240,8 +246,7 @@ class EngineFacadeMissingStructureTest {
 
     RefreshResult.Refreshed result = refreshed(new EngineFacade().refresh(model, resolver));
 
-    assertThat(new String(result.model(), UTF_8))
-        .isEqualTo(oneSideCanonical(present, FINGERPRINT));
+    assertThat(new String(result.model(), UTF_8)).isEqualTo(oneSideCanonical(present, FINGERPRINT));
     assertThat(result.diagnostics()).isEmpty();
     assertThat(resolver.calls()).containsOnly("order.xsd");
   }

@@ -108,7 +108,8 @@ class EngineFacadeIgnoresLayoutTest {
     TestRunResult.Output laidOut = testRun(laidOut());
 
     // witness: the plain file runs the corpus case, whose expected.xml holds these values
-    assertThat(new String(plain.output(), UTF_8)).contains(">PO-100<", ">Ada Lovelace<", ">London<");
+    assertThat(new String(plain.output(), UTF_8))
+        .contains(">PO-100<", ">Ada Lovelace<", ">London<");
     assertThat(plain.trace().entries()).isNotEmpty();
     assertThat(new String(laidOut.output(), UTF_8)).isEqualTo(new String(plain.output(), UTF_8));
     assertThat(laidOut.output()).isEqualTo(plain.output());
