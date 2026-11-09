@@ -1,0 +1,117 @@
+import assert from 'node:assert/strict';
+
+export async function checkExpressionActions(page,storage) {
+  await page.evaluate(k=>{
+    const workspace=JSON.parse(localStorage.getItem(k)),g=workspace.maps[0].graphs['Doc/Grp/Row'];
+    const make=(id,kind,name,inputs)=>({id,type:'mapping',deletable:kind!=='target',position:{x:42,y:30},
+      data:{kind,name,path:name,inputs:inputs.map((label,i)=>({id:'in'+i,label}))}});
+    g.nodes=[make('target','target','Row',['Value']),make('f','function','concat',['a','b']),
+      make('sku','source','Sku',[]),make('qty','source','Qty',[]),make('r','function','removeContexts',['Value']),make('loose','function','concat',['First text','Second text'])];
+    g.edges=[{id:'left',source:'sku',sourceHandle:'out',target:'f',targetHandle:'in0'},{id:'right',source:'f',target:'target'},{id:'detached',source:'qty',target:'r'}];
+    Object.assign(g.nodes[1].data,{standardKey:'concat',category:'Text'});
+    localStorage.setItem(k,JSON.stringify(workspace));
+  },storage);
+  await page.reload();await page.getByRole('button',{name:'Edit',exact:true}).click();
+  const area=page.getByRole('group',{name:'Mapping canvas',exact:true}),pane=area.locator('.react-flow__pane');
+  const node=id=>area.locator('.react-flow__node[data-id="'+id+'"]');
+  const state=id=>node(id).locator('.map-node').getAttribute('data-state');
+  const menu=name=>page.getByRole('menuitem',{name,exact:true});
+  const rail=page.getByRole('toolbar',{name:'Mapping tools'});
+  const tool=name=>rail.getByRole('button',{name,exact:true});
+  const layout=tool('Layout mapping');
+  const saved=async()=>{
+    const save=page.getByRole('button',{name:'Save',exact:true});if(await save.isEnabled())await save.click();
+    return page.evaluate(k=>JSON.parse(localStorage.getItem(k)).maps[0].graphs['Doc/Grp/Row'],storage);
+  };
+  const open=()=>pane.click({button:'right',position:{x:14,y:14}});
+  await node('target').waitFor();await open();
+  assert.ok(await menu('Delete Floating Objects').isEnabled());
+  await menu('Lay Out Mapping').click();
+  const arranged=await saved(),pos=id=>arranged.nodes.find(n=>n.id===id).position;
+  assert.ok(pos('sku').x<pos('f').x && pos('f').x<pos('target').x);
+  assert.ok(pos('qty').x<pos('r').x && pos('qty').y>pos('sku').y);
+  assert.equal(new Set(arranged.nodes.map(n=>JSON.stringify(n.position))).size,6);
+  assert.deepEqual(await Promise.all(['sku','f','target','qty','r','loose'].map(state)),['complete','incomplete','incomplete','detached','detached','detached']);
+  assert.match(await node('target').getAttribute('aria-label'),/from concat/);
+  const missing=node('f').locator('[data-handleid="in1"]');
+  assert.match(await missing.getAttribute('aria-label'),/Missing connection/);
+  // Scramble a node. Both entry points must compute the same positions, not just pan.
+  const b=await node('f').boundingBox();
+  await page.mouse.move(b.x+45,b.y+15);await page.mouse.down();await page.mouse.move(b.x+90,b.y+52,{steps:5});await page.mouse.up();
+  assert.notDeepEqual((await saved()).nodes.find(n=>n.id==='f').position,pos('f'));
+  await layout.click();
+  assert.deepEqual((await saved()).nodes.map(n=>n.position),arranged.nodes.map(n=>n.position));
+  await area.focus();await page.keyboard.press('Shift+F10');
+  if(process.env.MAPPING_CANVAS_CAPTURE){
+    await page.keyboard.press('Escape');await open();
+    await page.locator('.workbench').screenshot({path:process.env.MAPPING_CANVAS_CAPTURE});
+  }
+  await menu('Delete Floating Objects').click();
+  const cleaned=await saved();
+  assert.deepEqual(cleaned.edges,arranged.edges.filter(e=>e.id!=='detached'));
+  assert.deepEqual(cleaned.nodes.map(n=>n.id),['target','f','sku']);
+  await open();assert.ok(await menu('Delete Floating Objects').isDisabled());await page.keyboard.press('Escape');
+  const labels=await rail.getByRole('button').evaluateAll(items=>items.map(b=>b.getAttribute('aria-label')));
+  assert.match(labels[0],/^(Show|Hide) functions$/);
+  assert.deepEqual(labels.slice(1),['Add node','Display Queue','Delete Floating Objects','Layout mapping','Copy','Paste']);
+  await pane.click({position:{x:14,y:14}});
+  assert.ok(await tool('Copy').isDisabled());assert.ok(await tool('Display Queue').isDisabled());
+  assert.ok(await tool('Paste').isDisabled());assert.ok(await tool('Delete Floating Objects').isDisabled());
+  await node('target').click();
+  assert.ok(await tool('Display Queue').isEnabled());
+  assert.ok(await tool('Copy').isDisabled());
+  await node('target').click({button:'right'});
+  assert.equal(await menu('Copy').count(),0);assert.ok(await menu('Copy Path').isEnabled());
+  await page.keyboard.press('Escape');
+  await node('f').click();
+  await tool('Copy').click();
+  await open();await menu('Paste').click();
+  const firstCopy=await area.locator('.react-flow__node.selected').getAttribute('data-id');
+  assert.notEqual(firstCopy,'f');
+  const branch=await saved(),inWire=branch.edges.find(e=>e.target===firstCopy);
+  assert.equal(branch.nodes.length,cleaned.nodes.length+2);
+  assert.deepEqual(branch.edges.filter(e=>e!==inWire),cleaned.edges);
+  assert.notEqual(inWire.source,'sku');assert.notEqual(inWire.id,'left');
+  assert.equal(inWire.sourceHandle,'out');assert.equal(inWire.targetHandle,'in0');
+  assert.deepEqual(branch.nodes.find(n=>n.id===inWire.source).data,cleaned.nodes.find(n=>n.id==='sku').data);
+  await node('sku').click({button:'right',position:{x:12,y:12}});await menu('Copy').click();
+  await pane.click({position:{x:5,y:5}});
+  await tool('Paste').click();
+  const secondCopy=await area.locator('.react-flow__node.selected').getAttribute('data-id');
+  const withCopies=await saved();
+  assert.deepEqual(withCopies.nodes.find(n=>n.id===firstCopy).data,cleaned.nodes.find(n=>n.id==='f').data);
+  assert.deepEqual(withCopies.nodes.find(n=>n.id===secondCopy).data,cleaned.nodes.find(n=>n.id==='sku').data);
+  assert.equal(withCopies.nodes.length,branch.nodes.length+1);
+  assert.deepEqual(withCopies.edges,branch.edges);
+  await tool('Delete Floating Objects').click();
+  assert.deepEqual((await saved()).nodes,cleaned.nodes);
+  assert.deepEqual((await saved()).edges,cleaned.edges);
+  assert.ok(await tool('Copy').isDisabled());assert.ok(await tool('Display Queue').isDisabled());
+  assert.ok(await tool('Paste').isEnabled());
+  const source=await node('sku').locator('[data-handleid="out"]').boundingBox(),dest=await missing.boundingBox();
+  await page.mouse.move(source.x+source.width/2,source.y+source.height/2);await page.mouse.down();
+  await page.mouse.move(dest.x+dest.width/2,dest.y+dest.height/2,{steps:16});await page.mouse.up();
+  assert.deepEqual(await Promise.all(['sku','f','target'].map(state)),['complete','complete','complete']);
+  const fills=()=>Promise.all(['f','target'].map(id=>node(id).locator('.map-node').evaluate(el=>getComputedStyle(el).backgroundColor)));
+  const completeFills=await fills();
+  const connected=await saved(),secondInput=connected.edges.find(e=>e.target==='f'&&e.targetHandle==='in1');
+  const wire=area.locator('.react-flow__edge[data-id="'+secondInput.id+'"]');
+  await wire.focus();await wire.press('Shift+F10');await menu('Disconnect').click();
+  assert.deepEqual((await saved()).edges,connected.edges.filter(e=>e.id!==secondInput.id),'only the second input loses its wire');
+  assert.deepEqual(await fills(),completeFills,'function and target keep their card surfaces');
+  assert.equal(await node('f').locator('.port-note').innerText(),'Missing: b');
+  assert.equal(await node('f').locator('.missing-input').getAttribute('data-handleid'),'in1');
+  assert.equal(await node('target').locator('.missing-input, .port-note').count(),0,'a connected target is not reported as unplugged');
+  assert.equal(await state('target'),'incomplete');
+  const a=await node('sku').locator('[data-handleid="out"]').boundingBox(),b2=await missing.boundingBox();
+  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();
+  await page.mouse.move(b2.x+b2.width/2,b2.y+b2.height/2,{steps:16});await page.mouse.up();
+  assert.equal(await state('target'),'complete');assert.equal(await node('f').locator('.port-note, .missing-input').count(),0);
+  await node('f').click({button:'right'});await menu('Disconnect').click();
+  assert.equal(await state('target'),'incomplete');
+  assert.equal(await state('sku'),'detached');
+  await open();await menu('Delete Floating Objects').click();
+  assert.deepEqual((await saved()).nodes.map(n=>n.id),['target']);
+  await page.reload();await page.getByRole('button',{name:'Edit',exact:true}).click();assert.equal(await state('target'),'incomplete');
+  console.log('Canvas menu and toolbar layout, SAP branch copy/paste and floating cleanup, target protection and live port/branch states passed.');
+}

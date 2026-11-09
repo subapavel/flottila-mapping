@@ -1,0 +1,30 @@
+{
+  "name": "flottila-mapping-studio-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4317",
+    "build": "vite build --base=./ && node portable.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4317",
+    "verify:dialogs": "node scripts/verify-function-dialogs.mjs",
+    "verify:mode": "node scripts/verify-editor-mode.mjs",
+    "verify:canvas": "node scripts/verify-canvas.mjs",
+    "verify:grouping": "node scripts/verify-grouping.mjs",
+    "verify:variables": "node scripts/verify-variables.mjs",
+    "verify:expression": "node scripts/verify-expression-toolbar.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "@patternfly/react-core": "6.7.0",
+    "@patternfly/react-icons": "6.7.0",
+    "@patternfly/react-table": "6.7.0",
+    "@xyflow/react": "12.12.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.5",
+    "playwright": "1.63.0"
+  }
+}

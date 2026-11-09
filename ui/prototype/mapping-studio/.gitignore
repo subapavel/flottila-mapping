@@ -1,0 +1,10 @@
+node_modules/
+.vite-cache/
+dist/
+debug.log
+
+# Local design snapshots and recordings from the reference SAP installation.
+/nahled*.png
+/navrh-*.png
+/Navrhy-zahlavi.html
+/sap-predloha/
