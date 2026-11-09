@@ -17,10 +17,9 @@ The owner's prototype is the UI. It is on branch `prototype/mapping-studio`, und
 
 - **Start page.**
   - A PatternFly `Table` of mappings with the columns Name, Package, Source, Target and Description. Each row has an "Open in studio" link.
-  - A "New mapping" `Modal` with:
-    - Name, Package and Description;
-    - the source and target message, because the model requires both.
-  - Create opens the studio in edit mode.
+  - A "New mapping" `Modal` with Name, Package and Description only.
+  - Create opens the studio in edit mode on the Signature tab, where the source and target
+    messages are chosen (ADR-0029 makes them optional).
 - **Studio.**
   - The masthead reads "Flottila | Mapping studio".
   - The tabs are Overview, Definition, Test, Signature and Functions. The active tab is the URL hash, and the page reads `?mapping=<id>`. There is no router library.
