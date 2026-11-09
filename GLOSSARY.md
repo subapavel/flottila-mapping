@@ -142,10 +142,23 @@ error.
 _Avoid_: unknown function, missing function
 
 **Layout**:
-Where the editor draws boxes and how the view is zoomed, collapsed or split. It is computed from
-the mapping model when a mapping opens (dagre), then kept stable as the viewer's own state, and
-it is never stored with the mapping (ADR-0012).
+The integer positions of one target field mapping's boxes and its target, stored as `layout` in
+the mapping file and ignored by the engine (ADR-0029). A file without one is laid out with dagre
+in memory. Zoom, collapse and split stay the viewer's own state.
 _Avoid_: diagram, view data
+
+**Box position**:
+One box's (or the target's) integer x and y in a layout. A position whose box no longer exists is
+dropped on save.
+_Avoid_: coordinates (alone)
+
+**Mapping description**:
+A mapping's free text, at most 4,000 characters, which the engine ignores.
+_Avoid_: comment
+
+**Signature**:
+A mapping's source and target structures. A new mapping has none until the Signature tab chooses them.
+_Avoid_: interface
 
 **Structure overview**:
 The top half of the editor. The source tree and the target tree stand side by side, with field
