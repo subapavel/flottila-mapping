@@ -618,7 +618,8 @@ class MappingsResourceTest {
                 + side("[\"../structures/invoice.xsd\"]", "{\"element\": \"Q{urn:x}Invoice\"}")
                 + "}"));
     TempWorkspace.write("summaries/bare.mapping.json", bytes(Fixtures.BARE_MAPPING));
-    TempWorkspace.write("summaries/refused.mapping.json", bytes("{\"formatVersion\": 1, \"x\": 1}"));
+    TempWorkspace.write(
+        "summaries/refused.mapping.json", bytes("{\"formatVersion\": 1, \"x\": 1}"));
     TempWorkspace.write("summaries/no-json.mapping.json", bytes("not a JSON document"));
     TempWorkspace.write("summary-at-the-root.mapping.json", corpusMapping());
     Map<String, String> expected =
@@ -661,8 +662,7 @@ class MappingsResourceTest {
       byId.put(summary.path("id").textValue(), summary);
     }
     expected.forEach(
-        (id, summary) ->
-            assertThat(byId.get(id)).as(id).isEqualTo(Wire.read(bytes(summary))));
+        (id, summary) -> assertThat(byId.get(id)).as(id).isEqualTo(Wire.read(bytes(summary))));
   }
 
   @Test
@@ -670,11 +670,7 @@ class MappingsResourceTest {
     TempWorkspace.mkdirs("creating-bare");
 
     Http.Reply reply =
-        http()
-            .post(
-                "api/mappings",
-                "application/json",
-                bytes("{\"id\": \"creating-bare/draft\"}"));
+        http().post("api/mappings", "application/json", bytes("{\"id\": \"creating-bare/draft\"}"));
 
     assertThat(reply.status()).as("%s", reply).isEqualTo(201);
     assertBytes(reply.body(), bytes(Fixtures.BARE_MAPPING));
@@ -684,7 +680,8 @@ class MappingsResourceTest {
             location ->
                 assertThat(root.resolve(location).getPath())
                     .isEqualTo("/api/mappings/creating-bare/draft"));
-    assertBytes(TempWorkspace.read("creating-bare/draft.mapping.json"), bytes(Fixtures.BARE_MAPPING));
+    assertBytes(
+        TempWorkspace.read("creating-bare/draft.mapping.json"), bytes(Fixtures.BARE_MAPPING));
     Http.Reply get = http().get("api/mappings/creating-bare/draft");
     assertBytes(get.body(), bytes(Fixtures.BARE_MAPPING));
     assertThat(get.header("ETag")).contains(Fixtures.BARE_MAPPING_ETAG);
@@ -765,7 +762,10 @@ class MappingsResourceTest {
                 bytes("{\"formatVersion\": 1}"));
     Http.Reply noTarget =
         http()
-            .post("api/mappings/" + CORPUS_ID + "/compile", "application/json", bytes(WITHOUT_TARGET));
+            .post(
+                "api/mappings/" + CORPUS_ID + "/compile",
+                "application/json",
+                bytes(WITHOUT_TARGET));
 
     assertThat(neither.status()).as("%s", neither).isEqualTo(200);
     assertThat(described(neither.json().path("diagnostics")))
@@ -783,7 +783,11 @@ class MappingsResourceTest {
     TempWorkspace.write("saving-bare/draft.mapping.json", corpusMapping());
 
     Http.Reply put =
-        http().put("api/mappings/saving-bare/draft", "application/json", bytes("{\"formatVersion\":1}"));
+        http()
+            .put(
+                "api/mappings/saving-bare/draft",
+                "application/json",
+                bytes("{\"formatVersion\":1}"));
 
     assertThat(put.status()).as("%s", put).isEqualTo(200);
     assertBytes(put.body(), bytes(Fixtures.BARE_MAPPING));
@@ -805,7 +809,8 @@ class MappingsResourceTest {
                 "\"formatVersion\": 1, \"description\": \"Copies the order id\"}");
     assertThat(body).contains("\"layout\"", "\"description\"");
 
-    Http.Reply put = http().put("api/mappings/saving-studio/order", "application/json", bytes(body));
+    Http.Reply put =
+        http().put("api/mappings/saving-studio/order", "application/json", bytes(body));
 
     assertThat(put.status()).as("%s", put).isEqualTo(200);
     assertBytes(put.body(), bytes(Fixtures.STUDIO_MAPPING));
