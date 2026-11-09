@@ -1,67 +1,8 @@
 # Handoff
 
-state: SPEC_DONE — spec #145 "port the prototype's density and detail" (2026-11-07). Integration branch `spec/145-prototype-detail` from main 022f5f2; every merge commit carries the exact trailers, so the PR comes from the integration branch itself.
-spec #145 origin: the owner judged spec #135's result "still primitive" next to the chosen prototype. Root cause: #135's tickets cited the prototype screenshots, not its source, and review read prose rather than pixels. In #145 every ticket ports from the prototype source (prototype/mapping-editor @ 3a5ed86) and hands back a 1440×900 screenshot beside the prototype's.
-spec #145 tickets, all merged and closed: #149 babcf16 · #146 1a6a6c1 · #150 2d4cc98 · #148 fe59d25 · #147 727fa5c. Review fix `t/145-review-fix` 48062fb.
-spec #145 gate: full gate (`scripts/gate-spec.sh 145`) on 727fa5c VERIFIED_PASS: build 1244 tests, PIT at the floors, oracle 616 and differential 313, ui 573/254/7, stack e2e 11, ratchet unchanged; JMH NOT_RUN, no benchmarks.jar. The review fix 7589c5d ticket-gated VERIFIED_PASS: ui 576/260/7, stack package and stack e2e 11, ratchet OK.
-spec #145 review:
-- round 1: FAIL on both axes (#145 comment 6699093152). Spec: canvas fitView not ported (2× zoom), inspector queue not compact, no head screenshot. Standards: "expression" in test names.
-- fix round: fitView `{padding: 0.15, maxZoom: 1}`, a shared compact queue, glyph badges, inline strip subject, `targetFieldKey`, F-32.
-- round 2: PASS on both axes. Head screenshots are fix-d/e/f in the architect's scratchpad.
-spec #145 findings: F-32 (ADR-0013's browser-state list misses page tab and selected target field). Owner questions:
-- one ADR-0013 amendment for F-29 to F-32;
-- ADR-0012 says off-screen links end at the gutter edge with ↑n/↓n, while the prototype only counts them; kept per the ADR.
-spec #145 carried:
-- tree head 86 px against 65 px (12 rows against 14);
-- `1..unbounded` against `1..n`;
-- "← Source" text on target rows;
-- status marks are dots;
-- the "Hide inspector" line;
-- the inspector's Occurrences block is a plain list;
-- no SAP name or deviation id in the catalogue;
-- `#151515` literal in inspector-panel.css;
-- the counter test checks the declaration only;
-- no test for the `⊘` glyph;
-- `boxQueue` takes 4 positional arguments;
-- hand-copied `FieldStatus`/`LastRun` types across the ADR-0013 boundary;
-- a third copy of the structure step walk (`target-field.ts`);
-- class-name assertions;
-- "value boxes" naming (should be slots).
-next action: owner — merge the spec #145 PR, then `/retro` for spec 5, #135 and #145 (deferred to next week).
-
-previous: SPEC_DONE — spec #135 "the editor looks like the chosen prototype" (2026-11-06). Integration branch `spec/135-editor-look` from main 4ad242e; the PR comes from `spec/135-editor-look-pr`, one squash commit with the same tree, because the architect's merge commits on the integration branch lack the exact `Co-authored-by: Claude` trailer that CI checks, and a history rewrite was refused.
-spec #135 tickets, all merged and closed: #136 bd64f76 · #140 5d0a457 · #139 a097ba3 · #141 c5a207f · #138 abb15d3 · #142 33ab8d4 · #137 d5189ce · #143 42a371e.
-spec #135 origin: the owner ran spec 5 locally. The look of the prototype (#10, branch prototype/mapping-editor @ 3a5ed86) never reached ADR-0012 or spec 5. Owner decisions 2026-11-06: page tabs Editor/Test/Diagnostics/Model JSON, a header bar, tree search, Model JSON, a mapping list, local paths in diagnostics, and screenshots plus review as the visual check.
-spec #135 gate: full gate on 42a371e VERIFIED_PASS (e2e passed on a retry after a port clash; JMH NOT_RUN, spec 6; ratchet unchanged). UI and stack re-gate on 10a21c7 VERIFIED_PASS. Later fixes are UI-only, with ticket-gate evidence.
-spec #135 review: round 1 FAIL on both axes (#135 comment 6688303280). Fixes `t/135-review-shell` (PF Table, output-region e2e, local paths in the Test tab) and `t/135-review-canvas` (local paths, inspector order, measured card heights, unreachable naming, palette height). Round 2: spec PASS, standards FAIL (orphaned wiring untested) → fixed. Round 3: standards PASS. Screenshot review → generated target indented for display (`t/135-review-output`).
-spec #135 findings: F-29 (styling convention, ADR-0013 silent), F-30 (display-only client canonical serialiser vs ADR-0013), F-31 (unreachable box marked by a dashed border, not dimmed). Owner question: one ADR-0013 amendment for all three.
-spec #135 carried: StructureOverview divergent change (TreePane/useTree parameter lists); `counted` duplicated; aria wiring on the PF-internal tab id; two ancestor-keeping walkers (`keptRows`, `filteredRows`); DiagnosticsPanel splits the pointer by hand; "1 rows"; Prettier unenforced; an empty row header when a mapping's name equals its id; the start page lists every corpus mapping (page scroll with 249 rows).
-previous: SPEC_DONE — spec 5 (#104) merged in PR #130 (86a3515); Windows case-collision fix #131 in PR #132 (4ad242e). Status comment 6673105155.
-spec gate on 7fb5576 VERIFIED_PASS (JMH NOT_RUN, spec 6); ratchet deb5ad8. 20 tickets merged (#105-#117, #121-#127).
-review: round 1 FAIL both axes (#104 comment 6683228224) → fixes field-path d0dfe19, keyboard 20a17a8, layout 213cd6c; round 2 spec PASS, standards FAIL on test witnesses → fix/104-tests f478380; round 3 PASS.
-open owner questions: #128 (GATE 7 tree p95 at the 60 Hz floor, F-26), #129 (ADR wording for F-27, F-28, stale If-Match lines). Neither blocks spec 5.
-next action: owner — `/retro` for spec 5 and spec #135 (deferred by the owner to next week; implementer MEMORY.md is over 120 lines). Process gap for the retro: ADR-0012 recorded the prototype's shape but not its look. Owner questions: #128, #129, and the ADR-0013 amendment (F-29, F-30, F-31). Then a process ticket so the windows CI job builds `ui/`.
-spec 5 tickets: #105-#117 (editor) and #121-#127 (spec-4 retro process tickets).
-grilling (spec 5, 2026-11-05): 26 decisions in 3 rounds, all recommendations accepted. Recorded in ADR-0027 (conditional save with If-Match and 409 mapping-changed, PUT without the header unconditional, no Overwrite; refusals on /api/structures; the compile endpoint with unreachable-box; refresh on open as one undo step; the packed function catalogue committed in contract/). ADR-0027 refines ADR-0008, 0010, 0015, 0024 and 0026 without amending them. GLOSSARY: Palette, Quick insert, Field status, Orphaned target field mapping, Remap, Diagnostics panel, Stale trace, Save conflict.
-blocked chain: none
-spec 4 (#89): 15 tickets (#86, #87, #90-#100, #102, #103, #118). Spec gate 2 on 44fd349 VERIFIED_PASS except JMH NOT_RUN (spec 6); ratchet add0ca7. Review round 1 FAIL on every axis (comment 6670934613), 3 fix branches; round 2 PASS (comment 6671857589). Carried judgement calls are in those two comments and in the per-ticket evidence comments (#90, #92, #94-#98, #100, #102, #118). Spec 5 owns: /api/structures does not show the array marker (#118).
-spec gate note: call `scripts/gate-spec.sh <spec> <pit-modules>` with the modules that have a row in `ratchet/mutation.tsv`; the default list includes engine/udf-api and engine/udf, which hold only module-info.java until spec 7.
-dirty worktrees kept (staged index of an older tree, branch already merged; remove with `git worktree remove --force` once checked): agent-a1a89bc1001ee6a42 (t/102), agent-a6dcea9a206253e3c (t/90), agent-abd6711aa59758182 (t/118), agent-abf149608f1607396 (t/92). Worktrees do not survive a session.
-observed (2026-11-05): Saxon-HE 12.5 `json-to-xml` keeps number spelling and retains duplicate keys by default (the export passes duplicates: reject); `unparsed-text` raises FOUT1190 for a raw U+FFFE/U+FFFF and drops a leading BOM.
-carried: spec-2 items by target spec in #48 comment 6595876651; spec-3 items in #70 comment 6639200141; spec-4 items in #89 comments 6670934613 and 6671857589.
-carried from spec 3 (still open): code comments still say "spec 6" for the editor (ui/src/api/client.ts:16, MappingsResource.java:218) · json-sKema undeclared at test scope in service/pom.xml · #83 contract: openapi TraceEntryDto gains {atomic} · #80 run-time truncation to millis (evidence comment 6638545337)
-spec 1: merged to main 3bf9747 (#46); carried #21 comment 6582060566. spec 2: merged 86bf5ed (#66); carried #48 comment 6595876651. spec 3: merged 7dcc540 (#84); carried #70 comment 6639200141. spec 4: merged 8052dc1 (#119); carried #89 comments 6670934613, 6671857589.
-grilling (#48): ifWithoutElse → spec 3 · no editor change · splitByValue 3 modes · Java sort order
-grilling (#48), cont.: the export uses a po-runtime.xsl helper · windows required
-findings open: F-20 (divide scale, ADR-0005 amended) · F-13 (gate budget → spec 6) · F-15 (split per family before spec 3) · F-16 (PIT timeouts → spec 6) · F-18 (export laziness → export spec) · F-21 (generating function = single-value result, ADR-0006 amended, closed by wording) · F-22 (single-value calls evaluate every input; ADR-0006 amended) · F-25 (json-sKema all-or-nothing load: JSON walk refusals only after earlier errors are fixed; ADR-0008 note). Closed in spec 4: F-12 (#90), F-23 (#86).
-retro (spec 3): trailers checked in the ticket gate (row 2c) · SPEC_DONE handoff rides the spec PR · memory written by the architect from `Worth recording:` blocks · tickets #86 (oracle sweep, erroring inputs) and #87 (mutation ratchet sees one mutant) for spec 4
-owner: observation requests #31–#38 · protect main #47 (windows required) · po URI veto · §11 trailers on old commits accepted · no approval prompts: agent packets use no python, single plain commands with `git -C`, no `&&` chains or heredocs (one `bash -c` for a gate), files via Write/Edit, commit messages via Write + `git commit -F`.
-owner on Windows: `$env:QUARKUS_HTTP_PORT=8090`, `.\mvnw.cmd -pl service -am quarkus:dev`, `cd ui; npm run dev`.
-spec order: 1 walking skeleton · 2 queues + node functions · 3 standard functions · 4 structures · 5 editor · 6 speed · 7 UDFs (owner swapped 5/6, 2026-11-03).
-rule (#19): a function ticket carries runtime + export + corpus + differential. Requests never block a spec.
-spec gate order: 1, 1b, 2, 5, 4, 3 (ADR-0017, WORKFLOW §6). Merge trailers per WORKFLOW §11. Trailer checks take a range: `scripts/check-trailers.sh origin/<integration>..HEAD`. Gates always in a fresh verify worktree (stale jacoco.exec fails service coverage).
-env: JDK 25 /opt/temurin-25 · never `pkill -f` · jqwik banned · Playwright pinned · keep worktrees until the ticket merges · GitHub sometimes rejects a push with "fatal error in commit_refs_rules": retry with backoff, never force.
-gh: REST only, `-F body=@file`, Claude Code footer on every comment.
-pointers: CLAUDE.md · AGENTS.md · docs/GATE.md · docs/WORKFLOW.md · docs/agents/issue-tracker.md · agent/NOTES.md · docs/findings/
-
-settings (owner, ac18f47): permissions allow Bash/Read/Edit/Write/WebFetch, deny force push, reset --hard, rm -rf /. Takes effect in a new session.
+state: RUNNING — spec #152 "Mapping studio replaces the editor UI" (2026-11-09). Integration branch `spec/152-mapping-studio` from main de8314e.
+origin: the owner replaced the UI with their prototype (branch `prototype/mapping-studio`, `ui/prototype/mapping-studio/`, scrubbed of company ids). Owner answers: unsupported parts stay mocked (preview), positions stored in the file, our terms, view/edit modes. ADR-0028, ADR-0029, glossary on the integration branch.
+tickets: #153 C contract → #154 B shell/list → #155 B overview/signature, #156 B panes → #157 B expression → #158 B test → #159 B functions (preview), #160 B preview features → #161 A remove old editor.
+in flight: #153 designer.
+carried from #145: owner questions on ADR-0013 (F-29..F-32) and ADR-0012 off-screen links, likely moot under ADR-0028. Retro for spec 5, #135, #145 deferred.
+next action: approve the #153 design, then test-author on `t/153-contract-layout`.
