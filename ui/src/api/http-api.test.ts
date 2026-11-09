@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { MappingModel } from '../generated/mapping-model';
-import { ApiProblem, isSaveConflict } from './client';
+import { ApiProblem, isSaveConflict, type CreateMappingRequest, type MappingSummary } from './client';
 import { httpApiClient } from './http-api';
 
 const model: MappingModel = {
@@ -97,12 +97,26 @@ describe('the HTTP ApiClient', () => {
     expect((error as ApiProblem).problem).toEqual(changed);
   });
 
-  test('lists the workspace mappings by GET on /api/mappings', async () => {
-    const list = [{ id: 'mappings/order-id-copy', name: 'order-id-copy' }];
+  test('lists the workspace mappings by GET on /api/mappings, with their package, description and root names', async () => {
+    // a summary leaves out a description or a side that is not there (ADR-0029)
+    const list: MappingSummary[] = [
+      { id: 'drafts/new', name: 'new', package: 'drafts', description: 'Bestellungen zu Rechnungen' },
+      { id: 'mappings/order-id-copy', name: 'order-id-copy', package: 'mappings', source: 'Order', target: 'Order' },
+      { id: 'top', name: 'top', package: '', target: 'Invoice' },
+    ];
     const port = fakeFetch(() => json(list));
 
     expect(await httpApiClient('', port.fetch).listMappings()).toEqual(list);
     expect(port.calls).toEqual([{ url: '/api/mappings', method: 'GET', contentType: null, body: undefined }]);
+  });
+
+  test('creates a mapping by POST of its id and description alone, and returns the model without structures', async () => {
+    const created: MappingModel = { description: 'Bestellungen zu Rechnungen', formatVersion: 1 };
+    const port = fakeFetch(() => json(created, 201, 'application/json', TAG));
+    const request: CreateMappingRequest = { id: 'drafts/new', description: 'Bestellungen zu Rechnungen' };
+
+    expect(await httpApiClient('', port.fetch).createMapping(request)).toEqual({ model: created, etag: TAG });
+    expect(port.calls).toEqual([{ url: '/api/mappings', method: 'POST', contentType: 'application/json', body: request }]);
   });
 
   test('creates a mapping by POST of the request to /api/mappings, and returns the new model with its ETag', async () => {

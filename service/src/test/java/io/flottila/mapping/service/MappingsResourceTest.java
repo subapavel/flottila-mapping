@@ -28,6 +28,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -558,6 +559,260 @@ class MappingsResourceTest {
         http().post("api/mappings", "application/json", bytes(request)), 400, "invalid-request");
 
     assertThat(TempWorkspace.exists("creating-root/order.mapping.json")).isFalse();
+  }
+
+  // --- the mapping studio's members (ADR-0029, #153): the summary's package, description and root
+  // names; a mapping created with only its id, or with a description; a working copy without its
+  // structures; a description and a layout saved as they are
+
+  /** A well-formed fingerprint: listing reads no structure, so none has to be right. */
+  private static final String SOME_FINGERPRINT = "sha256:" + "ab".repeat(32);
+
+  private static String side(String bundle, String root) {
+    return "{\"bundle\": "
+        + bundle
+        + ", \"fingerprint\": \""
+        + SOME_FINGERPRINT
+        + "\", \"root\": "
+        + root
+        + "}";
+  }
+
+  /**
+   * Each summary has the id's folder as {@code package}, {@code ""} at the root, the description,
+   * and for each side the root's name: an element's local name, a WSDL root's operation (not its
+   * fault), the last segment of a JSON root's first bundle file. An absent side or description, or
+   * a stored file the service refuses, leaves its member out, and the list still answers 200.
+   */
+  @Test
+  void listsThePackageDescriptionAndRootNamesOfEachMapping() {
+    TempWorkspace.write(
+        "summaries/elements.mapping.json",
+        bytes(
+            "{\"formatVersion\": 1, \"description\": \"Bestellungen → Rechnungen\", \"source\": "
+                + side(
+                    "[\"../structures/order.xsd\"]",
+                    "{\"element\": \"Q{urn:flottila:test:order}Order\"}")
+                + ", \"target\": "
+                + side("[\"../structures/invoice.xsd\"]", "{\"element\": \"Invoice\"}")
+                + "}"));
+    TempWorkspace.write(
+        "summaries/deep/wsdl-json.mapping.json",
+        bytes(
+            "{\"formatVersion\": 1, \"source\": "
+                + side(
+                    "[\"../../structures/order.wsdl\"]",
+                    "{\"wsdl\": {\"interface\": \"Q{urn:flottila:test:order}OrderPort\","
+                        + " \"operation\": \"SendOrder\", \"direction\": \"fault\","
+                        + " \"fault\": \"OrderRejected\"}}")
+                + ", \"target\": "
+                + side(
+                    "[\"../../structures/json/a-note.schema.json\","
+                        + " \"../../structures/json/z-defs.schema.json\"]",
+                    "{\"json\": \"$\"}")
+                + "}"));
+    TempWorkspace.write(
+        "summaries/only-target.mapping.json",
+        bytes(
+            "{\"formatVersion\": 1, \"target\": "
+                + side("[\"../structures/invoice.xsd\"]", "{\"element\": \"Q{urn:x}Invoice\"}")
+                + "}"));
+    TempWorkspace.write("summaries/bare.mapping.json", bytes(Fixtures.BARE_MAPPING));
+    TempWorkspace.write("summaries/refused.mapping.json", bytes("{\"formatVersion\": 1, \"x\": 1}"));
+    TempWorkspace.write("summaries/no-json.mapping.json", bytes("not a JSON document"));
+    TempWorkspace.write("summary-at-the-root.mapping.json", corpusMapping());
+    Map<String, String> expected =
+        Map.of(
+            "summaries/elements",
+            """
+            {"id": "summaries/elements", "name": "elements", "package": "summaries",
+             "description": "Bestellungen → Rechnungen", "source": "Order", "target": "Invoice"}""",
+            "summaries/deep/wsdl-json",
+            """
+            {"id": "summaries/deep/wsdl-json", "name": "wsdl-json", "package": "summaries/deep",
+             "source": "SendOrder", "target": "a-note.schema.json"}""",
+            "summaries/only-target",
+            """
+            {"id": "summaries/only-target", "name": "only-target", "package": "summaries",
+             "target": "Invoice"}""",
+            "summaries/bare",
+            """
+            {"id": "summaries/bare", "name": "bare", "package": "summaries"}""",
+            "summaries/refused",
+            """
+            {"id": "summaries/refused", "name": "refused", "package": "summaries"}""",
+            "summaries/no-json",
+            """
+            {"id": "summaries/no-json", "name": "no-json", "package": "summaries"}""",
+            "summary-at-the-root",
+            """
+            {"id": "summary-at-the-root", "name": "summary-at-the-root", "package": "",
+             "source": "Order", "target": "Order"}""",
+            CORPUS_ID,
+            """
+            {"id": "mappings/order-id-copy", "name": "order-id-copy", "package": "mappings",
+             "source": "Order", "target": "Order"}""");
+
+    Http.Reply reply = http().get("api/mappings");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    Map<String, JsonNode> byId = new LinkedHashMap<>();
+    for (JsonNode summary : reply.json()) {
+      byId.put(summary.path("id").textValue(), summary);
+    }
+    expected.forEach(
+        (id, summary) ->
+            assertThat(byId.get(id)).as(id).isEqualTo(Wire.read(bytes(summary))));
+  }
+
+  @Test
+  void createWithOnlyAnIdIs201WithAMappingWithoutStructures() {
+    TempWorkspace.mkdirs("creating-bare");
+
+    Http.Reply reply =
+        http()
+            .post(
+                "api/mappings",
+                "application/json",
+                bytes("{\"id\": \"creating-bare/draft\"}"));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(201);
+    assertBytes(reply.body(), bytes(Fixtures.BARE_MAPPING));
+    assertThat(reply.header("ETag")).contains(Fixtures.BARE_MAPPING_ETAG);
+    assertThat(reply.header("Location"))
+        .hasValueSatisfying(
+            location ->
+                assertThat(root.resolve(location).getPath())
+                    .isEqualTo("/api/mappings/creating-bare/draft"));
+    assertBytes(TempWorkspace.read("creating-bare/draft.mapping.json"), bytes(Fixtures.BARE_MAPPING));
+    Http.Reply get = http().get("api/mappings/creating-bare/draft");
+    assertBytes(get.body(), bytes(Fixtures.BARE_MAPPING));
+    assertThat(get.header("ETag")).contains(Fixtures.BARE_MAPPING_ETAG);
+  }
+
+  /** The description is written as the model's first member, with or without the structures. */
+  @Test
+  void createWithADescriptionWritesIt() {
+    TempWorkspace.mkdirs("creating-described");
+    String withStructures =
+        createRequest("creating-described/both", "../structures/skeleton/order.xsd", ORDER);
+    String described = ", \"description\": " + Wire.quoted(Fixtures.DESCRIPTION) + "}";
+
+    Http.Reply bare =
+        http()
+            .post(
+                "api/mappings",
+                "application/json",
+                bytes("{\"id\": \"creating-described/bare\"" + described));
+    Http.Reply both =
+        http()
+            .post(
+                "api/mappings",
+                "application/json",
+                bytes(withStructures.substring(0, withStructures.length() - 1) + described));
+
+    assertThat(bare.status()).as("%s", bare).isEqualTo(201);
+    assertBytes(bare.body(), bytes(Fixtures.DESCRIBED_MAPPING));
+    assertThat(bare.header("ETag")).contains(Fixtures.DESCRIBED_MAPPING_ETAG);
+    assertBytes(
+        TempWorkspace.read("creating-described/bare.mapping.json"),
+        bytes(Fixtures.DESCRIBED_MAPPING));
+    assertThat(both.status()).as("%s", both).isEqualTo(201);
+    assertBytes(both.body(), bytes(Fixtures.DESCRIBED_NEW_MAPPING));
+    assertThat(both.header("ETag")).contains(Fixtures.DESCRIBED_NEW_MAPPING_ETAG);
+    assertBytes(
+        TempWorkspace.read("creating-described/both.mapping.json"),
+        bytes(Fixtures.DESCRIBED_NEW_MAPPING));
+  }
+
+  /** The corpus mapping's working copy without its target side. */
+  private static final String WITHOUT_TARGET =
+      """
+      {"formatVersion": 1,
+       "source": {"bundle": ["../structures/skeleton/order.xsd"], "fingerprint": "%2$s",
+                  "root": {"element": "%1$s"}},
+       "targetFieldMappings": {"/%1$s/OrderId": {"id": "t1", "result": "a1",
+         "boxes": {"a1": {"kind": "source", "field": "/%1$s/OrderId"}}}}}
+      """
+          .formatted(ORDER, FINGERPRINT);
+
+  /** A test run of a working copy without a structure is refused as a compile error (ADR-0029). */
+  @Test
+  void aTestRunOfAWorkingCopyWithoutItsTargetIsRefusedWithMissingStructure() {
+    Http.Reply reply =
+        http()
+            .post(
+                "api/mappings/" + CORPUS_ID + "/test",
+                "application/json",
+                bytes(testRequest(WITHOUT_TARGET, INPUT)));
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode result = reply.json();
+    assertThat(result.path("kind").textValue()).as("%s", reply).isEqualTo("refused");
+    assertThat(described(result.path("diagnostics")))
+        .containsExactly("error missing-structure at pointer /target");
+    assertThat(result.has("output")).isFalse();
+    assertThat(result.has("trace")).isFalse();
+  }
+
+  @Test
+  void compileOfAWorkingCopyWithoutStructuresIs200WithMissingStructureAtEachSide() {
+    Http.Reply neither =
+        http()
+            .post(
+                "api/mappings/" + CORPUS_ID + "/compile",
+                "application/json",
+                bytes("{\"formatVersion\": 1}"));
+    Http.Reply noTarget =
+        http()
+            .post("api/mappings/" + CORPUS_ID + "/compile", "application/json", bytes(WITHOUT_TARGET));
+
+    assertThat(neither.status()).as("%s", neither).isEqualTo(200);
+    assertThat(described(neither.json().path("diagnostics")))
+        .containsExactly(
+            "error missing-structure at pointer /source",
+            "error missing-structure at pointer /target");
+    assertThat(noTarget.status()).as("%s", noTarget).isEqualTo(200);
+    assertThat(described(noTarget.json().path("diagnostics")))
+        .containsExactly("error missing-structure at pointer /target");
+  }
+
+  /** Save is stages 1 and 2, which accept a model without structures (ADR-0029). */
+  @Test
+  void saveOfAModelWithoutStructuresIs200() {
+    TempWorkspace.write("saving-bare/draft.mapping.json", corpusMapping());
+
+    Http.Reply put =
+        http().put("api/mappings/saving-bare/draft", "application/json", bytes("{\"formatVersion\":1}"));
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertBytes(put.body(), bytes(Fixtures.BARE_MAPPING));
+    assertThat(put.header("ETag")).contains(Fixtures.BARE_MAPPING_ETAG);
+    assertBytes(TempWorkspace.read("saving-bare/draft.mapping.json"), bytes(Fixtures.BARE_MAPPING));
+  }
+
+  @Test
+  void saveKeepsTheDescriptionAndLayoutAndGetReturnsThem() {
+    TempWorkspace.write("saving-studio/order.mapping.json", corpusMapping());
+    String body =
+        workingCopy("\"a1\"")
+            .replace(
+                "\"id\": \"t1\", ",
+                "\"id\": \"t1\", \"layout\": {\"target\": {\"y\": 48, \"x\": 360},"
+                    + " \"boxes\": {\"a1\": {\"y\": 48, \"x\": -120}}}, ")
+            .replace(
+                "\"formatVersion\": 1}",
+                "\"formatVersion\": 1, \"description\": \"Copies the order id\"}");
+    assertThat(body).contains("\"layout\"", "\"description\"");
+
+    Http.Reply put = http().put("api/mappings/saving-studio/order", "application/json", bytes(body));
+
+    assertThat(put.status()).as("%s", put).isEqualTo(200);
+    assertBytes(put.body(), bytes(Fixtures.STUDIO_MAPPING));
+    assertThat(put.header("ETag")).contains(Fixtures.STUDIO_MAPPING_ETAG);
+    Http.Reply get = http().get("api/mappings/saving-studio/order");
+    assertBytes(get.body(), bytes(Fixtures.STUDIO_MAPPING));
+    assertThat(get.header("ETag")).contains(Fixtures.STUDIO_MAPPING_ETAG);
   }
 
   /** {@code facade.save(facade.load(body))}: the engine's canonical form, the oracle. */

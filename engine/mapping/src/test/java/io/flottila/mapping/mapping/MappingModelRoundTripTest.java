@@ -37,7 +37,11 @@ class MappingModelRoundTripTest {
     assertThat(Fixtures.canonicalFixtures())
         .map(p -> p.getFileName().toString())
         .containsExactly(
-            "escapes.mapping.json", "every-box-kind.mapping.json", "new-mapping.mapping.json");
+            "escapes.mapping.json",
+            "every-box-kind.mapping.json",
+            "new-mapping.mapping.json",
+            "no-structures.mapping.json",
+            "studio-members.mapping.json");
   }
 
   static List<Path> canonicalFixtures() {
@@ -157,6 +161,44 @@ class MappingModelRoundTripTest {
         }
         """,
         saved);
+  }
+
+  /**
+   * The model of {@code studio-members.mapping.json} (ADR-0029) in no canonical spelling: members
+   * reversed, compact with CR LF and a tab, {@code y} before {@code x}, {@code target} before
+   * {@code boxes}, layout boxes against UTF-16 order, and {@code \}{@code u} escapes in the
+   * description.
+   */
+  static final String STUDIO_NON_CANONICAL =
+      "{\"targetFieldMappings\":{\"/Invoice/Total\":{\"result\":\"c2\",\"layout\":{\"boxes\":"
+          + "{\"c2\":{\"y\":34,\"x\":12}}},\"id\":\"t2\",\"boxes\":{\"c2\":{\"params\":{\"value\":"
+          + "\"0\"},\"kind\":\"function\",\"fn\":\"constant\"}}},\r\n\"/Invoice/Number\":{\"result\":"
+          + "\"B2\",\"layout\":{\"target\":{\"y\":-16,\"x\":1000000},\"boxes\":{\"a1\":{\"y\":80,"
+          + "\"x\":-1000000},\"_p\":{\"y\":1000000,\"x\":-240},\"B2\":{\"y\":-1000000,\"x\":0}}},"
+          + "\"id\":\"t1\",\"boxes\":{\"a1\":{\"kind\":\"source\",\"field\":\"/Order/Number\"},"
+          + "\"_p\":{\"kind\":\"source\",\"field\":\"/Order/Prefix\"},\"B2\":{\"kind\":\"function\","
+          + "\"inputs\":[\"_p\",\"a1\"],\"fn\":\"concat\"}}},\r\n\"/Invoice/Date\":{\"result\":\"s3\","
+          + "\"layout\":{\"target\":{\"y\":0,\"x\":640}},\"id\":\"t3\",\"boxes\":{\"s3\":{\"kind\":"
+          + "\"source\",\"field\":\"/Order/Date\"}}},\r\n\"/Invoice/Currency\":{\"result\":\"s4\","
+          + "\"id\":\"t4\",\"boxes\":{\"s4\":{\"kind\":\"source\",\"field\":\"/Order/Currency\"}}}},"
+          + "\r\n\"target\":{\"root\":{\"element\":\"Invoice\"},\"fingerprint\":\"sha256:"
+          + "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\",\"bundle\":"
+          + "[\"../structures/invoice.xsd\"]},\r\n\"source\":{\"root\":{\"element\":\"Order\"},"
+          + "\"fingerprint\":\"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          + "\",\"bundle\":[\"../structures/order.xsd\"]},\r\n\"formatVersion\":1,\t\"description\":"
+          + "\"Orders to invoices, laid out in the studio.\\nZweite Zeile: \\\"Gr\\u00f6\\u00dfe\\\""
+          + " \\ud83d\\ude00\"}\r\n";
+
+  /**
+   * The description and the layouts are kept and sorted as the rest of the file (ADR-0029): the
+   * expected bytes are the committed fixture, checked against {@code JSON.stringify}.
+   */
+  @Test
+  void loadThenSaveWritesTheStudioMembersInCanonicalForm() throws Exception {
+    byte[] saved =
+        MappingModelFormat.save(loaded(MappingModelFormat.load(utf8(STUDIO_NON_CANONICAL))));
+
+    assertBytes(Fixtures.fixture("studio-members.mapping.json"), saved);
   }
 
   @Test
