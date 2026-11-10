@@ -1,6 +1,6 @@
 # Codex prompt: run every open observation on SAP PO 7.5 and SAP Integration Suite (CPI)
 
-> For the owner, before you start Codex: fill in the four values in "Systems" below. Everything
+> For the owner, before you start Codex: fill in the three values in "Systems" below. Everything
 > after the line "--- PROMPT ---" goes to Codex as it is.
 
 --- PROMPT ---
@@ -24,7 +24,8 @@ system and continue with the other one.
   namespace `<PO_NAMESPACE>`. Create every object in this namespace and nowhere else.
 - **CPI (SAP Integration Suite, Cloud Integration, Design):** integration package `<CPI_PACKAGE>`.
   Create every artifact in this package and nowhere else.
-- Owner's note on access: `<ACCESS_NOTES>`
+- Only message mappings (PO) and Message Mapping artifacts (CPI). **No channels, ICOs, iFlows or
+  any other configuration objects**, on either system.
 
 ## 2. Hard rules
 
@@ -263,10 +264,12 @@ Where to read the releases:
 - **You cannot draw the mapping as written** (a function or parameter is missing in that editor,
   or the request is ambiguous): build nothing. Write `NOT_RUN` with the exact reason, e.g. "CPI has
   no parameter Else = SUPPRESS on ifWithoutElse; options shown: ...", and go on.
-- **A run needs more than a message mapping** (e.g. `structure/jsonNull/001` needs the PO REST
-  adapter or a CPI iFlow with a JSON to XML converter): do it on CPI only if it fits in
-  `<CPI_PACKAGE>` without deploying to production. On PO, do it only if the access notes allow a
-  channel. Otherwise write `NOT_RUN`.
+- **A run needs more than a message mapping:** do not build it. Write `NOT_RUN` with the reason
+  and go on. This applies to `structure/jsonNull/001` (`obs-structures`, input `nil.json`) on both
+  systems. Reason to record: "PO message mapping reads XML only; the case tests the adapter's /
+  converter's JSON to XML conversion, not the mapping; channels and iFlows are out of scope for this
+  run." The other runs of `obs-structures` (`nil.xml` with `xsi:nil`, choice, attributes) are
+  normal mapping runs. Do them.
 - **Time-dependent functions (`currentDate`):** record the exact run time and the zone you saw,
   next to the output.
 - **Never** write an output you did not see, and never copy a PO result into `cpi/` or the other
