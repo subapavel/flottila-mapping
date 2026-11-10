@@ -33,7 +33,7 @@ export async function fieldRow(page: Page, side: Side, path: string): Promise<Lo
     );
     if (!moved && (await row.count()) === 0) break;
   }
-  await row.scrollIntoViewIfNeeded();
+  await expect(row).toBeAttached();
   return row;
 }
 

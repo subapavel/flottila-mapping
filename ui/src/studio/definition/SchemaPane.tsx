@@ -474,7 +474,8 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
                 {table && (
                   <>
                     <td className={`${TD} occurs`}>{occurrenceText(field)}</td>
-                    <td className={`${TD} field-type-column`}>{expandable ? '' : typeLabel}</td>
+                    {/* a structure field has a value type only with simple content, as a leaf with attributes */}
+                    <td className={`${TD} field-type-column`}>{typeLabel}</td>
                     <td className={`${TD} description-column`} />
                   </>
                 )}
