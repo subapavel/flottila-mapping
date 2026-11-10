@@ -21,6 +21,8 @@ import { FunctionsTab } from '../functions/FunctionsTab';
 import { useFunctionsPreview } from '../mock/functions-store';
 import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
+import { useTestSession } from '../test/test-session';
+import { TestTab } from '../test/TestTab';
 import { CopyTextButton } from './CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
@@ -89,6 +91,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
   const editButtonRef = useRef<HTMLButtonElement>(null);
   // a preview's draft follows the edit session while any tab is open (ADR-0028)
   const functions = useFunctionsPreview(store, browserState, mappingId);
+  // the source document and the processing log outlive the Test tab, and the log hears of every compile
+  const testSession = useTestSession(store, api, mappingId, browserState);
 
   const keepTab = useCallback(
     (next: StudioTab) => {
@@ -255,19 +259,18 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
           </Alert>
         )}
         <TabContent className="studio-tab-panel" id={TAB_PANEL_ID} ref={panelRef} aria-labelledby={tabLabelId(tab)}>
-          {/* PatternFly renders no panel without children: a tab not built yet has an empty body (#154) */}
           {needsMessages ? (
             <ChooseMessages />
           ) : tab === 'overview' ? (
             <MappingOverview mappingId={mappingId} store={store} />
           ) : tab === 'definition' ? (
             <DefinitionTab mappingId={mappingId} api={api} store={store} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
+          ) : tab === 'test' ? (
+            <TestTab mappingId={mappingId} store={store} session={testSession} browserState={browserState} />
           ) : tab === 'signature' ? (
             <Signature mappingId={mappingId} api={api} store={store} browserState={browserState} />
-          ) : tab === 'functions' ? (
-            <FunctionsTab mappingId={mappingId} store={store} functions={functions} api={api} />
           ) : (
-            <></>
+            <FunctionsTab mappingId={mappingId} store={store} functions={functions} api={api} />
           )}
         </TabContent>
       </main>

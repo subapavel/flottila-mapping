@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEven
 import { useStore } from 'zustand';
 import type { FunctionCatalogue as Catalogue } from '../../../api/client';
 import type { BrowserStateStore } from '../../../editor/browser-state/browser-state';
-import type { WorkingCopyStore } from '../../../editor/store/working-copy';
+import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../../../editor/store/working-copy';
 import type { BoxPosition, FieldPath, MappingModel } from '../../../generated/mapping-model';
 import type { CommandResult } from '../../../model/command';
 import { stepName } from '../../../model/field-path';
@@ -28,6 +28,7 @@ import { rewire, type WireEnd } from '../../../model/rewire';
 import { properAncestors } from '../../../model/set-context';
 import { setResult, wire } from '../../../model/wire';
 import { PreviewBadge } from '../../mock/PreviewBadge';
+import { QueueDialog } from '../../test/QueueDialog';
 import type { Side } from '../definition-model';
 import { SideBySide } from '../SplitLayout';
 import { action, ActionMenu, deleteAction, isContextMenuKey, useActionMenu, type MenuItem } from './ActionMenu';
@@ -112,6 +113,8 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
   const model = useStore(store, (s) => s.workingCopy);
   const editing = useStore(store, (s) => s.editing);
   const canPaste = useStore(store, (s) => s.clipboard !== null);
+  const trace = useStore(store, selectTrace);
+  const stale = useStore(store, selectTraceStale);
   const mapping = model.targetFieldMappings?.[targetField];
   const graph = useMemo(() => expressionGraph(targetField, mapping, catalogue, model.udfs), [targetField, mapping, catalogue, model.udfs]);
   const shown = useMemo(() => shownPositions(graph, mapping?.layout), [graph, mapping?.layout]);
@@ -122,10 +125,13 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [parameters, setParameters] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  /** The node whose Display Queue is open. */
+  const [queue, setQueue] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const { menu, showMenu, closeMenu } = useActionMenu();
   const actions = store.getState();
   const selectedNode = graph.nodes.find((n) => selected.has(n.id));
+  const queueNode = graph.nodes.find((n) => n.id === queue);
 
   const canConnect = (source: string, target: string, handle: string | null | undefined, moving?: ExpressionEdge) => {
     const result = connection(model, targetField, source, target, handle, moving);
@@ -165,7 +171,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
   const nodeMenu = (event: ReactMouseEvent | KeyboardEvent, id: string, element: Element) => {
     const n = graph.nodes.find((item) => item.id === id)!;
     setSelected(new Set([id]));
-    const items: MenuItem[] = [action('Display Queue', null, { disabled: true })];
+    const items: MenuItem[] = [action('Display Queue', () => setQueue(id))];
     if (n.fn && catalogue[n.fn]?.params?.length) items.push(action('Properties', () => setParameters(id)));
     const destinations = editing && n.output ? connectionActions(n) : [];
     if (destinations.length) items.push(action('Connect to', null, { children: destinations }));
@@ -340,7 +346,13 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
             <button type="button" disabled={!editing} aria-label="Add node" title="Add node" onClick={() => setAdding(true)}>
               <CubeIcon />
             </button>
-            <button type="button" disabled aria-label="Display Queue" title="Display Queue: on the Test tab (#158)">
+            <button
+              type="button"
+              disabled={!selectedNode}
+              aria-label="Display Queue"
+              title="Display Queue: the queue of the selected node in the last test run"
+              onClick={() => setQueue(selectedNode!.id)}
+            >
               <ListIcon />
             </button>
             <button
@@ -460,6 +472,10 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
             </p>
           </ModalBody>
         </Modal>
+      )}
+      {/* an undo or a delete that removes the node closes its queue */}
+      {queueNode && (
+        <QueueDialog graph={graph} node={queueNode} trace={trace} stale={stale} mappingId={mapping?.id} browserState={browserState} onClose={() => setQueue(null)} />
       )}
       <ActionMenu menu={menu} onClose={closeMenu} />
     </section>

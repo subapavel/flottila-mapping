@@ -42,8 +42,8 @@ export function Masthead({ homeHref }: { homeHref: string }) {
             or an incomplete dependency, and a dash means there is no path to the target.
           </p>
           <p>
-            Double-click a function with parameters or use its gear to edit them. Right-click a node and choose Display Queue to preview its
-            queue for the selected test input. Save writes the mapping file to the workspace. Test runs the mapping on the service.
+            Double-click a function with parameters or use its gear to edit them. Right-click a node and choose Display Queue to show its
+            queue in the last test run. Save writes the mapping file to the workspace. Test runs the mapping on the service.
           </p>
         </ModalBody>
       </Modal>
