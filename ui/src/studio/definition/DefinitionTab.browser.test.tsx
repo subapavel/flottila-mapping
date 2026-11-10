@@ -492,6 +492,7 @@ describe('the orphaned target field mappings (GLOSSARY: Orphaned target field ma
     await expect.element(orphans()).toMatchTextContent('/Order/Missing');
     await expect.element(orphans().getByRole('listitem')).toHaveLength(1);
     await expect.element(field('target', 'Missing')).not.toBeInTheDocument();
+    await expect.element(pane('source').getByRole('region', { name: 'Orphaned target field mappings' })).not.toBeInTheDocument();
     await expect.element(open()).toHaveAttribute('aria-pressed', 'false');
 
     await open().click();

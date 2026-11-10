@@ -136,7 +136,7 @@ export interface CanvasProps {
   orphaned: ReadonlySet<AuthoringId>;
   /** The source fields an orphaned box can be remapped to, in tree order. */
   sourceFields: readonly FieldPath[];
-  /** Points orphaned box `box` of this target field mapping at source field `field` (GLOSSARY: Remap). */
+  /** Points orphaned box `box` of this target field mapping at source field `field` (GLOSSARY: Remap): the dialog's or a drop's. */
   remap: (box: AuthoringId, field: FieldPath) => void;
 }
 
@@ -397,6 +397,8 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
         ...(hasParameters(n) && { editParameters: () => setParameters(n.id) }),
         ...(settings && { settings }),
         ...(orphaned.has(n.id) && { orphaned: true }),
+        // drag-to-remap: a source row dropped on an orphaned box, in edit mode, remaps it as the Remap dialog does
+        ...(editing && orphaned.has(n.id) && { remap: (field: FieldPath) => remap(n.id, field) }),
       },
       measured: measured[n.id],
       sourcePosition: Position.Right,

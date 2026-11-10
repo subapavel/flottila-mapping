@@ -436,6 +436,48 @@
   display: block;
   overflow-x: auto;
 }
+/* the orphaned target field mappings below the target tree (#174): kept short, so the tree keeps its rows */
+.orphaned-mappings {
+  flex: none;
+  max-height: 9rem;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  padding: 6px 12px 8px;
+  font-size: 12px;
+}
+.orphaned-mappings h3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.orphaned-mappings h3 .orphaned-mark {
+  margin-left: 0;
+}
+.orphaned-mappings-help {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 2px 0 4px;
+}
+.orphaned-mappings li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.orphaned-mappings li code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px var(--mono);
+}
+.orphaned-mappings li.active-field {
+  background: #eaf3fc;
+}
 .mapping-code {
   font: 11px var(--mono);
   color: #285675;
