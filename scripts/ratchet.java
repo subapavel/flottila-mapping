@@ -14,7 +14,7 @@
 //       its metamorphic variants pass, so the oracle tests report one test case per case id.
 //   <module>/target/site/jacoco/jacoco.csv             lines and branches, rounded down
 //   <module>/target/pit-reports/mutations.xml          surviving mutants (generated - killed, NON_VIABLE excluded)
-//   ui/coverage/coverage-summary.json                  summed per directory (ui/src/model, ui/src/editor/store)
+//   ui/coverage/coverage-summary.json                  summed per directory (ui/src/model, ui/src/studio/store)
 //
 // bench.tsv belongs to the speed spec (ADR-0021); neither command touches it yet.
 import java.io.IOException;
@@ -37,7 +37,7 @@ public final class Ratchet {
   private static final Path ROOT = Path.of("").toAbsolutePath();
   private static final Path RATCHET = ROOT.resolve("ratchet");
   private static final Path ORACLE_REPORTS = ROOT.resolve("engine/oracle/target/surefire-reports");
-  private static final List<String> UI_DIRECTORIES = List.of("ui/src/model", "ui/src/editor/store");
+  private static final List<String> UI_DIRECTORIES = List.of("ui/src/model", "ui/src/studio/store");
   private static final List<String> MUTATION_MODULES =
       List.of(
           "engine/xdm",

@@ -2,7 +2,8 @@ import type { StudioTab } from '../studio/shell/StudioShell';
 
 /**
  * The page's addresses (ADR-0028): the start page lists the mappings, `?mapping=<id>` opens one in the studio, and the
- * hash names its tab. Other parameters, such as `api=fake`, stay; the dev host's `field` belongs to no studio page.
+ * hash names its tab. Other parameters, such as `api=fake`, stay; `field`, which the old editor's addresses carried, is
+ * dropped, since no studio page reads it.
  */
 export function mappingOf(search: string): string | null {
   return new URLSearchParams(search).get('mapping');
