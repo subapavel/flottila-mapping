@@ -60,7 +60,7 @@ const integers = (layout: TargetFieldMapping['layout']) =>
 async function addFromCatalogue(group: string, fn: string) {
   const toggle = catalogue().getByRole('button', { name: new RegExp(`^${group}`) });
   if ((await toggle.element()).getAttribute('aria-expanded') !== 'true') await toggle.click();
-  await catalogue().getByRole('button', { name: new RegExp(`^ƒ ?${fn}`) }).first().click();
+  await catalogue().getByRole('button', { name: new RegExp(`^${fn}\\b`) }).first().click();
 }
 
 beforeEach(async () => {
@@ -110,7 +110,7 @@ describe('the mapping expression canvas (#157)', () => {
 
     for (const name of ['Add node', 'Delete Floating Objects', 'Layout mapping', 'Paste']) await expect.element(rail(name)).toBeDisabled();
     await catalogue().getByRole('button', { name: /^Text/ }).click();
-    await expect.element(catalogue().getByRole('button', { name: /^ƒ ?concat/ })).toBeDisabled();
+    await expect.element(catalogue().getByRole('button', { name: /^concat\b/ })).toBeDisabled();
     await userEvent.dragAndDrop(node(/^Source field OrderId/), node(/^Target field OrderId/), { steps: 5 });
     expect(mappingOf(store).layout).toBeUndefined();
   });
@@ -134,7 +134,7 @@ describe('the mapping expression canvas (#157)', () => {
     const store = await renderCanvas({ editing: true });
     await catalogue().getByRole('button', { name: /^Text/ }).click();
 
-    await userEvent.dragAndDrop(catalogue().getByRole('button', { name: /^ƒ ?concat/ }), canvas());
+    await userEvent.dragAndDrop(catalogue().getByRole('button', { name: /^concat\b/ }), page.getByTestId('rf__wrapper'), { targetPosition: { x: 60, y: 40 } });
 
     await expect.element(node(/^Node function concat/)).toBeVisible();
     expect(integers(mappingOf(store).layout)).toBe(true);
@@ -212,7 +212,8 @@ describe('the mapping expression canvas (#157)', () => {
     await node(/^Source field OrderId/).click({ button: 'right' });
     await menuItem('Delete').click();
 
-    expect(mappingOf(store).boxes).toEqual({});
+    // the delete box command drops a mapping left without boxes
+    expect(store.getState().workingCopy.targetFieldMappings).toBeUndefined();
     await expect.element(footer()).toHaveTextContent('1 nodes · 0 connections');
   });
 
@@ -224,7 +225,7 @@ describe('the mapping expression canvas (#157)', () => {
 
     await node(/^Node function substring/).getByRole('button', { name: 'Parameters for substring' }).click();
     const dialog = page.getByRole('dialog', { name: 'Function parameters · substring' });
-    await dialog.getByLabelText('Start Position').fill('x');
+    await dialog.getByLabelText('Start Position').fill('1.5');
     await dialog.getByRole('button', { name: 'Apply' }).click();
     await expect.element(dialog.getByRole('alert')).toHaveTextContent('Start Position must be an integer.');
     await dialog.getByLabelText('Start Position').fill('2');
@@ -248,7 +249,7 @@ describe('the mapping expression canvas (#157)', () => {
     const dialog = page.getByRole('dialog', { name: 'Function parameters · substring' });
     await expect.element(dialog.getByLabelText('Start Position')).toBeDisabled();
     await expect.element(dialog.getByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
-    await dialog.getByRole('button', { name: 'Close' }).click();
+    await dialog.getByText('Close', { exact: true }).click();
     await expect.element(dialog).not.toBeInTheDocument();
   });
 
@@ -319,7 +320,7 @@ describe('the mapping expression canvas (#157)', () => {
 
     await userEvent.keyboard('{Delete}');
 
-    expect(mappingOf(store).boxes).toEqual({});
+    expect(store.getState().workingCopy.targetFieldMappings).toBeUndefined();
   });
 
   test('Show and Hide functions toggle the drilldown', async () => {
@@ -337,7 +338,7 @@ describe('the mapping expression canvas (#157)', () => {
     await rail('Add node').click();
     const dialog = page.getByRole('dialog', { name: 'Add node' });
     await dialog.getByRole('button', { name: /^Text/ }).click();
-    await dialog.getByRole('button', { name: /^ƒ ?concat/ }).click();
+    await dialog.getByRole('button', { name: /^concat\b/ }).click();
 
     await expect.element(dialog).not.toBeInTheDocument();
     expect(boxOf(store, 'concat')).toBeDefined();
@@ -379,9 +380,9 @@ describe('the functions drilldown (#157)', () => {
     await renderCanvas();
 
     await catalogue().getByRole('searchbox', { name: 'Search functions' }).fill('upper');
-    await expect.element(catalogue().getByRole('button', { name: /^ƒ ?toUpperCase/ })).toBeVisible();
+    await expect.element(catalogue().getByRole('button', { name: /^toUpperCase\b/ })).toBeVisible();
     await catalogue().getByRole('button', { name: /^Text/ }).click();
-    await expect.element(catalogue().getByRole('button', { name: /^ƒ ?toUpperCase/ })).not.toBeInTheDocument();
+    await expect.element(catalogue().getByRole('button', { name: /^toUpperCase\b/ })).not.toBeInTheDocument();
     await catalogue().getByRole('searchbox', { name: 'Search functions' }).fill('zzz');
     await expect.element(catalogue()).toMatchTextContent('No matching functions.');
   });

@@ -143,7 +143,7 @@ describe('the Definition tab panes (#156)', () => {
 
     expect(store.getState().selectedTarget).toBe(ORDER_ID);
     await expect.element(field('target', 'OrderId')).toHaveAttribute('aria-pressed', 'true');
-    await expect.element(page.getByRole('region', { name: 'Mapping expression' })).toHaveTextContent('Mapping expression of /Order/OrderId');
+    await expect.element(page.getByRole('toolbar', { name: 'Mapping expression' })).toMatchTextContent('/Order/OrderId');
     await field('source', 'Note').click();
     expect(store.getState().selectedTarget).toBe(ORDER_ID);
     await expect.element(field('source', 'Note')).toHaveAttribute('aria-pressed', 'true');
@@ -153,7 +153,7 @@ describe('the Definition tab panes (#156)', () => {
   test('the mapping expression area asks for a target field while none is selected', async () => {
     await renderDefinition();
 
-    await expect.element(page.getByRole('region', { name: 'Mapping expression' })).toHaveTextContent('Select a target field to see its mapping expression.');
+    await expect.element(page.getByRole('region', { name: 'Field mapping canvas' })).toHaveTextContent('Select a target field to see its mapping expression.');
   });
 
   test('in edit mode a source row dropped on a target row adds a source-field box to its mapping and selects it', async () => {
@@ -419,7 +419,7 @@ describe('the Definition tab panes (#156)', () => {
     const sides = page.getByRole('separator', { name: 'Resize source and target panels' });
     await expect.element(field('target', 'Note')).toBeVisible();
 
-    await userEvent.dragAndDrop(sides, page.getByRole('heading', { level: 2 }).last());
+    await userEvent.dragAndDrop(sides, pane('target').getByRole('heading', { level: 2 }));
 
     await expect.poll(() => browserState.values.get('user:studio:definition.width')).toBeGreaterThan(0.5);
   });
@@ -463,5 +463,115 @@ describe('the Definition tab panes (#156)', () => {
     await renderDefinition({ api: { ...fake, loadStructure: () => Promise.reject(new Error('service down')) } });
 
     await expect.element(pane('target').getByRole('alert')).toHaveTextContent('service down');
+  });
+});
+
+describe('the definition bar, the expression header and the field menus (#157)', () => {
+  const bar = (name: string) => page.getByRole('toolbar', { name: 'Definition actions' }).getByRole('button', { name, exact: true });
+  const header = (name: string) => page.getByRole('toolbar', { name: 'Mapping expression' }).getByRole('button', { name, exact: true });
+  const menuItem = (name: string) => page.getByRole('menuitem', { name, exact: true });
+
+  test('Maximize and Minimize hide one area, Restore split view and Escape bring both back, kept in browser state', async () => {
+    const browserState = memoryBrowserState();
+    await renderDefinition({ browserState });
+
+    await header('Maximize mapping expression').click();
+    // a hidden area leaves the accessibility tree
+    await expect.element(pane('source')).not.toBeInTheDocument();
+    expect(browserState.values.get('user:studio:definition.layout')).toMatchObject({ view: 'maximized' });
+    await header('Restore split view').click();
+    await expect.element(pane('source')).toBeVisible();
+    await bar('Maximize message trees').click();
+    await expect.element(page.getByRole('region', { name: 'Field mapping canvas' })).not.toBeInTheDocument();
+    await bar('Restore split view').click();
+    await header('Minimize mapping expression').click();
+    await expect.element(page.getByRole('region', { name: 'Field mapping canvas' })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(page.getByRole('region', { name: 'Field mapping canvas' })).toBeVisible();
+  });
+
+  test('Text Preview lists each mapped target field with its expression; a click opens it in the data flow editor', async () => {
+    const store = await renderDefinition();
+
+    await bar('Text Preview').click();
+    const line = page.getByRole('region', { name: 'Text Preview' }).getByRole('button', { name: '/Order/OrderId = /Order/OrderId' });
+    await line.click();
+
+    expect(store.getState().selectedTarget).toBe(ORDER_ID);
+    await expect.element(bar('Data Flow Editor')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('Text Preview says when nothing is mapped', async () => {
+    await renderDefinition({ mappingId: 'mappings/order-unmapped' });
+
+    await bar('Text Preview').click();
+
+    await expect.element(page.getByRole('region', { name: 'Text Preview' })).toMatchTextContent('No mapped fields.');
+  });
+
+  test('Clear Mapping asks, then clears every expression as one undo step; Cancel keeps them', async () => {
+    const store = await renderDefinition({ editing: true });
+
+    await bar('Clear Mapping').click();
+    await page.getByRole('dialog', { name: 'Clear Mapping' }).getByRole('button', { name: 'Cancel' }).click();
+    expect(selectUnsaved(store.getState())).toBe(false);
+    await bar('Clear Mapping').click();
+    await page.getByRole('button', { name: 'Clear mapping' }).click();
+
+    expect(store.getState().workingCopy.targetFieldMappings).toBeUndefined();
+    expect(store.getState().past).toHaveLength(1);
+  });
+
+  test('Select Message leads to the Signature tab; in view mode the editing tools are disabled', async () => {
+    const store = await renderDefinition();
+    for (const name of ['Select Message', 'Clear Mapping', 'Map Selected Fields and Substructures if Names Are Identical']) await expect.element(bar(name)).toBeDisabled();
+    store.getState().startEditing();
+
+    await bar('Select Message').click();
+    await menuItem('Target Message').click();
+
+    await expect.poll(() => store.getState().tab).toBe('signature');
+  });
+
+  test('Dependencies shows the field connections into the selected target field; a connection selects it; Hide All hides them', async () => {
+    const browserState = memoryBrowserState();
+    const store = await renderDefinition({ browserState });
+    store.getState().selectTarget(ORDER_ID);
+
+    await bar('Dependencies').click();
+    const link = page.getByRole('group', { name: 'Field connections' }).getByRole('button', { name: 'OrderId → OrderId' });
+    await expect.element(link).toHaveAttribute('aria-pressed', 'true');
+    expect(browserState.values.get(`user:studio:definition.${MAPPING}.dependencies`)).toEqual({ visible: true, targets: [ORDER_ID] });
+    // the two OrderId rows are level: the curve is a flat line, which has no box to click into
+    store.getState().selectTarget(null);
+    link.element().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(store.getState().selectedTarget).toBe(ORDER_ID);
+    store.getState().selectTarget(null);
+    (link.element() as SVGGElement).focus();
+    await userEvent.keyboard('{Tab}');
+    expect(store.getState().selectedTarget).toBeNull();
+    (link.element() as SVGGElement).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(store.getState().selectedTarget).toBe(ORDER_ID);
+
+    await bar('Dependencies options').click();
+    await menuItem('Hide All').click();
+    await expect.element(page.getByRole('group', { name: 'Field connections' })).not.toBeInTheDocument();
+    await expect.element(page.getByRole('separator', { name: 'Resize source and target panels' })).toBeVisible();
+  });
+
+  test('the field menu of a source field: Where Used selects the target field that reads it; Dependencies Show All', async () => {
+    const store = await renderDefinition();
+
+    await field('source', 'OrderId').click({ button: 'right' });
+    await menuItem('Where Used').click();
+    await menuItem('/Order/OrderId').click();
+    expect(store.getState().selectedTarget).toBe(ORDER_ID);
+
+    await field('target', 'OrderId').click({ button: 'right' });
+    await expect.element(menuItem('Add Variable')).toBeDisabled();
+    await menuItem('Dependencies').click();
+    await menuItem('Show All').click();
+    await expect.element(page.getByRole('group', { name: 'Field connections' }).getByRole('button', { name: 'OrderId → OrderId' })).toBeInTheDocument();
   });
 });
