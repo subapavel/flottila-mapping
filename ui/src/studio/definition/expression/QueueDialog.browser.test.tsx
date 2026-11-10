@@ -2,16 +2,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
-import type { TestResult } from '../../../api/client';
+import type { ApiClient, TestResult } from '../../../api/client';
 import { fakeApiClient } from '../../../api/fake/fake-api';
-import type { BrowserStateStore } from '../../browser-state/browser-state';
-import type { WorkingCopyStore } from '../../store/working-copy';
+import { testSourceKey, type BrowserStateStore } from '../../browser-state/browser-state';
+import type { StudioTab, WorkingCopyStore } from '../../store/working-copy';
+import { testInstancesKey, type TestInstance } from '../../mock/test-instances';
 import { studioStore } from '../../shell/Studio';
 import { StudioShell } from '../../shell/StudioShell';
 
 const ORDER = 'Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `/${ORDER}/OrderId`;
 const MAPPING = 'mappings/order-id-copy';
+const INPUT = '<Order xmlns="urn:flottila:corpus:skeleton"><OrderId>PO-1</OrderId></Order>';
+const OTHER = '<Order xmlns="urn:flottila:corpus:skeleton"><OrderId>PO-2</OrderId></Order>';
+const DEAD_END = 'No trace: run the simulation on the Test tab.';
 
 /** A run of order-id-copy: the source-field box a1 gave two contexts, the target field mapping t1 two OrderIds. */
 const run: TestResult = {
@@ -39,22 +43,31 @@ const run: TestResult = {
   },
 };
 
-function memoryBrowserState(): BrowserStateStore {
-  const values = new Map<string, unknown>();
-  return { read: (key) => values.get(key), write: (key, value) => void values.set(key, value) };
+function memoryBrowserState(seed: Record<string, unknown> = {}): BrowserStateStore & { values: Map<string, unknown> } {
+  const values = new Map<string, unknown>(Object.entries(seed));
+  return { values, read: (key) => values.get(key), write: (key, value) => void values.set(key, value) };
 }
+
+const kept = (id: string, name: string, text: string, lastUsed: number): TestInstance => ({ id, name, format: 'XML', text, values: {}, lastUsed });
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 let consoleError: ReturnType<typeof vi.spyOn>;
 
-/** The studio on the Definition tab with OrderId's mapping selected, after the run `last` when given. */
-async function renderDefinition(last?: TestResult): Promise<WorkingCopyStore> {
-  const api = fakeApiClient();
+interface RenderOptions {
+  api?: ApiClient;
+  editing?: boolean;
+  browserState?: BrowserStateStore;
+  tab?: StudioTab;
+}
+
+/** The studio on the Definition tab (or `tab`) with OrderId's mapping selected, in edit mode unless told, after the run `last` when given. */
+async function renderDefinition(last?: TestResult, options: RenderOptions = {}): Promise<WorkingCopyStore> {
+  const api = options.api ?? fakeApiClient();
   const store = studioStore(api, MAPPING, await api.getMapping(MAPPING));
-  store.getState().setTab('definition');
+  store.getState().setTab(options.tab ?? 'definition');
   store.getState().selectTarget(ORDER_ID);
-  store.getState().startEditing();
+  if (options.editing ?? true) store.getState().startEditing();
   if (last) store.getState().recordRun(store.getState().workingCopy, last);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   host = document.createElement('div');
@@ -62,7 +75,7 @@ async function renderDefinition(last?: TestResult): Promise<WorkingCopyStore> {
   root = createRoot(host);
   root.render(
     <QueryClientProvider client={queryClient}>
-      <StudioShell mappingId={MAPPING} api={api} store={store} browserState={memoryBrowserState()} listHref="/" />
+      <StudioShell mappingId={MAPPING} api={api} store={store} browserState={options.browserState ?? memoryBrowserState()} listHref="/" />
     </QueryClientProvider>,
   );
   return store;
@@ -71,6 +84,12 @@ async function renderDefinition(last?: TestResult): Promise<WorkingCopyStore> {
 const canvas = () => page.getByRole('group', { name: 'Mapping canvas' });
 const node = (name: RegExp) => canvas().getByRole('group', { name });
 const dialog = () => page.getByRole('dialog', { name: 'Display Queue' });
+const testFile = () => dialog().getByLabelText('Test file');
+const queueRow = (i: number) => dialog().getByRole('table', { name: 'OrderId queue' }).getByRole('row').nth(i);
+const runDiagnostics = () => dialog().getByRole('list', { name: 'Run diagnostics' });
+const sourceInput = () => page.getByRole('region', { name: 'Source', exact: true }).getByRole('textbox', { name: 'Input XML' });
+const processingLog = () => page.getByRole('region', { name: 'Processing log' });
+const scenario = (result: TestResult) => fakeApiClient(undefined, { test: { [MAPPING]: result } });
 
 async function openQueue(name: RegExp) {
   await node(name).click({ button: 'right' });
@@ -132,14 +151,6 @@ describe('the Display Queue of a box (#158)', () => {
     await expect.element(dialog()).toMatchTextContent('stale');
     await expect.element(dialog()).toMatchTextContent('The working copy changed since this run.');
     await expect.element(dialog().getByRole('table', { name: 'OrderId queue' }).getByRole('row').nth(1)).toHaveTextContent('PO-1');
-  });
-
-  test('before a run there is no trace to show', async () => {
-    await renderDefinition();
-
-    await openQueue(/^Source field OrderId/);
-
-    await expect.element(dialog()).toMatchTextContent('No trace: run the simulation on the Test tab.');
   });
 
   test('a function shows a column per input and its output; an untraced one says so, a capped one what it cut', async () => {
@@ -238,5 +249,147 @@ describe('the Display Queue of a box (#158)', () => {
     await rail.click();
 
     await expect.element(dialog().getByRole('table', { name: 'OrderId queue' })).toBeVisible();
+  });
+});
+
+describe('the Display Queue before a test run (#177)', () => {
+  test('in edit mode, with no source document and no test instance, it offers an XML test file in place of the message', async () => {
+    const api = fakeApiClient();
+    const runTest = vi.spyOn(api, 'runTest');
+    await renderDefinition(undefined, { api });
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(testFile()).toHaveAttribute('accept', '.xml');
+    await expect.element(dialog().getByRole('button', { name: 'Load test file' })).toBeEnabled();
+    await expect.element(dialog()).not.toMatchTextContent(DEAD_END);
+    expect(runTest).not.toHaveBeenCalled();
+  });
+
+  test('a JSON source message asks for a JSON test file', async () => {
+    const store = await renderDefinition();
+    store.setState((s) => ({ workingCopy: { ...s.workingCopy, source: { ...s.workingCopy.source!, root: { json: '$' } } } }));
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(testFile()).toHaveAttribute('accept', '.json');
+  });
+
+  test("a chosen file becomes the Test tab's source, runs on the working copy, and the box's queue shows in the dialog", async () => {
+    const api = scenario(run);
+    const runTest = vi.spyOn(api, 'runTest');
+    const store = await renderDefinition(undefined, { api });
+    await openQueue(/^Source field OrderId/);
+
+    await testFile().upload(new File([INPUT], 'order.xml', { type: 'application/xml' }));
+
+    await expect.element(queueRow(1)).toHaveTextContent('PO-1');
+    await expect.element(dialog()).toMatchTextContent('Traced queue · last test run');
+    expect(runTest).toHaveBeenCalledExactlyOnceWith(MAPPING, { model: store.getState().workingCopy, input: INPUT });
+    store.getState().setTab('test');
+    await expect.element(sourceInput()).toHaveValue(INPUT);
+    await expect.element(processingLog()).toMatchTextContent('Executed successfully');
+  });
+
+  test('with a source document it runs at once, in read mode too, and shows the queue without an upload', async () => {
+    const api = scenario(run);
+    const runTest = vi.spyOn(api, 'runTest');
+    const store = await renderDefinition(undefined, { api, editing: false, browserState: memoryBrowserState({ [testSourceKey(MAPPING)]: INPUT }) });
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(queueRow(1)).toHaveTextContent('PO-1');
+    expect(runTest).toHaveBeenCalledExactlyOnceWith(MAPPING, { model: store.getState().workingCopy, input: INPUT });
+    await expect.element(testFile()).not.toBeInTheDocument();
+  });
+
+  test('with an empty source the latest test instance is loaded into the source and run', async () => {
+    const api = scenario(run);
+    const runTest = vi.spyOn(api, 'runTest');
+    const browserState = memoryBrowserState({ [testInstancesKey(MAPPING)]: [kept('a', 'First', OTHER, 1), kept('b', 'Second', INPUT, 2)] });
+    const store = await renderDefinition(undefined, { api, browserState, tab: 'test' });
+    // the studio opened with the latest instance in the source; the author cleared it
+    await expect.element(sourceInput()).toHaveValue(INPUT);
+    await sourceInput().fill('');
+    store.getState().setTab('definition');
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(queueRow(1)).toHaveTextContent('PO-1');
+    expect(runTest).toHaveBeenCalledExactlyOnceWith(MAPPING, { model: store.getState().workingCopy, input: INPUT });
+    store.getState().setTab('test');
+    await expect.element(sourceInput()).toHaveValue(INPUT);
+  });
+
+  test('in read mode, with no data, it says a test document can be loaded in edit mode, and offers no upload', async () => {
+    const api = fakeApiClient();
+    const runTest = vi.spyOn(api, 'runTest');
+    await renderDefinition(undefined, { api, editing: false });
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(dialog()).toMatchTextContent('No test data yet. A test document can be loaded in edit mode.');
+    await expect.element(testFile()).not.toBeInTheDocument();
+    await expect.element(dialog().getByRole('button', { name: 'Load test file' })).not.toBeInTheDocument();
+    expect(runTest).not.toHaveBeenCalled();
+  });
+
+  test('a file that does not parse says why in the dialog and in the processing log; the dialog stays open', async () => {
+    const api = fakeApiClient();
+    const runTest = vi.spyOn(api, 'runTest');
+    const store = await renderDefinition(undefined, { api });
+    await openQueue(/^Source field OrderId/);
+
+    await testFile().upload(new File(['<broken'], 'broken.xml', { type: 'application/xml' }));
+
+    const why = 'The test could not run: broken.xml is not a valid XML test input: The text is not well-formed XML.';
+    await expect.element(dialog().getByRole('heading', { name: /The simulation failed/ })).toBeVisible();
+    await expect.element(runDiagnostics()).toHaveTextContent(why);
+    await expect.element(testFile()).toBeInTheDocument();
+    expect(runTest).not.toHaveBeenCalled();
+    store.getState().setTab('test');
+    await expect.element(processingLog()).toMatchTextContent(why);
+    await expect.element(sourceInput()).toHaveValue('');
+  });
+
+  test('a run the compile refuses shows its diagnostics in the dialog and in the processing log; the dialog stays open', async () => {
+    const refused: TestResult = {
+      kind: 'refused',
+      diagnostics: [{ severity: 'error', code: 'unconnected-target-field', message: 'the result is not connected', location: { kind: 'authoring-id', authoringId: 't1' } }],
+    };
+    const store = await renderDefinition(undefined, { api: scenario(refused) });
+    await openQueue(/^Source field OrderId/);
+
+    await testFile().upload(new File([INPUT], 'order.xml', { type: 'application/xml' }));
+
+    await expect.element(dialog().getByRole('heading', { name: /The simulation failed/ })).toBeVisible();
+    await expect.element(runDiagnostics()).toMatchTextContent('Error unconnected-target-field: the result is not connected');
+    await expect.element(runDiagnostics()).toMatchTextContent('Compile refused the working copy: nothing ran.');
+    await expect.element(dialog().getByRole('table')).not.toBeInTheDocument();
+    store.getState().setTab('test');
+    await expect.element(processingLog()).toMatchTextContent('Error unconnected-target-field: the result is not connected');
+  });
+
+  test('a run that cannot reach the service says so in the dialog, in read mode too', async () => {
+    // the fake has no corpus case for this input
+    await renderDefinition(undefined, { editing: false, browserState: memoryBrowserState({ [testSourceKey(MAPPING)]: '<Order/>' }) });
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(runDiagnostics()).toHaveTextContent('The test could not run: Invalid request');
+    await expect.element(dialog()).toBeVisible();
+  });
+
+  test('a stale trace still shows, marked, and no run starts', async () => {
+    const api = fakeApiClient();
+    const runTest = vi.spyOn(api, 'runTest');
+    const store = await renderDefinition(run, { api, browserState: memoryBrowserState({ [testSourceKey(MAPPING)]: INPUT }) });
+    store.getState().setDescription('An edit after the run');
+
+    await openQueue(/^Source field OrderId/);
+
+    await expect.element(dialog()).toMatchTextContent('The working copy changed since this run.');
+    await expect.element(queueRow(1)).toHaveTextContent('PO-1');
+    expect(runTest).not.toHaveBeenCalled();
   });
 });
