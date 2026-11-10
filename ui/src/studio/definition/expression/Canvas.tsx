@@ -131,6 +131,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
   const { menu, showMenu, closeMenu } = useActionMenu();
   const actions = store.getState();
   const selectedNode = graph.nodes.find((n) => selected.has(n.id));
+  const queueNode = graph.nodes.find((n) => n.id === queue);
 
   const canConnect = (source: string, target: string, handle: string | null | undefined, moving?: ExpressionEdge) => {
     const result = connection(model, targetField, source, target, handle, moving);
@@ -472,8 +473,9 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
           </ModalBody>
         </Modal>
       )}
-      {queue !== null && (
-        <QueueDialog graph={graph} nodeId={queue} trace={trace} stale={stale} mappingId={mapping?.id} browserState={browserState} onClose={() => setQueue(null)} />
+      {/* an undo or a delete that removes the node closes its queue */}
+      {queueNode && (
+        <QueueDialog graph={graph} node={queueNode} trace={trace} stale={stale} mappingId={mapping?.id} browserState={browserState} onClose={() => setQueue(null)} />
       )}
       <ActionMenu menu={menu} onClose={closeMenu} />
     </section>

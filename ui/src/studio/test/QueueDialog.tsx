@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { TraceEntry } from '../../api/client';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import { displayEntry, type ShownValue } from '../../editor/inspector/display-queue';
-import { TARGET, type ExpressionGraph } from '../definition/expression/expression-graph';
+import { TARGET, type ExpressionGraph, type ExpressionNode } from '../definition/expression/expression-graph';
 import { readPanelPreference, savePanelPreference } from '../definition/panel-preferences';
 import { queueColumns, type QueueCell } from './queue-columns';
 import './test.css';
@@ -17,8 +17,8 @@ const STATUS = { created: 'created', suppressed: 'suppressed (SUPPRESS)', trunca
 
 export interface QueueDialogProps {
   graph: ExpressionGraph;
-  /** The node whose queue shows: a box, or the target field. */
-  nodeId: string;
+  /** The node whose queue shows, a box or the target field, as the graph has it now. */
+  node: ExpressionNode;
   /** The last test run's trace by authoring id; none before a run. */
   trace: Readonly<Record<string, TraceEntry>> | undefined;
   /** Whether the trace is a stale trace (GLOSSARY): it still shows, marked. */
@@ -54,11 +54,11 @@ function Cell({ cell }: { cell: QueueCell }) {
  * for its inputs and output, read by authoring id, a row per value and per context's end; the target field adds its
  * occurrences per parent slot. After an edit the trace is a stale trace: it still shows, marked, until the next run.
  */
-export function QueueDialog({ graph, nodeId, trace, stale, mappingId, browserState, onClose }: QueueDialogProps) {
+export function QueueDialog({ graph, node, trace, stale, mappingId, browserState, onClose }: QueueDialogProps) {
   const [numbers, setNumbers] = useState(() => readPanelPreference(browserState, NUMBERS_KEY, false, isBoolean));
-  const { name, columns } = queueColumns(graph, nodeId, trace ?? {});
+  const { name, columns } = queueColumns(graph, node, trace ?? {});
   const count = Math.max(0, ...columns.map((c) => c.cells?.length ?? 0));
-  const occurrences = nodeId === TARGET && mappingId !== undefined ? trace?.[mappingId] : undefined;
+  const occurrences = node.id === TARGET && mappingId !== undefined ? trace?.[mappingId] : undefined;
   const shownOccurrences = occurrences === undefined ? undefined : displayEntry(occurrences);
   const changeNumbers = (checked: boolean) => {
     setNumbers(checked);

@@ -217,6 +217,18 @@ describe('the Display Queue of a box (#158)', () => {
     await expect.element(dialog()).toMatchTextContent('capped: showing 2 of 4 parent slots');
   });
 
+  test('undo that removes the box whose queue is open closes the dialog', async () => {
+    const store = await renderDefinition(run);
+    store.getState().insertBox(ORDER_ID, 'toUpperCase', { x: 300, y: 200 });
+    await openQueue(/^Node function toUpperCase/);
+    await expect.element(dialog().getByRole('table', { name: 'toUpperCase queue' })).toBeVisible();
+
+    store.getState().undo();
+
+    await expect.element(dialog()).not.toBeInTheDocument();
+    await expect.element(node(/^Source field OrderId/)).toBeVisible();
+  });
+
   test('the tool rail opens the queue of the selected node', async () => {
     await renderDefinition(run);
     const rail = page.getByRole('toolbar', { name: 'Mapping tools' }).getByRole('button', { name: 'Display Queue', exact: true });
