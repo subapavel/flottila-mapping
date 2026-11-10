@@ -10,7 +10,7 @@ import java.util.Optional;
  *
  * @param formatVersion the version of the format, 1
  * @param description the mapping's free text, which the engine ignores (ADR-0029); an empty one is
- *     not written
+ *     none, so it is not written
  * @param source the source structure's schema bundle, root and fingerprint, or empty until it is
  *     chosen (ADR-0029)
  * @param target the target structure's schema bundle, root and fingerprint, or empty until it is
@@ -27,6 +27,7 @@ public record MappingModel(
     Map<String, UdfDeclaration> udfs) {
 
   public MappingModel {
+    description = description.filter(text -> !text.isEmpty());
     targetFieldMappings = Map.copyOf(targetFieldMappings);
     udfs = Map.copyOf(udfs);
   }

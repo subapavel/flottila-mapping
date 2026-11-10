@@ -95,8 +95,9 @@ public final class CanonicalWriter {
             .put("formatVersion", new NumberNode(model.formatVersion()))
             .putUnlessEmpty("targetFieldMappings", mappings)
             .putUnlessEmpty("udfs", udfs);
-    // ADR-0029: an empty description is left out, and so is a structure not chosen yet
-    model.description().filter(d -> !d.isEmpty()).ifPresent(d -> root.put("description", d));
+    // ADR-0029: no description is left out (the record holds no empty one), and so is a
+    // structure not chosen yet
+    model.description().ifPresent(description -> root.put("description", description));
     model.source().ifPresent(source -> root.put("source", structureRef(source)));
     model.target().ifPresent(target -> root.put("target", structureRef(target)));
     return root;

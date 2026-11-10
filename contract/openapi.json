@@ -29,9 +29,12 @@
       },
       "CreateMappingRequest" : {
         "type" : "object",
-        "required" : [ "id", "source", "target" ],
+        "required" : [ "id" ],
         "properties" : {
           "id" : {
+            "type" : "string"
+          },
+          "description" : {
             "type" : "string"
           },
           "source" : {
@@ -161,12 +164,24 @@
       },
       "MappingSummary" : {
         "type" : "object",
-        "required" : [ "id", "name" ],
+        "required" : [ "id", "name", "package" ],
         "properties" : {
           "id" : {
             "type" : "string"
           },
           "name" : {
+            "type" : "string"
+          },
+          "package" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          },
+          "target" : {
             "type" : "string"
           }
         }
@@ -720,7 +735,7 @@
             }
           },
           "422" : {
-            "description" : "model-refused: a structure cannot be loaded",
+            "description" : "model-refused: a structure cannot be loaded, or the description is over 4,000 characters",
             "content" : {
               "application/problem+json" : {
                 "schema" : {

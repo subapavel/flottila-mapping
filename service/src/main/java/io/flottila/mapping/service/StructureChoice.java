@@ -1,5 +1,6 @@
 package io.flottila.mapping.service;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -11,5 +12,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param root the root selector, as the mapping model spells it
  */
 public record StructureChoice(
-    @Schema(required = true) List<String> bundle,
-    @Schema(required = true, ref = MappingsResource.ROOT_SELECTOR) JsonNode root) {}
+    @Schema(required = true) @JsonProperty(required = true) List<String> bundle,
+    @Schema(required = true, ref = MappingsResource.ROOT_SELECTOR) @JsonProperty(required = true)
+        JsonNode root) {}

@@ -665,6 +665,34 @@ class MappingsResourceTest {
         (id, summary) -> assertThat(byId.get(id)).as(id).isEqualTo(Wire.read(bytes(summary))));
   }
 
+  /**
+   * A listed file whose read fails, here a link to a directory inside the workspace, is listed with
+   * its id, name and package alone, and the list still answers 200 (#153).
+   */
+  @Test
+  void aListedFileThatCannotBeReadIsListedWithItsIdAlone() throws Exception {
+    TempWorkspace.mkdirs("summary-unreadable/folder");
+    Files.createSymbolicLink(
+        TempWorkspace.root().resolve("summary-unreadable/linked.mapping.json"), Path.of("folder"));
+
+    Http.Reply reply = http().get("api/mappings");
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(200);
+    JsonNode listed = null;
+    for (JsonNode summary : reply.json()) {
+      if (summary.path("id").textValue().equals("summary-unreadable/linked")) {
+        listed = summary;
+      }
+    }
+    assertThat(listed)
+        .isEqualTo(
+            Wire.read(
+                bytes(
+                    """
+                    {"id": "summary-unreadable/linked", "name": "linked",
+                     "package": "summary-unreadable"}""")));
+  }
+
   @Test
   void createWithOnlyAnIdIs201WithAMappingWithoutStructures() {
     TempWorkspace.mkdirs("creating-bare");
