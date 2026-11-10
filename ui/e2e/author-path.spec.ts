@@ -16,7 +16,8 @@ async function boxId(canvas: Locator, title: string): Promise<string> {
 
 test('the author path: list, open, link by drag and drop, a function, a constant and a parameter, save, run, display queues', async ({ page }) => {
   const problems = collectProblems(page);
-  await page.goto('/?api=fake');
+  // the old editor's author path, on the dev host until the studio's tabs replace it (#154)
+  await page.goto('/?api=fake&host=dev');
 
   await page.getByRole('table', { name: 'Mappings' }).getByRole('button', { name: 'mappings/order-unmapped' }).click();
   await expect(page.getByRole('heading', { name: 'mappings/order-unmapped' })).toBeVisible();

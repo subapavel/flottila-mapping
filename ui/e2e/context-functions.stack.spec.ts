@@ -18,7 +18,7 @@ test('@stack a mapping with a context function opens, saves through the API byte
   const original = readFileSync(corpus(`${MAPPING}.mapping.json`));
   const file = join(stackWorkspace, `${MAPPING}.mapping.json`);
 
-  await page.goto(`/?mapping=${MAPPING}`);
+  await page.goto(`/?mapping=${MAPPING}&host=dev`);
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
   // The editor has no control for a function box and no way to undo, so an unchanged mapping has nothing to save:

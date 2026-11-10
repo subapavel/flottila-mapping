@@ -12,7 +12,7 @@ const CHANNEL = `${ORDER}/@channel`;
 const corpus = (path: string) => new URL(`../../corpus/${path}`, import.meta.url);
 
 async function open(page: Page, mapping: string) {
-  await page.goto(`/?mapping=${mapping}`);
+  await page.goto(`/?mapping=${mapping}&host=dev`);
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
 }
