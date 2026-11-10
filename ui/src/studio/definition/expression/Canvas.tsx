@@ -66,10 +66,8 @@ function ViewFit({ nodeIds, host }: { nodeIds: string; host: RefObject<HTMLEleme
     const ids = JSON.parse(nodeIds) as string[];
     const before = lastIds.current;
     lastIds.current = ids;
-    if (!before) {
-      void flow.fitView(fixedView);
-      return;
-    }
+    // the first view is the canvas's own fitView; a queued fitView call would run at the next node change instead
+    if (!before) return;
     const added = ids.findLast((id) => !before.includes(id));
     if (!added) return;
     const bounds = flow.getNodesBounds([added]);
@@ -413,6 +411,8 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
               edgesFocusable
               deleteKeyCode={editing ? ['Delete', 'Backspace'] : null}
               proOptions={{ hideAttribution: true }}
+              fitView
+              fitViewOptions={fixedView}
             >
               <Background gap={18} size={1} color="#bfd0d9" />
               <ViewFit nodeIds={JSON.stringify(nodes.map((n) => n.id))} host={host} />

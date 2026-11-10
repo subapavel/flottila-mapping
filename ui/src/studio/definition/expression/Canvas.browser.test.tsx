@@ -387,3 +387,79 @@ describe('the functions drilldown (#157)', () => {
     await expect.element(catalogue()).toMatchTextContent('No matching functions.');
   });
 });
+
+describe('wires moved by hand, several deleted, and where a new node shows (#157)', () => {
+  const edge = (id: string) => page.getByTestId(`rf__edge-${id}`);
+  const wireEndOf = (id: string) => page.elementLocator(edge(id).element().querySelector('.react-flow__edgeupdater-target')!);
+  const input = (fn: string, n: number) => node(new RegExp(`^Node function ${fn}`)).getByRole('group', { name: new RegExp(`^Input ${n}: `) });
+
+  test('a function added by a click shows below every node, at their left edge', async () => {
+    const store = await renderCanvas({ editing: true });
+    await expect.element(node(/^Source field OrderId/)).toBeVisible();
+    const shown = arrange(expressionGraph(ORDER_ID, mappingOf(store), {}));
+
+    await addFromCatalogue('Text', 'concat');
+
+    const placed = Object.values(shown);
+    expect(mappingOf(store).layout!.boxes![boxOf(store, 'concat')]).toEqual({ x: Math.min(...placed.map((p) => p.x)), y: Math.max(...placed.map((p) => p.y)) + 72 });
+  });
+
+  test('a node added outside the view is brought into it', async () => {
+    const store = await renderCanvas({ editing: true });
+    await expect.element(node(/^Source field OrderId/)).toBeVisible();
+    const shown = arrange(expressionGraph(ORDER_ID, mappingOf(store), {}));
+
+    store.getState().insertBox(ORDER_ID, 'concat', { x: 4000, y: 3000 }, layoutOf(shown));
+
+    const within = () => {
+      const card = node(/^Node function concat/).element().getBoundingClientRect();
+      const view = canvas().element().getBoundingClientRect();
+      return card.left >= view.left && card.right <= view.right && card.top >= view.top && card.bottom <= view.bottom;
+    };
+    await expect.poll(within).toBe(true);
+  });
+
+  test('the end of a wire dragged onto another input moves the wire there (rewire)', async () => {
+    const store = await renderCanvas({ editing: true });
+    store.getState().insertBox(ORDER_ID, 'concat');
+    const concat = boxOf(store, 'concat');
+    await expect.element(input('concat', 1)).toBeVisible();
+
+    await userEvent.dragAndDrop(wireEndOf(`a1->:target`), input('concat', 1));
+
+    expect(mappingOf(store).result).toBeNull();
+    expect(mappingOf(store).boxes[concat]).toEqual({ kind: 'function', fn: 'concat', inputs: ['a1'] });
+  });
+
+  test('an occupied input dragged onto another input moves its wire there', async () => {
+    const store = await renderCanvas({ editing: true });
+    store.getState().insertBox(ORDER_ID, 'concat');
+    const concat = boxOf(store, 'concat');
+    store.getState().wire(ORDER_ID, 'a1', concat, 0);
+    await expect.element(input('concat', 2)).toBeVisible();
+
+    await userEvent.dragAndDrop(input('concat', 1), input('concat', 2));
+
+    expect(mappingOf(store).boxes[concat]).toEqual({ kind: 'function', fn: 'concat', inputs: [null, 'a1'] });
+  });
+
+  test('two selected wires are both removed by the Delete key', async () => {
+    const store = await renderCanvas({ editing: true });
+    store.getState().insertBox(ORDER_ID, 'concat');
+    const concat = boxOf(store, 'concat');
+    store.getState().wire(ORDER_ID, 'a1', concat, 0);
+    store.getState().wire(ORDER_ID, 'a1', concat, 1);
+    await expect.element(edge(`a1->${concat}#1`)).toBeInTheDocument();
+
+    (edge(`a1->${concat}#0`).element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Control>}');
+    (edge(`a1->${concat}#1`).element() as HTMLElement).focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{/Control}');
+    await userEvent.keyboard('{Delete}');
+
+    expect(mappingOf(store).boxes[concat]).toEqual({ kind: 'function', fn: 'concat', inputs: [null, null] });
+    expect(mappingOf(store).result).toBe('a1');
+  });
+});
