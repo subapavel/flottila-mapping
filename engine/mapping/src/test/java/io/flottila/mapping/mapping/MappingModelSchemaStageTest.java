@@ -1,6 +1,7 @@
 package io.flottila.mapping.mapping;
 
 import static io.flottila.mapping.mapping.Fixtures.utf8;
+import static io.flottila.mapping.mapping.LoadResults.errorAtId;
 import static io.flottila.mapping.mapping.LoadResults.errorAtPointer;
 import static io.flottila.mapping.mapping.LoadResults.loaded;
 import static io.flottila.mapping.mapping.LoadResults.refused;
@@ -476,6 +477,247 @@ class MappingModelSchemaStageTest {
   void loadReportsAFailureInALaterMemberOfAMap(String what, String json, String expected)
       throws Exception {
     assertThat(refused(MappingModelFormat.load(utf8(json)))).containsExactly(expected);
+  }
+
+  // --- the studio members (ADR-0029): an optional description of at most 4,000 code points, and an
+  // optional layout per target field mapping whose positions are integers in [-1,000,000,
+  // 1,000,000]; minimum, maximum and maxLength are invalid-value. The positions of layout.boxes sit
+  // in a map, so each is validated on its own, the first as much as a later one (F-8).
+
+  static final String LAYOUT = TFM + "/layout";
+
+  /**
+   * One target field mapping {@code /Invoice/Number} with id {@code t1}, result {@code a1}, the
+   * source boxes {@code a1} and {@code b1}, and {@code layout} as its layout.
+   */
+  static String withLayout(String layout) {
+    return withMappings(
+        """
+        {"/Invoice/Number": {"id": "t1", "result": "a1", "layout": %s, "boxes": {
+          "a1": {"kind": "source", "field": "/Order/Number"},
+          "b1": {"kind": "source", "field": "/Order/Date"}}}}"""
+            .formatted(layout));
+  }
+
+  /** The document of {@link #VALID_MAPPINGS} with {@code description}, a JSON value, first. */
+  static String withDescription(String description) {
+    return "{\"description\": " + description + ", " + withMappings(VALID_MAPPINGS).substring(1);
+  }
+
+  @Test
+  void loadAcceptsADescriptionAndALayoutWithCoordinatesAtTheirLimits() throws Exception {
+    String layout =
+        """
+        {"target": {"x": 1000000, "y": -1000000},
+         "boxes": {"a1": {"x": -1000000, "y": 1000000}, "b1": {"x": 0, "y": -7}}}""";
+    String json = "{\"description\": \"Orders to invoices\", " + withLayout(layout).substring(1);
+
+    MappingModel model = loaded(MappingModelFormat.load(utf8(json)));
+
+    assertThat(model.targetFieldMappings().get("/Invoice/Number").boxes()).hasSize(2);
+  }
+
+  static Stream<Arguments> descriptionsOfAtMost4000CodePoints() {
+    return Stream.of(
+        Arguments.of("4,000 ASCII characters", "a".repeat(4000)),
+        Arguments.of("3,999 ASCII and one astral: 4,001 UTF-16 units", "a".repeat(3999) + "😀"),
+        Arguments.of("4,000 astral characters: 8,000 UTF-16 units", "😀".repeat(4000)),
+        Arguments.of("the empty string", ""));
+  }
+
+  /** {@code maxLength} counts code points (JSON Schema 2020-12, 6.3.1), not UTF-16 units. */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("descriptionsOfAtMost4000CodePoints")
+  void loadAcceptsADescriptionOfAtMost4000CodePoints(String what, String description)
+      throws Exception {
+    MappingModel model =
+        loaded(MappingModelFormat.load(utf8(withDescription("\"" + description + "\""))));
+
+    assertThat(model.targetFieldMappings()).containsOnlyKeys("/Invoice/Number");
+  }
+
+  static Stream<Arguments> descriptionsOver4000CodePoints() {
+    return Stream.of(
+        Arguments.of("4,001 ASCII characters", "a".repeat(4001)),
+        Arguments.of("4,001 astral characters", "😀".repeat(4001)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("descriptionsOver4000CodePoints")
+  void loadRefusesADescriptionOver4000CodePointsAsInvalidValue(String what, String description)
+      throws Exception {
+    assertThat(refused(MappingModelFormat.load(utf8(withDescription("\"" + description + "\"")))))
+        .containsExactly(errorAtPointer("invalid-value", "/description"));
+  }
+
+  static Stream<Arguments> wrongTypedStudioMembers() {
+    return Stream.of(
+        Arguments.of("a number as the description", withDescription("4000"), "/description"),
+        Arguments.of("null as the description", withDescription("null"), "/description"),
+        Arguments.of(
+            "null as the source, which is optional but not nullable",
+            document("null", TARGET, VALID_MAPPINGS, UDFS),
+            "/source"),
+        Arguments.of("a string as the layout", withLayout("\"auto\""), LAYOUT),
+        Arguments.of("null as the layout", withLayout("null"), LAYOUT),
+        Arguments.of(
+            "an array as the target's position",
+            withLayout("{\"target\": [1, 2]}"),
+            LAYOUT + "/target"),
+        Arguments.of(
+            "an array as the layout's boxes",
+            withLayout("{\"boxes\": [{\"x\": 1, \"y\": 2}]}"),
+            LAYOUT + "/boxes"),
+        Arguments.of(
+            "a string as the target's x",
+            withLayout("{\"target\": {\"x\": \"10\", \"y\": 0}}"),
+            LAYOUT + "/target/x"),
+        Arguments.of(
+            "a fraction as the first box's y",
+            withLayout(
+                "{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0.5}, \"b1\": {\"x\": 0, \"y\": 0}}}"),
+            LAYOUT + "/boxes/a1/y"),
+        Arguments.of(
+            "null as the second box's x",
+            withLayout(
+                "{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"x\": null, \"y\": 0}}}"),
+            LAYOUT + "/boxes/b1/x"),
+        Arguments.of(
+            "a number as the second box's position",
+            withLayout("{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": 5}}"),
+            LAYOUT + "/boxes/b1"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("wrongTypedStudioMembers")
+  void loadReportsAWrongTypedStudioMemberAtItsPointer(String what, String json, String pointer)
+      throws Exception {
+    assertThat(refused(MappingModelFormat.load(utf8(json))))
+        .containsExactly(errorAtPointer("wrong-type", pointer));
+  }
+
+  static Stream<Arguments> coordinatesOutOfRange() {
+    return Stream.of(
+        Arguments.of(
+            "the target's x one above the maximum",
+            withLayout("{\"target\": {\"x\": 1000001, \"y\": 0}}"),
+            LAYOUT + "/target/x"),
+        Arguments.of(
+            "the target's y one below the minimum",
+            withLayout("{\"target\": {\"x\": 0, \"y\": -1000001}}"),
+            LAYOUT + "/target/y"),
+        Arguments.of(
+            "the first box's x beyond a Java int",
+            withLayout("{\"boxes\": {\"a1\": {\"x\": 2147483648, \"y\": 0}}}"),
+            LAYOUT + "/boxes/a1/x"),
+        Arguments.of(
+            "the second box's y one below the minimum",
+            withLayout(
+                "{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"x\": 0, \"y\": -1000001}}}"),
+            LAYOUT + "/boxes/b1/y"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("coordinatesOutOfRange")
+  void loadRefusesACoordinateOutOfRangeAsInvalidValue(String what, String json, String pointer)
+      throws Exception {
+    assertThat(refused(MappingModelFormat.load(utf8(json))))
+        .containsExactly(errorAtPointer("invalid-value", pointer));
+  }
+
+  static Stream<Arguments> unknownStudioMembers() {
+    return Stream.of(
+        Arguments.of(
+            "the viewer's zoom in the layout", withLayout("{\"zoom\": \"1.5\"}"), LAYOUT + "/zoom"),
+        Arguments.of(
+            "a z on the target's position",
+            withLayout("{\"target\": {\"x\": 0, \"y\": 0, \"z\": 0}}"),
+            LAYOUT + "/target/z"),
+        Arguments.of(
+            "a width on the second box's position",
+            withLayout(
+                "{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"x\": 0, \"y\": 0, \"width\": 80}}}"),
+            LAYOUT + "/boxes/b1/width"),
+        Arguments.of(
+            "a layout box key with a dot",
+            withLayout("{\"boxes\": {\"a.1\": {\"x\": 0, \"y\": 0}}}"),
+            LAYOUT + "/boxes/a.1"),
+        Arguments.of(
+            "a layout box key of 65 characters",
+            withLayout("{\"boxes\": {\"" + ID_65 + "\": {\"x\": 0, \"y\": 0}}}"),
+            LAYOUT + "/boxes/" + ID_65),
+        Arguments.of(
+            "a description on a target field mapping, which only the model has",
+            withMappings(
+                """
+                {"/Invoice/Number": {"id": "t1", "result": "a1", "description": "x", "boxes": {
+                  "a1": {"kind": "source", "field": "/Order/Number"}}}}"""),
+            TFM + "/description"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("unknownStudioMembers")
+  void loadReportsAnUnknownStudioMemberAtItsPointer(String what, String json, String pointer)
+      throws Exception {
+    assertThat(refused(MappingModelFormat.load(utf8(json))))
+        .containsExactly(errorAtPointer("unknown-member", pointer));
+  }
+
+  static Stream<Arguments> missingCoordinates() {
+    return Stream.of(
+        Arguments.of(
+            "y of the target's position",
+            withLayout("{\"target\": {\"x\": 0}}"),
+            LAYOUT + "/target"),
+        Arguments.of(
+            "x of the second box's position",
+            withLayout("{\"boxes\": {\"a1\": {\"x\": 0, \"y\": 0}, \"b1\": {\"y\": 0}}}"),
+            LAYOUT + "/boxes/b1"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("missingCoordinates")
+  void loadReportsAMissingCoordinateAtItsPosition(String what, String json, String pointer)
+      throws Exception {
+    assertThat(refused(MappingModelFormat.load(utf8(json))))
+        .containsExactly(errorAtPointer("missing-member", pointer));
+  }
+
+  // --- a mapping without its structures (ADR-0029): a new mapping has none until the Signature tab
+  // chooses them, and save (stages 1 and 2) accepts it
+
+  static Stream<Arguments> withoutStructures() {
+    return Stream.of(
+        Arguments.of("neither structure", "{\"formatVersion\": 1}"),
+        Arguments.of("only the source", "{\"formatVersion\": 1, \"source\": " + SOURCE + "}"),
+        Arguments.of("only the target", "{\"formatVersion\": 1, \"target\": " + TARGET + "}"),
+        Arguments.of(
+            "neither, with a description, target field mappings and UDFs",
+            "{\"formatVersion\": 1, \"description\": \"draft\", \"targetFieldMappings\": "
+                + VALID_MAPPINGS
+                + ", \"udfs\": "
+                + UDFS
+                + "}"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("withoutStructures")
+  void loadAcceptsAModelWithoutItsStructures(String what, String json) throws Exception {
+    MappingModel model = loaded(MappingModelFormat.load(utf8(json)));
+
+    assertThat(model.formatVersion()).isEqualTo(1);
+  }
+
+  /** Stages 1 and 2 accept a model without structures, but stage 2 still checks it. */
+  @Test
+  void stage2StillRefusesAModelWithoutItsStructures() throws Exception {
+    String json =
+        """
+        {"formatVersion": 1, "targetFieldMappings": {"/Invoice/Number": {"id": "t1", "result": "zz",
+          "boxes": {"a1": {"kind": "source", "field": "/Order/Number"}}}}}""";
+
+    assertThat(refused(MappingModelFormat.load(utf8(json))))
+        .containsExactly(errorAtId("unknown-box-reference", "t1"));
   }
 
   /**

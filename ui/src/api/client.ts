@@ -67,11 +67,16 @@ export function describeError(error: unknown): { title: string; detail: string; 
  * Diagnostics are a result, never a rejection, except for a refused save (422 `model-refused`).
  */
 export interface ApiClient {
-  /** The workspace's mappings, sorted by id. */
+  /**
+   * The workspace's mappings, sorted by id, each with its package, description and root names (ADR-0029); a stored
+   * file the service refuses has its id, name and package alone.
+   */
   listMappings(): Promise<MappingSummary[]>;
   /**
-   * Creates a mapping with both structures' fingerprints and no target field mapping, and resolves to it as stored.
-   * An existing id rejects with a 409 `mapping-exists` problem, an id that is not a workspace path with a 400.
+   * Creates a mapping with its description, the fingerprint of each structure the request names and no target field
+   * mapping (ADR-0029), and resolves to it as stored; a side it does not name is absent until the Signature tab
+   * chooses it. An existing id rejects with a 409 `mapping-exists` problem, an id that is not a workspace path with
+   * a 400.
    */
   createMapping(request: CreateMappingRequest): Promise<StoredMapping>;
   getMapping(id: string): Promise<StoredMapping>;

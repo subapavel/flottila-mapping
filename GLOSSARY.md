@@ -142,10 +142,23 @@ error.
 _Avoid_: unknown function, missing function
 
 **Layout**:
-Where the editor draws boxes and how the view is zoomed, collapsed or split. It is computed from
-the mapping model when a mapping opens (dagre), then kept stable as the viewer's own state, and
-it is never stored with the mapping (ADR-0012).
+The integer positions of one target field mapping's boxes and its target, stored as `layout` in
+the mapping file and ignored by the engine (ADR-0029). A file without one is laid out with dagre
+in memory. Zoom, collapse and split stay the viewer's own state.
 _Avoid_: diagram, view data
+
+**Box position**:
+One box's (or the target's) integer x and y in a layout. A position whose box no longer exists is
+dropped on save.
+_Avoid_: coordinates (alone)
+
+**Mapping description**:
+A mapping's free text, at most 4,000 characters, which the engine ignores.
+_Avoid_: comment
+
+**Signature**:
+A mapping's source and target structures. A new mapping has none until the Signature tab chooses them.
+_Avoid_: interface
 
 **Structure overview**:
 The top half of the editor. The source tree and the target tree stand side by side, with field
@@ -157,10 +170,33 @@ The line in the structure overview from a source field to a target field whose t
 mapping reads it. A pair of fields has one link, however many source-field boxes stand behind it.
 _Avoid_: edge (reserved for the function graph), connection, line
 
+**Mapping studio**:
+The UI where a mapping opens (ADR-0028): a masthead, the tabs Overview, Definition, Test,
+Signature and Functions, a read-only view mode and an edit mode. The start page lists the mappings.
+_Avoid_: editor (for the whole UI), IDE, designer
+
+**Mapping package**:
+The workspace folder of a mapping's id, shown as Package in the studio. It is not a shared package.
+_Avoid_: namespace, SWCV
+
+**View mode**:
+How a mapping opens in the studio: read-only. Edit switches to **edit mode**; Save or Discard ends it.
+_Avoid_: lock, checkout
+
+**Preview feature**:
+A studio feature the engine does not support yet, working only in the browser and never written
+to the mapping file (ADR-0028). It carries a "Preview" badge.
+_Avoid_: fake, stub (those are test doubles)
+
+**Mapping expression**:
+The Definition tab's panel with the canvas of the selected target field mapping's function graph,
+the function drilldown and the tool strip. It replaces the function editor (ADR-0028).
+_Avoid_: function editor (superseded), data-flow editor
+
 **Function editor**:
-The bottom half of the editor. It holds the canvas with the function graph of the selected
+Superseded by the mapping expression (ADR-0028). The bottom half of the old editor. It holds the canvas with the function graph of the selected
 target field mapping, the palette, quick insert and the inspector.
-_Avoid_: data-flow editor, mapping expression
+_Avoid_: data-flow editor
 
 **Inspector**:
 The panel of the function editor that shows the selected box: its catalogue documentation and

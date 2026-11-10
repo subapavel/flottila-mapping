@@ -28,21 +28,29 @@ export type Inputs = BoxReference[];
  */
 export type ParamValue = string | Table;
 /**
+ * An integer position; the studio rounds before it writes.
+ */
+export type Coordinate = number;
+/**
  * This interface was referenced by `UdfParams`'s JSON-Schema definition
  * via the `patternProperty` "^[A-Za-z_][A-Za-z0-9_]{0,63}$".
  */
 export type UdfParamType = "string" | "int";
 
 /**
- * A Flottila mapping model, formatVersion 1 (ADR-0010, ADR-0011). Its canonical form is written by the engine's one writer.
+ * A Flottila mapping model, formatVersion 1 (ADR-0010, ADR-0011, ADR-0029). Its canonical form is written by the engine's one writer. source and target are absent until the Signature tab chooses them.
  */
 export interface MappingModel {
   /**
    * The version of this format. A reader refuses a newer one.
    */
   formatVersion: 1;
-  source: StructureRef;
-  target: StructureRef;
+  /**
+   * The mapping's free text, at most 4,000 characters (code points), which the engine ignores (ADR-0029). An empty one is not written.
+   */
+  description?: string;
+  source?: StructureRef;
+  target?: StructureRef;
   targetFieldMappings?: TargetFieldMappings;
   udfs?: Udfs;
 }
@@ -100,6 +108,7 @@ export interface TargetFieldMapping {
   id: AuthoringId;
   result: BoxReference;
   boxes: Boxes;
+  layout?: Layout;
 }
 /**
  * The boxes of this target field mapping, keyed by their authoring id.
@@ -145,6 +154,27 @@ export interface UnresolvedFunctionBox {
   origin: "po" | "cpi" | "editor";
   inputs?: Inputs;
   params?: Params;
+}
+/**
+ * The positions of this target field mapping's target and boxes, which the engine ignores (ADR-0029). A position whose box no longer exists is dropped on save; an empty layout is not written.
+ */
+export interface Layout {
+  target?: BoxPosition;
+  boxes?: LayoutBoxes;
+}
+/**
+ * This interface was referenced by `LayoutBoxes`'s JSON-Schema definition
+ * via the `patternProperty` "^[A-Za-z0-9_-]{1,64}$".
+ */
+export interface BoxPosition {
+  x: Coordinate;
+  y: Coordinate;
+}
+/**
+ * The boxes' positions, keyed by their authoring id. A box without a position is placed by the studio.
+ */
+export interface LayoutBoxes {
+  [k: string]: BoxPosition;
 }
 /**
  * UDF declarations, keyed by UDF name.

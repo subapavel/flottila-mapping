@@ -2,6 +2,7 @@ package io.flottila.mapping.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.junit.QuarkusTest;
 import java.io.IOException;
@@ -56,8 +57,11 @@ class OpenApiContractTest {
    */
   private static final Map<String, String> RECORDS =
       Map.ofEntries(
-          Map.entry("MappingSummary", "id name | id name"),
-          Map.entry("CreateMappingRequest", "id source target | id source target"),
+          // ADR-0029 (#153): a summary lists the package, the description and the root names; a
+          // new mapping needs only its id
+          Map.entry(
+              "MappingSummary", "description id name package source target | id name package"),
+          Map.entry("CreateMappingRequest", "description id source target | id"),
           Map.entry("StructureChoice", "bundle root | bundle root"),
           Map.entry("TestRequest", "input model | input model"),
           Map.entry("StructureRequest", "base bundle root | base bundle root"),
@@ -168,7 +172,8 @@ class OpenApiContractTest {
           .as(entry.getKey() + " required")
           .isEqualTo(words(shape[1]));
     }
-    // every service record that is a schema: required = the components that are no Optional
+    // every service record that is a schema: required = the components that are no Optional, by
+    // their member name (a @JsonProperty value, as for "package", a Java keyword (#153))
     int records = 0;
     for (Class<?> type : classes.values()) {
       if (type.isRecord() && schemas.has(type.getSimpleName())) {
@@ -176,7 +181,8 @@ class OpenApiContractTest {
         Set<String> required = new TreeSet<>();
         for (RecordComponent c : type.getRecordComponents()) {
           if (c.getType() != Optional.class) {
-            required.add(c.getName());
+            JsonProperty named = c.getAccessor().getAnnotation(JsonProperty.class);
+            required.add(named == null || named.value().isEmpty() ? c.getName() : named.value());
           }
         }
         assertThat(strings(schemas.path(type.getSimpleName()).path("required")))

@@ -48,6 +48,28 @@ export function setParam(model: MappingModel, command: SetParamCommand, catalogu
   );
 }
 
+/** Sets several box parameters of one standard function box at once, from the parameter dialog. */
+export interface SetParamsCommand {
+  targetField: FieldPath;
+  box: AuthoringId;
+  params: Readonly<Record<string, ParamValue>>;
+}
+
+/**
+ * Sets each param in turn as the set param command does, so that the edit is one model change; a refused param refuses
+ * the whole and none is set. Params equal to what the box has give back the model itself.
+ */
+export function setParams(model: MappingModel, command: SetParamsCommand, catalogue: FunctionCatalogue): CommandResult {
+  const { targetField, box, params } = command;
+  let next = model;
+  for (const [name, value] of Object.entries(params)) {
+    const result = setParam(next, { targetField, box, name, value }, catalogue);
+    if (result.kind === 'refused') return result;
+    next = result.model;
+  }
+  return applied(next);
+}
+
 /** Whether two param values are equal: the same string, or tables with the same rows. */
 function sameValue(a: ParamValue, b: ParamValue): boolean {
   if (typeof a === 'string' || typeof b === 'string') return a === b;

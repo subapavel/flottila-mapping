@@ -263,6 +263,71 @@ class EngineFacadeRefreshTest {
         .containsExactly(error("format-version-unsupported", new AtPointer("/formatVersion")));
   }
 
+  /**
+   * {@link #MODEL} with a description and a layout (ADR-0029), canonical, from {@code order.xsd}
+   * with fingerprint {@code %1$s} to {@code order.xsd} with fingerprint {@code %2$s}.
+   */
+  private static final String STUDIO_MODEL =
+      """
+      {
+        "description": "Copies the order id; laid out in the studio",
+        "formatVersion": 1,
+        "source": {
+          "bundle": [
+            "order.xsd"
+          ],
+          "fingerprint": "%1$s",
+          "root": {
+            "element": "Q{urn:flottila:corpus:skeleton}Order"
+          }
+        },
+        "target": {
+          "bundle": [
+            "order.xsd"
+          ],
+          "fingerprint": "%2$s",
+          "root": {
+            "element": "Q{urn:flottila:corpus:skeleton}Order"
+          }
+        },
+        "targetFieldMappings": {
+          "/Q{urn:flottila:corpus:skeleton}Order/OrderId": {
+            "boxes": {
+              "a1": {
+                "field": "/Q{urn:flottila:corpus:skeleton}Order/OrderId",
+                "kind": "source"
+              }
+            },
+            "id": "t1",
+            "layout": {
+              "boxes": {
+                "a1": {
+                  "x": -120,
+                  "y": 48
+                }
+              },
+              "target": {
+                "x": 360,
+                "y": 48
+              }
+            },
+            "result": "a1"
+          }
+        }
+      }
+      """;
+
+  /** Refresh re-derives the fingerprints and keeps the description and the layout as they are. */
+  @Test
+  void refreshKeepsDescriptionAndLayout() throws MalformedJsonException {
+    byte[] stale = STUDIO_MODEL.formatted(STALE, STALE).getBytes(UTF_8);
+
+    RefreshResult.Refreshed result = refreshed(facade.refresh(stale, resolver));
+
+    assertBytes(result.model(), STUDIO_MODEL.formatted(FINGERPRINT, FINGERPRINT).getBytes(UTF_8));
+    assertThat(result.diagnostics()).isEmpty();
+  }
+
   /** A working copy with its keys out of order on one line comes back in canonical form. */
   @Test
   void theModelComesBackInCanonicalForm() throws MalformedJsonException {

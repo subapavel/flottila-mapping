@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -152,10 +151,7 @@ class UnreachableBoxTest {
     }
     chain.put(Models.id("f" + length), source(ORDER_ID));
     MappingModel model =
-        orderToOrder(
-            Map.of(
-                ORDER_ID,
-                new TargetFieldMapping(Models.id("t1"), Optional.of(Models.id("f0")), chain)));
+        orderToOrder(Map.of(ORDER_ID, Models.targetFieldMapping("t1", "f0", chain)));
 
     assertTimeoutPreemptively(
         Duration.ofSeconds(2), () -> assertThat(unreachable(model)).isEmpty());

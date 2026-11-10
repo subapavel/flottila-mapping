@@ -1,10 +1,12 @@
 package io.flottila.mapping.mapping;
 
+import static io.flottila.mapping.mapping.Models.at;
 import static io.flottila.mapping.mapping.Models.boxes;
 import static io.flottila.mapping.mapping.Models.elementRoot;
 import static io.flottila.mapping.mapping.Models.function;
 import static io.flottila.mapping.mapping.Models.inputs;
 import static io.flottila.mapping.mapping.Models.jsonRoot;
+import static io.flottila.mapping.mapping.Models.layout;
 import static io.flottila.mapping.mapping.Models.model;
 import static io.flottila.mapping.mapping.Models.names;
 import static io.flottila.mapping.mapping.Models.noParams;
@@ -23,6 +25,7 @@ import static io.flottila.mapping.mapping.Models.wsdlRoot;
 
 import io.flottila.mapping.structure.WsdlDirection;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The models the committed fixtures under {@code engine/mapping/src/test/resources/mapping-model}
@@ -137,6 +140,62 @@ final class FixtureModels {
             "../structures/partner-types.xsd"),
         Map.of(),
         Map.of());
+  }
+
+  /**
+   * {@code studio-members.mapping.json} (ADR-0029): a description, a target field mapping without a
+   * layout, one with only its target's position, one with every coordinate limit, one with only a
+   * box position.
+   */
+  static MappingModel studioMembers() {
+    return model(
+        Optional.of("Orders to invoices, laid out in the studio.\nZweite Zeile: \"Größe\" 😀"),
+        Optional.of(
+            elementRoot(
+                "Order",
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "../structures/order.xsd")),
+        Optional.of(
+            elementRoot(
+                "Invoice",
+                "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+                "../structures/invoice.xsd")),
+        targetFieldMappings(
+            "/Invoice/Currency",
+            targetFieldMapping("t4", "s4", boxes("s4", source("/Order/Currency"))),
+            "/Invoice/Date",
+            targetFieldMapping("t3", "s3", boxes("s3", source("/Order/Date")), layout(at(640, 0))),
+            "/Invoice/Number",
+            targetFieldMapping(
+                "t1",
+                "B2",
+                boxes(
+                    "B2",
+                    function("concat", inputs("_p", "a1"), noParams()),
+                    "_p",
+                    source("/Order/Prefix"),
+                    "a1",
+                    source("/Order/Number")),
+                layout(
+                    at(1_000_000, -16),
+                    "B2",
+                    at(0, -1_000_000),
+                    "_p",
+                    at(-240, 1_000_000),
+                    "a1",
+                    at(-1_000_000, 80))),
+            "/Invoice/Total",
+            targetFieldMapping(
+                "t2",
+                "c2",
+                boxes("c2", function("constant", inputs(), params("value", text("0")))),
+                layout(null, "c2", at(12, 34)))),
+        Map.of());
+  }
+
+  /** {@code no-structures.mapping.json}: a mapping created from its id alone (ADR-0029). */
+  static MappingModel noStructures() {
+    return model(Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), Map.of());
   }
 
   /** {@code escapes.mapping.json}: every escape class of {@code JSON.stringify}, JSON roots. */

@@ -37,7 +37,11 @@ class MappingModelRoundTripTest {
     assertThat(Fixtures.canonicalFixtures())
         .map(p -> p.getFileName().toString())
         .containsExactly(
-            "escapes.mapping.json", "every-box-kind.mapping.json", "new-mapping.mapping.json");
+            "escapes.mapping.json",
+            "every-box-kind.mapping.json",
+            "new-mapping.mapping.json",
+            "no-structures.mapping.json",
+            "studio-members.mapping.json");
   }
 
   static List<Path> canonicalFixtures() {
@@ -56,7 +60,9 @@ class MappingModelRoundTripTest {
     return Stream.of(
         Arguments.of("every-box-kind.mapping.json", FixtureModels.everyBoxKind()),
         Arguments.of("new-mapping.mapping.json", FixtureModels.newMapping()),
-        Arguments.of("escapes.mapping.json", FixtureModels.escapes()));
+        Arguments.of("escapes.mapping.json", FixtureModels.escapes()),
+        Arguments.of("studio-members.mapping.json", FixtureModels.studioMembers()),
+        Arguments.of("no-structures.mapping.json", FixtureModels.noStructures()));
   }
 
   @ParameterizedTest(name = "{0}")
@@ -157,6 +163,44 @@ class MappingModelRoundTripTest {
         }
         """,
         saved);
+  }
+
+  /**
+   * The model of {@code studio-members.mapping.json} (ADR-0029) in no canonical spelling: members
+   * reversed, compact with CR LF and a tab, {@code y} before {@code x}, {@code target} before
+   * {@code boxes}, layout boxes against UTF-16 order, and {@code \}{@code u} escapes in the
+   * description.
+   */
+  static final String STUDIO_NON_CANONICAL =
+      "{\"targetFieldMappings\":{\"/Invoice/Total\":{\"result\":\"c2\",\"layout\":{\"boxes\":"
+          + "{\"c2\":{\"y\":34,\"x\":12}}},\"id\":\"t2\",\"boxes\":{\"c2\":{\"params\":{\"value\":"
+          + "\"0\"},\"kind\":\"function\",\"fn\":\"constant\"}}},\r\n\"/Invoice/Number\":{\"result\":"
+          + "\"B2\",\"layout\":{\"target\":{\"y\":-16,\"x\":1000000},\"boxes\":{\"a1\":{\"y\":80,"
+          + "\"x\":-1000000},\"_p\":{\"y\":1000000,\"x\":-240},\"B2\":{\"y\":-1000000,\"x\":0}}},"
+          + "\"id\":\"t1\",\"boxes\":{\"a1\":{\"kind\":\"source\",\"field\":\"/Order/Number\"},"
+          + "\"_p\":{\"kind\":\"source\",\"field\":\"/Order/Prefix\"},\"B2\":{\"kind\":\"function\","
+          + "\"inputs\":[\"_p\",\"a1\"],\"fn\":\"concat\"}}},\r\n\"/Invoice/Date\":{\"result\":\"s3\","
+          + "\"layout\":{\"target\":{\"y\":0,\"x\":640}},\"id\":\"t3\",\"boxes\":{\"s3\":{\"kind\":"
+          + "\"source\",\"field\":\"/Order/Date\"}}},\r\n\"/Invoice/Currency\":{\"result\":\"s4\","
+          + "\"id\":\"t4\",\"boxes\":{\"s4\":{\"kind\":\"source\",\"field\":\"/Order/Currency\"}}}},"
+          + "\r\n\"target\":{\"root\":{\"element\":\"Invoice\"},\"fingerprint\":\"sha256:"
+          + "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210\",\"bundle\":"
+          + "[\"../structures/invoice.xsd\"]},\r\n\"source\":{\"root\":{\"element\":\"Order\"},"
+          + "\"fingerprint\":\"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          + "\",\"bundle\":[\"../structures/order.xsd\"]},\r\n\"formatVersion\":1,\t\"description\":"
+          + "\"Orders to invoices, laid out in the studio.\\nZweite Zeile: \\\"Gr\\u00f6\\u00dfe\\\""
+          + " \\ud83d\\ude00\"}\r\n";
+
+  /**
+   * The description and the layouts are kept and sorted as the rest of the file (ADR-0029): the
+   * expected bytes are the committed fixture, checked against {@code JSON.stringify}.
+   */
+  @Test
+  void loadThenSaveWritesTheStudioMembersInCanonicalForm() throws Exception {
+    byte[] saved =
+        MappingModelFormat.save(loaded(MappingModelFormat.load(utf8(STUDIO_NON_CANONICAL))));
+
+    assertBytes(Fixtures.fixture("studio-members.mapping.json"), saved);
   }
 
   @Test
@@ -271,5 +315,36 @@ class MappingModelRoundTripTest {
     MappingModel model = new ModelGenerator(seed).model();
 
     assertThat(loaded(MappingModelFormat.load(MappingModelFormat.save(model)))).isEqualTo(model);
+  }
+
+  /**
+   * Witness for {@link #savedModelReloadsEqual}: its seeds reach every member ADR-0029 adds, so the
+   * property cannot pass on models that never have them.
+   */
+  @Test
+  void theGeneratedModelsReachTheDescriptionTheLayoutAndAMissingSide() {
+    List<MappingModel> models = seeds().mapToObj(seed -> new ModelGenerator(seed).model()).toList();
+    List<Layout> layouts =
+        models.stream()
+            .flatMap(m -> m.targetFieldMappings().values().stream())
+            .map(TargetFieldMapping::layout)
+            .toList();
+    List<Integer> coordinates =
+        layouts.stream()
+            .flatMap(l -> Stream.concat(l.target().stream(), l.boxes().values().stream()))
+            .flatMap(p -> Stream.of(p.x(), p.y()))
+            .toList();
+
+    assertThat(models).anyMatch(m -> m.source().isEmpty()).anyMatch(m -> m.target().isEmpty());
+    assertThat(models)
+        .anyMatch(m -> m.description().isPresent())
+        .anyMatch(m -> m.description().isEmpty())
+        .anyMatch(
+            m -> m.description().map(d -> d.codePointCount(0, d.length()) == 4000).orElse(false));
+    assertThat(layouts)
+        .anyMatch(l -> l.target().isPresent())
+        .anyMatch(l -> !l.boxes().isEmpty())
+        .anyMatch(l -> l.target().isEmpty() && l.boxes().isEmpty());
+    assertThat(coordinates).contains(-1_000_000, 0, 1_000_000);
   }
 }

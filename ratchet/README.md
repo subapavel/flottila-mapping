@@ -13,7 +13,7 @@ All files are line-based, sorted, UTF-8, LF. Columns are separated by one tab.
 | `oracle/corpus.txt` | golden-corpus case passing in all metamorphic variants | case id (`fn/removeContexts/001`) |
 | `oracle/differential.txt` | case where our runtime agrees with Saxon-HE 12.5 on the exported XSLT | case id |
 | `oracle/w3c-<suite>.txt` | passing W3C case (later milestones) | `<suite>:<test-set>/<test-case>` |
-| `coverage.tsv` | engine module, `service`, `ui/src/model`, `ui/src/editor/store` | `module`, `lines %`, `branches %` |
+| `coverage.tsv` | engine module, `service`, `ui/src/model`, `ui/src/studio/store` | `module`, `lines %`, `branches %` |
 | `mutation.tsv` | class-C module | `module`, `surviving mutants`, `generated mutants` |
 | `bench.tsv` | benchmark scenario (ADR-0021) | `scenario`, `machine label`, `score`, `unit` |
 

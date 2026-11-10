@@ -1,12 +1,17 @@
 package io.flottila.mapping.mapping;
 
 import static io.flottila.mapping.mapping.Fixtures.assertBytes;
+import static io.flottila.mapping.mapping.Fixtures.utf8;
+import static io.flottila.mapping.mapping.LoadResults.loaded;
+import static io.flottila.mapping.mapping.Models.at;
 import static io.flottila.mapping.mapping.Models.boxes;
 import static io.flottila.mapping.mapping.Models.elementRoot;
 import static io.flottila.mapping.mapping.Models.function;
 import static io.flottila.mapping.mapping.Models.inputs;
+import static io.flottila.mapping.mapping.Models.layout;
 import static io.flottila.mapping.mapping.Models.model;
 import static io.flottila.mapping.mapping.Models.names;
+import static io.flottila.mapping.mapping.Models.noLayout;
 import static io.flottila.mapping.mapping.Models.noParams;
 import static io.flottila.mapping.mapping.Models.params;
 import static io.flottila.mapping.mapping.Models.source;
@@ -26,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.flottila.mapping.structure.WsdlDirection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -741,6 +747,277 @@ class MappingModelWriterTest {
             }
             """,
         MappingModelFormat.save(model));
+  }
+
+  // --- the studio members (ADR-0029): a description and a layout per target field mapping, which
+  // the writer keeps, sorted as the rest of the file; it drops a stale position and leaves empties
+  // out. These read the members with load, which stage 1 has to accept for them.
+
+  /**
+   * A position whose box is not one of its own target field mapping's boxes is dropped on save:
+   * {@code zz} names no box at all, and {@code s2} in t1 and {@code a1} in t2 name a box of the
+   * other target field mapping. Each layout keeps one position, so it is the stale one that goes,
+   * not the whole layout.
+   */
+  @Test
+  void saveDropsAPositionWhoseBoxIsNotInItsTargetFieldMapping() throws Exception {
+    String stale =
+        HEADER
+            + """
+              "targetFieldMappings": {
+                "/Invoice/Date": {"id": "t2", "result": "s2",
+                  "boxes": {"s2": {"kind": "source", "field": "/Order/Date"}},
+                  "layout": {"boxes": {"zz": {"x": 1, "y": 2}, "s2": {"x": 3, "y": 4},
+                                       "a1": {"x": 5, "y": 6}}}},
+                "/Invoice/Number": {"id": "t1", "result": "a1",
+                  "boxes": {"a1": {"kind": "source", "field": "/Order/Number"}},
+                  "layout": {"target": {"x": 7, "y": 8}, "boxes": {"s2": {"x": 9, "y": 10}}}}
+              }
+            }
+            """;
+
+    byte[] saved = MappingModelFormat.save(loaded(MappingModelFormat.load(utf8(stale))));
+
+    assertBytes(
+        HEADER
+            + """
+              "targetFieldMappings": {
+                "/Invoice/Date": {
+                  "boxes": {
+                    "s2": {
+                      "field": "/Order/Date",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t2",
+                  "layout": {
+                    "boxes": {
+                      "s2": {
+                        "x": 3,
+                        "y": 4
+                      }
+                    }
+                  },
+                  "result": "s2"
+                },
+                "/Invoice/Number": {
+                  "boxes": {
+                    "a1": {
+                      "field": "/Order/Number",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t1",
+                  "layout": {
+                    "target": {
+                      "x": 7,
+                      "y": 8
+                    }
+                  },
+                  "result": "a1"
+                }
+              }
+            }
+            """,
+        saved);
+  }
+
+  /**
+   * An empty description, an empty layout and an empty {@code layout.boxes} are left out, and so is
+   * a layout that holds only stale positions; a layout with a target alone keeps its target.
+   */
+  @Test
+  void saveLeavesOutAnEmptyDescriptionLayoutAndLayoutBoxes() throws Exception {
+    String empties =
+        "{\n  \"description\": \"\",\n"
+            + HEADER.substring(2)
+            + """
+              "targetFieldMappings": {
+                "/Invoice/A": {"id": "t1", "result": "a1", "layout": {},
+                  "boxes": {"a1": {"kind": "source", "field": "/Order/A"}}},
+                "/Invoice/B": {"id": "t2", "result": "a2", "layout": {"boxes": {}},
+                  "boxes": {"a2": {"kind": "source", "field": "/Order/B"}}},
+                "/Invoice/C": {"id": "t3", "result": "a3", "layout": {"boxes": {"zz": {"x": 0, "y": 0}}},
+                  "boxes": {"a3": {"kind": "source", "field": "/Order/C"}}},
+                "/Invoice/D": {"id": "t4", "result": "a4",
+                  "layout": {"boxes": {}, "target": {"x": 0, "y": 0}},
+                  "boxes": {"a4": {"kind": "source", "field": "/Order/D"}}}
+              }
+            }
+            """;
+    assertThat(empties).startsWith("{\n  \"description\": \"\",\n  \"formatVersion\": 1,\n");
+
+    byte[] saved = MappingModelFormat.save(loaded(MappingModelFormat.load(utf8(empties))));
+
+    assertBytes(
+        HEADER
+            + """
+              "targetFieldMappings": {
+                "/Invoice/A": {
+                  "boxes": {
+                    "a1": {
+                      "field": "/Order/A",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t1",
+                  "result": "a1"
+                },
+                "/Invoice/B": {
+                  "boxes": {
+                    "a2": {
+                      "field": "/Order/B",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t2",
+                  "result": "a2"
+                },
+                "/Invoice/C": {
+                  "boxes": {
+                    "a3": {
+                      "field": "/Order/C",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t3",
+                  "result": "a3"
+                },
+                "/Invoice/D": {
+                  "boxes": {
+                    "a4": {
+                      "field": "/Order/D",
+                      "kind": "source"
+                    }
+                  },
+                  "id": "t4",
+                  "layout": {
+                    "target": {
+                      "x": 0,
+                      "y": 0
+                    }
+                  },
+                  "result": "a4"
+                }
+              }
+            }
+            """,
+        saved);
+  }
+
+  /**
+   * The record drops a stale position itself (ADR-0029), so no model holds one: neither one a test
+   * builds nor one a caller saves.
+   */
+  @Test
+  void aTargetFieldMappingKeepsOnlyThePositionsOfItsOwnBoxes() {
+    TargetFieldMapping mapping =
+        targetFieldMapping(
+            "t1",
+            "a1",
+            boxes("a1", source("/Order/Number")),
+            layout(at(7, 8), "zz", at(1, 2), "a1", at(-3, 4), "t1", at(5, 6)));
+
+    assertThat(mapping.layout()).isEqualTo(layout(at(7, 8), "a1", at(-3, 4)));
+    assertThat(targetFieldMapping("t2", null, boxes(), layout(null, "zz", at(1, 2))).layout())
+        .isEqualTo(noLayout());
+  }
+
+  @Test
+  void saveOfARecordWithAStalePositionWritesOnlyTheOthers() {
+    MappingModel model =
+        model(
+            ORDER,
+            INVOICE,
+            targetFieldMappings(
+                "/Invoice/Number",
+                targetFieldMapping(
+                    "t1",
+                    "a1",
+                    boxes("a1", source("/Order/Number")),
+                    layout(null, "zz", at(1, 2), "a1", at(-3, 4)))),
+            Map.of());
+
+    assertBytes(
+        utf8(
+            HEADER
+                + """
+                  "targetFieldMappings": {
+                    "/Invoice/Number": {
+                      "boxes": {
+                        "a1": {
+                          "field": "/Order/Number",
+                          "kind": "source"
+                        }
+                      },
+                      "id": "t1",
+                      "layout": {
+                        "boxes": {
+                          "a1": {
+                            "x": -3,
+                            "y": 4
+                          }
+                        }
+                      },
+                      "result": "a1"
+                    }
+                  }
+                }
+                """),
+        MappingModelFormat.save(model));
+  }
+
+  @Test
+  void saveOfARecordLeavesOutAnEmptyDescriptionAndAnEmptyLayout() {
+    MappingModel model =
+        model(
+            Optional.of(""),
+            Optional.of(ORDER),
+            Optional.of(INVOICE),
+            targetFieldMappings(
+                "/Invoice/Number",
+                targetFieldMapping("t1", "a1", boxes("a1", source("/Order/Number")), noLayout())),
+            Map.of());
+
+    assertBytes(utf8(MINIMAL_TEXT), MappingModelFormat.save(model));
+  }
+
+  @Test
+  void saveOfAModelWithoutStructuresWritesItsFormatVersionAlone() {
+    MappingModel bare =
+        model(Optional.empty(), Optional.empty(), Optional.empty(), Map.of(), Map.of());
+
+    assertBytes(utf8("{\n  \"formatVersion\": 1\n}\n"), MappingModelFormat.save(bare));
+  }
+
+  @Test
+  void saveWritesTheDescriptionFirstAndOnlyTheSideAModelHas() {
+    MappingModel onlyTarget =
+        model(
+            Optional.of("Rechnung – Entwurf"),
+            Optional.empty(),
+            Optional.of(INVOICE),
+            Map.of(),
+            Map.of());
+
+    assertBytes(
+        utf8(
+            """
+            {
+              "description": "Rechnung – Entwurf",
+              "formatVersion": 1,
+              "target": {
+                "bundle": [
+                  "invoice.xsd"
+                ],
+                "fingerprint": "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+                "root": {
+                  "element": "Invoice"
+                }
+              }
+            }
+            """),
+        MappingModelFormat.save(onlyTarget));
   }
 
   @Test

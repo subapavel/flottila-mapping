@@ -71,6 +71,10 @@ class MappingModelSchemaDriftTest {
     pairs.put(StructureRef.class, structureRef);
     Obj targetFieldMapping = schema.mapValue(schema.property(root, "targetFieldMappings"));
     pairs.put(TargetFieldMapping.class, targetFieldMapping);
+    Obj layout = schema.property(targetFieldMapping, "layout");
+    pairs.put(Layout.class, layout);
+    Obj boxPosition = schema.property(layout, "target");
+    pairs.put(BoxPosition.class, boxPosition);
     for (Obj branch : schema.oneOf(schema.mapValue(schema.property(targetFieldMapping, "boxes")))) {
       String kind = schema.constOf(schema.property(branch, "kind"));
       if (BOX_KINDS.containsKey(kind)) {
@@ -96,6 +100,10 @@ class MappingModelSchemaDriftTest {
         .as("target is a structure reference like source")
         .isEqualTo(componentNames(StructureRef.class));
     softly
+        .assertThat(propertyNames(schema, schema.mapValue(schema.property(layout, "boxes"))))
+        .as("a box's position is a position like the target's (ADR-0029)")
+        .isEqualTo(componentNames(BoxPosition.class));
+    softly
         .assertThat(rootSelectors)
         .as("root selector branches")
         .containsExactlyInAnyOrder(RootSelector.class.getPermittedSubclasses());
@@ -112,6 +120,8 @@ class MappingModelSchemaDriftTest {
             MappingModel.class,
             StructureRef.class,
             TargetFieldMapping.class,
+            Layout.class,
+            BoxPosition.class,
             SourceFieldBox.class,
             StandardFunctionBox.class,
             UdfBox.class,

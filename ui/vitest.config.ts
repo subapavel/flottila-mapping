@@ -15,7 +15,7 @@ export default defineConfig({
       // Per-glob floors (ADR-0019): a global threshold lets a weak directory hide behind a strong one.
       thresholds: {
         'src/model/**': { lines: 90 },
-        'src/editor/store/**': { lines: 90 },
+        'src/studio/store/**': { lines: 90 },
       },
     },
   },

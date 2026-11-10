@@ -159,7 +159,7 @@ it. A drop is a failure; a rise is recorded at regeneration. Writers never touch
 **Floors** (fixed in the build, ADR-0019): JaCoCo lines ≥ 90 % and branches ≥ 80 % on `xdm`, `ir`,
 `runtime`, `serializer`, `mapping`, `xslt-export`, `api`, `udf-api`, `udf`; lines ≥ 80 % on `structure`,
 `structure-import`, `service`; PIT ≥ 80 % on the nine class-C modules; Vitest per-glob lines
-≥ 90 % on `ui/src/model/**` and `ui/src/editor/store/**` (`npm run test` = `vitest run --coverage`).
+≥ 90 % on `ui/src/model/**` and `ui/src/studio/store/**` (`npm run test` = `vitest run --coverage`).
 
 ## 7. Decisions, findings, owner questions
 

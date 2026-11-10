@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { FunctionCatalogue } from '../generated/function-catalogue';
 import type { MappingModel, TargetFieldMapping } from '../generated/mapping-model';
-import { setParam } from './set-param';
+import { setParam, setParams } from './set-param';
 
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
@@ -148,5 +148,27 @@ describe('the set param command', () => {
 
       expect(setParam(unknownFn, { targetField: ORDER_ID, box, name, value }, catalogue)).toEqual({ kind: 'refused', code, id });
     });
+  });
+});
+
+describe('the set params command (the parameter dialog’s Apply)', () => {
+  test('sets several params as one model change, each by the set param rules', () => {
+    const result = setParams(model, { targetField: ORDER_ID, box: 'x1', params: { missing: 'key', defaultValue: 'n/a', table: { A: '1' } } }, catalogue);
+
+    expect(orderId(result)?.boxes.x1).toEqual({ kind: 'function', fn: 'fixValues', inputs: ['a1'], params: { defaultValue: 'n/a', table: { A: '1' } } });
+  });
+
+  test('a refused param refuses the whole and sets none', () => {
+    expect(setParams(model, { targetField: ORDER_ID, box: 'x1', params: { defaultValue: 'n/a', missing: 'maybe' } }, catalogue)).toEqual({
+      kind: 'refused',
+      code: 'invalid-parameter-value',
+      id: 'x1',
+    });
+  });
+
+  test('no change gives back the same model', () => {
+    const result = setParams(model, { targetField: ORDER_ID, box: 'x1', params: { missing: 'error', defaultValue: '' } }, catalogue);
+
+    expect(result.kind === 'applied' && result.model).toBe(model);
   });
 });

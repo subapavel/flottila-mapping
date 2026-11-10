@@ -2,6 +2,7 @@ package io.flottila.mapping.service;
 
 import static io.flottila.mapping.service.Fixtures.FINGERPRINT;
 import static io.flottila.mapping.service.Fixtures.INPUT;
+import static io.flottila.mapping.service.Fixtures.NEW_MAPPING;
 import static io.flottila.mapping.service.Fixtures.ORDER;
 import static io.flottila.mapping.service.Fixtures.OUTPUT;
 import static io.flottila.mapping.service.Fixtures.assertBytes;
@@ -134,14 +135,10 @@ class InvalidRequestBodyTest {
     cases.addAll(
         List.of(
             edit("missing id", t, r -> r.remove("id")),
-            edit("missing source", t, r -> r.remove("source")),
-            edit("missing target", t, r -> r.remove("target")),
             edit("missing source.bundle", t, r -> object(r, "source").remove("bundle")),
             edit("missing source.root", t, r -> object(r, "source").remove("root")),
             edit("missing target.root", t, r -> object(r, "target").remove("root")),
             edit("null id", t, r -> r.putNull("id")),
-            edit("null source", t, r -> r.putNull("source")),
-            edit("null target", t, r -> r.putNull("target")),
             edit("null source.bundle", t, r -> object(r, "source").putNull("bundle")),
             edit("null source.root", t, r -> object(r, "source").putNull("root")),
             edit("null entry in source.bundle", t, r -> bundle(object(r, "source")).addNull()),
@@ -153,6 +150,8 @@ class InvalidRequestBodyTest {
             edit("wrong type: id a boolean", t, r -> r.put("id", true)),
             edit("wrong type: id a float", t, r -> r.put("id", 1.5)),
             edit("wrong type: id an object", t, r -> r.putObject("id")),
+            edit("wrong type: description a number", t, r -> r.put("description", 5)),
+            edit("wrong type: description an object", t, r -> r.putObject("description")),
             edit("wrong type: source an array", t, r -> r.putArray("source")),
             edit(
                 "wrong type: source.bundle a string",
@@ -167,6 +166,56 @@ class InvalidRequestBodyTest {
               r -> object(r, "source").set("root", tree(shape.getPayload()))));
     }
     return cases.stream();
+  }
+
+  /**
+   * A create names a structure only once it is chosen (ADR-0029): the owner changed this on
+   * 2026-11-09 ("I would pick them after creation, on the Signature tab", #153), so a missing or
+   * null source or target is no longer an invalid request. Each case is one edit of the template
+   * under an id of its own; the side it names is read and stored with its fingerprint, as {@code
+   * NEW_MAPPING} has it, and the other side is absent.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("createsWithoutStructures")
+  void createWithoutStructuresIs201(String what, byte[] body, String id, ObjectNode expected) {
+    Http.Reply reply = post("api/mappings", body);
+
+    assertThat(reply.status()).as("%s", reply).isEqualTo(201);
+    assertThat(reply.json()).isEqualTo(expected);
+    assertBytes(TempWorkspace.read(id + ".mapping.json"), reply.body());
+  }
+
+  static Stream<Arguments> createsWithoutStructures() {
+    ObjectNode t = createTemplate();
+    return Stream.of(
+        created("missing source", t, r -> r.remove("source"), m -> m.remove("source")),
+        created("missing target", t, r -> r.remove("target"), m -> m.remove("target")),
+        created("null source", t, r -> r.putNull("source"), m -> m.remove("source")),
+        created("null target", t, r -> r.putNull("target"), m -> m.remove("target")),
+        // a null description is none, as a missing one (ADR-0029)
+        created("null description", t, r -> r.putNull("description"), m -> {}),
+        created(
+            "missing source and target",
+            t,
+            r -> r.remove(List.of("source", "target")),
+            m -> m.remove(List.of("source", "target"))));
+  }
+
+  /**
+   * The case {@code name}: {@code edit} of {@code template} under an id named after it, and {@code
+   * NEW_MAPPING} after {@code expected} as the model it creates.
+   */
+  private static Arguments created(
+      String name, ObjectNode template, Consumer<ObjectNode> edit, Consumer<ObjectNode> expected) {
+    String id = "invalid-create/" + name.replace(' ', '-');
+    ObjectNode request =
+        edited(
+            template,
+            r -> {
+              r.put("id", id);
+              edit.accept(r);
+            });
+    return Arguments.of(name, serialised(request), id, edited(parse(NEW_MAPPING), expected));
   }
 
   // --- POST /api/structures ---
@@ -280,8 +329,14 @@ class InvalidRequestBodyTest {
   @Test
   void aMissingMemberIsNamedMissingAndANullMemberNull() {
     Map<String, ObjectNode[]> pairs = new LinkedHashMap<>();
+    // every required member of every request record (#153: each is @JsonProperty(required = true))
     pairs.put("api/mappings id", pair(createTemplate(), "id"));
+    pairs.put("api/mappings source.bundle", pair(createTemplate(), "source", "bundle"));
+    pairs.put("api/mappings source.root", pair(createTemplate(), "source", "root"));
     pairs.put("api/structures base", pair(structureTemplate(), "base"));
+    pairs.put("api/structures bundle", pair(structureTemplate(), "bundle"));
+    pairs.put("api/structures root", pair(structureTemplate(), "root"));
+    pairs.put("api/mappings/" + TEST_ID + "/test model", pair(testTemplate(), "model"));
     pairs.put("api/mappings/" + TEST_ID + "/test input", pair(testTemplate(), "input"));
 
     pairs.forEach(
@@ -311,6 +366,14 @@ class InvalidRequestBodyTest {
   private static ObjectNode[] pair(ObjectNode template, String member) {
     return new ObjectNode[] {
       edited(template, r -> r.remove(member)), edited(template, r -> r.putNull(member))
+    };
+  }
+
+  /** {@code template} without {@code member} of its object {@code in}, and with it set to null. */
+  private static ObjectNode[] pair(ObjectNode template, String in, String member) {
+    return new ObjectNode[] {
+      edited(template, r -> object(r, in).remove(member)),
+      edited(template, r -> object(r, in).putNull(member))
     };
   }
 

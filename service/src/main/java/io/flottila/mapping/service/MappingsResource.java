@@ -101,16 +101,36 @@ public class MappingsResource {
     this.traceLimit = ServiceConfig.traceLimit(config);
   }
 
-  /** The workspace's mappings, sorted by id. */
+  /**
+   * The workspace's mappings, sorted by id, each with what its stored model names (ADR-0029). A
+   * stored file that cannot be read, is no JSON document or is refused by stage 1 or 2 is listed
+   * with its id, name and package alone. Every listed id passes the path checks.
+   */
   @GET
   @Produces(APPLICATION_JSON)
-  public List<MappingSummary> list() throws IOException {
-    return workspace.list().stream().map(MappingSummary::of).toList();
+  public List<MappingSummary> list() throws IOException, WorkspacePathException {
+    List<MappingSummary> summaries = new ArrayList<>();
+    for (String id : workspace.list()) {
+      summaries.add(MappingSummary.of(id, stored(id)));
+    }
+    return summaries;
+  }
+
+  /** The stored model of {@code id}, or empty when its file is unreadable, no JSON or refused. */
+  private Optional<MappingModel> stored(String id) throws WorkspacePathException {
+    try {
+      return facade.load(workspace.read(id)) instanceof Loaded(MappingModel model)
+          ? Optional.of(model)
+          : Optional.empty();
+    } catch (IOException | MalformedJsonException unreadable) {
+      return Optional.empty();
+    }
   }
 
   /**
-   * A new mapping with both structures' fingerprints and no target field mapping. Its directory
-   * must exist; an existing id is 409.
+   * A new mapping with its description and the structures it names, each with its fingerprint, and
+   * no target field mapping (ADR-0029): a side it does not name is absent until it is chosen. Its
+   * directory must exist; an existing id is 409.
    */
   @POST
   @Consumes(APPLICATION_JSON)
@@ -153,7 +173,9 @@ public class MappingsResource {
           @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = Problem.class)))
   @APIResponse(
       responseCode = "422",
-      description = "model-refused: a structure cannot be loaded",
+      description =
+          "model-refused: a structure cannot be loaded, or the description is over 4,000"
+              + " characters",
       content =
           @Content(
               mediaType = PROBLEM_JSON,
@@ -176,7 +198,7 @@ public class MappingsResource {
           "a structure of the new mapping cannot be loaded", DiagnosticDto.all(refusals));
     }
     byte[] canonical =
-        canonical(facade.save(facade.newMapping(source.orElseThrow(), target.orElseThrow())));
+        canonical(facade.save(facade.newMapping(request.description(), source, target)));
     workspace.create(request.id(), canonical);
     return model(Response.created(URI.create("/api/mappings/" + request.id())), canonical);
   }
@@ -403,10 +425,11 @@ public class MappingsResource {
 
   /**
    * Refresh (ADR-0015, ADR-0009 as amended on 2026-11-05): the working copy in the body, never the
-   * stored file, comes back in canonical form with both fingerprints re-derived, with its orphaned
-   * references and every other stage-3 diagnostic. A side whose bundle fails to load keeps its
-   * fingerprint and gives its load diagnostics in the 200. Nothing is saved. The id only locates
-   * the directory the bundle references are relative to.
+   * stored file, comes back in canonical form with the fingerprint of each side it names
+   * re-derived, with its orphaned references and every other stage-3 diagnostic once it names both
+   * sides (ADR-0029). A side whose bundle fails to load keeps its fingerprint and gives its load
+   * diagnostics in the 200. Nothing is saved. The id only locates the directory the bundle
+   * references are relative to.
    */
   @POST
   @jakarta.ws.rs.Path(ID + "/refresh")
@@ -485,12 +508,16 @@ public class MappingsResource {
   }
 
   /**
-   * The structure {@code choice} names, or empty once every load error of its bundle is added to
-   * {@code refusals}.
+   * The structure {@code chosen} names, or empty when none is chosen or once every load error of
+   * its bundle is added to {@code refusals}.
    */
   private static Optional<StructureRef> structure(
-      ReferenceResolver resolver, StructureChoice choice, List<Diagnostic> refusals)
+      ReferenceResolver resolver, Optional<StructureChoice> chosen, List<Diagnostic> refusals)
       throws InvalidRequestException {
+    if (chosen.isEmpty()) {
+      return Optional.empty();
+    }
+    StructureChoice choice = chosen.get();
     SchemaBundle bundle = new SchemaBundle(choice.bundle());
     RootSelector root = RootSelectorJson.read(choice.root());
     return switch (Structures.load(resolver, bundle, root)) {
