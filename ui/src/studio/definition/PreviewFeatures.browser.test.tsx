@@ -2,7 +2,7 @@ import '@patternfly/react-core/dist/styles/base.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import type { ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
@@ -87,8 +87,7 @@ async function addVariable(parent: string, name: string) {
 }
 
 async function conversions() {
-  const toggle = catalogue().getByRole('button', { name: /^Conversions/ });
-  if ((await toggle.element()).getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await catalogue().getByRole('button', { name: /^Conversions/ }).click();
 }
 
 beforeEach(async () => {
@@ -111,11 +110,11 @@ describe('mapping variables, a preview feature (#163)', () => {
     const { store, browserState, sent, original } = await renderDefinition();
     await field('OrderId').click({ button: 'right' });
     await expect.element(menuItem('Add Variable')).toBeDisabled();
-    await page.keyboard.press('Escape');
+    await userEvent.keyboard('{Escape}');
 
     await addVariable('Order', 'total');
 
-    const row = fields().getByRole('row').filter({ has: field('Variable total') });
+    const row = fields().getByRole('row', { name: /^Variable total/ });
     await expect.element(row).toBeVisible();
     await expect.element(row.getByText('Preview')).toBeVisible();
     await expect.element(studioButton('Save')).toBeEnabled();
@@ -197,7 +196,11 @@ describe('grouped expressions, a preview feature (#164)', () => {
     await expect.element(node(/^Target field Note/).getByText('Preview')).toBeVisible();
     await field('OrderId').click({ button: 'right' });
     await expect.element(menuItem('Add target to expression')).toBeDisabled();
-    await page.keyboard.press('Escape');
+    await userEvent.keyboard('{Escape}');
+    // a field grouped already is not grouped twice
+    await field('Note').click({ button: 'right' });
+    await expect.element(menuItem('Add target to expression')).toBeDisabled();
+    await userEvent.keyboard('{Escape}');
     expect(store.getState().workingCopy).toEqual(original);
     await save();
     expect(sent()).not.toMatch(/preview/);
@@ -225,6 +228,13 @@ describe('value mapping and lookups, preview functions (#166, #165)', () => {
     await dialog.getByRole('textbox', { name: 'Default Value' }).fill('unknown');
     await dialog.getByRole('button', { name: 'Apply' }).click();
     await expect.element(node(/^Node function Value mapping/)).toMatchTextContent(/vmdefault unknown/);
+    // its input is its own and the target's is taken: nowhere to connect; a preview node is no box to copy
+    await node(/^Node function Value mapping/).click({ button: 'right' });
+    await expect.element(menuItem('Properties')).toBeVisible();
+    await expect.element(menuItem('Connect to')).not.toBeInTheDocument();
+    await expect.element(menuItem('Copy')).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await expect.element(tool('Copy')).toBeDisabled();
 
     await node(/^Source field OrderId/).click({ button: 'right' });
     await menuItem('Connect to').click();
