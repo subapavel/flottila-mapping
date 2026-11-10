@@ -23,6 +23,8 @@ import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyStore } fro
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
 import { Masthead } from './Masthead';
 
+export type { StudioTab };
+
 /** The key of the tab a mapping was last left on, kept per mapping (ADR-0028, viewer preferences). */
 export const lastTabKey = (mappingId: string) => `mapping:${mappingId}:studio-tab`;
 
