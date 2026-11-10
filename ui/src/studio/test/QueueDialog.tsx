@@ -2,8 +2,8 @@ import { Label, Modal, ModalBody, ModalHeader, Switch } from '@patternfly/react-
 import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
 import { useState } from 'react';
 import type { TraceEntry } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { displayEntry, type ShownValue } from '../../editor/inspector/display-queue';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { displayEntry, type ShownValue } from './display-queue';
 import { TARGET, type ExpressionGraph, type ExpressionNode } from '../definition/expression/expression-graph';
 import { readPanelPreference, savePanelPreference } from '../definition/panel-preferences';
 import { queueColumns, type QueueCell } from './queue-columns';

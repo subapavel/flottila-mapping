@@ -17,8 +17,8 @@ import {
 import { useId, useRef, useState, type ComponentType } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import type { WorkingCopyStore } from '../store/working-copy';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import {
   OCCURRENCES,

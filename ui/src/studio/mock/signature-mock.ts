@@ -1,5 +1,5 @@
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import type { WorkingCopyStore } from '../store/working-copy';
 import type { MessageChoice } from '../signature/structure-names';
 import { previewDraft, type PreviewDraftStore } from './preview-draft';
 

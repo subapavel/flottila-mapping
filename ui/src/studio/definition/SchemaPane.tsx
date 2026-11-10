@@ -4,9 +4,9 @@ import { AngleDownIcon, AngleRightIcon, CheckIcon, CubeIcon, SearchIcon } from '
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { ApiClient, FieldDto, StructureLoaded } from '../../api/client';
-import { expandAllPaths, nameMatches, occurrenceText, treeRows, type TreeRow } from '../../editor/structure-overview/rows';
-import { useStructure } from '../../editor/structure-overview/structure-query';
-import { SOURCE_FIELD_DRAG } from '../../editor/store/drag';
+import { expandAllPaths, nameMatches, occurrenceText, treeRows, type TreeRow } from './rows';
+import { useStructure } from './structure-query';
+import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { FieldPath, StructureRef, TargetFieldMappings } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
 import { variableName, VARIABLES_ISSUE } from '../mock/definition-preview';

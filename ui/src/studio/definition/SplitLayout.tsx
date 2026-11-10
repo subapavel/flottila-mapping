@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import type { BrowserStateStore } from '../browser-state/browser-state';
 import { isShare, readPanelPreference, savePanelPreference } from './panel-preferences';
 
 const clampShare = (share: number) => Math.max(0, Math.min(1, share));

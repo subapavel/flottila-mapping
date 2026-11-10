@@ -1,5 +1,5 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
-import { reachedSourceFields, type TreeRow } from '../../editor/structure-overview/rows';
+import { reachedSourceFields, type TreeRow } from './rows';
 import type { AuthoringId, FieldPath, MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { localPath } from '../../model/field-path';
 

@@ -6,8 +6,8 @@ import { page, userEvent } from 'vitest/browser';
 import type { ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import { TREE_FIELDS, TREE_MAPPING } from '../../api/fake/generated-tree';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { selectUnsaved, type WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { selectUnsaved, type WorkingCopyStore } from '../store/working-copy';
 import { studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
 

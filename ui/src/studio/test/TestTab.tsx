@@ -2,8 +2,8 @@ import { Button, Modal, ModalBody, ModalFooter, ModalHeader, Toolbar, ToolbarCon
 import { PlayIcon } from '@patternfly/react-icons';
 import { useState } from 'react';
 import { useStore } from 'zustand';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { selectTraceStale, type WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { selectTraceStale, type WorkingCopyStore } from '../store/working-copy';
 import { PaneSizeTools } from '../definition/expression/DefinitionTools';
 import { readPanelPreference, savePanelPreference } from '../definition/panel-preferences';
 import { SideBySide, useSplitLayout, VerticalSplitLayout } from '../definition/SplitLayout';

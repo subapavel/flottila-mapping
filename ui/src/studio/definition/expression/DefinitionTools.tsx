@@ -1,7 +1,7 @@
 import { Button, Modal, ModalBody, ModalHeader } from '@patternfly/react-core';
 import { CodeBranchIcon, CodeIcon, ExpandIcon, FolderOpenIcon, LinkIcon, ObjectGroupIcon, TrashIcon, WindowMinimizeIcon, WindowRestoreIcon } from '@patternfly/react-icons';
 import { useState, type MouseEvent as ReactMouseEvent } from 'react';
-import type { BrowserStateStore } from '../../../editor/browser-state/browser-state';
+import type { BrowserStateStore } from '../../browser-state/browser-state';
 import type { FieldPath, MappingModel } from '../../../generated/mapping-model';
 import { localPath } from '../../../model/field-path';
 import { InstanceTools, type InstanceToolsProps } from '../../test/InstanceTools';

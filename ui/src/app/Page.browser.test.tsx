@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import type { ApiClient } from '../api/client';
 import { fakeApiClient } from '../api/fake/fake-api';
-import type { BrowserStateStore } from '../editor';
+import type { BrowserStateStore } from '../studio/browser-state/browser-state';
 import type { MappingModel } from '../generated/mapping-model';
 import { Page } from './Page';
 

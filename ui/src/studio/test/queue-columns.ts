@@ -1,5 +1,5 @@
 import type { TraceEntry } from '../../api/client';
-import { displayEntry, queueSize, type ShownValue } from '../../editor/inspector/display-queue';
+import { displayEntry, queueSize, type ShownValue } from './display-queue';
 import type { ExpressionGraph, ExpressionNode } from '../definition/expression/expression-graph';
 
 /** A cell of the Display Queue (the prototype's queue cells): a value, or where a context ends, before the next or at the end. */

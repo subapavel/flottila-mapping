@@ -1,7 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createStore } from 'zustand/vanilla';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import type { WorkingCopyStore } from '../store/working-copy';
 import { perWorkingCopy, previewDraft, type PreviewDraftStore } from './preview-draft';
 
 /** The follow-up issue of the test instance library (spec #152, preview features). */

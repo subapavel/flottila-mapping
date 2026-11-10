@@ -1,8 +1,8 @@
 import { Alert, Button, Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core';
 import { useMutation } from '@tanstack/react-query';
 import { useStore } from 'zustand';
-import { describeError } from '../api/client';
-import type { WorkingCopyStore } from './store/working-copy';
+import { describeError } from '../../api/client';
+import type { WorkingCopyStore } from '../store/working-copy';
 
 /**
  * The save conflict (ADR-0027): the file changed on disk since it was opened. Reload drops the working copy and its

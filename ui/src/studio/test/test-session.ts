@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createStore } from 'zustand/vanilla';
 import { describeError, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import type { WorkingCopyStore } from '../store/working-copy';
 import { currentInstance, testInput, testInstances, type TestInstance } from '../mock/test-instances';
 import { testPreview } from '../mock/test-preview';
 import { formatOf } from './documents';

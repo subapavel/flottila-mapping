@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import type { WorkingCopyStore } from '../store/working-copy';
 
 /** How a preview feature keeps its state: its name among the preview drafts, its browser key and its reader. */
 export interface PreviewDraftOptions<T> {

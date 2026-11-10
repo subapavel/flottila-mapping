@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient } from '../../api/client';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { WorkingCopyStore } from '../store/working-copy';
 import type { FunctionsStore } from '../mock/functions-store';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import { downloadFile } from './download';

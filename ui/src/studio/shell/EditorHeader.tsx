@@ -1,7 +1,7 @@
 import { Button, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
 import { CheckCircleIcon, CodeIcon, EditIcon, ExchangeAltIcon, FlaskIcon, ListAltIcon, ProjectDiagramIcon, SaveIcon } from '@patternfly/react-icons';
 import type { KeyboardEvent, Ref, RefObject } from 'react';
-import { STUDIO_TABS, type StudioTab } from '../../editor/store/working-copy';
+import { STUDIO_TABS, type StudioTab } from '../store/working-copy';
 
 /** The tab panel every tab title controls; the active tab's body renders in it. */
 export const TAB_PANEL_ID = 'studio-tab-panel';

@@ -1,7 +1,7 @@
 import { DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm, TextArea } from '@patternfly/react-core';
 import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { WorkingCopyStore } from '../store/working-copy';
 import type { StructureRef } from '../../generated/mapping-model';
 import { messageName } from '../signature/structure-names';
 import './overview.css';

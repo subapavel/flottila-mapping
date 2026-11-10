@@ -4,7 +4,7 @@ import { page, userEvent } from 'vitest/browser';
 import { ApiProblem, type ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import { orderStructure } from '../../api/fake/order-structure';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { MappingModel } from '../../generated/mapping-model';
 import { signatureMockKey } from '../mock/signature-mock';
 import { Studio } from '../shell/Studio';

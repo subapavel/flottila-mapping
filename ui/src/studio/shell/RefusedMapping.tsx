@@ -1,5 +1,5 @@
 import { Alert, Button } from '@patternfly/react-core';
-import { describeError } from '../api/client';
+import { describeError } from '../../api/client';
 
 export interface RefusedMappingProps {
   /** Why the mapping did not open: a 422 `model-refused` with its diagnostics, or any other failure. */
