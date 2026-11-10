@@ -4,13 +4,14 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
 import { localPath, stepName } from '../../../model/field-path';
 import { properAncestors } from '../../../model/set-context';
+import { PreviewBadge } from '../../mock/PreviewBadge';
 import { FieldTypeIcon } from '../FieldTypeIcon';
 import { NODE_WIDTH, nodeHeight, type ExpressionNode, type NodeState, type Port } from './expression-graph';
 
 const ROLES = { source: 'Source field', function: 'Node function', target: 'Target field' } as const;
 
-/** What a node is, in words (the prototype's `nodeRole`). */
-export const nodeRole = (node: ExpressionNode) => ROLES[node.kind];
+/** What a node is, in words (the prototype's `nodeRole`): a mapping variable says so. */
+export const nodeRole = (node: ExpressionNode) => node.role ?? ROLES[node.kind];
 
 /** The data of a canvas node: the graph node, its state, its field's type and the opener of its parameters. */
 export type MappingNodeData = {
@@ -66,7 +67,8 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
     previousPorts.current = ports;
   }, [id, ports, refresh]);
   const isFunction = node.kind === 'function';
-  const isSource = node.kind === 'source';
+  // a variable has no context (the prototype's mapping variable)
+  const isSource = node.kind === 'source' && node.role === undefined;
   const defaultContext = isSource ? (properAncestors(node.path!)[0] ?? '') : '';
   const context = node.context ?? defaultContext;
   const changedContext = isSource && context !== defaultContext;
@@ -94,6 +96,7 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
         </span>
         <div className="node-caption">
           <strong className={changedContext ? 'changed-context' : undefined}>{node.name}</strong>
+          {node.preview && <PreviewBadge {...node.preview} />}
           {portNote ? (
             <div className="node-meta port-note">{portNote}</div>
           ) : (

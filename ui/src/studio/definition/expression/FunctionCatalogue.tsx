@@ -6,15 +6,27 @@ import { drilldown, type DrilldownFunction } from './function-groups';
 /** The drag type of a function dragged from the drilldown onto the canvas; its data is the catalogue name. */
 export const functionDragType = 'application/x-mapping-function';
 
-/** What a function the catalogue lacks says, and the follow-up issue that adds it. */
-const unavailable = (fn: DrilldownFunction) => `Not available yet (#${fn.issue})`;
+/** What a function the catalogue lacks says, and the follow-up issue that adds it: a preview, or not available yet. */
+const unavailable = (fn: DrilldownFunction) =>
+  fn.preview === undefined ? `Not available yet (#${fn.issue})` : `Preview: kept in this browser only, never in the mapping file (#${fn.issue})`;
 
 /**
  * The functions drilldown (the prototype's FunctionCatalogue) over the catalogue (spec #152): its groups open one by one,
  * or all that match while a search is typed; a function is added by a click or dragged onto the canvas. A function the
- * catalogue lacks is shown disabled with "Not available yet" and its follow-up issue.
+ * catalogue lacks is a preview function (ADR-0028), added by a click through `addPreview` when given, or else is shown
+ * disabled with "Not available yet" and its follow-up issue.
  */
-export function FunctionCatalogue({ catalogue, add, disabled = false }: { catalogue: Catalogue; add: (fn: string) => void; disabled?: boolean }) {
+export function FunctionCatalogue({
+  catalogue,
+  add,
+  addPreview,
+  disabled = false,
+}: {
+  catalogue: Catalogue;
+  add: (fn: string) => void;
+  addPreview?: (key: string) => void;
+  disabled?: boolean;
+}) {
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [collapsedResults, setCollapsedResults] = useState<Record<string, boolean>>({});
@@ -58,29 +70,34 @@ export function FunctionCatalogue({ catalogue, add, disabled = false }: { catalo
               {open && (
                 <ul>
                   {entries.map((fn) => {
-                    const off = disabled || fn.fn === undefined;
+                    const preview = fn.preview !== undefined && addPreview !== undefined;
+                    const lacking = fn.fn === undefined && !preview;
+                    const off = disabled || lacking;
                     return (
                       <li key={fn.key}>
                         <button
                           type="button"
                           className="catalogue-function"
-                          aria-disabled={fn.fn === undefined || undefined}
-                          disabled={disabled && fn.fn !== undefined}
+                          aria-disabled={lacking || undefined}
+                          disabled={disabled && !lacking}
                           title={fn.fn === undefined ? unavailable(fn) : undefined}
                           aria-description={fn.fn === undefined ? unavailable(fn) : undefined}
-                          draggable={!off}
+                          draggable={!off && !preview}
                           onDragStart={(event) => {
                             event.dataTransfer.setData(functionDragType, fn.fn!);
                             event.dataTransfer.effectAllowed = 'copy';
                           }}
                           onClick={() => {
-                            if (!off) add(fn.fn!);
+                            if (off) return;
+                            if (preview) addPreview(fn.preview!);
+                            else add(fn.fn!);
                           }}
                         >
                           <i aria-hidden="true">ƒ</i>
                           <span>{fn.name}</span>
                           {fn.overload !== undefined && <small>{fn.overload} inputs</small>}
-                          {fn.configurable && <CogIcon aria-label="Configurable" />}
+                          {(fn.configurable || preview) && <CogIcon aria-label="Configurable" />}
+                          {preview && <span className="catalogue-preview">Preview</span>}
                         </button>
                       </li>
                     );

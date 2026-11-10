@@ -80,7 +80,12 @@ export interface DrilldownFunction {
   configurable: boolean;
   /** The follow-up issue of a function the catalogue lacks. */
   issue?: number;
+  /** The key of a preview function (`mock/preview-functions`) that stands in for a function the catalogue lacks. */
+  preview?: string;
 }
+
+/** The prototype's names of the functions offered as previews, and their keys. */
+const PREVIEWS: Record<string, string> = { 'Value mapping': 'valuemap', 'JDBC Lookup': 'tableLookup', 'RFC Lookup': 'rfclookup' };
 
 export interface DrilldownGroup {
   group: Group;
@@ -90,7 +95,8 @@ export interface DrilldownGroup {
 /**
  * The functions drilldown (spec #152): every catalogue function under its prototype group in the prototype's order, a
  * catalogue function the prototype does not list at the end of its family's group (a family without a group goes to
- * Node Functions), and the prototype's functions the catalogue lacks, disabled with their follow-up issue.
+ * Node Functions), and the prototype's functions the catalogue lacks with their follow-up issue: Value mapping and the
+ * lookups as previews, the others disabled.
  */
 export function drilldown(catalogue: FunctionCatalogue): DrilldownGroup[] {
   const groups = new Map<Group, DrilldownFunction[]>(GROUPS.map((g) => [g, []]));
@@ -108,6 +114,7 @@ export function drilldown(catalogue: FunctionCatalogue): DrilldownGroup[] {
       ...(OVERLOADED.has(name) && { overload: count }),
       configurable: known && configurable(name),
       ...(issue !== undefined && { issue }),
+      ...(Object.hasOwn(PREVIEWS, name) && { preview: PREVIEWS[name] }),
     });
   }
   for (const name of Object.keys(catalogue).sort()) {
