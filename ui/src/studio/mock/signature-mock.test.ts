@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { createWorkingCopyStore, selectUnsaved } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { createWorkingCopyStore, selectUnsaved } from '../store/working-copy';
 import type { MappingModel } from '../../generated/mapping-model';
 import { moveRow, signatureActions, signatureMock, signatureMockKey, type PreviewMessage, type PreviewParameter } from './signature-mock';
 

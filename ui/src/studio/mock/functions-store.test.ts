@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { ApiProblem } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { createWorkingCopyStore, selectUnsaved } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { createWorkingCopyStore, selectUnsaved } from '../store/working-copy';
 import type { MappingModel } from '../../generated/mapping-model';
 import { emptyFunctions, newFunction, type FunctionsState } from '../functions/function-model';
 import { createFunctionsStore, followEditSession, functionsKey } from './functions-store';

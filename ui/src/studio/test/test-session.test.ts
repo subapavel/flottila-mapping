@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { ApiClient, Diagnostic, StoredMapping, TestResult } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { createWorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { createWorkingCopyStore } from '../store/working-copy';
 import { compileLines, createTestSession, followCompiles, logLines, logText, runLines, stamp, testSourceKey } from './test-session';
 
 const MAPPING = 'mappings/order-id-copy';

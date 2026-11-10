@@ -1,72 +1,57 @@
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { collectProblems } from './problems';
+import { displayQueue, dropFunction, fieldRow, link, node, result, runTest, save, selectTarget, setParameters } from './studio';
 
-// The editor's author path on the fake API (#117, ADR-0013). The fake runs no engine: a run answers the corpus case
+test.use({ viewport: { width: 1440, height: 900 } });
+
+// The studio's author path on the fake API (#117, ADR-0028). The fake runs no engine: a run answers the corpus case
 // link/direct-copy/001 when the field links match it, with an empty trace, so the display queues show that nothing
 // was traced; the @stack suite shows their contents.
 const ORDER_ID = '/Q{urn:flottila:corpus:skeleton}Order/OrderId';
 const input = readFileSync(new URL('../../corpus/cases/link/direct-copy/001/input.xml', import.meta.url), 'utf8');
 
-/** The authoring id of the one box on `canvas` that shows `title`. */
-async function boxId(canvas: Locator, title: string): Promise<string> {
-  const testId = await canvas.getByTestId(/^box:/).filter({ hasText: title }).getAttribute('data-testid');
-  return testId!.slice('box:'.length);
-}
-
 test('the author path: list, open, link by drag and drop, a function, a constant and a parameter, save, run, display queues', async ({ page }) => {
   const problems = collectProblems(page);
-  // the old editor's author path, on the dev host until the studio's tabs replace it (#154)
-  await page.goto('/?api=fake&host=dev');
+  await page.goto('/?api=fake');
 
-  await page.getByRole('table', { name: 'Mappings' }).getByRole('button', { name: 'mappings/order-unmapped' }).click();
-  await expect(page.getByRole('heading', { name: 'mappings/order-unmapped' })).toBeVisible();
-  await page.getByTestId(`source-field:${ORDER_ID}`).dragTo(page.getByTestId(`target-field:${ORDER_ID}`));
-  await expect(page.getByTestId(`target-field:${ORDER_ID}`)).toContainText('← OrderId');
+  await page.getByRole('row').filter({ hasText: 'order-unmapped' }).getByRole('link', { name: 'Open in studio' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'order-unmapped' })).toBeVisible();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await link(page, ORDER_ID, ORDER_ID);
+  await expect((await fieldRow(page, 'target', ORDER_ID)).getByRole('img', { name: 'Connected' })).toBeVisible();
+  await expect(node(page, /^Source field OrderId\. Complete/)).toBeVisible();
 
-  // a function and a constant from the palette, beside the link's source box; the result stays the link
-  await page.getByTestId(`target-field:${ORDER_ID}`).click();
-  const canvas = page.getByTestId(`canvas:${ORDER_ID}`);
-  await canvas.scrollIntoViewIfNeeded();
-  await page.getByTestId('palette:substring').dragTo(canvas);
-  await page.getByTestId('palette:constant').dragTo(canvas);
-  await expect(canvas.getByTestId(/^box:/)).toHaveCount(3);
-  await canvas.getByRole('button', { name: 'Arrange' }).click();
-  await canvas.getByRole('button', { name: 'Fit View' }).click();
-  const [substring, constant] = [await boxId(canvas, 'substring'), await boxId(canvas, 'constant')];
+  // a function and a constant from the function catalogue, beside the link's source box; the result stays the link
+  await selectTarget(page, ORDER_ID);
+  await dropFunction(page, 'Text', 'substring', { x: 60, y: 40 });
+  await dropFunction(page, 'Constants', 'constant', { x: 60, y: 160 });
+  // three boxes and the target field
+  await expect(page.getByText('4 nodes · 1 connections')).toBeVisible();
+  await page.getByRole('toolbar', { name: 'Mapping tools' }).getByRole('button', { name: 'Layout mapping' }).click();
+  await expect(node(page, /^Source field OrderId\. Complete/)).toBeVisible();
 
-  // a box parameter and the constant's value, in the inspector
-  await page.getByTestId(`box:${substring}`).click();
-  // the box card shows the parameter too (read-only): the inspector's field is the one to type into
-  const start = page.getByRole('complementary', { name: 'Inspector' }).getByRole('textbox', { name: 'start' });
-  await start.fill('3');
-  await start.press('Enter');
-  await expect(start).toHaveValue('3');
-  await expect(page.getByTestId(`box:${substring}`).getByRole('textbox', { name: 'start' })).toHaveValue('3');
-  await page.getByTestId(`box:${constant}`).click();
-  await page.getByRole('textbox', { name: 'value' }).fill('X');
-  await page.getByRole('textbox', { name: 'value' }).press('Enter');
-  await expect(page.getByTestId(`value:${constant}`)).toHaveText('"X"');
+  // a box parameter and the constant's value, in their parameter dialogs; each card shows its parameters
+  await setParameters(page, 'substring', { 'Start Position': '3' });
+  await expect(node(page, /^Node function substring/)).toContainText('start 3');
+  await setParameters(page, 'constant', { Value: 'X' });
+  await expect(node(page, /^Node function constant/)).toContainText('value X');
 
-  await expect(page.getByText('Unsaved')).toBeVisible();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Unsaved')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await save(page, 'order-unmapped');
 
-  await page.getByRole('tab', { name: 'Test' }).click();
-  await page.getByRole('textbox', { name: 'Input message' }).fill(input);
-  await page.getByRole('button', { name: 'Run test' }).click();
-  await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711</OrderId>');
+  await runTest(page, input);
+  await expect(result(page)).toContainText('<OrderId>PO 4711</OrderId>');
 
-  // the display queue of the function box, then of the target field once no box is selected, back on the Editor tab
-  await page.getByRole('tab', { name: 'Editor' }).click();
-  await page.getByTestId(`box:${substring}`).click();
-  const boxQueue = page.getByRole('region', { name: 'Display queue', exact: true });
-  await expect(boxQueue).toContainText('Not evaluated in the last test run.');
-  await page.getByTestId(`box:${substring}`).click({ modifiers: ['Control'] });
-  const fieldQueue = page.getByRole('region', { name: 'Display queue of the target field' });
-  await expect(fieldQueue.getByRole('heading', { name: 'Display queue of OrderId' })).toBeVisible();
-  await expect(fieldQueue.getByRole('heading', { name: 'Result queue' })).toBeVisible();
-  await expect(fieldQueue.getByRole('heading', { name: 'Occurrences' })).toBeVisible();
+  // the display queue of the function box, then of the target field, back on the Definition tab
+  await page.getByRole('tab', { name: 'Definition' }).click();
+  await selectTarget(page, ORDER_ID);
+  const boxQueue = await displayQueue(page, /^Node function substring/);
+  await expect(boxQueue.getByRole('table', { name: 'substring queue' })).toContainText('Not evaluated in the last test run');
+  await boxQueue.getByRole('button', { name: 'Close' }).click();
   await expect(boxQueue).toBeHidden();
+  const fieldQueue = await displayQueue(page, /^Target field OrderId/);
+  await expect(fieldQueue.getByRole('table', { name: 'OrderId queue' })).toContainText('Not evaluated in the last test run');
+  await expect(fieldQueue.getByRole('columnheader', { name: 'OrderId:OrderId' })).toBeVisible();
   expect(problems).toEqual([]);
 });

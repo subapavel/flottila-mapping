@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ApiClient, StoredMapping } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { RefusedMapping } from '../../editor/RefusedMapping';
-import { createWorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { RefusedMapping } from './RefusedMapping';
+import { createWorkingCopyStore } from '../store/working-copy';
 import { newAuthoringId } from '../../model/authoring-id';
 import { Masthead } from './Masthead';
 import { lastTabKey, openingTab, StudioShell } from './StudioShell';

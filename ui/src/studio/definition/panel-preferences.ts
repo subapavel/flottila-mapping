@@ -1,4 +1,4 @@
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import type { BrowserStateStore } from '../browser-state/browser-state';
 
 /**
  * The Definition tab's viewer preferences (the prototype's panelPreferences.js) through `BrowserStateStore` (ADR-0028):

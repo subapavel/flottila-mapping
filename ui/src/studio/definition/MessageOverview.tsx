@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { AuthoringId, FieldPath, MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
 import type { DependencyView } from './expression/DefinitionTools';

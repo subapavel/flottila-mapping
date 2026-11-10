@@ -65,7 +65,7 @@ the command and the evidence it needs. A change to a check after this point is a
    (`java scripts/ratchet.java check` on the gate commit). The drift tests (ADR-0011, ADR-0015),
    the workspace-escape test (ADR-0014) and the diagnostic-catalogue test (ADR-0018) are green. Every spec of the milestone was merged through `/run-spec` with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
    (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
-   coverage of `ui/src/model/` and `ui/src/editor/store/` ≥ 90 % each (per-glob Vitest
+   coverage of `ui/src/model/` and `ui/src/studio/store/` ≥ 90 % each (per-glob Vitest
    thresholds, ADR-0019); generated types with an empty diff; the 20,128-field tree scenario within its
    check-7 target. No mutation testing on `ui/` in milestone 1.
 9. **Hand-over.** `HANDOVER.md` covers:

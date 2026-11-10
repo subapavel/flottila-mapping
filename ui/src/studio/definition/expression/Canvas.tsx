@@ -19,9 +19,9 @@ import '@xyflow/react/dist/style.css';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 import { useStore } from 'zustand';
 import type { FunctionCatalogue as Catalogue } from '../../../api/client';
-import type { BrowserStateStore } from '../../../editor/browser-state/browser-state';
-import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../../../editor/store/working-copy';
-import type { BoxPosition, FieldPath, MappingModel } from '../../../generated/mapping-model';
+import type { BrowserStateStore } from '../../browser-state/browser-state';
+import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../../store/working-copy';
+import type { AuthoringId, BoxPosition, FieldPath, MappingModel } from '../../../generated/mapping-model';
 import type { CommandResult } from '../../../model/command';
 import { localPath, stepName } from '../../../model/field-path';
 import { rewire, type WireEnd } from '../../../model/rewire';
@@ -62,6 +62,7 @@ import { MappingHint } from './MappingHint';
 import { MappingNode, nodeRole, type MappingFlowNode } from './MappingNode';
 import { previewPositions, VARIABLE_ROLE, VARIABLES, withPreview } from './preview-graph';
 import { PreviewParameters } from './PreviewParameters';
+import { RemapDialog } from './RemapDialog';
 
 const types = { mapping: MappingNode };
 const fixedView = { minZoom: 1, maxZoom: 1, padding: 0 };
@@ -131,9 +132,15 @@ export interface CanvasProps {
   fieldTypes: Record<Side, ReadonlyMap<FieldPath, string>>;
   /** Selects a field in its pane (the node menu's Find Field). */
   findField: (side: Side, path: FieldPath) => void;
+  /** The orphaned source-field boxes (GLOSSARY: Orphaned reference), found against the loaded source structure. */
+  orphaned: ReadonlySet<AuthoringId>;
+  /** The source fields an orphaned box can be remapped to, in tree order. */
+  sourceFields: readonly FieldPath[];
+  /** Points orphaned box `box` of this target field mapping at source field `field` (GLOSSARY: Remap). */
+  remap: (box: AuthoringId, field: FieldPath) => void;
 }
 
-function Drawing({ mappingId, store, targetField, catalogue, browserState, fieldTypes, findField }: CanvasProps) {
+function Drawing({ mappingId, store, targetField, catalogue, browserState, fieldTypes, findField, orphaned, sourceFields, remap }: CanvasProps) {
   const host = useRef<HTMLDivElement>(null);
   const edgeDrag = useRef<string | null>(null);
   const inputDrag = useRef<ExpressionEdge | undefined>(undefined);
@@ -166,6 +173,8 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [parameters, setParameters] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  /** The orphaned box whose remap dialog is open. */
+  const [remapping, setRemapping] = useState<AuthoringId | null>(null);
   /** The node whose Display Queue is open. */
   const [queue, setQueue] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(true);
@@ -173,6 +182,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
   const actions = store.getState();
   const selectedNode = graph.nodes.find((n) => selected.has(n.id));
   const queueNode = graph.nodes.find((n) => n.id === queue);
+  const remappingNode = graph.nodes.find((n) => n.id === remapping);
 
   /** Whether a wire is a preview wire (ADR-0028): on a variable's canvas, from or into a preview node, or one moved. */
   const previewWire = (source: string, target: string, moving?: ExpressionEdge) => variable || isPreviewId(source) || isPreviewId(target) || moving?.preview === true;
@@ -276,6 +286,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
     if (own) return showMenu(event, `Node actions for ${n.name}`, items, element);
     if (n.kind !== 'target') items.push(action('Copy', () => copyBranch(id)));
     if (n.kind === 'source') {
+      if (orphaned.has(id)) items.push(action('Remap', () => setRemapping(id), { disabled: !editing }));
       const choices = properAncestors(n.path!);
       const context = n.context ?? choices[0];
       items.push(
@@ -385,6 +396,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
         fieldType: n.role ? 'variable' : n.path === undefined ? undefined : fieldTypes[n.kind === 'source' ? 'source' : 'target'].get(n.path),
         ...(hasParameters(n) && { editParameters: () => setParameters(n.id) }),
         ...(settings && { settings }),
+        ...(orphaned.has(n.id) && { orphaned: true }),
       },
       measured: measured[n.id],
       sourcePosition: Position.Right,
@@ -616,6 +628,17 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
             </section>
           </ModalBody>
         </Modal>
+      )}
+      {remappingNode && (
+        <RemapDialog
+          field={remappingNode.path!}
+          choices={sourceFields}
+          close={() => setRemapping(null)}
+          remap={(field) => {
+            remap(remappingNode.id, field);
+            setRemapping(null);
+          }}
+        />
       )}
       {/* an undo or a delete that removes the node closes its queue */}
       {queueNode && (

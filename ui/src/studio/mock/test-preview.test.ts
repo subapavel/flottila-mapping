@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import type { BrowserStateStore } from '../browser-state/browser-state';
 import { createTestPreview, HEADER_DEFAULTS, testPreviewKey } from './test-preview';
 
 function memoryBrowserState(seed: Record<string, unknown> = {}): BrowserStateStore & { values: Map<string, unknown> } {

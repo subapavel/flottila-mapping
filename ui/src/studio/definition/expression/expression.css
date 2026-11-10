@@ -461,6 +461,10 @@
   --state-ink: #88552c;
   border-style: dashed;
 }
+/* an orphaned source-field box: the warning colour of its mark (definition.css .orphaned-mark) */
+.map-node.is-orphaned {
+  border-color: var(--pf-t--global--icon--color--status--warning--default, #dca614);
+}
 .flow-host .map-node.is-selected[data-state] {
   outline: 2px solid #0066cc;
   outline-offset: 2px;

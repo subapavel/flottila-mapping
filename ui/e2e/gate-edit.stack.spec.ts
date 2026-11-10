@@ -1,31 +1,23 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { collectProblems } from './problems';
 import { stackWorkspace } from './stack-workspace';
+import { canvas, dropFunction, fieldRow, link, node, nodeId, nodeMenu, openStudio, result, runTest, saveOverService, selectTarget, setParameters } from './studio';
 
-// GATE check 2 (#117): editing in the editor over the real service, and an attribute field mapped and run (#102).
+test.use({ viewport: { width: 1440, height: 900 } });
+
+// GATE check 2 (#117): editing in the studio over the real service, and an attribute field mapped and run (#102).
 // Both mappings are workspace copies of order-id-copy without target field mappings, made by the server command.
 const ORDER = '/Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `${ORDER}/OrderId`;
 const CHANNEL = `${ORDER}/@channel`;
 const corpus = (path: string) => new URL(`../../corpus/${path}`, import.meta.url);
 
+/** Opens a mapping in the studio on Definition, in edit mode. */
 async function open(page: Page, mapping: string) {
-  await page.goto(`/?mapping=${mapping}&host=dev`);
-  await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
-  await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
-}
-
-/** Drags a source field onto a target field: a field link. */
-async function link(page: Page, source: string, target: string) {
-  await page.getByTestId(`source-field:${source}`).dragTo(page.getByTestId(`target-field:${target}`));
-}
-
-/** The authoring id of the one box on `canvas` that shows `title`. */
-async function boxId(canvas: Locator, title: string): Promise<string> {
-  const testId = await canvas.getByTestId(/^box:/).filter({ hasText: title }).getAttribute('data-testid');
-  return testId!.slice('box:'.length);
+  await openStudio(page, mapping, 'definition');
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
 }
 
 test('@stack GATE 2: a field link by drag and drop, a function and a constant are saved to the canonical file; a save over a changed file answers 409', async ({ page, request }) => {
@@ -35,35 +27,27 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
   await open(page, mapping);
 
   await link(page, ORDER_ID, ORDER_ID);
-  await expect(page.getByText('Unsaved')).toBeVisible();
-  await page.getByTestId(`target-field:${ORDER_ID}`).click();
-  const canvas = page.getByTestId(`canvas:${ORDER_ID}`);
-  await canvas.scrollIntoViewIfNeeded();
-  await page.getByTestId('palette:concat').dragTo(canvas);
-  await page.getByTestId('palette:constant').dragTo(canvas);
-  await expect(canvas.getByTestId(/^box:/)).toHaveCount(3);
-  const [source, concat, constant] = [await boxId(canvas, 'OrderId'), await boxId(canvas, 'concat'), await boxId(canvas, 'constant')];
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await selectTarget(page, ORDER_ID);
+  await dropFunction(page, 'Text', 'concat', { x: 60, y: 40 });
+  await dropFunction(page, 'Constants', 'constant', { x: 60, y: 160 });
+  // three boxes and the target field
+  await expect(page.getByText('4 nodes · 1 connections')).toBeVisible();
+  const [source, concat, constant] = [await nodeId(page, /^Source field OrderId/), await nodeId(page, /^Node function concat/), await nodeId(page, /^Node function constant/)];
 
-  // the constant's value is its box parameter, set in the inspector
-  await page.getByTestId(`box:${constant}`).click();
-  await page.getByRole('textbox', { name: 'value' }).fill('-X');
-  await page.getByRole('textbox', { name: 'value' }).press('Enter');
-  await expect(page.getByTestId(`value:${constant}`)).toHaveText('"-X"');
-  // dropped boxes may overlap: lay the graph out and fit it into the canvas, then wire OrderId and the constant into
-  // concat, and concat into the target field
-  await canvas.getByRole('button', { name: 'Arrange' }).click();
-  await canvas.getByRole('button', { name: 'Fit View' }).click();
-  await page.getByTestId(`out:${source}`).dragTo(page.getByTestId(`in:${concat}#0`));
-  await page.getByTestId(`out:${constant}`).dragTo(page.getByTestId(`in:${concat}#1`));
-  await page.getByTestId(`out:${concat}`).dragTo(page.getByTestId('in:sink'));
-  await expect(page.getByTestId('unconnected:sink')).toBeHidden();
-  await expect(page.getByTestId(`unconnected:${concat}#0`)).toBeHidden();
-  await expect(page.getByTestId(`unconnected:${concat}#1`)).toBeHidden();
+  // the constant's value is its box parameter, set in its parameter dialog
+  await setParameters(page, 'constant', { Value: '-X' });
+  await expect(node(page, /^Node function constant/)).toContainText('value -X');
+  // dropped boxes may overlap: lay the expression out, then wire OrderId and the constant into concat, and concat into
+  // the target field
+  await page.getByRole('toolbar', { name: 'Mapping tools' }).getByRole('button', { name: 'Layout mapping' }).click();
+  await nodeMenu(page, /^Source field OrderId/, 'Connect to', 'concat · a');
+  await nodeMenu(page, /^Node function constant/, 'Connect to', 'concat · b');
+  await nodeMenu(page, /^Node function concat/, 'Connect to', 'OrderId · OrderId');
+  await expect(node(page, /^Target field OrderId\. Complete/)).toBeVisible();
+  await expect(node(page, /^Node function concat\. Complete/)).toBeVisible();
 
-  const put = page.waitForResponse((response) => response.request().method() === 'PUT');
-  await page.getByRole('button', { name: 'Save' }).click();
-  const answer = await put;
-  await expect(page.getByText('Unsaved')).toBeHidden();
+  const answer = await saveOverService(page, 'e2e-edit');
 
   // the file on disk is the canonical form the service answered the save with, and the one it serves
   const saved = readFileSync(file);
@@ -75,19 +59,17 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
   expect(boxes[constant]).toEqual({ kind: 'function', fn: 'constant', params: { value: '-X' } });
 
   // the saved graph runs
-  await page.getByRole('tab', { name: 'Test' }).click();
-  await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8'));
-  await page.getByRole('button', { name: 'Run test' }).click();
-  await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711-X</OrderId>');
+  await runTest(page, readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8'));
+  await expect(result(page)).toContainText('<OrderId>PO 4711-X</OrderId>');
 
   // the file changes on disk; the next save is refused with 409, writes nothing, and the dialog offers Reload
   const changed = saved.toString('utf8').replace('"-X"', '"-DISK"');
   writeFileSync(file, changed);
-  await page.getByRole('tab', { name: 'Editor' }).click();
-  await page.getByRole('textbox', { name: 'value' }).fill('-Y');
-  await page.getByRole('textbox', { name: 'value' }).press('Enter');
+  await page.getByRole('tab', { name: 'Definition' }).click();
+  await selectTarget(page, ORDER_ID);
+  await setParameters(page, 'constant', { Value: '-Y' });
   const refused = page.waitForResponse((response) => response.request().method() === 'PUT');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   expect((await refused).status()).toBe(409);
   const dialog = page.getByRole('dialog', { name: 'Save conflict' });
   await expect(dialog).toBeVisible();
@@ -95,8 +77,8 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
 
   await dialog.getByRole('button', { name: 'Reload' }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText('Unsaved')).toBeHidden();
-  await expect(page.getByTestId(`value:${constant}`)).toHaveText('"-DISK"');
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await expect(node(page, /^Node function constant/)).toContainText('value -DISK');
   // Chromium logs the refused PUT itself as a console error; that one line, and nothing else, is expected
   expect(problems).toEqual(['Failed to load resource: the server responded with a status of 409 (Conflict)']);
 });
@@ -108,24 +90,29 @@ test('@stack a schema changed on disk: opening the mapping refreshes it, marks t
   writeFileSync(schema, readFileSync(schema, 'utf8').replace('name="OrderId"', 'name="OrderNumber"'));
   await open(page, 'mappings/e2e-refresh');
 
-  await expect(page.getByRole('heading', { name: /The structures changed/ })).toBeVisible();
-  await expect(page.getByText('Orphaned references: 1')).toBeVisible();
-  await expect(page.getByText('Unsaved')).toBeVisible();
-  await page.getByTestId(`target-field:${ORDER_ID}`).click();
-  await expect(page.getByTestId('orphaned:a1')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'The structures changed. Orphaned references: 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  // the target field whose mapping reads the lost field is marked, and so is box a1, which reads it
+  await expect((await fieldRow(page, 'target', ORDER_ID)).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+  await selectTarget(page, ORDER_ID);
+  await expect(node(page, /^Source field OrderId/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+  expect(await nodeId(page, /^Source field OrderId/)).toBe('a1');
 
-  // a source row dropped on the orphaned box remaps it; the box keeps its id and its place in the graph. An HTML drag
-  // that scrolls the page on its way is lost, so the page is made tall enough to hold the tree and the canvas.
-  await page.setViewportSize({ width: 1280, height: 1600 });
-  await page.getByTestId(`source-field:${ORDER}/OrderNumber`).dragTo(page.getByTestId('box:a1'));
-  await expect(page.getByTestId('orphaned:a1')).toBeHidden();
-  await expect(page.getByTestId('box:a1')).toContainText('OrderNumber');
+  // Remap in the node menu points the box at OrderNumber: it keeps its id and its wire into the target
+  await nodeMenu(page, /^Source field OrderId/, 'Remap');
+  const dialog = page.getByRole('dialog', { name: 'Remap · OrderId' });
+  await dialog.getByLabel('Source field', { exact: true }).selectOption(`${ORDER}/OrderNumber`);
+  await dialog.getByRole('button', { name: 'Remap', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(node(page, /^Source field OrderNumber\. Complete/)).toBeVisible();
+  expect(await nodeId(page, /^Source field OrderNumber/)).toBe('a1');
+  await expect(page.getByText('2 nodes · 1 connections')).toBeVisible();
+  await expect(canvas(page).getByRole('img', { name: 'Orphaned reference' })).toHaveCount(0);
+  await expect((await fieldRow(page, 'target', ORDER_ID)).getByRole('img', { name: 'Connected' })).toBeVisible();
 
   const input = readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8').replaceAll('OrderId>', 'OrderNumber>');
-  await page.getByRole('tab', { name: 'Test' }).click();
-  await page.getByRole('textbox', { name: 'Input message' }).fill(input);
-  await page.getByRole('button', { name: 'Run test' }).click();
-  await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711</OrderId>');
+  await runTest(page, input);
+  await expect(result(page)).toContainText('<OrderId>PO 4711</OrderId>');
   expect(problems).toEqual([]);
 });
 
@@ -135,13 +122,11 @@ test('@stack an attribute source field and an attribute target field map by drag
 
   await link(page, ORDER_ID, ORDER_ID);
   await link(page, CHANNEL, CHANNEL);
-  await expect(page.getByTestId(`target-field:${CHANNEL}`)).toContainText('← @channel');
-  await page.getByRole('tab', { name: 'Test' }).click();
-  await page.getByRole('textbox', { name: 'Input message' }).fill(readFileSync(corpus('cases/link/attribute/001/input.xml'), 'utf8'));
-  await page.getByRole('button', { name: 'Run test' }).click();
+  await expect((await fieldRow(page, 'target', CHANNEL)).getByRole('img', { name: 'Connected' })).toBeVisible();
+  await expect(node(page, /^Source field @?channel\. Complete/)).toBeVisible();
+  await runTest(page, readFileSync(corpus('cases/link/attribute/001/input.xml'), 'utf8'));
 
-  const output = page.getByRole('figure', { name: 'Target message' });
-  await expect(output).toContainText('channel="web"');
-  await expect(output).toContainText('<OrderId>PO 4711</OrderId>');
+  await expect(result(page)).toContainText('channel="web"');
+  await expect(result(page)).toContainText('<OrderId>PO 4711</OrderId>');
   expect(problems).toEqual([]);
 });

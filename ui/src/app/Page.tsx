@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApiClient } from '../api/client';
-import type { BrowserStateStore } from '../editor';
+import type { BrowserStateStore } from '../studio/browser-state/browser-state';
 import { MappingList } from '../studio/list/MappingList';
 import { DiscardDialog } from '../studio/shell/DiscardDialog';
 import { Studio } from '../studio/shell/Studio';

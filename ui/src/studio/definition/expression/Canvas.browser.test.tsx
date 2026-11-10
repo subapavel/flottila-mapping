@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import type { ApiClient } from '../../../api/client';
 import { fakeApiClient } from '../../../api/fake/fake-api';
-import type { BrowserStateStore } from '../../../editor/browser-state/browser-state';
-import { selectUnsaved, type WorkingCopyStore } from '../../../editor/store/working-copy';
+import type { BrowserStateStore } from '../../browser-state/browser-state';
+import { selectUnsaved, type WorkingCopyStore } from '../../store/working-copy';
 import type { AuthoringId, TargetFieldMapping } from '../../../generated/mapping-model';
 import { studioStore } from '../../shell/Studio';
 import { StudioShell } from '../../shell/StudioShell';
@@ -53,6 +53,8 @@ const node = (name: string | RegExp) => canvas().getByRole('group', { name });
 const rail = (name: string) => page.getByRole('toolbar', { name: 'Mapping tools' }).getByRole('button', { name, exact: true });
 const catalogue = () => page.getByRole('region', { name: 'Function catalogue' });
 const menuItem = (name: string) => page.getByRole('menuitem', { name, exact: true });
+const targetRow = (name: string) =>
+  page.getByRole('table', { name: 'target fields' }).getByRole('row').filter({ has: page.getByRole('button', { name, exact: true }) });
 const footer = () => page.getByRole('region', { name: 'Field mapping canvas' }).getByText(/nodes · /);
 const integers = (layout: TargetFieldMapping['layout']) =>
   Object.values({ ...layout?.boxes, ...(layout?.target && { t: layout.target }) }).every(({ x, y }) => Number.isInteger(x) && Number.isInteger(y));
@@ -446,6 +448,18 @@ describe('wires moved by hand, several deleted, and where a new node shows (#157
     expect(mappingOf(store).boxes[concat]).toEqual({ kind: 'function', fn: 'concat', inputs: [null, 'a1'] });
   });
 
+  test('marks no box of a mapping whose source fields the source structure has, and offers no remap', async () => {
+    await renderCanvas({ editing: true });
+    await expect.element(node(/^Source field OrderId\. Complete/)).toBeVisible();
+
+    await node(/^Source field OrderId/).click({ button: 'right' });
+
+    await expect.element(menuItem('Context')).toBeVisible();
+    await expect.element(menuItem('Remap')).not.toBeInTheDocument();
+    await expect.element(canvas().getByRole('img', { name: 'Orphaned reference' })).not.toBeInTheDocument();
+    await expect.element(targetRow('OrderId').getByRole('img', { name: 'Connected' })).toBeVisible();
+  });
+
   test('two selected wires are both removed by the Delete key', async () => {
     const store = await renderCanvas({ editing: true });
     store.getState().insertBox(ORDER_ID, 'concat');
@@ -464,5 +478,89 @@ describe('wires moved by hand, several deleted, and where a new node shows (#157
 
     expect(mappingOf(store).boxes[concat]).toEqual({ kind: 'function', fn: 'concat', inputs: [null, null] });
     expect(mappingOf(store).result).toBe('a1');
+  });
+});
+
+describe('an orphaned reference and its remap (GLOSSARY: Orphaned reference, Remap; ADR-0027)', () => {
+  const GONE = `/${ORDER}/Gone`;
+  /** order-id-copy with box a1 reading Gone, a field the order structure lacks. */
+  async function orphanApi(): Promise<ApiClient> {
+    const { model } = await fakeApiClient().getMapping(MAPPING);
+    model.targetFieldMappings![ORDER_ID]!.boxes.a1 = { kind: 'source', field: GONE };
+    return fakeApiClient({ [MAPPING]: model });
+  }
+  const remapDialog = () => page.getByRole('dialog', { name: 'Remap · Gone' });
+  const sourceField = () => remapDialog().getByRole('combobox', { name: 'Source field' });
+
+  test('marks the box on the canvas and its target field in the target pane; in view mode Remap is disabled', async () => {
+    await renderCanvas({ api: await orphanApi() });
+
+    await expect.element(node(/^Source field Gone/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+    await expect.element(node(/^Target field OrderId/).getByRole('img', { name: 'Orphaned reference' })).not.toBeInTheDocument();
+    await expect.element(targetRow('OrderId').getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+    await expect.element(targetRow('OrderId').getByRole('img', { name: 'Connected' })).not.toBeInTheDocument();
+    await expect.element(targetRow('Note').getByRole('img', { name: 'Orphaned reference' })).not.toBeInTheDocument();
+
+    await node(/^Source field Gone/).click({ button: 'right' });
+
+    await expect.element(menuItem('Remap')).toBeDisabled();
+  });
+
+  test('Remap in the node menu points the box at the chosen source field, keeping its id and its wire, as one undo step', async () => {
+    const store = await renderCanvas({ api: await orphanApi(), editing: true });
+    await node(/^Source field Gone/).click({ button: 'right' });
+    await menuItem('Remap').click();
+    await expect.element(remapDialog()).toMatchTextContent('The source structure has no field /Order/Gone.');
+    await expect.element(remapDialog().getByRole('button', { name: 'Remap', exact: true })).toBeDisabled();
+
+    await userEvent.selectOptions(sourceField(), ORDER_ID);
+    await remapDialog().getByRole('button', { name: 'Remap', exact: true }).click();
+
+    await expect.element(remapDialog()).not.toBeInTheDocument();
+    expect(mappingOf(store)).toMatchObject({ result: 'a1', boxes: { a1: { kind: 'source', field: ORDER_ID } } });
+    await expect.element(node(/^Source field OrderId\. Complete/)).toBeVisible();
+    await expect.element(footer()).toHaveTextContent('2 nodes · 1 connections');
+    await expect.element(canvas().getByRole('img', { name: 'Orphaned reference' })).not.toBeInTheDocument();
+    await expect.element(targetRow('OrderId').getByRole('img', { name: 'Connected' })).toBeVisible();
+
+    store.getState().undo();
+
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: GONE });
+    await expect.element(node(/^Source field Gone/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+  });
+
+  test('Cancel leaves the box as it is', async () => {
+    const store = await renderCanvas({ api: await orphanApi(), editing: true });
+    await node(/^Source field Gone/).click({ button: 'right' });
+    await menuItem('Remap').click();
+    await userEvent.selectOptions(sourceField(), ORDER_ID);
+
+    await remapDialog().getByRole('button', { name: 'Cancel' }).click();
+
+    await expect.element(remapDialog()).not.toBeInTheDocument();
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: GONE });
+    expect(selectUnsaved(store.getState())).toBe(false);
+  });
+
+  test('a refused source field refuses the remap as it refuses a link, and the box stays orphaned', async () => {
+    // the same-step structure of #116: Doc's two Note fields are refused (ambiguous-field-path), Code is not
+    const { model } = await fakeApiClient().getMapping(MAPPING);
+    model.source = { bundle: ['../structures/refused/same-step.xsd'], fingerprint: 'sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e', root: { element: 'Doc' } };
+    model.targetFieldMappings![ORDER_ID]!.boxes.a1 = { kind: 'source', field: '/Doc/Gone' };
+    const store = await renderCanvas({ api: fakeApiClient({ [MAPPING]: model }), editing: true });
+    const remapTo = async (field: string) => {
+      await node(/^Source field Gone/).click({ button: 'right' });
+      await menuItem('Remap').click();
+      await userEvent.selectOptions(sourceField(), field);
+      await remapDialog().getByRole('button', { name: 'Remap', exact: true }).click();
+    };
+
+    await remapTo('/Doc/Note');
+
+    expect(store.getState().refusal).toMatchObject({ code: 'refused-field', side: 'source', field: '/Doc/Note' });
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: '/Doc/Gone' });
+    await expect.element(node(/^Source field Gone/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+    await remapTo('/Doc/Code');
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: '/Doc/Code' });
   });
 });

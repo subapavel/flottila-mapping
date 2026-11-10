@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, StructureLoaded } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { reachedSourceFields, refusalAt } from '../../editor/structure-overview/rows';
-import { useStructure } from '../../editor/structure-overview/structure-query';
-import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import type { BrowserStateStore } from '../browser-state/browser-state';
+import { reachedSourceFields, refusalAt } from './rows';
+import { useStructure } from './structure-query';
+import type { WorkingCopyStore } from '../store/working-copy';
 import type { FieldPath } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
 import { addNode, addVariable, canvasOf, definitionPreview, newPreviewId, variableTargets, type PreviewNode } from '../mock/definition-preview';
@@ -14,7 +14,7 @@ import { testPreview } from '../mock/test-preview';
 import { formatOf } from '../test/documents';
 import { testSourceKey } from '../test/test-session';
 import { AddVariable } from './AddVariable';
-import { connectedFields, keptRows, typeKind, type Side } from './definition-model';
+import { connectedFields, keptRows, orphans, typeKind, type Side } from './definition-model';
 import './definition.css';
 import { action, ActionMenu, useActionMenu, type MenuItem } from './expression/ActionMenu';
 import { Canvas } from './expression/Canvas';
@@ -68,6 +68,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
   const sourceQuery = useStructure(mappingId, api, sourceRef);
   const targetQuery = useStructure(mappingId, api, targetRef);
   const connected = useMemo(() => connectedFields(model), [model]);
+  const orphaned = useMemo(() => orphans(model, sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined), [model, sourceQuery.data]);
   const mappings = model.targetFieldMappings ?? {};
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const [dataFlow, setDataFlow] = useState(true);
@@ -79,6 +80,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
       new Map(data && loaded(data).kind === 'loaded' ? keptRows(loaded(data), () => true).map((row) => [row.path, typeKind(row.field)] as const) : []);
     return { source: types(sourceQuery.data), target: types(targetQuery.data) };
   }, [sourceQuery.data, targetQuery.data]);
+  const sourceFields = useMemo(() => [...fieldTypes.source.keys()], [fieldTypes]);
   // a variable a discard took away leaves nothing selected; a JSON property may be named like a variable
   const selectedTarget = picked !== null && VARIABLE_STEP.test(picked) && !variables.includes(picked) && !fieldTypes.target.has(picked) ? null : picked;
 
@@ -110,6 +112,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
       onMode={(mode) => setView(side, mode)}
       editing={editing}
       connected={connected[side]}
+      orphaned={side === 'target' ? orphaned.targets : undefined}
       mappings={mappings}
       selected={side === 'source' ? selectedSource : selectedTarget}
       onPick={side === 'source' ? setSelectedSource : (path) => store.getState().selectTarget(path)}
@@ -225,21 +228,30 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
                 setDataFlow(true);
               }}
             />
-          ) : selectedTarget === null || !catalogue.data ? (
-            <section className="panel canvas-panel" aria-label="Field mapping canvas">
-              <p className="graph-empty">{selectedTarget === null ? 'Select a target field to see its mapping expression.' : 'Loading the function catalogue…'}</p>
-            </section>
           ) : (
-            <Canvas
-              key={selectedTarget}
-              mappingId={mappingId}
-              store={store}
-              targetField={selectedTarget}
-              catalogue={catalogue.data}
-              browserState={browserState}
-              fieldTypes={fieldTypes}
-              findField={(side, path) => (side === 'source' ? setSelectedSource(path) : store.getState().selectTarget(path))}
-            />
+            // the prototype's workbench: the canvas fills the mapping area and shrinks with it (definition.css)
+            <div className="workbench">
+              {selectedTarget === null || !catalogue.data ? (
+                <section className="panel canvas-panel" aria-label="Field mapping canvas">
+                  <p className="graph-empty">{selectedTarget === null ? 'Select a target field to see its mapping expression.' : 'Loading the function catalogue…'}</p>
+                </section>
+              ) : (
+                <Canvas
+                  key={selectedTarget}
+                  mappingId={mappingId}
+                  store={store}
+                  targetField={selectedTarget}
+                  catalogue={catalogue.data}
+                  browserState={browserState}
+                  fieldTypes={fieldTypes}
+                  findField={(side, path) => (side === 'source' ? setSelectedSource(path) : store.getState().selectTarget(path))}
+                  orphaned={orphaned.boxes}
+                  sourceFields={sourceFields}
+                  // a box is orphaned only against a loaded source structure, and a refused source field refuses the remap as it refuses a link (ADR-0027)
+                  remap={(box, field) => store.getState().remap(selectedTarget, box, field, refusalAt(loaded(sourceQuery.data), field, 'source'))}
+                />
+              )}
+            </div>
           )}
         </VerticalSplitLayout>
       </section>

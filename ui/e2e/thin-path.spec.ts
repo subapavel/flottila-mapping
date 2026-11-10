@@ -1,28 +1,27 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+import { collectProblems } from './problems';
+import { fields, link, node, openStudio, result, runTest, save } from './studio';
+
+test.use({ viewport: { width: 1440, height: 900 } });
 
 const ORDER_ID = '/Q{urn:flottila:corpus:skeleton}Order/OrderId';
 const input = readFileSync(new URL('../../corpus/cases/link/direct-copy/001/input.xml', import.meta.url), 'utf8');
 
-test('the dev host opens a mapping on the fake API, links a field, saves and runs a test', async ({ page }) => {
-  const problems: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') problems.push(message.text());
-  });
-  page.on('pageerror', (error) => problems.push(error.message));
+test('the studio opens a mapping on the fake API, links a field, saves and runs a test', async ({ page }) => {
+  const problems = collectProblems(page);
 
-  await page.goto('/?mapping=mappings/order-unmapped&api=fake&host=dev');
+  await openStudio(page, 'mappings/order-unmapped', 'definition', { fake: true });
 
-  await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
-  await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
-  await page.getByTestId(`source-field:${ORDER_ID}`).dragTo(page.getByTestId(`target-field:${ORDER_ID}`));
-  await expect(page.getByText('Unsaved')).toBeVisible();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Unsaved')).toBeHidden();
-  await page.getByRole('tab', { name: 'Test' }).click();
-  await page.getByRole('textbox', { name: 'Input message' }).fill(input);
-  await page.getByRole('button', { name: 'Run test' }).click();
+  await expect(fields(page, 'source')).toBeVisible();
+  await expect(fields(page, 'target')).toBeVisible();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await link(page, ORDER_ID, ORDER_ID);
+  await expect(node(page, /^Source field OrderId\. Complete/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await save(page, 'order-unmapped');
+  await runTest(page, input);
 
-  await expect(page.getByRole('figure', { name: 'Target message' })).toContainText('<OrderId>PO 4711</OrderId>');
+  await expect(result(page)).toContainText('<OrderId>PO 4711</OrderId>');
   expect(problems).toEqual([]);
 });

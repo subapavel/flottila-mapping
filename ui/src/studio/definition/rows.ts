@@ -51,6 +51,17 @@ export function refusalAt(structure: StructureLoaded, path: FieldPath, side: Sid
 }
 
 /**
+ * The field at `path` in a structure, a step matched against its first same-step sibling as `refusalAt` matches it; any
+ * depth of a recursive type is found. `undefined` when the structure has no field at `path`, as for an orphaned reference.
+ */
+export function fieldAt(structure: StructureLoaded, path: FieldPath): FieldDto | undefined {
+  const steps = fieldPathSteps(path);
+  let field: FieldDto | undefined = steps[0] === structure.root.step ? structure.root : undefined;
+  for (const step of steps.slice(1)) field = field?.type === undefined ? undefined : structure.types[field.type]?.find((c) => c.step === step);
+  return field;
+}
+
+/**
  * Flattens the structure graph (ADR-0015) into the visible rows of the `side` tree: the root, then the child fields of
  * every expanded row. A recursive type is expanded only as deep as its paths are, so the rows are always finite
  * (ADR-0008). Each row carries the refusal `refusalAt` gives its path.
