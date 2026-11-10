@@ -1,11 +1,11 @@
 import { AngleDownIcon } from '@patternfly/react-icons';
-import type { ComponentType, Ref } from 'react';
+import type { ComponentType, MouseEvent, Ref } from 'react';
 
 interface ToolProps {
   label: string;
   icon?: ComponentType;
   pressed?: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   /** The tool opens a menu: it shows a caret. */
   menu?: boolean;

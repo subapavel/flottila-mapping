@@ -1,14 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, StructureLoaded } from '../../api/client';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
-import { refusalAt } from '../../editor/structure-overview/rows';
+import { reachedSourceFields, refusalAt } from '../../editor/structure-overview/rows';
 import { useStructure } from '../../editor/structure-overview/structure-query';
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
 import type { FieldPath } from '../../generated/mapping-model';
-import { localPath } from '../../model/field-path';
-import { connectedFields, type Side } from './definition-model';
+import { localPath, stepName } from '../../model/field-path';
+import { connectedFields, keptRows, typeKind, type Side } from './definition-model';
 import './definition.css';
+import { action, ActionMenu, useActionMenu, type MenuItem } from './expression/ActionMenu';
+import { Canvas } from './expression/Canvas';
+import { ClearMapping, DefinitionBar, ExpressionHeader, TextPreview, useDependencies } from './expression/DefinitionTools';
 import { MessageOverview } from './MessageOverview';
 import { readPanelPreference, savePanelPreference } from './panel-preferences';
 import { SchemaPane, VIEW_MODES } from './SchemaPane';
@@ -53,6 +57,16 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
   const targetQuery = useStructure(mappingId, api, targetRef);
   const connected = useMemo(() => connectedFields(model), [model]);
   const mappings = model.targetFieldMappings ?? {};
+  const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
+  const [dataFlow, setDataFlow] = useState(true);
+  const [clearing, setClearing] = useState(false);
+  const dependencies = useDependencies(browserState, mappingId);
+  const { menu, showMenu, closeMenu } = useActionMenu();
+  const fieldTypes = useMemo(() => {
+    const types = (data: unknown) =>
+      new Map(data && loaded(data).kind === 'loaded' ? keptRows(loaded(data), () => true).map((row) => [row.path, typeKind(row.field)] as const) : []);
+    return { source: types(sourceQuery.data), target: types(targetQuery.data) };
+  }, [sourceQuery.data, targetQuery.data]);
 
   const setView = (side: Side, mode: ViewMode) => {
     setViews((previous) => ({ ...previous, [side]: mode }));
@@ -83,32 +97,102 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
       }}
       onDirect={link}
       onAssign={onChooseMessages}
+      onFieldMenu={(event, path) => fieldMenu(event, side, path)}
     />
   );
 
+  const view = dataFlow ? layout.view : 'split';
+  const selectedDependencies = selectedTarget !== null && mappings[selectedTarget] !== undefined ? [selectedTarget] : [];
+  const usesOf = (path: FieldPath) => Object.keys(mappings).filter((target) => reachedSourceFields(mappings[target]).includes(path));
+  function fieldMenu(event: ReactMouseEvent | KeyboardEvent, side: Side, path: FieldPath) {
+    const matches = side === 'source' ? usesOf(path) : [path];
+    const items: MenuItem[] =
+      side === 'source'
+        ? [action('Where Used', null, { disabled: matches.length === 0, children: matches.map((target) => action(`/${localPath(target)}`, () => store.getState().selectTarget(target))) })]
+        : [action('Add target to expression', null, { disabled: true }), action('Add Variable', null, { disabled: true })];
+    showMenu(event, `Field actions for ${stepName(path)}`, [...items, action('Dependencies', null, { children: dependencies.items(matches) })]);
+  }
+
   return (
-    <section className="definition-editor" aria-label="Mapping definition">
-      <VerticalSplitLayout
-        className="definition-split-layout"
-        label="Resize mapping area"
-        lowerId="definition-mapping-area"
-        upper={
-          <MessageOverview browserState={browserState}>
-            {pane('source')}
-            {pane('target')}
-          </MessageOverview>
-        }
-        initialShare={layout.share}
-        onCommit={layout.setShare}
+    <>
+      <section
+        className="definition-editor"
+        data-view={view}
+        aria-label="Mapping definition"
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape' || e.defaultPrevented || view === 'split' || menu || clearing) return;
+          e.preventDefault();
+          layout.setView('split');
+        }}
       >
-        <div className="workbench">
-          <section className="panel canvas-panel" aria-label="Mapping expression">
-            <p className="graph-empty">
-              {selectedTarget === null ? 'Select a target field to see its mapping expression.' : `Mapping expression of /${localPath(selectedTarget)}`}
-            </p>
-          </section>
-        </div>
-      </VerticalSplitLayout>
-    </section>
+        <DefinitionBar
+          editing={editing}
+          dataFlow={dataFlow}
+          onDataFlow={setDataFlow}
+          view={view}
+          onView={layout.setView}
+          onChooseMessages={onChooseMessages}
+          onClearMapping={() => setClearing(true)}
+          onDependencies={() => dependencies.change(true, selectedDependencies)}
+          dependencyItems={dependencies.items(selectedDependencies)}
+          showMenu={showMenu}
+        />
+        <VerticalSplitLayout
+          className="definition-split-layout"
+          label="Resize mapping area"
+          lowerId="definition-mapping-area"
+          upper={
+            <MessageOverview
+              browserState={browserState}
+              model={model}
+              dependencies={dependencies.view}
+              selectedTarget={selectedTarget}
+              onSelect={(target) => store.getState().selectTarget(target)}
+            >
+              {pane('source')}
+              {pane('target')}
+            </MessageOverview>
+          }
+          initialShare={layout.share}
+          onCommit={layout.setShare}
+          view={view}
+          toolbar={dataFlow && <ExpressionHeader targetField={selectedTarget} view={view} onView={layout.setView} />}
+        >
+          {!dataFlow ? (
+            <TextPreview
+              model={model}
+              onOpen={(target) => {
+                store.getState().selectTarget(target);
+                setDataFlow(true);
+              }}
+            />
+          ) : selectedTarget === null || !catalogue.data ? (
+            <section className="panel canvas-panel" aria-label="Field mapping canvas">
+              <p className="graph-empty">{selectedTarget === null ? 'Select a target field to see its mapping expression.' : 'Loading the function catalogue…'}</p>
+            </section>
+          ) : (
+            <Canvas
+              key={selectedTarget}
+              store={store}
+              targetField={selectedTarget}
+              catalogue={catalogue.data}
+              browserState={browserState}
+              fieldTypes={fieldTypes}
+              findField={(side, path) => (side === 'source' ? setSelectedSource(path) : store.getState().selectTarget(path))}
+            />
+          )}
+        </VerticalSplitLayout>
+      </section>
+      {clearing && (
+        <ClearMapping
+          onClose={() => setClearing(false)}
+          onClear={() => {
+            store.getState().deleteBoxes(Object.values(mappings).flatMap((mapping) => Object.keys(mapping.boxes)));
+            setClearing(false);
+          }}
+        />
+      )}
+      <ActionMenu menu={menu} onClose={closeMenu} />
+    </>
   );
 }

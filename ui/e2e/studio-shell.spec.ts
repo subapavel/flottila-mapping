@@ -33,6 +33,6 @@ test('Open in studio opens a listed mapping read-only on Definition', async ({ p
 
   await expect(page.getByRole('heading', { level: 1, name: 'order-id-copy' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Definition' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
   expect(problems).toEqual([]);
 });

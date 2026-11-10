@@ -10,7 +10,7 @@ import {
   type TestResult,
   type TraceEntry,
 } from '../../api/client';
-import type { AuthoringId, Box, FieldPath, MappingModel, ParamValue, StructureRef } from '../../generated/mapping-model';
+import type { AuthoringId, Box, BoxPosition, FieldPath, Layout, MappingModel, ParamValue, StructureRef } from '../../generated/mapping-model';
 import { applied, refusalOf, type CommandResult, type FieldRefusal, type Refusal } from '../../model/command';
 import { deleteBoxes } from '../../model/delete-box';
 import { deleteTargetFieldMapping } from '../../model/delete-target-field-mapping';
@@ -18,11 +18,13 @@ import { insertBox } from '../../model/insert-box';
 import { link } from '../../model/link';
 import { paste } from '../../model/paste';
 import { remap } from '../../model/remap';
+import { disconnectBox, rewire, type WireEnd } from '../../model/rewire';
 import { sameModel } from '../../model/same-model';
 import { setContext } from '../../model/set-context';
 import { setDescription } from '../../model/set-description';
 import { setInput } from '../../model/set-input';
-import { setParam } from '../../model/set-param';
+import { setParam, setParams } from '../../model/set-param';
+import { setPositions } from '../../model/set-positions';
 import { setStructure } from '../../model/set-structure';
 import { setResult, unwire, wire } from '../../model/wire';
 
@@ -116,8 +118,18 @@ export interface WorkingCopyState {
    * carry in their trees, which refuse the link (ADR-0027).
    */
   link: (sourceField: FieldPath, targetField: FieldPath, refusals?: { source?: FieldRefusal; target?: FieldRefusal }) => void;
-  /** Inserts a box of standard function `fn` into the target field's mapping, with fresh ids. */
-  insertBox: (targetField: FieldPath, fn: string) => void;
+  /**
+   * Inserts a box of standard function `fn` into the target field's mapping, with fresh ids. Given a position `at`, the
+   * box is placed there and the positions `shown` are written with it (ADR-0029), so that boxes the studio laid out in
+   * memory stay where they are; all of it one undo step.
+   */
+  insertBox: (targetField: FieldPath, fn: string, at?: BoxPosition, shown?: Layout) => void;
+  /** Writes positions into the target field mapping's layout, rounded (ADR-0029): a drag or Lay Out Mapping. */
+  setPositions: (targetField: FieldPath, layout: Layout) => void;
+  /** Moves the end `from` of the wire from box `source` to `to` (the rewire command in `model/`). */
+  rewire: (targetField: FieldPath, source: AuthoringId, from: WireEnd, to: WireEnd) => void;
+  /** Removes every wire of a box. */
+  disconnectBox: (targetField: FieldPath, box: AuthoringId) => void;
   /** Wires box `source`'s output into input slot `slot` of box `target`. */
   wire: (targetField: FieldPath, source: AuthoringId, target: AuthoringId, slot: number) => void;
   /** Removes the wire into input slot `slot` of box `target`. */
@@ -131,6 +143,8 @@ export interface WorkingCopyState {
   deleteBoxes: (boxes: readonly AuthoringId[]) => void;
   /** Sets box parameter `name` of a standard function box, checked against `catalogue`; the default is left out. */
   setParam: (targetField: FieldPath, box: AuthoringId, name: string, value: ParamValue, catalogue: FunctionCatalogue) => void;
+  /** Sets several box parameters of a standard function box as one undo step (the parameter dialog's Apply). */
+  setParams: (targetField: FieldPath, box: AuthoringId, params: Record<string, ParamValue>, catalogue: FunctionCatalogue) => void;
   /** Sets a source-field box's context to a proper ancestor of its field; the parent is left out. */
   setContext: (targetField: FieldPath, box: AuthoringId, context: FieldPath) => void;
   /** Wires input slot `slot` of box `target` from box `source`, or leaves it unconnected with `null`. */
@@ -159,13 +173,18 @@ export interface WorkingCopyState {
   select: (selection: AuthoringId | null) => void;
   /** Selects these ids together, the last as `selection`. */
   selectBoxes: (ids: readonly AuthoringId[]) => void;
-  /** Puts the selected boxes of the target field's mapping into the clipboard; with none of them selected, nothing. */
-  copy: (targetField: FieldPath) => void;
+  /**
+   * Puts boxes of the target field's mapping into the clipboard, the selected ones unless `ids` names them, with the
+   * `positions` they show at; with none of them in the mapping, nothing.
+   */
+  copy: (targetField: FieldPath, ids?: readonly AuthoringId[], positions?: Readonly<Record<AuthoringId, BoxPosition>>) => void;
   /**
    * Pastes the clipboard into the target field's mapping with fresh ids (the paste command in `model/`) and selects the
-   * pasted boxes; an empty clipboard, or one copied from another target field, pastes nothing.
+   * pasted boxes; an empty clipboard, or one copied from another target field, pastes nothing. Copied positions are
+   * written 24 px further right and down, a further 24 px each time a copy would land on a position `shown` holds (the
+   * prototype's duplicate), together with `shown`, as one undo step.
    */
-  paste: (targetField: FieldPath) => void;
+  paste: (targetField: FieldPath, shown?: Layout) => void;
   /**
    * Sends the working copy with the baseline's ETag; what the service wrote becomes the baseline, and the history
    * stays, and the preview drafts are saved (`commits` counts it). A save conflict opens `conflict` and any other error
@@ -196,7 +215,12 @@ export interface WorkingCopyState {
 export interface Clipboard {
   targetField: FieldPath;
   boxes: Readonly<Record<AuthoringId, Box>>;
+  /** The positions the copied boxes showed at, by the ids they had then; none when copy was given none. */
+  positions?: Readonly<Record<AuthoringId, BoxPosition>>;
 }
+
+/** How far a pasted copy moves from its original, right and down, each time (the prototype's `duplicateBranch`). */
+const PASTE_OFFSET = 24;
 
 export type WorkingCopyStore = ReturnType<typeof createWorkingCopyStore>;
 
@@ -307,10 +331,18 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           }),
         ),
 
-      insertBox: (targetField, fn) =>
-        void apply(
-          insertBox(get().workingCopy, { targetField, box: { kind: 'function', fn }, boxId: ports.newId(), mappingId: ports.newId() }),
-        ),
+      insertBox: (targetField, fn, at, shown) => {
+        const boxId = ports.newId();
+        const inserted = insertBox(get().workingCopy, { targetField, box: { kind: 'function', fn }, boxId, mappingId: ports.newId() });
+        if (at === undefined || inserted.kind === 'refused') return void apply(inserted);
+        apply(setPositions(inserted.model, { targetField, layout: { ...shown, boxes: { ...shown?.boxes, [boxId]: at } } }));
+      },
+
+      setPositions: (targetField, layout) => void apply(setPositions(get().workingCopy, { targetField, layout })),
+
+      rewire: (targetField, source, from, to) => void apply(rewire(get().workingCopy, { targetField, source, from, to })),
+
+      disconnectBox: (targetField, box) => void apply(disconnectBox(get().workingCopy, { targetField, box })),
 
       wire: (targetField, source, target, slot) => void apply(wire(get().workingCopy, { targetField, source, target, slot })),
 
@@ -324,6 +356,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
 
       setParam: (targetField, box, name, value, catalogue) =>
         void apply(setParam(get().workingCopy, { targetField, box, name, value }, catalogue)),
+
+      setParams: (targetField, box, params, catalogue) => void apply(setParams(get().workingCopy, { targetField, box, params }, catalogue)),
 
       setContext: (targetField, box, context) => void apply(setContext(get().workingCopy, { targetField, box, context })),
 
@@ -365,25 +399,35 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
 
       selectBoxes: (ids) => set({ selected: ids, selection: ids.at(-1) ?? null }),
 
-      copy: (targetField) => {
+      copy: (targetField, ids, positions) => {
         const { workingCopy, selected } = get();
         const boxes = workingCopy.targetFieldMappings?.[targetField]?.boxes ?? {};
-        const copied = selected.filter((id) => Object.hasOwn(boxes, id));
-        if (copied.length > 0) set({ clipboard: { targetField, boxes: Object.fromEntries(copied.map((id) => [id, boxes[id]!])) } });
+        const copied = (ids ?? selected).filter((id) => Object.hasOwn(boxes, id));
+        if (copied.length > 0) {
+          set({ clipboard: { targetField, boxes: Object.fromEntries(copied.map((id) => [id, boxes[id]!])), ...(positions && { positions }) } });
+        }
       },
 
-      paste: (targetField) => {
+      paste: (targetField, shown) => {
         const { clipboard } = get();
         if (clipboard?.targetField !== targetField) return;
-        const pasted: AuthoringId[] = [];
-        const freshId = () => {
+        const fresh = new Map<AuthoringId, AuthoringId>();
+        const freshId = (copied: AuthoringId) => {
           const id = ports.newId();
-          pasted.push(id);
+          fresh.set(copied, id);
           return id;
         };
-        if (apply(paste(get().workingCopy, { targetField, boxes: clipboard.boxes, freshId, mappingId: ports.newId() }))) {
-          get().selectBoxes(pasted);
-        }
+        const pasted = paste(get().workingCopy, { targetField, boxes: clipboard.boxes, freshId, mappingId: ports.newId() });
+        if (pasted.kind === 'applied' && clipboard.positions) {
+          const copies = Object.entries(clipboard.positions).filter(([id]) => fresh.has(id));
+          const taken = new Set(Object.values(shown?.boxes ?? {}).map((p) => `${p.x},${p.y}`));
+          let offset = PASTE_OFFSET;
+          while (copies.some(([, p]) => taken.has(`${p.x + offset},${p.y + offset}`))) offset += PASTE_OFFSET;
+          const boxes = Object.fromEntries(copies.map(([id, p]) => [fresh.get(id)!, { x: p.x + offset, y: p.y + offset }]));
+          // every position names a pasted box, so the positions always apply
+          apply(setPositions(pasted.model, { targetField, layout: { ...shown, boxes: { ...shown?.boxes, ...boxes } } }));
+        } else if (!apply(pasted)) return;
+        get().selectBoxes([...fresh.values()]);
       },
 
       save: async () => {

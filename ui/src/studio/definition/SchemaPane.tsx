@@ -2,7 +2,7 @@ import { Switch } from '@patternfly/react-core';
 import { Table, Tbody, Th, Thead, Tr } from '@patternfly/react-table';
 import { AngleDownIcon, AngleRightIcon, CheckIcon, CubeIcon, SearchIcon } from '@patternfly/react-icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { ApiClient, FieldDto, StructureLoaded } from '../../api/client';
 import { expandAllPaths, nameMatches, occurrenceText, treeRows, type TreeRow } from '../../editor/structure-overview/rows';
 import { useStructure } from '../../editor/structure-overview/structure-query';
@@ -10,6 +10,7 @@ import { SOURCE_FIELD_DRAG } from '../../editor/store/drag';
 import type { FieldPath, StructureRef, TargetFieldMappings } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
 import { expressionText, keptRows, mappedHow, schemaLines, typeKind, xsdType, type SchemaLine, type Side } from './definition-model';
+import { isContextMenuKey } from './expression/ActionMenu';
 import { FieldTypeIcon } from './FieldTypeIcon';
 import { TreeToolbar, type SelectionChange, type TreeFilter, type ViewMode } from './TreeToolbar';
 import { ViewSwitch } from './ViewSwitch';
@@ -59,6 +60,8 @@ export interface SchemaPaneProps {
   onDirect?: (source: FieldPath, target: FieldPath) => void;
   /** The message format button in edit mode: where the messages are chosen. */
   onAssign: () => void;
+  /** Opens a field's context menu, by a right click or the context menu key on its row. */
+  onFieldMenu: (event: ReactMouseEvent | KeyboardEvent, path: FieldPath) => void;
 }
 
 /**
@@ -134,6 +137,7 @@ function LoadedPane({
   onPick,
   onAdd,
   onDirect,
+  onFieldMenu,
 }: SchemaPaneProps & { structure: StructureLoaded; format: string; fileName: string }) {
   const source = side === 'source';
   const title = source ? 'Source' : 'Target';
@@ -210,6 +214,10 @@ function LoadedPane({
   const fieldActions = (path: FieldPath) => ({
     onClick: () => onPick(path),
     onDoubleClick: source && editing ? () => onAdd!(path) : undefined,
+    onContextMenu: (e: ReactMouseEvent) => onFieldMenu(e, path),
+    onKeyDown: (e: KeyboardEvent) => {
+      if (isContextMenuKey(e)) onFieldMenu(e, path);
+    },
     'aria-pressed': selected === path,
   });
   /** A row's drag and drop: in edit mode a source row drags its field, a target row takes a source field. */
@@ -393,7 +401,7 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
             const typeLabel = format === 'XML' ? xsdType(field.valueType ?? '') : (field.valueType ?? '');
             const name = stepName(path);
             return (
-              <tr key={item.key} className={selected === path ? `${TR} active-field` : TR} style={{ height }} {...rowActions(path)}>
+              <tr key={item.key} className={selected === path ? `${TR} active-field` : TR} style={{ height }} data-field-path={path} {...rowActions(path)}>
                 <td className={TD}>
                   <div className="field-cell" style={{ '--level': depth } as CSSProperties}>
                     {expandable && toggleable ? (

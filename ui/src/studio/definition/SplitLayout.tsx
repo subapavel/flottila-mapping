@@ -4,26 +4,30 @@ import { isShare, readPanelPreference, savePanelPreference } from './panel-prefe
 
 const clampShare = (share: number) => Math.max(0, Math.min(1, share));
 
+/** How the split shows: both areas, the lower one maximised (the upper hidden), or the lower one minimised (hidden). */
+export type SplitView = 'split' | 'minimized' | 'maximized';
+const SPLIT_VIEWS: readonly unknown[] = ['split', 'minimized', 'maximized'];
+
 /** The Definition tab's split between the message panes and the mapping expression, as browser state keeps it. */
 export interface SplitPreference {
-  view: 'split';
+  view: SplitView;
   share: number;
 }
 
 const isSplitPreference = (value: unknown): value is SplitPreference =>
-  typeof value === 'object' && value !== null && (value as SplitPreference).view === 'split' && isShare((value as SplitPreference).share);
+  typeof value === 'object' && value !== null && SPLIT_VIEWS.includes((value as SplitPreference).view) && isShare((value as SplitPreference).share);
 
-/** The split kept under `key`, else `{view: 'split', share: initialShare}`; `setShare` keeps a new share. */
+/** The split kept under `key`, else `{view: 'split', share: initialShare}`; `setView` and `setShare` keep a change. */
 export function useSplitLayout(browserState: BrowserStateStore, key: string, initialShare: number) {
   const [layout, setLayout] = useState<SplitPreference>(() =>
     readPanelPreference(browserState, key, { view: 'split', share: initialShare }, isSplitPreference),
   );
-  const setShare = (share: number) => {
-    const next = { ...layout, share };
+  const update = (changes: Partial<SplitPreference>) => {
+    const next = { ...layout, ...changes };
     setLayout(next);
     savePanelPreference(browserState, key, next);
   };
-  return { ...layout, setShare };
+  return { ...layout, setView: (view: SplitView) => update({ view }), setShare: (share: number) => update({ share }) };
 }
 
 /** A splitter only redistributes space beyond each pane's minimum size. */
@@ -107,31 +111,40 @@ interface VerticalSplitLayoutProps {
   label: string;
   lowerId: string;
   upper: ReactNode;
+  /** Shown above the lower area, in every view (the Mapping expression header). */
+  toolbar?: ReactNode;
   children: ReactNode;
   initialShare: number;
   onCommit: (share: number) => void;
+  view?: SplitView;
 }
 
-/** The upper and lower area with a divider between them; the lower area's share of the free height is `initialShare`. */
-export function VerticalSplitLayout({ className, label, lowerId, upper, children, initialShare, onCommit }: VerticalSplitLayoutProps) {
+/**
+ * The upper and lower area with a divider between them; the lower area's share of the free height is `initialShare`.
+ * Maximised hides the upper area, minimised the lower one, and either hides the divider.
+ */
+export function VerticalSplitLayout({ className, label, lowerId, upper, toolbar, children, initialShare, onCommit, view = 'split' }: VerticalSplitLayoutProps) {
   const [lowerShare, setLowerShare] = useState(initialShare);
   const upperRef = useRef<HTMLDivElement>(null);
   const lowerRef = useRef<HTMLDivElement>(null);
   const style = { '--upper-share': 1 - lowerShare, '--lower-share': lowerShare } as CSSProperties;
   return (
-    <div className={`vertical-split ${className}`} style={style}>
-      <div className="split-upper" ref={upperRef}>
+    <div className={`vertical-split ${className}`} data-view={view} style={style}>
+      <div className="split-upper" ref={upperRef} hidden={view === 'maximized'}>
         {upper}
       </div>
-      <SplitDivider
-        label={label}
-        controls={lowerId}
-        share={lowerShare}
-        onChange={setLowerShare}
-        onCommit={onCommit}
-        getTravel={() => flexibleSize(upperRef.current!, 'height', 'minHeight') + flexibleSize(lowerRef.current!, 'height', 'minHeight')}
-      />
-      <div className="split-lower" id={lowerId} ref={lowerRef}>
+      {view === 'split' && (
+        <SplitDivider
+          label={label}
+          controls={lowerId}
+          share={lowerShare}
+          onChange={setLowerShare}
+          onCommit={onCommit}
+          getTravel={() => flexibleSize(upperRef.current!, 'height', 'minHeight') + flexibleSize(lowerRef.current!, 'height', 'minHeight')}
+        />
+      )}
+      {toolbar}
+      <div className="split-lower" id={lowerId} ref={lowerRef} hidden={view === 'minimized'}>
         {children}
       </div>
     </div>
@@ -145,28 +158,40 @@ interface SideBySideProps {
   browserState: BrowserStateStore;
   /** The key of the left pane's share in browser state. */
   widthKey: string;
+  /** The left pane's share while browser state keeps none. */
+  initialShare?: number;
+  /** Whether the divider shows: not while the left pane is hidden. */
+  showDivider?: boolean;
+  /** Shown between the panes instead of the divider (the field connections). */
+  gutter?: ReactNode;
   children: [ReactNode, ReactNode];
 }
 
-/** Two panes side by side with a divider between them; the left pane's share of the free width is kept under `widthKey`. */
-export function SideBySide({ className, label, leftId, browserState, widthKey, children }: SideBySideProps) {
-  const [leftShare, setLeftShare] = useState(() => readPanelPreference(browserState, widthKey, 0.5, isShare));
+/**
+ * Two panes side by side with a divider between them, their widths shared as kept under `widthKey`; while a gutter is
+ * given it stands between them instead and the panes share the width equally.
+ */
+export function SideBySide({ className, label, leftId, browserState, widthKey, initialShare = 0.5, showDivider = true, gutter, children }: SideBySideProps) {
+  const [leftShare, setLeftShare] = useState(() => readPanelPreference(browserState, widthKey, initialShare, isShare));
   const [left, right] = children;
   const availableWidth = (divider: HTMLElement) =>
     flexibleSize(divider.previousElementSibling!, 'width', 'minWidth') + flexibleSize(divider.nextElementSibling!, 'width', 'minWidth');
   const style = { '--left-share': leftShare, '--right-share': 1 - leftShare } as CSSProperties;
   return (
-    <div className={`${className} resizable-columns`} style={style}>
+    <div className={gutter ? className : `${className} resizable-columns`} style={gutter ? undefined : style}>
       {left}
-      <SplitDivider
-        vertical
-        label={label}
-        controls={leftId}
-        share={leftShare}
-        onChange={setLeftShare}
-        onCommit={(share) => savePanelPreference(browserState, widthKey, share)}
-        getTravel={availableWidth}
-      />
+      {gutter ??
+        (showDivider && (
+          <SplitDivider
+            vertical
+            label={label}
+            controls={leftId}
+            share={leftShare}
+            onChange={setLeftShare}
+            onCommit={(share) => savePanelPreference(browserState, widthKey, share)}
+            getTravel={availableWidth}
+          />
+        ))}
       {right}
     </div>
   );
