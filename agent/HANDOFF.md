@@ -1,13 +1,11 @@
 # Handoff
 
-state: SPEC_DONE — spec #152 "Mapping studio replaces the editor UI" (started 2026-11-09). Integration branch `spec/152-mapping-studio` from main de8314e, tip eceddb5; PR #175.
-origin: the owner replaced the UI with their prototype (branch `prototype/mapping-studio`, `ui/prototype/mapping-studio/`, scrubbed of company ids). Owner answers: unsupported parts stay preview (mocked), positions stored in the file, our terms, view/edit modes, messages chosen on the Signature tab after create.
-tickets: #153 C contract → #154 B shell/list → #155 B overview/signature, #156 B panes → #157 B expression → #158 B test → #159 B functions (preview), #160 B preview features → #161 A remove old editor.
-done: #153 4d102c5 · #154 20ad237 · #155 9db8d66 · #156 fe4aa25 · #159 10741ae · #173 b0abf41 · #157 d47eac9 · #158 5c5332c · #160 d0da1aa · #161 293ea2b · #174 fec636a; review fix 7b2052a; ratchet regen eceddb5 (each ticket gate VERIFIED_PASS, evidence on the issue). Ratchet regen deferred to the spec gate.
-in flight: none. Spec gate on 7b2052a VERIFIED_PASS (JMH NOT_RUN, no benchmarks.jar). Review round 1 Spec PASS, Standards FAIL; round 2 Standards PASS (#152 comments).
-preview features: tracked under #162 (#163–#172). Backlog until the Flottila platform model exists: #165, #167, #168, #169, #171.
-carried to the spec review: see the #153 evidence comment (Signature tab wording in the contract, fake API vs service, Jackson required members, test shape notes).
-carried from #145: owner questions on ADR-0013 (F-29..F-32) and ADR-0012 off-screen links, likely moot under ADR-0028. Retro for spec 5, #135, #145 deferred.
-after: PR #175 and PR #176 (F-34 amendment) merged. #177 (Display Queue offers test data; owner rules in its comments) in flight on `t/177-display-queue-test-data`.
-rule (owner, 2026-11-10): every grilling round goes through the `grilling-adviser` (Fable 5.2) before the owner, and its recommendation is the one put to the owner (`AGENTS.md`). Gate-reviewer is Fable 5.2 too.
-next action: architect — finish #177 (gate, PR); then `/grill-with-docs` for spec 6 "Speed" (`docs/GATE.md`): designer or architect draft → `grilling-adviser` → owner. Retro for spec 5, #135, #145, #152 deferred.
+state: RUNNING — spec #181 "Speed" (milestone 1, spec 6; started 2026-11-10). Integration branch `spec/181-speed` from main a5ceafd.
+origin: grilling 2026-11-10, two rounds via the `grilling-adviser` (record on #181). Owner: tree target p95 < 33.3 ms (#128); heap proved in a separate 128 MB fork; measure first, optimise only misses; F-13/F-16 out of spec 6; HANDOVER with Linux `./mvnw` and unverified PowerShell `mvn`.
+tickets: #182 A docs · #183 B jar + orders small (tracer) · #184 B step-5 judgement → #185 B orders large (←183) → #186 B wide, #187 B contexts (←185) · #188 A tree p95 (←184) → #189 A first measurement (←184,186,187,188) → #190 A HANDOVER (←189). Optimisation tickets only after #189.
+done: none.
+in flight: see the #181 status comment.
+after #183: the architect opens the optional `po-owner-local` observation request (ADR-0021).
+before: PR #179 (grilling-adviser) and PR #180 (#177 Display Queue) merged.
+rule (owner, 2026-11-10): every grilling round goes through the `grilling-adviser` (Fable 5.2) before the owner (`AGENTS.md`).
+next action: architect — `/run-spec 181`: fill the writer slots from the frontier (#182, #183, #184). Retro for spec 5, #135, #145, #152 deferred.
