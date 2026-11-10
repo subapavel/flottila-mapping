@@ -1,6 +1,6 @@
 # The editor is a router-free component over injected ports, with a Zustand working copy and TanStack Query for server data
 
-Status: accepted (2026-10-30, grilling #11)
+Status: accepted (2026-10-30, grilling #11); paths amended by F-34 (2026-11-10, owner): the Mapping studio (ADR-0028, #161) replaced the editor, so the public entry is `Studio` (`ui/src/studio/shell/Studio.tsx`) and the store and its coverage floor are `ui/src/studio/store/`. Every `MappingEditor` and `ui/src/editor/` below reads as these; the decisions are unchanged.
 
 FOUNDING §12 says the UI is React + PatternFly and will become Flottila's mapping UI. ADR-0012
 fixed the editor's shape and its canvas, tree and layout libraries. This ADR fixes how `ui/` is

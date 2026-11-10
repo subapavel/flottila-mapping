@@ -1,6 +1,6 @@
 # The ratchet is line-based text checked per ticket and regenerated per spec; fixed floors sit under it
 
-Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`) and ADR-0021 (`bytecode`); `bench.tsv` rules set by ADR-0021; mutation measure amended by #87 (2026-11-05): surviving mutants
+Status: accepted (2026-10-30, grilling #14); floor table extended by ADR-0020 (`udf-api`, `udf`) and ADR-0021 (`bytecode`); `bench.tsv` rules set by ADR-0021; mutation measure amended by #87 (2026-11-05): surviving mutants; paths amended by F-34 (2026-11-10, owner): the UI store moved to `ui/src/studio/store` (#161), so its coverage row and 90 % floor below read `ui/src/studio/store`; the decisions are unchanged
 
 FOUNDING §10 says the ratchet holds committed pass lists, coverage and benchmark baselines, and a
 merge may only keep or raise them. ADR-0017 makes the ratchet check ticket-gate step 5 and the
