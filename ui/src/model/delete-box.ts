@@ -9,7 +9,8 @@ export interface DeleteBoxCommand {
 
 /**
  * Removes the box and leaves no dangling id (ADR-0013): every input of its target field mapping that read it becomes
- * `null`, and so does `result` if it was the result. A mapping left without boxes is removed (its `result` is then
+ * `null`, and so does `result` if it was the result. Its position leaves the layout, and `layout.boxes` with it once
+ * empty, as the canonical writer drops them (ADR-0029). A mapping left without boxes is removed (its `result` is then
  * `null`: it named the deleted box or nothing), and `targetFieldMappings` with it when no mapping is left, as the
  * canonical writer leaves an empty member out. Refuses an id that names no box as `unknown-box-reference`.
  */
@@ -28,6 +29,10 @@ export function deleteBox(model: MappingModel, command: DeleteBoxCommand): Comma
         other.inputs = other.inputs.map((input) => (input === box ? null : input));
       }
       if (mapping.result === box) mapping.result = null;
+      if (mapping.layout?.boxes) {
+        delete mapping.layout.boxes[box];
+        if (Object.keys(mapping.layout.boxes).length === 0) delete mapping.layout.boxes;
+      }
       if (Object.keys(mapping.boxes).length === 0) delete all[field];
       if (Object.keys(all).length === 0) delete draft.targetFieldMappings;
     }),

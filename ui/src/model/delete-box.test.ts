@@ -78,6 +78,25 @@ describe('the delete box command', () => {
     expect(deleteBox(inserted.model, { box: 'c1' })).toEqual({ kind: 'applied', model: unmapped });
   });
 
+  test("drops the box's position from the layout, and the layout boxes once none is left (ADR-0029)", () => {
+    const placed: MappingModel = {
+      ...unmapped,
+      targetFieldMappings: {
+        [NOTE]: {
+          id: 'tn',
+          result: 'n1',
+          boxes: { n1: { kind: 'source', field: NOTE }, c1: { kind: 'function', fn: 'constant' } },
+          layout: { target: { x: 300, y: 0 }, boxes: { n1: { x: 0, y: 0 }, c1: { x: 0, y: 60 } } },
+        },
+      },
+    };
+
+    const once = deleteBox(placed, { box: 'c1' });
+    expect(once.kind === 'applied' && once.model.targetFieldMappings?.[NOTE]?.layout).toEqual({ target: { x: 300, y: 0 }, boxes: { n1: { x: 0, y: 0 } } });
+    const twice = once.kind === 'applied' ? deleteBox({ ...once.model, targetFieldMappings: { [NOTE]: { ...once.model.targetFieldMappings![NOTE]!, boxes: { ...once.model.targetFieldMappings![NOTE]!.boxes, c2: { kind: 'function', fn: 'constant' } } } } }, { box: 'n1' }) : once;
+    expect(twice.kind === 'applied' && twice.model.targetFieldMappings?.[NOTE]?.layout).toEqual({ target: { x: 300, y: 0 } });
+  });
+
   test('refuses an id that names no box', () => {
     expect(deleteBox(model, { box: 't1' })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 't1' });
     expect(deleteBox(unmapped, { box: 'a1' })).toEqual({ kind: 'refused', code: 'unknown-box-reference', id: 'a1' });
