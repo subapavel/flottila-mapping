@@ -1,12 +1,15 @@
 package io.flottila.mapping.mapping.internal;
 
 import com.github.erosb.jsonsKema.IJsonArray;
+import com.github.erosb.jsonsKema.IJsonNumber;
 import com.github.erosb.jsonsKema.IJsonObject;
 import com.github.erosb.jsonsKema.IJsonString;
 import com.github.erosb.jsonsKema.IJsonValue;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.mapping.Box;
+import io.flottila.mapping.mapping.BoxPosition;
 import io.flottila.mapping.mapping.ExecutionKind;
+import io.flottila.mapping.mapping.Layout;
 import io.flottila.mapping.mapping.MappingModel;
 import io.flottila.mapping.mapping.Origin;
 import io.flottila.mapping.mapping.ParamValue;
@@ -48,8 +51,9 @@ public final class ModelReader {
     IJsonObject root = (IJsonObject) document;
     return new MappingModel(
         SchemaStage.FORMAT_VERSION,
-        structureRef(root.get("source")),
-        structureRef(root.get("target")),
+        optionalText(root, "description"),
+        Optional.ofNullable(root.get("source")).map(ModelReader::structureRef),
+        Optional.ofNullable(root.get("target")).map(ModelReader::structureRef),
         map(root.get("targetFieldMappings"), Function.identity(), ModelReader::targetFieldMapping),
         map(root.get("udfs"), Function.identity(), ModelReader::udf));
   }
@@ -82,7 +86,28 @@ public final class ModelReader {
     return new TargetFieldMapping(
         new AuthoringId(text(mapping, "id")),
         reference(mapping.get("result")),
-        map(mapping.get("boxes"), AuthoringId::new, ModelReader::box));
+        map(mapping.get("boxes"), AuthoringId::new, ModelReader::box),
+        layout(mapping.get("layout")));
+  }
+
+  /** A target field mapping's layout (ADR-0029); an absent one has no position. */
+  private static Layout layout(IJsonValue value) {
+    if (!(value instanceof IJsonObject layout)) {
+      return new Layout(Optional.empty(), Map.of());
+    }
+    return new Layout(
+        Optional.ofNullable(layout.get("target")).map(ModelReader::position),
+        map(layout.get("boxes"), AuthoringId::new, ModelReader::position));
+  }
+
+  /** A box position; stage 1 has checked that both coordinates are integers in range. */
+  private static BoxPosition position(IJsonValue value) {
+    IJsonObject position = (IJsonObject) value;
+    return new BoxPosition(coordinate(position, "x"), coordinate(position, "y"));
+  }
+
+  private static int coordinate(IJsonObject position, String name) {
+    return ((IJsonNumber) position.get(name)).getValue().intValue();
   }
 
   private static Box box(IJsonValue value) {

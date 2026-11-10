@@ -228,7 +228,9 @@ class FingerprintPinTest {
     assertThat(mappings).as("corpus mappings").isNotEmpty();
     for (Path mapping : mappings) {
       MappingModel model = model(mapping);
-      for (StructureRef side : List.of(model.source(), model.target())) {
+      // every corpus mapping has both its structures; one without would fail here, not be skipped
+      for (StructureRef side :
+          List.of(model.source().orElseThrow(), model.target().orElseThrow())) {
         String key = key(side);
         if (!side.fingerprint().equals(pinned(key))) {
           stale.put(mapping.getFileName() + " " + key, side.fingerprint());

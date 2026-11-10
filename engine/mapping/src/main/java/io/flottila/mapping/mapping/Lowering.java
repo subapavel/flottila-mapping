@@ -195,8 +195,9 @@ public final class Lowering {
   }
 
   /**
-   * Lowers {@code model} over the structures its source and target refer to. A model whose target
-   * is a JSON root is refused with {@code json-target-unsupported} alone (ADR-0008, #97).
+   * Lowers {@code model} over the structures its source and target refer to; the model has both
+   * (ADR-0029: the caller refuses one without first). A model whose target is a JSON root is
+   * refused with {@code json-target-unsupported} alone (ADR-0008, #97).
    *
    * @return the IR, which the IR verifier has accepted, or every stage-3 diagnostic
    */
@@ -268,7 +269,7 @@ public final class Lowering {
   }
 
   private LowerResult lower() {
-    if (model.target().root() instanceof JsonRoot) {
+    if (model.target().orElseThrow().root() instanceof JsonRoot) {
       // ADR-0008 "JSON as a target": nothing is lowered onto a target that cannot be written
       return new Refused(
           List.of(
@@ -298,7 +299,9 @@ public final class Lowering {
     }
     // the input format follows the source's root selector, never the input (ADR-0008, #98)
     InputFormat input =
-        model.source().root() instanceof JsonRoot ? InputFormat.JSON : InputFormat.XML;
+        model.source().orElseThrow().root() instanceof JsonRoot
+            ? InputFormat.JSON
+            : InputFormat.XML;
     TargetDocument document =
         new TargetDocument(
             rootPrefix, new Name(root.namespace(), root.localName()), ROOT_SLOT, content, input);

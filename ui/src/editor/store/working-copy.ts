@@ -264,7 +264,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
         const current = get().workingCopy;
         set({ diagnostics: answer.diagnostics });
         const { source, target } = answer.model;
-        if (source.fingerprint === current.source.fingerprint && target.fingerprint === current.target.fingerprint) return null;
+        if (source!.fingerprint === current.source!.fingerprint && target!.fingerprint === current.target!.fingerprint) return null;
         apply(applied(current === sent ? answer.model : { ...current, source, target }));
         return answer.diagnostics.filter((d) => d.code === ORPHANED_REFERENCE).length;
       },

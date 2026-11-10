@@ -37,8 +37,9 @@ final class Fingerprints {
     return MappingModelFormat.save(
         new MappingModel(
             loaded.formatVersion(),
-            refreshed(loaded.source(), base),
-            refreshed(loaded.target(), base),
+            loaded.description(),
+            loaded.source().map(ref -> refreshed(ref, base)),
+            loaded.target().map(ref -> refreshed(ref, base)),
             loaded.targetFieldMappings(),
             loaded.udfs()));
   }

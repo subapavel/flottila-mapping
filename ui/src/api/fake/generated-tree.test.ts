@@ -56,14 +56,14 @@ describe('the generated mapping', () => {
       expect(m.boxes[m.result!]).toEqual({ kind: 'source', field: target });
     }
     expect(mapping.source).toEqual(mapping.target);
-    expect(mapping.source.bundle).toEqual(['../structures/generated/tree.xsd']);
-    expect(mapping.source.root).toEqual({ element: structure.root.step });
+    expect(mapping.source!.bundle).toEqual(['../structures/generated/tree.xsd']);
+    expect(mapping.source!.root).toEqual({ element: structure.root.step });
   });
 
   test('is served by the fake API with its generated structure', async () => {
     const api = fakeApiClient();
     const { model } = await api.getMapping(TREE_MAPPING);
-    const structure = await api.loadStructure({ base: 'mappings', bundle: model.source.bundle, root: model.source.root });
+    const structure = await api.loadStructure({ base: 'mappings', bundle: model.source!.bundle, root: model.source!.root });
 
     expect(structure).toEqual(generatedStructure(TREE_SEED, TREE_FIELDS));
     expect(Object.keys(model.targetFieldMappings ?? {})).toEqual(structurePaths(structure as StructureLoaded).leaves);

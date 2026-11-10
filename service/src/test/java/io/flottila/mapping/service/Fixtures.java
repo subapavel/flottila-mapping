@@ -74,6 +74,121 @@ final class Fixtures {
   static final String NEW_MAPPING_ETAG =
       "\"sha256:51535d0aefaec12efa302bfb41edc0c8b157e2a40d86d35d2b206cab21832231\"";
 
+  /**
+   * A mapping created with only its id (ADR-0029, #153): no structure until the Signature tab
+   * chooses them, in canonical form, checked against {@code JSON.stringify}.
+   */
+  static final String BARE_MAPPING = "{\n  \"formatVersion\": 1\n}\n";
+
+  /** The ETag of {@link #BARE_MAPPING}: {@code sha256sum} of its bytes. */
+  static final String BARE_MAPPING_ETAG =
+      "\"sha256:1fe9d6e3dbb25864055716be7631a1aff574aeae152ff231921d4048d7c57746\"";
+
+  /** A mapping description (ADR-0029) with a character outside ASCII. */
+  static final String DESCRIPTION = "Bestellungen zu Rechnungen – Entwurf";
+
+  /** A mapping created with its id and {@link #DESCRIPTION}, in canonical form. */
+  static final String DESCRIBED_MAPPING =
+      """
+      {
+        "description": "Bestellungen zu Rechnungen – Entwurf",
+        "formatVersion": 1
+      }
+      """;
+
+  /** The ETag of {@link #DESCRIBED_MAPPING}: {@code sha256sum} of its bytes. */
+  static final String DESCRIBED_MAPPING_ETAG =
+      "\"sha256:92a9034b851e89532b801986f75e3462af89634bcd1179d4effca7b1859c94e5\"";
+
+  /** {@link #NEW_MAPPING} created with {@link #DESCRIPTION}, in canonical form. */
+  static final String DESCRIBED_NEW_MAPPING =
+      """
+      {
+        "description": "Bestellungen zu Rechnungen – Entwurf",
+        "formatVersion": 1,
+        "source": {
+          "bundle": [
+            "../structures/skeleton/order.xsd"
+          ],
+          "fingerprint": "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d",
+          "root": {
+            "element": "Q{urn:flottila:corpus:skeleton}Order"
+          }
+        },
+        "target": {
+          "bundle": [
+            "../structures/skeleton/order.xsd"
+          ],
+          "fingerprint": "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d",
+          "root": {
+            "element": "Q{urn:flottila:corpus:skeleton}Order"
+          }
+        }
+      }
+      """;
+
+  /** The ETag of {@link #DESCRIBED_NEW_MAPPING}: {@code sha256sum} of its bytes. */
+  static final String DESCRIBED_NEW_MAPPING_ETAG =
+      "\"sha256:0e0870685a84d848db0743544144c1b45bd57ca02fe77f2d636a740ce78b1be1\"";
+
+  /**
+   * The corpus mapping with a description and a layout of its one target field mapping (ADR-0029),
+   * in canonical form, checked against {@code JSON.stringify}.
+   */
+  static final String STUDIO_MAPPING =
+      """
+      {
+        "description": "Copies the order id",
+        "formatVersion": 1,
+        "source": {
+          "bundle": [
+            "../structures/skeleton/order.xsd"
+          ],
+          "fingerprint": "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d",
+          "root": {
+            "element": "Q{urn:flottila:corpus:skeleton}Order"
+          }
+        },
+        "target": {
+          "bundle": [
+            "../structures/skeleton/order.xsd"
+          ],
+          "fingerprint": "sha256:df1714b8b2e4b09e326626a2ea72780bf6298a0ca733c69f5586ea657e4bd90d",
+          "root": {
+            "element": "Q{urn:flottila:corpus:skeleton}Order"
+          }
+        },
+        "targetFieldMappings": {
+          "/Q{urn:flottila:corpus:skeleton}Order/OrderId": {
+            "boxes": {
+              "a1": {
+                "field": "/Q{urn:flottila:corpus:skeleton}Order/OrderId",
+                "kind": "source"
+              }
+            },
+            "id": "t1",
+            "layout": {
+              "boxes": {
+                "a1": {
+                  "x": -120,
+                  "y": 48
+                }
+              },
+              "target": {
+                "x": 360,
+                "y": 48
+              }
+            },
+            "result": "a1"
+          }
+        }
+      }
+      """;
+
+  /** The ETag of {@link #STUDIO_MAPPING}: {@code sha256sum} of its bytes. */
+  static final String STUDIO_MAPPING_ETAG =
+      "\"sha256:c314903c366e468a4482816bde25983e7a9883734f78212e399d87a61d4e46a0\"";
+
   /** The input of {@code EngineFacadeTest.compileAndRunCopyTheFieldThroughTheChain}. */
   static final String INPUT =
       "<src:Order xmlns:src=\""

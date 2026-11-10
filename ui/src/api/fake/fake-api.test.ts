@@ -94,13 +94,13 @@ describe('the fake ApiClient over the corpus', () => {
   test('loads the order structure relative to the mapping directory', async () => {
     const response = await fakeApiClient().loadStructure({
       base: 'mappings',
-      bundle: corpusMapping.source.bundle,
-      root: corpusMapping.source.root,
+      bundle: corpusMapping.source!.bundle,
+      root: corpusMapping.source!.root,
     });
 
     expect(response.kind).toBe('loaded');
     if (response.kind !== 'loaded') return;
-    expect(response.fingerprint).toBe(corpusMapping.source.fingerprint);
+    expect(response.fingerprint).toBe(corpusMapping.source!.fingerprint);
     expect(response.root.step).toBe('Q{urn:flottila:corpus:skeleton}Order');
     expect(response.types[response.root.type!]!.map((f) => f.step)).toEqual([
       '@channel',
@@ -118,11 +118,11 @@ describe('the fake ApiClient over the corpus', () => {
   test('loads the same-step structure of the corpus mappings that use a refused field, with its refusals (#116)', async () => {
     const sameStep = JSON.parse(corpus('mappings/same-step-source-box.mapping.json')) as MappingModel;
 
-    const response = await fakeApiClient().loadStructure({ base: 'mappings', bundle: sameStep.source.bundle, root: sameStep.source.root });
+    const response = await fakeApiClient().loadStructure({ base: 'mappings', bundle: sameStep.source!.bundle, root: sameStep.source!.root });
 
     expect(response.kind).toBe('loaded');
     if (response.kind !== 'loaded') return;
-    expect(response.fingerprint).toBe(sameStep.source.fingerprint);
+    expect(response.fingerprint).toBe(sameStep.source!.fingerprint);
     expect(response.types['/Doc']!.map((f) => `${f.step} ${f.refusal?.code ?? '-'}`)).toEqual([
       'Id -',
       'Note ambiguous-field-path',
@@ -136,7 +136,7 @@ describe('the fake ApiClient over the corpus', () => {
     const response = await fakeApiClient().loadStructure({
       base: '',
       bundle: ['structures/skeleton/order.xsd'],
-      root: corpusMapping.source.root,
+      root: corpusMapping.source!.root,
     });
 
     expect(response.kind).toBe('loaded');
@@ -146,7 +146,7 @@ describe('the fake ApiClient over the corpus', () => {
     const response = await fakeApiClient().loadStructure({
       base: 'mappings',
       bundle: ['missing.xsd'],
-      root: corpusMapping.source.root,
+      root: corpusMapping.source!.root,
     });
 
     expect(response).toEqual({
@@ -227,14 +227,105 @@ describe('the fake ApiClient over the corpus', () => {
     expect((await problemOf(api.runTest('mappings/order-unmapped', { model: corpusMapping, input: '<a/>' }))).problem.status).toBe(400);
   });
 
-  test('lists its mappings sorted by id, each named by the last segment of its id', async () => {
+  test('lists its mappings sorted by id, each named by the last segment of its id, in the package of its folder', async () => {
     const api = fakeApiClient({ 'b/two': corpusMapping, 'a/deep/one': corpusMapping, 'b/one': corpusMapping });
 
-    expect(await api.listMappings()).toEqual([
-      { id: 'a/deep/one', name: 'one' },
-      { id: 'b/one', name: 'one' },
-      { id: 'b/two', name: 'two' },
+    // the corpus mapping's roots are the element Q{urn:flottila:corpus:skeleton}Order on both sides
+    expect(await api.listMappings()).toStrictEqual([
+      { id: 'a/deep/one', name: 'one', package: 'a/deep', source: 'Order', target: 'Order' },
+      { id: 'b/one', name: 'one', package: 'b', source: 'Order', target: 'Order' },
+      { id: 'b/two', name: 'two', package: 'b', source: 'Order', target: 'Order' },
     ]);
+  });
+
+  test('a summary names a WSDL root by its operation and a JSON root by its first file, and leaves out what is not there (ADR-0029)', async () => {
+    const described: MappingModel = {
+      description: 'Bestellungen → Rechnungen',
+      formatVersion: 1,
+      source: {
+        bundle: ['../wsdl/orders.wsdl'],
+        fingerprint: 'sha256:00',
+        root: { wsdl: { interface: 'Q{urn:x}OrderPort', operation: 'SendOrder', direction: 'fault', fault: 'Rejected' } },
+      },
+      target: { bundle: ['schemas/a-note.schema.json', 'z-defs.schema.json'], fingerprint: 'sha256:00', root: { json: '$' } },
+    };
+    const onlyTarget: MappingModel = {
+      formatVersion: 1,
+      target: { bundle: ['invoice.xsd'], fingerprint: 'sha256:00', root: { element: 'Invoice' } },
+    };
+    const api = fakeApiClient({ top: described, 'drafts/bare': { formatVersion: 1 }, 'drafts/half': onlyTarget });
+
+    expect(await api.listMappings()).toStrictEqual([
+      { id: 'drafts/bare', name: 'bare', package: 'drafts' },
+      { id: 'drafts/half', name: 'half', package: 'drafts', target: 'Invoice' },
+      { id: 'top', name: 'top', package: '', description: 'Bestellungen → Rechnungen', source: 'SendOrder', target: 'a-note.schema.json' },
+    ]);
+  });
+
+  test('creates a mapping from its id alone, without structures; it is listed and opens with its tag', async () => {
+    const api = fakeApiClient();
+
+    const created = await api.createMapping({ id: 'drafts/new-one' });
+
+    expect(created.model).toStrictEqual({ formatVersion: 1 });
+    expect(created.etag).toMatch(/^"fake:\d+"$/);
+    expect(await api.listMappings()).toContainEqual({ id: 'drafts/new-one', name: 'new-one', package: 'drafts' });
+    expect(await api.getMapping('drafts/new-one')).toEqual(created);
+  });
+
+  test('creates a mapping with its description and the one side it is given, keys sorted as the canonical writer does', async () => {
+    const api = fakeApiClient();
+    const order = '../structures/skeleton/order.xsd';
+    const root = { element: 'Q{urn:flottila:corpus:skeleton}Order' };
+
+    const described = await api.createMapping({ id: 'drafts/described', description: 'Bestellungen zu Rechnungen' });
+    const half = await api.createMapping({ id: 'mappings/half', description: 'only the target', target: { bundle: [order], root } });
+
+    expect(described.model).toStrictEqual({ description: 'Bestellungen zu Rechnungen', formatVersion: 1 });
+    expect(Object.keys(described.model)).toEqual(['description', 'formatVersion']);
+    expect(half.model).toStrictEqual({
+      description: 'only the target',
+      formatVersion: 1,
+      target: { bundle: [order], fingerprint: corpusMapping.target!.fingerprint, root },
+    });
+    expect(Object.keys(half.model)).toEqual(['description', 'formatVersion', 'target']);
+  });
+
+  test('a create with only a source it does not know is 422 model-refused with that one diagnostic', async () => {
+    const api = fakeApiClient();
+
+    const problem = await problemOf(api.createMapping({ id: 'mappings/new-one', source: { bundle: ['missing.xsd'], root: { json: '$' } } }));
+
+    expect(problem.problem.status).toBe(422);
+    expect('diagnostics' in problem.problem && problem.problem.diagnostics.map((d) => d.code)).toEqual(['schema-unreadable']);
+    expect((await api.listMappings()).map((m) => m.id)).not.toContain('mappings/new-one');
+  });
+
+  test('save keeps the description and the layout, their keys sorted as the canonical writer does', async () => {
+    const api = fakeApiClient();
+    const { etag } = await api.getMapping('mappings/order-id-copy');
+    const sent: MappingModel = {
+      targetFieldMappings: {
+        [ORDER_ID]: {
+          result: 'a1',
+          layout: { target: { y: 48, x: 360 }, boxes: { a1: { y: 48, x: -120 } } },
+          id: 't1',
+          boxes: { a1: { kind: 'source', field: ORDER_ID } },
+        },
+      },
+      target: corpusMapping.target,
+      source: corpusMapping.source,
+      formatVersion: 1,
+      description: 'Copies the order id',
+    };
+
+    const saved = await api.saveMapping('mappings/order-id-copy', sent, etag);
+
+    expect(saved.model).toEqual(sent);
+    expect(Object.keys(saved.model)).toEqual(['description', 'formatVersion', 'source', 'target', 'targetFieldMappings']);
+    const layout = saved.model.targetFieldMappings![ORDER_ID]!.layout!;
+    expect(Object.keys(layout)).toEqual(['boxes', 'target']);
+    expect(Object.keys(layout.target!)).toEqual(['x', 'y']);
   });
 
   test('creates a mapping with both fingerprints and no target field mapping; it is listed and opens with its tag', async () => {
@@ -249,8 +340,8 @@ describe('the fake ApiClient over the corpus', () => {
 
     expect(created.model).toEqual({
       formatVersion: 1,
-      source: { bundle: [order], fingerprint: corpusMapping.source.fingerprint, root: { json: '$' } },
-      target: { bundle: [order], fingerprint: corpusMapping.target.fingerprint, root: { element: 'Q{urn:flottila:corpus:skeleton}Order' } },
+      source: { bundle: [order], fingerprint: corpusMapping.source!.fingerprint, root: { json: '$' } },
+      target: { bundle: [order], fingerprint: corpusMapping.target!.fingerprint, root: { element: 'Q{urn:flottila:corpus:skeleton}Order' } },
     });
     expect(created.etag).toMatch(/^"fake:\d+"$/);
     expect((await api.listMappings()).map((m) => m.id)).toContain('mappings/new-one');
@@ -323,7 +414,7 @@ describe('the fake ApiClient over the corpus', () => {
   });
 
   describe('refresh', () => {
-    const stale = { ...corpusMapping, source: { ...corpusMapping.source, fingerprint: 'sha256:stale' } };
+    const stale = { ...corpusMapping, source: { ...corpusMapping.source!, fingerprint: 'sha256:stale' } };
     const orphaned: Diagnostic = {
       severity: 'error',
       code: 'orphaned-reference',
@@ -347,7 +438,7 @@ describe('the fake ApiClient over the corpus', () => {
     });
 
     test('a side whose bundle does not load keeps its fingerprint and gives its load errors as the only diagnostics', async () => {
-      const broken = { ...stale, target: { ...stale.target, bundle: ['missing.xsd'] as [string], fingerprint: 'sha256:kept' } };
+      const broken = { ...stale, target: { ...stale.target!, bundle: ['missing.xsd'] as [string], fingerprint: 'sha256:kept' } };
       const api = fakeApiClient(undefined, { refresh: { 'mappings/order-id-copy': [orphaned] } });
 
       const answer = await api.refresh('mappings/order-id-copy', broken);
@@ -361,6 +452,22 @@ describe('the fake ApiClient over the corpus', () => {
           location: { kind: 'file-position', file: 'missing.xsd', line: 1, column: 1 },
         },
       ]);
+    });
+
+    test('of a model with one side derives that fingerprint, leaves the other side out and keeps the description', async () => {
+      const api = fakeApiClient();
+      const half: MappingModel = { formatVersion: 1, description: 'kept', source: stale.source };
+
+      expect(await api.refresh('mappings/order-id-copy', half)).toStrictEqual({
+        model: { description: 'kept', formatVersion: 1, source: corpusMapping.source },
+        diagnostics: [],
+      });
+    });
+
+    test('of a model without structures returns it as it is, with no diagnostics', async () => {
+      const api = fakeApiClient();
+
+      expect(await api.refresh('mappings/order-id-copy', { formatVersion: 1 })).toStrictEqual({ model: { formatVersion: 1 }, diagnostics: [] });
     });
 
     test('of a mapping it does not know is a not-found problem', async () => {

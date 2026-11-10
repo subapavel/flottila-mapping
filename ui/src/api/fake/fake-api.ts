@@ -8,6 +8,7 @@ import {
   type ApiClient,
   type Diagnostic,
   type FunctionCatalogue,
+  type MappingSummary,
   type StoredMapping,
   type StructureLoaded,
   type StructureResponse,
@@ -84,7 +85,7 @@ const cases = [{ links: links(orderIdCopy), input: caseInput, output: caseOutput
 export interface FakeScenario {
   /** The diagnostics a compile answers, by mapping id; a mapping without an entry has none. */
   compile?: Record<string, Diagnostic[]>;
-  /** The diagnostics a refresh answers when both structures load, by mapping id; a mapping without an entry has none. */
+  /** The diagnostics a refresh answers when every structure it names loads, by mapping id; a mapping without an entry has none. */
   refresh?: Record<string, Diagnostic[]>;
   /** What a test run answers, by mapping id, whatever the working copy and input; a mapping without one runs the corpus cases. */
   test?: Record<string, TestResult>;
@@ -110,10 +111,10 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
   };
 
   return {
-    listMappings: async () =>
-      [...mappings.keys()].sort().map((id) => ({ id, name: id.slice(id.lastIndexOf('/') + 1) })),
+    listMappings: async () => [...mappings].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, { model }]) => summaryOf(id, model)),
 
-    createMapping: async ({ id, source, target }) => {
+    createMapping: async (request) => {
+      const { id, description } = request;
       if (!WORKSPACE_ID.test(id) || RESERVED.has(id.slice(id.lastIndexOf('/') + 1))) {
         throw new ApiProblem({
           type: `${PROBLEM}invalid-workspace-path`,
@@ -125,25 +126,27 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
       if (mappings.has(id)) {
         throw new ApiProblem({ type: `${PROBLEM}mapping-exists`, title: 'Mapping exists', status: 409, detail: 'a mapping with this id exists' });
       }
+      // as the service creates (ADR-0029): each side the request names, none it does not; an empty description is none
       const base = directoryOf(id);
-      const [sourceStructure, targetStructure] = [structureOf(base, source.bundle), structureOf(base, target.bundle)];
-      if (sourceStructure.kind === 'refused' || targetStructure.kind === 'refused') {
+      const model: MappingModel = { formatVersion: 1, ...(description ? { description } : {}) };
+      const diagnostics: Diagnostic[] = [];
+      for (const side of ['source', 'target'] as const) {
+        const choice = request[side];
+        if (!choice) continue;
+        const structure = structureOf(base, choice.bundle);
+        if (structure.kind === 'refused') diagnostics.push(...structure.diagnostics);
+        else model[side] = { bundle: choice.bundle as [string, ...string[]], fingerprint: structure.fingerprint, root: choice.root };
+      }
+      if (diagnostics.length > 0) {
         throw new ApiProblem({
           type: `${PROBLEM}model-refused`,
           title: 'Model refused',
           status: 422,
           detail: 'a structure of the new mapping cannot be loaded',
-          diagnostics: [sourceStructure, targetStructure].flatMap((s) => (s.kind === 'refused' ? s.diagnostics : [])),
+          diagnostics,
         });
       }
-      mappings.set(
-        id,
-        written({
-          formatVersion: 1,
-          source: { bundle: source.bundle as [string, ...string[]], fingerprint: sourceStructure.fingerprint, root: source.root },
-          target: { bundle: target.bundle as [string, ...string[]], fingerprint: targetStructure.fingerprint, root: target.root },
-        }),
-      );
+      mappings.set(id, written(sortedKeys(model)));
       return structuredClone(stored(id));
     },
 
@@ -198,20 +201,46 @@ export function fakeApiClient(seed: Record<string, MappingModel> = corpusMapping
       return { diagnostics: structuredClone(scenario.compile?.[id] ?? []) };
     },
 
-    // as the engine refreshes (#99): the fingerprints are the fake's structures', only the stage-3 diagnostics a fixture
+    // as the engine refreshes (#99): the fingerprints are the fake's structures', only the stage-3 diagnostics a fixture;
+    // a side the model does not name stays absent (ADR-0029)
     refresh: async (id, model) => {
       stored(id);
       const base = directoryOf(id);
-      const [source, target] = [structureOf(base, model.source.bundle), structureOf(base, model.target.bundle)];
-      const refreshed = (ref: StructureRef, structure: StructureResponse): StructureRef =>
-        structure.kind === 'loaded' ? { ...ref, fingerprint: structure.fingerprint } : ref;
-      const loadErrors = [source, target].flatMap((s) => (s.kind === 'refused' ? s.diagnostics : []));
+      const refreshed: MappingModel = { ...model };
+      const loadErrors: Diagnostic[] = [];
+      for (const side of ['source', 'target'] as const) {
+        const ref = model[side];
+        if (!ref) continue;
+        const structure = structureOf(base, ref.bundle);
+        if (structure.kind === 'loaded') refreshed[side] = { ...ref, fingerprint: structure.fingerprint };
+        else loadErrors.push(...structure.diagnostics);
+      }
       return {
-        model: sortedKeys({ ...model, source: refreshed(model.source, source), target: refreshed(model.target, target) }),
+        model: sortedKeys(refreshed),
         diagnostics: loadErrors.length > 0 ? loadErrors : structuredClone(scenario.refresh?.[id] ?? []),
       };
     },
   };
+}
+
+/** A mapping's summary as the service lists it (ADR-0029): an absent description or side is left out. */
+function summaryOf(id: string, model: MappingModel): MappingSummary {
+  const slash = id.lastIndexOf('/');
+  return {
+    id,
+    name: id.slice(slash + 1),
+    package: id.slice(0, Math.max(slash, 0)),
+    ...(model.description ? { description: model.description } : {}),
+    ...(model.source ? { source: rootName(model.source) } : {}),
+    ...(model.target ? { target: rootName(model.target) } : {}),
+  };
+}
+
+/** A root's name: an element's local name, a WSDL root's operation, the last segment of a JSON root's first file. */
+function rootName({ bundle, root }: StructureRef): string {
+  if ('element' in root) return root.element.slice(root.element.indexOf('}') + 1);
+  if ('wsdl' in root) return root.wsdl.operation;
+  return bundle[0].slice(bundle[0].lastIndexOf('/') + 1);
 }
 
 function notFound(id: string) {
