@@ -20,7 +20,7 @@ export function FunctionCatalogue({ catalogue, add, disabled = false }: { catalo
   const [collapsedResults, setCollapsedResults] = useState<Record<string, boolean>>({});
   const groups = useMemo(() => drilldown(catalogue), [catalogue]);
   const filter = query.trim().toLowerCase();
-  let matches = 0;
+  const shown = groups.map(({ group, functions }) => ({ group, entries: functions.filter((fn) => [group, fn.name].some((value) => value.toLowerCase().includes(filter))) }));
   return (
     <div className="function-catalogue" aria-label="Function catalogue" role="region">
       <label className="catalogue-search">
@@ -37,10 +37,8 @@ export function FunctionCatalogue({ catalogue, add, disabled = false }: { catalo
         />
       </label>
       <div className="catalogue-groups">
-        {groups.map(({ group, functions }) => {
-          const entries = functions.filter((fn) => [group, fn.name].some((value) => value.toLowerCase().includes(filter)));
+        {shown.map(({ group, entries }) => {
           if (entries.length === 0) return null;
-          matches += entries.length;
           const open = filter ? !collapsedResults[group] : Boolean(expanded[group]);
           return (
             <div key={group} className="catalogue-group">
@@ -92,7 +90,7 @@ export function FunctionCatalogue({ catalogue, add, disabled = false }: { catalo
             </div>
           );
         })}
-        {matches === 0 && <p>No matching functions.</p>}
+        {shown.every(({ entries }) => entries.length === 0) && <p>No matching functions.</p>}
       </div>
     </div>
   );
