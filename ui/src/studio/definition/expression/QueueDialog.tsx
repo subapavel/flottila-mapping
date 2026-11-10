@@ -50,15 +50,14 @@ export interface QueueTest {
 }
 
 /**
- * The body of a dialog without a trace (#177): while a run is under way, that it runs; without test data, a test file to
- * load in edit mode or, in read mode, where one is loaded; and the diagnostics of a run that failed or did not start.
+ * The body of a dialog without a trace (#177): while a run is under way, that it runs; else, without a source document,
+ * a test file to load in edit mode or, in read mode, where one is loaded; else nothing (`RunFailure` shows a failed run).
  */
-function NoTrace({ test: { session, library, format, level, editing } }: { test: QueueTest }) {
-  const source = useStore(session, (s) => s.source);
+function NoTrace({ test: { session, format, level, editing } }: { test: QueueTest }) {
+  // an empty source with a test instance takes the latest when the dialog opens (useRunWithoutTrace)
+  const empty = useStore(session, (s) => s.source === '');
   const running = useStore(session, (s) => s.running);
-  const latest = useStore(library, (s) => currentInstance(s.value, format));
   const file = useRef<HTMLInputElement>(null);
-  const empty = source === '' && latest === undefined;
 
   const load = async (event: ChangeEvent<HTMLInputElement>) => {
     // the input is cleared after each read, so a change always brings a file
@@ -92,13 +91,13 @@ function NoTrace({ test: { session, library, format, level, editing } }: { test:
 
 /** The diagnostics of the last run when it failed, was refused or did not start (#177): its lines between Start and End. */
 function RunFailure({ session }: { session: TestSession }) {
-  const failed = useStore(session, (s) => s.runFailed && !s.running);
-  const runLog = useStore(session, (s) => s.runLog);
-  if (!failed || runLog === null) return null;
+  // a failed run always has its log section; a run under way is not failed yet
+  const failure = useStore(session, (s) => (s.runFailed && !s.running ? s.runLog : null));
+  if (failure === null) return null;
   return (
     <Alert variant="danger" isInline title="The simulation failed" className="queue-failure">
       <ul aria-label="Run diagnostics">
-        {runLog.lines
+        {failure.lines
           .filter((line) => line.time === undefined)
           .map((line, i) => (
             <li key={i}>{line.message}</li>

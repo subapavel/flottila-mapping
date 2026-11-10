@@ -285,6 +285,7 @@ describe('the Display Queue before a test run (#177)', () => {
 
     await expect.element(queueRow(1)).toHaveTextContent('PO-1');
     await expect.element(dialog()).toMatchTextContent('Traced queue · last test run');
+    await expect.element(runDiagnostics()).not.toBeInTheDocument();
     expect(runTest).toHaveBeenCalledExactlyOnceWith(MAPPING, { model: store.getState().workingCopy, input: INPUT });
     store.getState().setTab('test');
     await expect.element(sourceInput()).toHaveValue(INPUT);
@@ -378,6 +379,25 @@ describe('the Display Queue before a test run (#177)', () => {
 
     await expect.element(runDiagnostics()).toHaveTextContent('The test could not run: Invalid request');
     await expect.element(dialog()).toBeVisible();
+    // there is test data: neither the upload nor the read-mode message shows
+    await expect.element(dialog()).not.toMatchTextContent('No test data yet');
+  });
+
+  test('while the run is under way the dialog says so, and an earlier failure hides until it ends', async () => {
+    const api = scenario(run);
+    let answer: (result: TestResult) => void = () => undefined;
+    vi.spyOn(api, 'runTest').mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    await renderDefinition(undefined, { api });
+    await openQueue(/^Source field OrderId/);
+    await testFile().upload(new File(['<broken'], 'broken.xml', { type: 'application/xml' }));
+    await expect.element(runDiagnostics()).toBeVisible();
+
+    await testFile().upload(new File([INPUT], 'order.xml', { type: 'application/xml' }));
+
+    await expect.element(dialog().getByRole('status')).toHaveTextContent('Running the simulation…');
+    await expect.element(runDiagnostics()).not.toBeInTheDocument();
+    answer(run);
+    await expect.element(queueRow(1)).toHaveTextContent('PO-1');
   });
 
   test('a stale trace still shows, marked, and no run starts', async () => {
