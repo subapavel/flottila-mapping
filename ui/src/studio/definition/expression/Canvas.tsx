@@ -170,19 +170,29 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
   const edgeById = useMemo(() => new Map(graph.edges.map((e) => [e.id, e])), [graph]);
   const [moving, setMoving] = useState<Positions>({});
   const [measured, setMeasured] = useState<Record<string, { width: number; height: number }>>({});
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [parameters, setParameters] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  /** The orphaned box whose remap dialog is open. */
-  const [remapping, setRemapping] = useState<AuthoringId | null>(null);
-  /** The node whose Display Queue is open. */
-  const [queue, setQueue] = useState<string | null>(null);
+  // the selection and the open dialog are the store's UI slice (ADR-0028)
+  const selectedIds = useStore(store, (s) => s.selected);
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const dialog = useStore(store, (s) => s.canvasDialog);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const { menu, showMenu, closeMenu } = useActionMenu();
   const actions = store.getState();
   const selectedNode = graph.nodes.find((n) => selected.has(n.id));
-  const queueNode = graph.nodes.find((n) => n.id === queue);
-  const remappingNode = graph.nodes.find((n) => n.id === remapping);
+  /** The node of the open dialog of `kind`; none once an undo or a delete removed it, which closes the dialog. */
+  const dialogNode = (kind: 'parameters' | 'remap' | 'queue') => (dialog?.kind === kind ? graph.nodes.find((n) => n.id === dialog.node) : undefined);
+  const openDialog = (kind: 'parameters' | 'remap' | 'queue', node: string) => actions.openCanvasDialog({ kind, node });
+  const closeDialog = () => actions.openCanvasDialog(null);
+  const queueNode = dialogNode('queue');
+  const remappingNode = dialogNode('remap');
+  /** Selects and unselects as React Flow's changes say, in their order, over the selection as it is now. */
+  const changeSelection = (changes: readonly { id: string; selected: boolean }[]) => {
+    const next = new Set(store.getState().selected);
+    for (const c of changes) {
+      if (c.selected) next.add(c.id);
+      else next.delete(c.id);
+    }
+    actions.selectBoxes([...next]);
+  };
 
   /** Whether a wire is a preview wire (ADR-0028): on a variable's canvas, from or into a preview node, or one moved. */
   const previewWire = (source: string, target: string, moving?: ExpressionEdge) => variable || isPreviewId(source) || isPreviewId(target) || moving?.preview === true;
@@ -266,9 +276,9 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
   const nodeMenu = (event: ReactMouseEvent | KeyboardEvent, id: string, element: Element) => {
     const n = graph.nodes.find((item) => item.id === id)!;
     const own = previewNodes.get(id);
-    setSelected(new Set([id]));
-    const items: MenuItem[] = [action('Display Queue', () => setQueue(id))];
-    if (hasParameters(n)) items.push(action('Properties', () => setParameters(id)));
+    actions.select(id);
+    const items: MenuItem[] = [action('Display Queue', () => openDialog('queue', id))];
+    if (hasParameters(n)) items.push(action('Properties', () => openDialog('parameters', id)));
     const destinations = editing && n.output ? connectionActions(n) : [];
     if (destinations.length) items.push(action('Connect to', null, { children: destinations }));
     const wired = graph.edges.some((e) => e.source === id || e.target === id);
@@ -286,7 +296,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
     if (own) return showMenu(event, `Node actions for ${n.name}`, items, element);
     if (n.kind !== 'target') items.push(action('Copy', () => copyBranch(id)));
     if (n.kind === 'source') {
-      if (orphaned.has(id)) items.push(action('Remap', () => setRemapping(id), { disabled: !editing }));
+      if (orphaned.has(id)) items.push(action('Remap', () => openDialog('remap', id), { disabled: !editing }));
       const choices = properAncestors(n.path!);
       const context = n.context ?? choices[0];
       items.push(
@@ -338,16 +348,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
     const sizes = changes.flatMap((c) => (c.type === 'dimensions' && c.dimensions ? [c] : []));
     if (sizes.length) setMeasured((previous) => ({ ...previous, ...Object.fromEntries(sizes.map((c) => [c.id, c.dimensions!])) }));
     const selections = changes.flatMap((c) => (c.type === 'select' ? [c] : []));
-    if (selections.length) {
-      setSelected((previous) => {
-        const next = new Set(previous);
-        for (const c of selections) {
-          if (c.selected) next.add(c.id);
-          else next.delete(c.id);
-        }
-        return next;
-      });
-    }
+    if (selections.length) changeSelection(selections);
     const moves = changes.flatMap((c) => (c.type === 'position' && c.position ? [c] : []));
     const live = moves.filter((c) => c.dragging);
     if (live.length) setMoving((previous) => ({ ...previous, ...Object.fromEntries(live.map((c) => [c.id, c.position!])) }));
@@ -359,15 +360,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
   };
   const onEdgesChange = (changes: EdgeChange[]) => {
     const selections = changes.flatMap((c) => (c.type === 'select' ? [c] : []));
-    if (selections.length === 0) return;
-    setSelected((previous) => {
-      const next = new Set(previous);
-      for (const c of selections) {
-        if (c.selected) next.add(c.id);
-        else next.delete(c.id);
-      }
-      return next;
-    });
+    if (selections.length) changeSelection(selections);
   };
   const onDelete = ({ nodes: gone, edges: cut }: { nodes: MappingFlowNode[]; edges: Edge[] }) => {
     if (gone.length) remove(gone.map((n) => n.id));
@@ -394,7 +387,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
         node: n,
         state,
         fieldType: n.role ? 'variable' : n.path === undefined ? undefined : fieldTypes[n.kind === 'source' ? 'source' : 'target'].get(n.path),
-        ...(hasParameters(n) && { editParameters: () => setParameters(n.id) }),
+        ...(hasParameters(n) && { editParameters: () => openDialog('parameters', n.id) }),
         ...(settings && { settings }),
         ...(orphaned.has(n.id) && { orphaned: true }),
         // drag-to-remap: a source row dropped on an orphaned box, in edit mode, remaps it as the Remap dialog does
@@ -422,7 +415,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
       style: { stroke: on ? '#0066cc' : EDGE_COLOR, strokeWidth: on ? 3 : 2 },
     };
   });
-  const editingBox = parameters === null ? undefined : graph.nodes.find((n) => n.id === parameters);
+  const editingBox = dialogNode('parameters');
   const editingPreview = editingBox && previewFn(editingBox.id);
 
   return (
@@ -452,7 +445,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
             >
               <LayerGroupIcon />
             </button>
-            <button type="button" disabled={!editing} aria-label="Add node" title="Add node" onClick={() => setAdding(true)}>
+            <button type="button" disabled={!editing} aria-label="Add node" title="Add node" onClick={() => actions.openCanvasDialog({ kind: 'add' })}>
               <CubeIcon />
             </button>
             <button
@@ -460,7 +453,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
               disabled={!selectedNode}
               aria-label="Display Queue"
               title="Display Queue: the queue of the selected node in the last test run"
-              onClick={() => setQueue(selectedNode!.id)}
+              onClick={() => openDialog('queue', selectedNode!.id)}
             >
               <ListIcon />
             </button>
@@ -523,7 +516,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
               isValidConnection={(c) => canConnect(c.source, c.target, c.targetHandle, edgeById.get(edgeDrag.current ?? '') ?? inputDrag.current)}
               onNodeContextMenu={(event, n) => nodeMenu(event, n.id, (event.target as Element).closest('.react-flow__node')!)}
               onNodeDoubleClick={(_, n) => {
-                if (n.data.editParameters) setParameters(n.id);
+                if (n.data.editParameters) openDialog('parameters', n.id);
               }}
               onPaneContextMenu={canvasMenu}
               minZoom={1}
@@ -563,10 +556,10 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
           fn={editingPreview}
           values={previewNodes.get(editingBox.id)!.params}
           readOnly={!editing}
-          close={() => setParameters(null)}
+          close={closeDialog}
           save={(params) => {
             editPreview((d) => setParams(d, targetField, editingBox.id, params));
-            setParameters(null);
+            closeDialog();
           }}
         />
       )}
@@ -576,27 +569,27 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
           params={catalogue[editingBox.fn!]!.params!}
           values={editingBox.params}
           readOnly={!editing}
-          close={() => setParameters(null)}
+          close={closeDialog}
           save={(params) => {
             if (isPreviewId(editingBox.id)) editPreview((d) => setParams(d, targetField, editingBox.id, params));
             else actions.setParams(targetField, editingBox.id, params, catalogue);
-            setParameters(null);
+            closeDialog();
           }}
         />
       )}
-      {adding && (
-        <Modal isOpen variant="small" aria-label="Add node" onClose={() => setAdding(false)}>
+      {dialog?.kind === 'add' && (
+        <Modal isOpen variant="small" aria-label="Add node" onClose={closeDialog}>
           <ModalHeader title="Add node" />
           <ModalBody>
             <FunctionCatalogue
               catalogue={catalogue}
               add={(fn) => {
                 addFunction(fn);
-                setAdding(false);
+                closeDialog();
               }}
               addPreview={(key) => {
                 addPreview(key);
-                setAdding(false);
+                closeDialog();
               }}
             />
             <section className="palette-variables" aria-label="Variables">
@@ -616,7 +609,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
                         type="button"
                         onClick={() => {
                           addPreviewNode({ kind: 'variable', ref: v });
-                          setAdding(false);
+                          closeDialog();
                         }}
                       >
                         <FieldTypeIcon type="variable" />
@@ -635,16 +628,16 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
         <RemapDialog
           field={remappingNode.path!}
           choices={sourceFields}
-          close={() => setRemapping(null)}
+          close={closeDialog}
           remap={(field) => {
             remap(remappingNode.id, field);
-            setRemapping(null);
+            closeDialog();
           }}
         />
       )}
       {/* an undo or a delete that removes the node closes its queue */}
       {queueNode && (
-        <QueueDialog graph={graph} node={queueNode} trace={trace} stale={stale} mappingId={mapping?.id} browserState={browserState} onClose={() => setQueue(null)} />
+        <QueueDialog graph={graph} node={queueNode} trace={trace} stale={stale} mappingId={mapping?.id} browserState={browserState} onClose={closeDialog} />
       )}
       <ActionMenu menu={menu} onClose={closeMenu} />
     </section>

@@ -316,6 +316,22 @@ describe('the mapping expression canvas (#157)', () => {
     await expect.element(footer()).toHaveTextContent('3 nodes · 1 connections');
   });
 
+  test("the canvas selection is the store's (ADR-0028, UI slice): a click selects the box, a paste selects the pasted copy instead", async () => {
+    const store = await renderCanvas({ editing: true });
+    const [original] = Object.keys(mappingOf(store).boxes);
+    const shownSelected = (id: string) => canvas().element().querySelector(`.react-flow__node[data-id="${id}"]`)?.classList.contains('selected');
+    await node(/^Source field OrderId/).click();
+    await expect.poll(() => store.getState().selected).toEqual([original]);
+
+    await rail('Copy').click();
+    await rail('Paste').click();
+
+    const pasted = Object.keys(mappingOf(store).boxes).find((id) => id !== original)!;
+    expect(store.getState().selected).toEqual([pasted]);
+    await expect.poll(() => shownSelected(pasted)).toBe(true);
+    expect(shownSelected(original!)).toBe(false);
+  });
+
   test('the Delete key deletes the selected box', async () => {
     const store = await renderCanvas({ editing: true });
     await node(/^Source field OrderId/).click();
