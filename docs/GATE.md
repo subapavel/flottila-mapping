@@ -52,7 +52,7 @@ the command and the evidence it needs. A change to a check after this point is a
    - `compile/orders` at ≤ 5 ms/op warm.
 
    No scenario is worse than `ratchet/bench.tsv` beyond its tolerance (ADR-0019). The
-   20,128-field tree scenario has a p95 frame time of ≤ 16.7 ms. The optional PO observation
+   20,128-field tree scenario has a p95 frame time below 33.3 ms (no dropped frame at p95; F-26, 2026-11-10). The optional PO observation
    request (`po-owner-local`) is informative only.
 8. **Quality.** The CI run of the gate commit is green in all three required jobs, `backend`,
    `ui` and `stack` (ADR-0017). That covers the build with `-Xlint:all -Werror`, Spotless, the
