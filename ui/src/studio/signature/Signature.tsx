@@ -14,6 +14,7 @@ import {
   TimesIcon,
   TrashIcon,
 } from '@patternfly/react-icons';
+import { useMutation } from '@tanstack/react-query';
 import { useId, useRef, useState, type ComponentType } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../../api/client';
@@ -32,6 +33,7 @@ import {
   type SignatureMockStore,
 } from '../mock/signature-mock';
 import { CopyTextButton } from '../shared/CopyTextButton';
+import { refreshMutation, useLoadStructure } from '../shared/structure-query';
 import { ROOT_KINDS } from './message-choice';
 import { MessageChoiceModal, type ChoiceFailure } from './MessageChoiceModal';
 import { messageName, messageNamespace, rootKind, type MessageChoice, type RootKind } from '../shared/structure-names';
@@ -114,12 +116,15 @@ export function Signature({ mappingId, api, store, browserState }: SignatureProp
   const [log, setLog] = useState('');
   const [showLog, setShowLog] = useState(false);
   const pkg = mappingId.slice(0, Math.max(mappingId.lastIndexOf('/'), 0));
+  const loadStructure = useLoadStructure(mappingId, api);
+  // the answer is taken here, not in mutate's callbacks, so that it still applies once another tab is open
+  const refresh = useMutation({ ...refreshMutation(api, mappingId, store), onSuccess: ({ sent, answer }) => void store.getState().applyRefresh(sent, answer) });
 
   /** Loads the structure, sets the side and refreshes the working copy; a refused or failed load is the dialog's. */
   const choosePrimary = async (side: Side, choice: MessageChoice): Promise<ChoiceFailure | null> => {
     const bundle = [...choice.bundle] as [string, ...string[]];
     try {
-      const loaded = await api.loadStructure({ base: pkg, bundle, root: choice.root });
+      const loaded = await loadStructure({ bundle, root: choice.root });
       if (loaded.kind === 'refused') return { title: 'The structure could not be loaded', diagnostics: loaded.diagnostics };
       store.getState().setStructure(side, { bundle, root: choice.root, fingerprint: loaded.fingerprint });
     } catch (error) {
@@ -127,11 +132,7 @@ export function Signature({ mappingId, api, store, browserState }: SignatureProp
       return { title, diagnostics };
     }
     setChoosing(null);
-    const sent = store.getState().workingCopy;
-    api.refresh(mappingId, sent).then(
-      (answer) => void store.getState().applyRefresh(sent, answer),
-      (error: unknown) => setNotice(`The structures could not be refreshed: ${describeError(error).title}`),
-    );
+    refresh.mutate(undefined, { onError: (error) => setNotice(`The structures could not be refreshed: ${describeError(error).title}`) });
     return null;
   };
 
