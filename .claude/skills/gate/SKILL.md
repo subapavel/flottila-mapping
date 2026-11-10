@@ -1,6 +1,6 @@
 ---
 name: gate
-description: Verify a milestone gate on one commit of main — run every docs/GATE.md check through the verifier, collect the evidence, and have the gate-reviewer (Fable 5.1) return gate MET or NOT_MET. Use when the owner asks whether a milestone is done.
+description: Verify a milestone gate on one commit of main — run every docs/GATE.md check through the verifier, collect the evidence, and have the gate-reviewer (Fable 5.2) return gate MET or NOT_MET. Use when the owner asks whether a milestone is done.
 disable-model-invocation: true
 ---
 

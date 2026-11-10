@@ -36,13 +36,17 @@ the queue representation, the mapping-model format, the module layout and build,
 architecture, the oracles and the ratchet. They are charted as one wayfinder map whose draft is
 `docs/wayfinder/phase-0-map.md`; `/wayfinder` publishes it to GitHub and works it ticket by ticket.
 A grilling or prototype ticket needs the owner (HITL); research tickets run AFK in parallel.
+Every grilling round goes designer (or architect) draft → `grilling-adviser` → owner; the owner is
+asked with the adviser's recommendation (`AGENTS.md`, owner's rule 2026-11-10).
 
 Phase 0 ends when the map has no open ticket and its destination holds: ADRs for each decision,
 the glossary sharpened, and the first spec (milestone 1, `docs/GATE.md`) ready for `/to-tickets`.
 
 ## 3. A spec
 
-1. `/grill-with-docs` with the owner until the frontier of questions is empty.
+1. `/grill-with-docs` with the owner until the frontier of questions is empty. Before each round
+   the `grilling-adviser` (Fable 5.2) weighs the draft questions; its recommendations go to the
+   owner.
 2. `/to-spec` publishes the spec issue. Its **Testing Decisions** name the seams; these are the
    pre-agreed seams `/tdd` requires, so implementers never stop to ask for them.
 3. `/to-tickets` drafts tracer-bullet tickets. Each gets blocking edges, exactly one `class:*`
