@@ -19,13 +19,10 @@ export function targetFieldKey(mappingId: string): string {
 }
 
 /**
- * The key of a splitter's ratio and collapsed pane, kept per user and so the same for every mapping (ADR-0013):
- * `halves` between the structure overview and the function editor, `sides` between the source and the target tree,
- * `inspector` between the function editor and the inspector, whose collapsed end pane is the closed inspector.
+ * The key of a mapping's test source document, kept per mapping like the prototype's simulation: the Test tab's session
+ * writes it, and the Definition tab's queue test input reads it.
  */
-export function splitKey(splitter: 'halves' | 'sides' | 'inspector'): string {
-  return `user:split:${splitter}`;
-}
+export const testSourceKey = (mappingId: string) => `mapping:${mappingId}:test-source`;
 
 /** The default `BrowserStateStore`, over `localStorage` or another `Storage`, with every call wrapped. */
 export function storageBrowserState(storage: Pick<Storage, 'getItem' | 'setItem'>): BrowserStateStore {

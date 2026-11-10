@@ -16,6 +16,11 @@ const boundary = (files, regex, message) => ({
 const app = String.raw`(\.\./)+app(/|$)`;
 // The store and the browser state are UI-free: they import each other, model, api and generated, and no other folder.
 const otherFolder = String.raw`\.\./(?!store/|browser-state/|\.\./(model|api|generated)/)`;
+// The tabs (overview, definition, test, signature, functions) meet through the store (ADR-0013): a tab, and the code
+// they share in shared/ and mock/, imports the store, the browser state, shared/, mock/, model, api and generated, and
+// no tab, no shell, no list. `up` is the path from the file's folder to studio/.
+const otherTab = (up) => String.raw`${up}(?!store/|browser-state/|shared/|mock/|\.\./(model|api|generated)/)`;
+const tabsAndShared = ['overview', 'test', 'signature', 'functions', 'mock', 'shared'].map((folder) => `src/studio/${folder}/**`);
 
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'playwright-report', 'test-results', 'src/generated']),
@@ -41,14 +46,19 @@ export default defineConfig([
     'The store and the browser state import only each other, model, api and generated, and no UI library.',
   ),
   boundary(
+    tabsAndShared,
+    String.raw`^(${app}|${otherTab(String.raw`\.\./`)}|@xyflow/|@dagrejs/|@tanstack/react-virtual$)`,
+    'Tabs meet through the store: a tab, shared/ and mock/ import no tab and no shell; the canvas and tree libraries stay in definition.',
+  ),
+  boundary(
     ['src/studio/definition/*.{ts,tsx}'],
-    String.raw`^(${app}|@xyflow/|@dagrejs/)`,
-    'The studio never imports app; @xyflow/react and dagre stay in definition/expression.',
+    String.raw`^(${app}|${otherTab(String.raw`\.\./`)}|@xyflow/|@dagrejs/)`,
+    'Tabs meet through the store: definition imports no other tab and no shell; @xyflow/react and dagre stay in definition/expression.',
   ),
   boundary(
     ['src/studio/definition/expression/**'],
-    String.raw`^(${app}|@tanstack/react-virtual$)`,
-    'The studio never imports app; @tanstack/react-virtual stays in the definition panes.',
+    String.raw`^(${app}|${otherTab(String.raw`\.\./\.\./`)}|@tanstack/react-virtual$)`,
+    'Tabs meet through the store: definition imports no other tab and no shell; @tanstack/react-virtual stays in the definition panes.',
   ),
   boundary(
     ['src/app/**'],

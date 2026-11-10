@@ -8,7 +8,7 @@ import type { ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { StudioTab, WorkingCopyStore } from '../store/working-copy';
-import { testInstancesKey, type TestInstance } from '../mock/test-instances';
+import { testInstancesKey, type TestInstance } from './test-instances';
 import { studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
 

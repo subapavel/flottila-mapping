@@ -3,7 +3,7 @@ import { TrashIcon } from '@patternfly/react-icons';
 import { useState, type FormEvent } from 'react';
 import type { CatalogueParam } from '../../../generated/function-catalogue';
 import type { ParamValue, Params } from '../../../generated/mapping-model';
-import { Tool } from '../Tool';
+import { Tool } from '../../shared/Tool';
 import { DateFormatHelp } from './DateParameterControls';
 
 /** The prototype's label of each catalogue parameter it has, by `<function>.<parameter>`; another one is named from its name. */

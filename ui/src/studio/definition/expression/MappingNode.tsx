@@ -7,7 +7,7 @@ import { localPath, stepName } from '../../../model/field-path';
 import { properAncestors } from '../../../model/set-context';
 import { SOURCE_FIELD_DRAG } from '../../store/drag';
 import { PreviewBadge } from '../../mock/PreviewBadge';
-import { FieldTypeIcon } from '../FieldTypeIcon';
+import { FieldTypeIcon } from '../../shared/FieldTypeIcon';
 import { NODE_WIDTH, nodeHeight, type ExpressionNode, type NodeState, type Port } from './expression-graph';
 
 const ROLES = { source: 'Source field', function: 'Node function', target: 'Target field' } as const;

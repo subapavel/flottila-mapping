@@ -3,7 +3,7 @@ import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { AuthoringId, FieldPath, MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { stepName } from '../../model/field-path';
 import type { DependencyView } from './expression/DefinitionTools';
-import { SideBySide } from './SplitLayout';
+import { SideBySide } from '../shared/SplitLayout';
 
 /** A source field a target field mapping reads, and the functions on the way (the prototype's `sourceLinks`). */
 interface FieldLink {

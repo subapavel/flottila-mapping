@@ -55,14 +55,15 @@ test('@stack list, New mapping, Signature, a wire and a moved box on Definition,
   await expect(page.getByText('2 nodes · 1 connections')).toBeVisible();
 
   // the source field box moves; React Flow moves a node from the second drag event on
+  const before = await transformOf(page, /^Source field OrderId/);
   const box = (await node(page, /^Source field OrderId/).boundingBox())!;
   await page.mouse.move(box.x + 40, box.y + 10);
   await page.mouse.down();
   await page.mouse.move(box.x + 50, box.y + 40, { steps: 5 });
   await page.mouse.move(box.x + 60, box.y + 90, { steps: 5 });
   await page.mouse.up();
+  await expect.poll(() => transformOf(page, /^Source field OrderId/)).not.toBe(before);
   const moved = await transformOf(page, /^Source field OrderId/);
-  expect(moved).not.toBe('');
 
   const put = page.waitForResponse((response) => response.request().method() === 'PUT');
   await page.getByRole('button', { name: 'Save', exact: true }).click();

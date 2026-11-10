@@ -10,6 +10,7 @@ import {
   TabContent,
 } from '@patternfly/react-core';
 import { CubesIcon, TimesIcon } from '@patternfly/react-icons';
+import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../../api/client';
@@ -20,11 +21,12 @@ import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type
 import { DefinitionTab } from '../definition/DefinitionTab';
 import { FunctionsTab } from '../functions/FunctionsTab';
 import { useFunctionsPreview } from '../mock/functions-store';
+import { refreshMutation } from '../shared/structure-query';
 import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
 import { useTestSession } from '../test/test-session';
 import { TestTab } from '../test/TestTab';
-import { CopyTextButton } from './CopyTextButton';
+import { CopyTextButton } from '../shared/CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
 import { Masthead } from './Masthead';
@@ -125,23 +127,21 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
     return () => window.removeEventListener('beforeunload', ask);
   }, [unsaved]);
 
-  // Refresh on open (ADR-0027); an answer that comes after the studio closed leaves the store alone.
+  // Refresh on open (ADR-0027). The answer is taken in mutate's callbacks, which TanStack Query calls only while the
+  // studio is open: an answer that comes after it closed leaves the store alone.
   const [notice, setNotice] = useState<string | null>(null);
-  useEffect(() => {
-    let open = true;
-    const sent = store.getState().workingCopy;
-    api.refresh(mappingId, sent).then(
-      (answer) => {
-        if (!open) return;
-        const orphaned = store.getState().applyRefresh(sent, answer);
-        if (orphaned !== null) setNotice(`The structures changed. Orphaned references: ${orphaned}`);
-      },
-      (error: unknown) => setNotice(`The structures could not be refreshed: ${describeError(error).title}`),
-    );
-    return () => {
-      open = false;
-    };
-  }, [api, mappingId, store]);
+  const { mutate: refresh } = useMutation(refreshMutation(api, mappingId, store));
+  useEffect(
+    () =>
+      refresh(undefined, {
+        onSuccess: ({ sent, answer }) => {
+          const orphaned = store.getState().applyRefresh(sent, answer);
+          if (orphaned !== null) setNotice(`The structures changed. Orphaned references: ${orphaned}`);
+        },
+        onError: (error) => setNotice(`The structures could not be refreshed: ${describeError(error).title}`),
+      }),
+    [refresh, store],
+  );
 
   // A compile the store scheduled after an edit must not answer into a closed studio.
   useEffect(() => () => store.getState().cancelCompile(), [store]);

@@ -85,9 +85,35 @@ describe('the studio slice of the working-copy store (ADR-0028)', () => {
 
     s.getState().discard();
 
-    expect(s.getState().selection).toBeNull();
     expect(s.getState().selected).toEqual([]);
     expect(s.getState().refusal).toBeNull();
+  });
+
+  test('a mapping opens with no canvas dialog; openCanvasDialog opens one at a time, null closes it, and none is an undo step', () => {
+    const s = store();
+    expect(s.getState().canvasDialog).toBeNull();
+
+    s.getState().openCanvasDialog({ kind: 'queue', node: 'c1' });
+    expect(s.getState().canvasDialog).toEqual({ kind: 'queue', node: 'c1' });
+    s.getState().openCanvasDialog({ kind: 'add' });
+    expect(s.getState().canvasDialog).toEqual({ kind: 'add' });
+    s.getState().openCanvasDialog(null);
+
+    expect(s.getState().canvasDialog).toBeNull();
+    expect(s.getState().past).toEqual([]);
+  });
+
+  test('another target field drops the canvas selection and dialog, which named nodes of the canvas before; the same one keeps them', () => {
+    const s = store();
+    s.getState().selectTarget(ORDER_ID);
+    s.getState().selectBoxes(['c1', 'target']);
+    s.getState().openCanvasDialog({ kind: 'parameters', node: 'c1' });
+
+    s.getState().selectTarget(ORDER_ID);
+    expect(s.getState()).toMatchObject({ selected: ['c1', 'target'], canvasDialog: { kind: 'parameters', node: 'c1' } });
+
+    s.getState().selectTarget(`/${ORDER}/Note`);
+    expect(s.getState()).toMatchObject({ selectedTarget: `/${ORDER}/Note`, selected: [], canvasDialog: null });
   });
 });
 

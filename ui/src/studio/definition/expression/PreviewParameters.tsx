@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import type { PreviewParam } from '../../mock/definition-preview';
 import { initialParams, RFC_MODULE, RFC_NAMESPACE, type PreviewFunction, type PreviewFunctionParameter } from '../../mock/preview-functions';
 import { moveRow } from '../../mock/signature-mock';
-import { Tool } from '../Tool';
+import { Tool } from '../../shared/Tool';
 
 type Values = Record<string, PreviewParam>;
 

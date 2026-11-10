@@ -41,6 +41,9 @@ const ORPHANED_REFERENCE = 'orphaned-reference';
 export const STUDIO_TABS = ['overview', 'definition', 'test', 'signature', 'functions'] as const;
 export type StudioTab = (typeof STUDIO_TABS)[number];
 
+/** A dialog of the canvas: a node's parameters, an orphaned box's remap or a node's Display Queue, by the node's id; or Add node. */
+export type CanvasDialog = { kind: 'parameters' | 'remap' | 'queue'; node: string } | { kind: 'add' };
+
 /** The ports of one open mapping's store. */
 export interface WorkingCopyPorts {
   /** Draws a fresh authoring id. */
@@ -64,10 +67,13 @@ export interface WorkingCopyState {
   past: readonly MappingModel[];
   /** The working copies undo stepped back from, the next redo first. */
   future: readonly MappingModel[];
-  /** The selected box or target field mapping, by authoring id, the last selected of several; selecting is no undo step. */
-  selection: AuthoringId | null;
-  /** Every selected id, `selection` last: several boxes of one canvas are selected together for copy. */
+  /**
+   * What the canvas has selected (ADR-0028, UI slice), by id, the last selected last: its boxes, preview nodes, target
+   * and wires; several boxes are selected together for copy. Selecting is no undo step.
+   */
   selected: readonly AuthoringId[];
+  /** The dialog the canvas has open (ADR-0028, UI slice), or none. */
+  canvasDialog: CanvasDialog | null;
   /** The boxes copy took, by the ids they had then, and the target field whose mapping they came from. */
   clipboard: Clipboard | null;
   /** Why the last command was refused; `null` once a command applies. */
@@ -105,7 +111,10 @@ export interface WorkingCopyState {
   setTab: (tab: StudioTab) => void;
   /** Switches the studio to edit mode. */
   startEditing: () => void;
+  /** Selects the target field whose mapping the studio shows; another one drops the canvas selection and dialog. */
   selectTarget: (field: FieldPath | null) => void;
+  /** Opens a dialog of the canvas, the one open before closing, or closes it with `null`. */
+  openCanvasDialog: (dialog: CanvasDialog | null) => void;
   /** Records whether the preview `name` holds a draft. */
   setPreviewDraft: (name: string, draft: boolean) => void;
   /**
@@ -137,8 +146,7 @@ export interface WorkingCopyState {
   /** Connects a box to the target field's sink, or disconnects it with `null`. */
   setResult: (targetField: FieldPath, box: AuthoringId | null) => void;
   /**
-   * Deletes these boxes as one undo step, or none of them when an id names no box; each selected one is unselected, and
-   * the last selected id left becomes the selection.
+   * Deletes these boxes as one undo step, or none of them when an id names no box; each selected one is unselected.
    */
   deleteBoxes: (boxes: readonly AuthoringId[]) => void;
   /** Sets box parameter `name` of a standard function box, checked against `catalogue`; the default is left out. */
@@ -170,8 +178,8 @@ export interface WorkingCopyState {
   undo: () => void;
   redo: () => void;
   /** Selects one id, or nothing with `null`. */
-  select: (selection: AuthoringId | null) => void;
-  /** Selects these ids together, the last as `selection`. */
+  select: (id: AuthoringId | null) => void;
+  /** Selects these ids together. */
   selectBoxes: (ids: readonly AuthoringId[]) => void;
   /**
    * Puts boxes of the target field's mapping into the clipboard, the selected ones unless `ids` names them, with the
@@ -277,8 +285,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       workingCopy: opened.model,
       past: [],
       future: [],
-      selection: null,
       selected: [],
+      canvasDialog: null,
       clipboard: null,
       refusal: null,
       conflict: false,
@@ -298,7 +306,10 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
 
       startEditing: () => set({ editing: true }),
 
-      selectTarget: (selectedTarget) => set({ selectedTarget }),
+      selectTarget: (selectedTarget) =>
+        set((state) => (selectedTarget === state.selectedTarget ? {} : { selectedTarget, selected: [], canvasDialog: null })),
+
+      openCanvasDialog: (canvasDialog) => set({ canvasDialog }),
 
       setPreviewDraft: (name, draft) =>
         set((state) => {
@@ -311,7 +322,6 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           workingCopy: state.baseline,
           past: [],
           future: [],
-          selection: null,
           selected: [],
           refusal: null,
           editing: false,
@@ -395,9 +405,9 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
             : { workingCopy: state.future[0], future: state.future.slice(1), past: [...state.past, state.workingCopy] },
         ),
 
-      select: (selection) => set({ selection, selected: selection === null ? [] : [selection] }),
+      select: (id) => set({ selected: id === null ? [] : [id] }),
 
-      selectBoxes: (ids) => set({ selected: ids, selection: ids.at(-1) ?? null }),
+      selectBoxes: (ids) => set({ selected: ids }),
 
       copy: (targetField, ids, positions) => {
         const { workingCopy, selected } = get();
@@ -461,7 +471,6 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           workingCopy: stored.model,
           past: [],
           future: [],
-          selection: null,
           selected: [],
           conflict: false,
           previewDrafts: [],

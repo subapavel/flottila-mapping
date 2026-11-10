@@ -3,7 +3,7 @@ import { ApiProblem } from '../../api/client';
 import type { BrowserStateStore } from '../browser-state/browser-state';
 import { createWorkingCopyStore, selectUnsaved } from '../store/working-copy';
 import type { MappingModel } from '../../generated/mapping-model';
-import { emptyFunctions, newFunction, type FunctionsState } from '../functions/function-model';
+import { emptyFunctions, newFunction, type FunctionsState } from './function-model';
 import { createFunctionsStore, followEditSession, functionsKey } from './functions-store';
 
 const MODEL: MappingModel = { formatVersion: 1 };

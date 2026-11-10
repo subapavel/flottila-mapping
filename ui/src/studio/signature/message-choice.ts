@@ -1,5 +1,5 @@
 import type { RootSelector } from '../../generated/mapping-model';
-import { rootKind, type MessageChoice, type RootKind } from './structure-names';
+import { rootKind, type MessageChoice, type RootKind } from '../shared/structure-names';
 
 export type Direction = 'input' | 'output' | 'fault';
 

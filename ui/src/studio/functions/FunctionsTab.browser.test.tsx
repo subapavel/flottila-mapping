@@ -9,7 +9,7 @@ import type { BrowserStateStore } from '../browser-state/browser-state';
 import { functionsKey } from '../mock/functions-store';
 import { Studio, studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
-import { emptyFunctions, newFunction, type FunctionsState } from './function-model';
+import { emptyFunctions, newFunction, type FunctionsState } from '../mock/function-model';
 
 const MAPPING = 'mappings/order-id-copy';
 const UNMAPPED = 'mappings/order-unmapped';

@@ -1,14 +1,14 @@
 import { AlignLeftIcon, AngleDoubleDownIcon, AngleDoubleUpIcon, AngleDownIcon, AngleRightIcon, CodeIcon, DownloadIcon, RouteIcon } from '@patternfly/react-icons';
 import { useMemo, useState } from 'react';
-import { FieldTypeIcon } from '../definition/FieldTypeIcon';
-import { Tool } from '../definition/Tool';
-import { ViewSwitch } from '../definition/ViewSwitch';
-import { downloadFile } from '../functions/download';
+import { FieldTypeIcon } from '../shared/FieldTypeIcon';
+import { Tool } from '../shared/Tool';
+import { ViewSwitch } from '../shared/ViewSwitch';
+import { downloadFile } from '../shared/download';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import { PARAMETERS_ISSUE } from '../mock/signature-mock';
 import { zipInstance } from '../mock/test-instances';
-import { CopySurface } from '../shell/CopyTextButton';
-import { documentRows, prettyText, type DocumentFormat } from './documents';
+import { CopySurface } from '../shared/CopyTextButton';
+import { documentRows, prettyText, type DocumentFormat } from '../shared/documents';
 
 /** A pane's view of its document. */
 export const DOCUMENT_MODES = ['Tree', 'Text'] as const;

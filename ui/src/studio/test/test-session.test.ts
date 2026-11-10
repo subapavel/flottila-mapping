@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ApiClient, Diagnostic, StoredMapping, TestResult } from '../../api/client';
+import type { ApiClient, Diagnostic, StoredMapping, TestRequest, TestResult } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
-import type { BrowserStateStore } from '../browser-state/browser-state';
+import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
 import { createWorkingCopyStore } from '../store/working-copy';
-import { compileLines, createTestSession, followCompiles, logLines, logText, runLines, stamp, testSourceKey } from './test-session';
+import { compileLines, createTestSession, followCompiles, logLines, logText, runLines, stamp } from './test-session';
 
 const MAPPING = 'mappings/order-id-copy';
 const at = (seconds: number) => new Date(2026, 10, 10, 13, 5, seconds);
@@ -18,6 +18,9 @@ const storeOf = (api: ApiClient, opened: StoredMapping) =>
     load: () => api.getMapping(MAPPING),
     compile: (model, signal) => api.compile(MAPPING, model, signal).then((compiled) => compiled.diagnostics),
   });
+
+/** A session's run port wired to `api`, as `useTestSession`'s mutation wires it. */
+const runOf = (api: ApiClient) => (request: TestRequest) => api.runTest(MAPPING, request);
 
 function memoryBrowserState(seed: Record<string, unknown> = {}): BrowserStateStore & { values: Map<string, unknown> } {
   const values = new Map(Object.entries(seed));
@@ -71,14 +74,14 @@ describe('the test session', () => {
   test('the source document is read from and kept in the browser per mapping; anything but text starts empty', () => {
     const api = fakeApiClient();
     const browserState = memoryBrowserState({ [testSourceKey(MAPPING)]: '<kept/>' });
-    const session = createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), api, MAPPING, browserState);
+    const session = createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), runOf(api), MAPPING, browserState);
     expect(session.getState().source).toBe('<kept/>');
 
     session.getState().setSource('<typed/>');
 
     expect(browserState.values.get(testSourceKey(MAPPING))).toBe('<typed/>');
     const other = memoryBrowserState({ [testSourceKey(MAPPING)]: 42 });
-    expect(createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), api, MAPPING, other).getState().source).toBe('');
+    expect(createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), runOf(api), MAPPING, other).getState().source).toBe('');
   });
 
   test('a run sends only the working copy and the source, keeps the answer in the store and logs it; a second run waits', async () => {
@@ -86,7 +89,7 @@ describe('the test session', () => {
     const api = fakeApiClient(undefined, { test: { [MAPPING]: result } });
     const runTest = vi.spyOn(api, 'runTest');
     const store = storeOf(api, await api.getMapping(MAPPING));
-    const session = createTestSession(store, api, MAPPING, memoryBrowserState(), () => at(4));
+    const session = createTestSession(store, runOf(api), MAPPING, memoryBrowserState(), () => at(4));
     session.getState().setSource('<in/>');
 
     const first = session.getState().runTest('Debug');
@@ -102,13 +105,13 @@ describe('the test session', () => {
   test('a run that ends without output is failed: refused, a runtime error, or a failed call', async () => {
     const refused = fakeApiClient(undefined, { test: { [MAPPING]: { kind: 'refused', diagnostics: [error] } } });
     const store = storeOf(refused, await refused.getMapping(MAPPING));
-    const session = createTestSession(store, refused, MAPPING, memoryBrowserState());
+    const session = createTestSession(store, runOf(refused), MAPPING, memoryBrowserState());
     await session.getState().runTest('Warning');
     expect(session.getState().runFailed).toBe(true);
 
     // the fake knows no case for this input: the call fails
     const failing = fakeApiClient();
-    const other = createTestSession(storeOf(failing, await failing.getMapping(MAPPING)), failing, MAPPING, memoryBrowserState());
+    const other = createTestSession(storeOf(failing, await failing.getMapping(MAPPING)), runOf(failing), MAPPING, memoryBrowserState());
     other.getState().setSource('<unknown/>');
     await other.getState().runTest('Warning');
     expect(other.getState().runFailed).toBe(true);
@@ -120,7 +123,7 @@ describe('the test session', () => {
     try {
       const api = fakeApiClient(undefined, { compile: { [MAPPING]: [error] } });
       const store = storeOf(api, await api.getMapping(MAPPING));
-      const session = createTestSession(store, api, MAPPING, memoryBrowserState());
+      const session = createTestSession(store, runOf(api), MAPPING, memoryBrowserState());
       const stop = followCompiles(session, store, () => at(7));
 
       store.getState().select('a1');

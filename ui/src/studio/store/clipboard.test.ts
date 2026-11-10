@@ -54,31 +54,31 @@ function store(newId: () => string = ids()) {
 const boxesOf = (s: ReturnType<typeof store>, field: string) => s.getState().workingCopy.targetFieldMappings?.[field]?.boxes;
 
 describe('selecting several boxes', () => {
-  test('selectBoxes selects them together with the last as the selection; select keeps one', () => {
+  test('selectBoxes selects them together, in order; select keeps one', () => {
     const s = store();
 
     s.getState().selectBoxes(['c1', 'f1']);
-    expect(s.getState()).toMatchObject({ selected: ['c1', 'f1'], selection: 'f1' });
+    expect(s.getState()).toMatchObject({ selected: ['c1', 'f1'] });
 
     s.getState().select('a1');
-    expect(s.getState()).toMatchObject({ selected: ['a1'], selection: 'a1' });
+    expect(s.getState()).toMatchObject({ selected: ['a1'] });
 
     s.getState().selectBoxes([]);
-    expect(s.getState()).toMatchObject({ selected: [], selection: null });
+    expect(s.getState()).toMatchObject({ selected: [] });
 
     s.getState().select(null);
     expect(s.getState().selected).toEqual([]);
   });
 
-  test('deleting a selected box unselects it, and the one selected before it becomes the selection', () => {
+  test('deleting a selected box unselects it and keeps the others in order', () => {
     const s = store();
     s.getState().selectBoxes(['a1', 'c1', 'f1']);
 
     s.getState().deleteBoxes(['c1']);
-    expect(s.getState()).toMatchObject({ selected: ['a1', 'f1'], selection: 'f1' });
+    expect(s.getState()).toMatchObject({ selected: ['a1', 'f1'] });
 
     s.getState().deleteBoxes(['f1']);
-    expect(s.getState()).toMatchObject({ selected: ['a1'], selection: 'a1' });
+    expect(s.getState()).toMatchObject({ selected: ['a1'] });
   });
 
   test('deleting several selected boxes removes them all as one undo step and unselects them; undo brings them back', () => {
@@ -89,7 +89,7 @@ describe('selecting several boxes', () => {
 
     expect(Object.keys(boxesOf(s, ORDER_ID)!)).toEqual(['a1']);
     expect(s.getState().past).toEqual([graph]);
-    expect(s.getState()).toMatchObject({ selected: ['n1', 'a1'], selection: 'a1' });
+    expect(s.getState()).toMatchObject({ selected: ['n1', 'a1'] });
 
     s.getState().undo();
     expect(s.getState().workingCopy).toBe(graph);
@@ -103,7 +103,7 @@ describe('selecting several boxes', () => {
 
     expect(s.getState().workingCopy).toBe(graph);
     expect(s.getState().refusal).toEqual({ code: 'unknown-box-reference', id: 'zz' });
-    expect(s.getState()).toMatchObject({ selected: ['c1', 'f1'], selection: 'f1' });
+    expect(s.getState()).toMatchObject({ selected: ['c1', 'f1'] });
   });
 
   test('Reload unselects every box and keeps the clipboard', async () => {
@@ -116,7 +116,7 @@ describe('selecting several boxes', () => {
 
     await s.getState().reload();
 
-    expect(s.getState()).toMatchObject({ selected: [], selection: null });
+    expect(s.getState()).toMatchObject({ selected: [] });
     expect(Object.keys(s.getState().clipboard?.boxes ?? {})).toEqual(['c1', 'f1']);
   });
 });
@@ -137,7 +137,7 @@ describe('copy and paste', () => {
     expect(Object.keys(boxesOf(s, ORDER_ID)!)).toHaveLength(5);
     expect(s.getState().past).toEqual([graph]);
     // the pasted boxes become the selection, so that they can be moved at once
-    expect(s.getState()).toMatchObject({ selected: ['pc', 'pf'], selection: 'pf' });
+    expect(s.getState()).toMatchObject({ selected: ['pc', 'pf'] });
   });
 
   test('the clipboard keeps the boxes as copied: a later edit does not change what is pasted, and it pastes again', () => {
@@ -186,6 +186,6 @@ describe('copy and paste', () => {
 
     expect(s.getState().workingCopy).toBe(graph);
     expect(s.getState().refusal).toEqual({ code: 'duplicate-authoring-id', id: 'n1' });
-    expect(s.getState()).toMatchObject({ selected: ['c1'], selection: 'c1' });
+    expect(s.getState()).toMatchObject({ selected: ['c1'] });
   });
 });

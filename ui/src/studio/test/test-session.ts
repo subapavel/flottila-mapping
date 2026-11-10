@@ -1,11 +1,12 @@
+import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { createStore } from 'zustand/vanilla';
-import { describeError, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
-import type { BrowserStateStore } from '../browser-state/browser-state';
+import { describeError, type ApiClient, type Diagnostic, type TestRequest, type TestResult } from '../../api/client';
+import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
 import type { WorkingCopyStore } from '../store/working-copy';
 import { currentInstance, testInput, testInstances, type TestInstance } from '../mock/test-instances';
 import { testPreview } from '../mock/test-preview';
-import { formatOf } from './documents';
+import { formatOf } from '../shared/documents';
 
 /** A line of the processing log: its time when it opens a section, else a detail of the section above it. */
 export interface LogLine {
@@ -19,9 +20,6 @@ export interface LogSection {
   at: number;
   lines: LogLine[];
 }
-
-/** The key of a mapping's source document in the browser state, kept per mapping like the prototype's simulation. */
-export const testSourceKey = (mappingId: string) => `mapping:${mappingId}:test-source`;
 
 /** A log line's time as the prototype stamps it: hours, minutes and seconds on a 24-hour clock. */
 export const stamp = (at: Date) => at.toLocaleTimeString('en-GB', { hour12: false });
@@ -92,8 +90,15 @@ export interface TestSessionState {
 /**
  * The Test tab's session of one open mapping (the prototype's useSimulationSession): the source document, the processing
  * log and the run under way. It outlives the tab, so that the log and the source stay while another tab is open.
+ * `run` sends a test run of the mapping to the service.
  */
-export function createTestSession(workingCopy: WorkingCopyStore, api: ApiClient, mappingId: string, browserState: BrowserStateStore, now: () => Date = () => new Date()) {
+export function createTestSession(
+  workingCopy: WorkingCopyStore,
+  run: (request: TestRequest) => Promise<TestResult>,
+  mappingId: string,
+  browserState: BrowserStateStore,
+  now: () => Date = () => new Date(),
+) {
   const kept = browserState.read(testSourceKey(mappingId));
   return createStore<TestSessionState>()((set, get) => ({
     source: typeof kept === 'string' ? kept : '',
@@ -112,7 +117,7 @@ export function createTestSession(workingCopy: WorkingCopyStore, api: ApiClient,
       set({ running: true });
       let answer: RunAnswer;
       try {
-        const result = await api.runTest(mappingId, { model: sent, input: get().source });
+        const result = await run({ model: sent, input: get().source });
         workingCopy.getState().recordRun(sent, result);
         answer = { result };
       } catch (error) {
@@ -171,9 +176,13 @@ export function followInstances(session: TestSession, workingCopy: WorkingCopySt
   };
 }
 
-/** The test session of the open mapping, for as long as the studio is open, following its compiles and test instances. */
+/**
+ * The test session of the open mapping, for as long as the studio is open, following its compiles and test instances;
+ * its runs are a TanStack Query mutation (ADR-0013), whose `mutateAsync` stays the same for the life of the hook.
+ */
 export function useTestSession(workingCopy: WorkingCopyStore, api: ApiClient, mappingId: string, browserState: BrowserStateStore): TestSession {
-  const [session] = useState(() => createTestSession(workingCopy, api, mappingId, browserState));
+  const { mutateAsync: run } = useMutation({ mutationFn: (request: TestRequest) => api.runTest(mappingId, request) });
+  const [session] = useState(() => createTestSession(workingCopy, run, mappingId, browserState));
   useEffect(() => followCompiles(session, workingCopy), [session, workingCopy]);
   useEffect(() => followInstances(session, workingCopy, browserState, mappingId), [session, workingCopy, browserState, mappingId]);
   return session;

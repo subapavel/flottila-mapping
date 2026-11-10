@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { emptyFunctions, newFunction, type FunctionsState } from './function-model';
+import { emptyFunctions, newFunction, type FunctionsState } from '../mock/function-model';
 import { exportSource, importSource } from './function-source';
 
 const MAPPING = 'mappings/order-id-copy';

@@ -190,10 +190,10 @@ describe('editing the function graph', () => {
     s.getState().select('c1');
 
     s.getState().deleteBoxes(['f1']);
-    expect(s.getState().selection).toBe('c1');
+    expect(s.getState().selected).toEqual(['c1']);
 
     s.getState().deleteBoxes(['c1']);
-    expect(s.getState().selection).toBeNull();
+    expect(s.getState().selected).toEqual([]);
     expect(s.getState().workingCopy).toEqual(baseline);
   });
 
@@ -204,7 +204,7 @@ describe('editing the function graph', () => {
     s.getState().deleteBoxes(['zz']);
 
     expect(s.getState().refusal).toEqual({ code: 'unknown-box-reference', id: 'zz' });
-    expect(s.getState().selection).toBe('zz');
+    expect(s.getState().selected).toEqual(['zz']);
   });
 });
 
@@ -280,14 +280,14 @@ describe('undo and redo', () => {
     s.getState().link(ORDER_ID, ORDER_ID);
 
     s.getState().select('b1');
-    expect(s.getState().selection).toBe('b1');
+    expect(s.getState().selected).toEqual(['b1']);
     expect(s.getState().past).toHaveLength(1);
 
     s.getState().undo();
     expect(s.getState().workingCopy).toBe(baseline);
-    expect(s.getState().selection).toBe('b1');
+    expect(s.getState().selected).toEqual(['b1']);
     s.getState().select(null);
-    expect(s.getState().selection).toBeNull();
+    expect(s.getState().selected).toEqual([]);
   });
 });
 
@@ -449,7 +449,7 @@ describe('a save conflict', () => {
     expect(s.getState().etag).toBe('"sha256:disk"');
     expect(s.getState().past).toEqual([]);
     expect(s.getState().future).toEqual([]);
-    expect(s.getState().selection).toBeNull();
+    expect(s.getState().selected).toEqual([]);
     expect(s.getState().conflict).toBe(false);
     expect(selectUnsaved(s.getState())).toBe(false);
   });
