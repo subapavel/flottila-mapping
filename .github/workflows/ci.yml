@@ -85,6 +85,7 @@ jobs:
           scripts/test/function-families-test.sh
           scripts/test/function-families-refusals-test.sh
           scripts/test/ratchet-mutation-test.sh
+          scripts/test/ratchet-moved-test.sh
       - name: Build, test, floors, licences, bans
         run: ./mvnw -B -Pbench verify
       - name: contract/ is up to date

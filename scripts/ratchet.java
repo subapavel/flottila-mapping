@@ -38,6 +38,9 @@ public final class Ratchet {
   private static final Path RATCHET = ROOT.resolve("ratchet");
   private static final Path ORACLE_REPORTS = ROOT.resolve("engine/oracle/target/surefire-reports");
   private static final List<String> UI_DIRECTORIES = List.of("ui/src/model", "ui/src/studio/store");
+  // #161 moved the store; the baseline follows the module
+  private static final Map<String, String> MOVED_COVERAGE_MODULES =
+      Map.of("ui/src/editor/store", "ui/src/studio/store");
   private static final List<String> MUTATION_MODULES =
       List.of(
           "engine/xdm",
@@ -97,12 +100,17 @@ public final class Ratchet {
     for (String row : readLines(RATCHET.resolve("coverage.tsv"))) {
       String[] c = row.split("\t");
       String module = c[0];
+      String moved = MOVED_COVERAGE_MODULES.get(module);
+      if (moved != null) {
+        System.out.println("MOVED coverage " + module + " -> " + moved);
+        module = moved;
+      }
       int lines = Integer.parseInt(c[1]);
       int branches = Integer.parseInt(c[2]);
       int[] now = coverage.get(module);
       if (now == null) {
         notRun("coverage " + module, regen);
-        coverageRows.put(module, row);
+        coverageRows.put(module, moved == null ? row : module + "\t" + lines + "\t" + branches);
         continue;
       }
       compare("coverage " + module + " lines", lines, now[0]);
