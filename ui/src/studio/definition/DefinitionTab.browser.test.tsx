@@ -178,6 +178,28 @@ describe('the Definition tab panes (#156)', () => {
     expect(boxes).toEqual([{ kind: 'source', field: `/${ORDER}/Quantity` }]);
   });
 
+  test('in edit mode a double click on a source row with no target field selected changes nothing', async () => {
+    const store = await renderDefinition({ editing: true });
+
+    await field('source', 'Quantity').dblClick();
+
+    await expect.element(field('source', 'Quantity')).toHaveAttribute('aria-pressed', 'true');
+    expect(store.getState().workingCopy).toBe(store.getState().baseline);
+  });
+
+  test('a refused field refuses the drop: no box is added and the store records why', async () => {
+    const fake = fakeApiClient();
+    const refused = { code: 'unsupported-construct', side: 'target' as const, file: 'order.xsd', line: 3, column: 1 };
+    const structure = await fake.loadStructure({ base: 'mappings', bundle: ['../structures/skeleton/order.xsd'], root: { element: ORDER } });
+    const withRefusal = structure.kind === 'loaded' ? { ...structure, types: { [structure.root.type!]: structure.types[structure.root.type!]!.map((f) => (f.step === 'Note' ? { ...f, refusal: refused } : f)) } } : structure;
+    const store = await renderDefinition({ api: { ...fake, loadStructure: async () => withRefusal }, editing: true });
+
+    await userEvent.dragAndDrop(row('source', 'Quantity'), row('target', 'Note'));
+
+    await expect.poll(() => store.getState().refusal).not.toBeNull();
+    expect(store.getState().workingCopy).toBe(store.getState().baseline);
+  });
+
   test('in view mode the rows are not draggable, and a drop or a double click changes nothing', async () => {
     const store = await renderDefinition();
     await field('target', 'Note').click();
@@ -302,14 +324,17 @@ describe('the Definition tab panes (#156)', () => {
     await expect.element(field('source', 'Note')).not.toBeInTheDocument();
   });
 
-  test('Show Full Path shows the selected field path below the rows', async () => {
+  test('Show Full Path shows the selected field path below the rows, a bare / while none is selected', async () => {
     await renderDefinition();
-    await field('target', 'Note').click();
 
     await tool('target', 'Show Full Path').click();
+    await expect.element(pane('target').getByText('/', { exact: true })).toBeVisible();
+    await field('target', 'Note').click();
 
     await expect.element(pane('target').getByText('/Order/Note', { exact: true })).toBeVisible();
     await expect.element(tool('target', 'Show Full Path')).toHaveAttribute('aria-pressed', 'true');
+    await tool('target', 'Show Full Path').click();
+    await expect.element(pane('target').getByText('/Order/Note', { exact: true })).not.toBeInTheDocument();
   });
 
   test('Show Mapping Column switches to the table and shows each target field mapping as text', async () => {
@@ -377,6 +402,26 @@ describe('the Definition tab panes (#156)', () => {
     await pane('source').getByRole('button', { name: 'Change source message' }).click();
 
     await expect.poll(() => store.getState().tab).toBe('signature');
+  });
+
+  test('a JSON message shows its format as JSON and its value types as the service names them', async () => {
+    const order = (await fakeApiClient().getMapping(MAPPING)).model;
+    const json = { ...order, source: { ...order.source!, root: { json: '$' as const } }, target: { ...order.target!, root: { json: '$' as const } } };
+    await renderDefinition({ api: fakeApiClient({ [MAPPING]: json }) });
+
+    await expect.element(pane('source').getByRole('button', { name: 'Change source message' })).toHaveTextContent('JSON');
+    await expect.element(row('source', 'Note').getByRole('cell').nth(2)).toHaveTextContent('xs:string');
+  });
+
+  test('a splitter dragged with the pointer keeps its new share', async () => {
+    const browserState = memoryBrowserState();
+    await renderDefinition({ browserState });
+    const sides = page.getByRole('separator', { name: 'Resize source and target panels' });
+    await expect.element(field('target', 'Note')).toBeVisible();
+
+    await userEvent.dragAndDrop(sides, page.getByRole('heading', { level: 2 }).last());
+
+    await expect.poll(() => browserState.values.get('user:studio:definition.width')).toBeGreaterThan(0.5);
   });
 
   test('the splitters resize with the keyboard and keep their share in browser state', async () => {

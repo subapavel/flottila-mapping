@@ -14,9 +14,6 @@ export const FILTERS = [
   'Show Selected Fields',
 ] as const;
 
-/** A field path and its descendants: `path` is `parent` or lies below it. */
-export const under = (path: FieldPath, parent: FieldPath) => path === parent || path.startsWith(`${parent}/`);
-
 /**
  * The rows of every field `keep` holds for, by its path, and of each of its ancestors, in tree order, each ancestor shown
  * expanded (the prototype's filter and search). Below a field whose type is already on its path the walk stops, so that a

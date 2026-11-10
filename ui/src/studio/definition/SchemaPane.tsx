@@ -64,7 +64,7 @@ export interface SchemaPaneProps {
  * double click adds it to the selected target field mapping.
  */
 export function SchemaPane(props: SchemaPaneProps) {
-  const { side, mappingId, api, structureRef, mode, onMode, editing, onAssign } = props;
+  const { side, mappingId, api, structureRef, editing, onAssign } = props;
   const query = useStructure(mappingId, api, structureRef);
   const title = side === 'source' ? 'Source' : 'Target';
   const fileName = structureRef.bundle[0].slice(structureRef.bundle[0].lastIndexOf('/') + 1);
