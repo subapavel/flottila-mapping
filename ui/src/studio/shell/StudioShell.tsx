@@ -62,6 +62,8 @@ export interface StudioShellProps {
   browserState: BrowserStateStore;
   /** Where the masthead's brand leads: the start page. */
   listHref: string;
+  /** Told whether the working copy has unsaved changes, at open and at each change. */
+  onUnsavedChange?: (unsaved: boolean) => void;
 }
 
 /**
@@ -69,9 +71,10 @@ export interface StudioShellProps {
  * mapping's name and Edit, or Cancel and Save in edit mode, and the active tab's body. The tab follows the URL hash
  * both ways. The structures are refreshed once on open (ADR-0027); Save sends `If-Match` and meets a save conflict in
  * its dialog; Cancel with unsaved changes asks before it discards them; the page asks before it unloads while the
- * working copy differs from the baseline.
+ * working copy differs from the baseline, and `onUnsavedChange` hears of it, for leaving within the page. Check and F7
+ * check the working copy; Ctrl+S and Cmd+S save it.
  */
-export function StudioShell({ mappingId, api, store, browserState, listHref }: StudioShellProps) {
+export function StudioShell({ mappingId, api, store, browserState, listHref, onUnsavedChange }: StudioShellProps) {
   const name = mappingId.slice(mappingId.lastIndexOf('/') + 1);
   const tab = useStore(store, (s) => s.tab);
   const editing = useStore(store, (s) => s.editing);
@@ -89,7 +92,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
   );
   const changeTab = (next: StudioTab) => {
     keepTab(next);
-    history.replaceState(null, '', `#${next}`);
+    // the entry's state is the page's (its place in the history), not the tab's
+    history.replaceState(history.state, '', `#${next}`);
   };
   useEffect(() => {
     const navigate = () => {
@@ -100,6 +104,7 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
     return () => window.removeEventListener('hashchange', navigate);
   }, [keepTab]);
 
+  useEffect(() => onUnsavedChange?.(unsaved), [onUnsavedChange, unsaved]);
   useEffect(() => {
     if (!unsaved) return undefined;
     const ask = (event: BeforeUnloadEvent) => event.preventDefault();

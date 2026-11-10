@@ -1,26 +1,19 @@
 import { Modal, ModalBody, ModalHeader } from '@patternfly/react-core';
 import { LayerGroupIcon, QuestionCircleIcon } from '@patternfly/react-icons';
-import { useState, type MouseEvent } from 'react';
+import { useState } from 'react';
 import './shell.css';
 
 const ABOUT = 'About Mapping studio';
 
-export interface MastheadProps {
-  /** Where the brand leads: the start page. */
-  homeHref: string;
-  /** Takes a click on the brand, to follow it in the page; without it the brand is a plain link. */
-  onHome?: (event: MouseEvent<HTMLAnchorElement>) => void;
-}
-
 /**
- * The studio's masthead, "Flottila | Mapping studio" (ADR-0028): the brand links to the start page; on the right, the
- * help button opens About Mapping studio, the prototype's help adapted to our product.
+ * The studio's masthead, "Flottila | Mapping studio" (ADR-0028): the brand links to the start page at `homeHref`; on the
+ * right, the help button opens About Mapping studio, the prototype's help adapted to our product.
  */
-export function Masthead({ homeHref, onHome }: MastheadProps) {
+export function Masthead({ homeHref }: { homeHref: string }) {
   const [about, setAbout] = useState(false);
   return (
     <header className="masthead">
-      <a className="brand" href={homeHref} onClick={onHome}>
+      <a className="brand" href={homeHref}>
         <span className="brand-icon">
           <LayerGroupIcon />
         </span>

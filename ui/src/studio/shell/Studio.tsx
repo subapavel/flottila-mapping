@@ -19,6 +19,8 @@ export interface StudioProps {
   listHref: string;
   /** Opens the mapping in edit mode, as Create does (ADR-0028); otherwise it opens in view mode. */
   startEditing?: boolean;
+  /** Told whether the open mapping has unsaved changes, at open and at each change. */
+  onUnsavedChange?: (unsaved: boolean) => void;
 }
 
 /** The store of an open mapping (ADR-0013), its ports wired to `api`. */
@@ -68,12 +70,12 @@ function Loader(props: StudioProps) {
   );
 }
 
-function Opened({ mappingId, api, browserState, listHref, startEditing, opened }: StudioProps & { opened: StoredMapping }) {
+function Opened({ mappingId, api, browserState, listHref, startEditing, onUnsavedChange, opened }: StudioProps & { opened: StoredMapping }) {
   const [store] = useState(() => {
     const created = studioStore(api, mappingId, opened);
     created.getState().setTab(openingTab(window.location.hash, browserState.read(lastTabKey(mappingId))));
     if (startEditing) created.getState().startEditing();
     return created;
   });
-  return <StudioShell mappingId={mappingId} api={api} store={store} browserState={browserState} listHref={listHref} />;
+  return <StudioShell mappingId={mappingId} api={api} store={store} browserState={browserState} listHref={listHref} onUnsavedChange={onUnsavedChange} />;
 }
