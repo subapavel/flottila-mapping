@@ -1,6 +1,6 @@
 import { Switch } from '@patternfly/react-core';
 import { Table, Tbody, Th, Thead, Tr } from '@patternfly/react-table';
-import { AngleDownIcon, AngleRightIcon, CheckIcon, CubeIcon, SearchIcon } from '@patternfly/react-icons';
+import { AngleDownIcon, AngleRightIcon, CheckIcon, CubeIcon, ExclamationTriangleIcon, SearchIcon } from '@patternfly/react-icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { ApiClient, FieldDto, StructureLoaded } from '../../api/client';
@@ -52,6 +52,8 @@ export interface SchemaPaneProps {
   editing: boolean;
   /** The fields marked as connected: the source fields the mapping reads, or the mapped target fields. */
   connected: ReadonlySet<FieldPath>;
+  /** The target fields whose mapping reads a source field the source structure lacks: marked orphaned, not connected. */
+  orphaned?: ReadonlySet<FieldPath>;
   /** The working copy's target field mappings: the mapping column and the direct and indirect filters read them. */
   mappings: TargetFieldMappings;
   selected: FieldPath | null;
@@ -69,6 +71,7 @@ export interface SchemaPaneProps {
 }
 
 const NO_VARIABLES: readonly FieldPath[] = [];
+const NO_ORPHANS: ReadonlySet<FieldPath> = new Set();
 
 /** A variable's row under its parent's: no type, no children, at most once (the prototype's `0..1`). */
 const variableRow = (path: FieldPath, depth: number): TreeRow => ({
@@ -147,6 +150,7 @@ function LoadedPane({
   onMode,
   editing,
   connected,
+  orphaned = NO_ORPHANS,
   mappings,
   selected,
   onPick,
@@ -330,6 +334,7 @@ function LoadedPane({
           onToggle={toggle}
           format={format}
           connected={connected}
+          orphaned={orphaned}
           selected={selected}
           mapping={mode === 'Table' && !source && mappingColumn ? mappings : undefined}
           selection={mode === 'Table' && !source && selectionColumn ? { marked, setMarked } : undefined}
@@ -360,6 +365,7 @@ interface FieldRowsProps {
   onToggle: (path: FieldPath) => void;
   format: string;
   connected: ReadonlySet<FieldPath>;
+  orphaned: ReadonlySet<FieldPath>;
   selected: FieldPath | null;
   /** The mapping column's target field mappings, when it is shown. */
   mapping?: TargetFieldMappings;
@@ -372,7 +378,7 @@ interface FieldRowsProps {
 }
 
 /** The tree or the table of a pane, one PatternFly table row per visible row, only those near the scrolled view rendered. */
-function FieldRows({ side, rows, table, toggleable, onToggle, format, connected, selected, mapping, selection, variables, fieldActions, rowActions }: FieldRowsProps) {
+function FieldRows({ side, rows, table, toggleable, onToggle, format, connected, orphaned, selected, mapping, selection, variables, fieldActions, rowActions }: FieldRowsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const height = useSyncExternalStore(subscribeWide, rowHeight);
   // Same-step siblings share a field path (ADR-0008): the second and later rows of a path get `#n` as their key.
@@ -450,10 +456,22 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
                       {name}
                     </button>
                     {variable && <PreviewBadge feature="Variables" issue={VARIABLES_ISSUE} />}
-                    {connected.has(path) && (
-                      <span className="wired-mark" role="img" title="Connected" aria-label="Connected">
-                        <CheckIcon />
+                    {/* a row shows its most urgent field status: orphaned before connected */}
+                    {orphaned.has(path) ? (
+                      <span
+                        className="orphaned-mark"
+                        role="img"
+                        title="Orphaned reference: this mapping reads a source field the source structure no longer has. Remap it from the node menu."
+                        aria-label="Orphaned reference"
+                      >
+                        <ExclamationTriangleIcon />
                       </span>
+                    ) : (
+                      connected.has(path) && (
+                        <span className="wired-mark" role="img" title="Connected" aria-label="Connected">
+                          <CheckIcon />
+                        </span>
+                      )
                     )}
                   </div>
                 </td>

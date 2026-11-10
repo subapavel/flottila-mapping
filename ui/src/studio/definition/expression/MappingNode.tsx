@@ -1,4 +1,4 @@
-import { CogIcon } from '@patternfly/react-icons';
+import { CogIcon, ExclamationTriangleIcon } from '@patternfly/react-icons';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
@@ -23,7 +23,12 @@ export type MappingNodeData = {
   editParameters?: () => void;
   /** The parameters a function card shows below its name, as text. */
   settings?: string;
+  /** A source-field box that reads a field the source structure lacks (GLOSSARY: Orphaned reference). */
+  orphaned?: boolean;
 };
+
+/** What an orphaned box's mark says. */
+const ORPHANED_HINT = 'Orphaned reference: the source structure has no such field. Choose Remap in the node menu.';
 
 export type MappingFlowNode = Node<MappingNodeData, 'mapping'>;
 
@@ -57,7 +62,7 @@ function PortHandle({ node, state, port, index, count, input }: { node: Expressi
  * context or the missing inputs below it, a gear for a function with parameters, and its ports.
  */
 export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) {
-  const { node, state, fieldType, editParameters, settings } = data;
+  const { node, state, fieldType, editParameters, settings, orphaned } = data;
   const refresh = useUpdateNodeInternals();
   const ports = JSON.stringify(node.inputs.map((p) => p.id));
   const previousPorts = useRef(ports);
@@ -76,10 +81,12 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
   const openInputs = isFunction ? node.inputs.filter((p) => state.missing.includes(p.id)) : [];
   const portNote = openInputs.length ? `Missing: ${openInputs.map((p) => p.label).join(', ')}` : '';
   const path = node.path ? `/${localPath(node.path)}` : '';
-  const details = [node.name, nodeRole(node) + (fieldType ? ` · ${fieldType}` : ''), path, contextLabel, settings, state.description].filter(Boolean).join('\n');
+  const details = [node.name, nodeRole(node) + (fieldType ? ` · ${fieldType}` : ''), path, contextLabel, settings, orphaned && ORPHANED_HINT, state.description]
+    .filter(Boolean)
+    .join('\n');
   return (
     <div
-      className={`map-node ${node.kind}${selected ? ' is-selected' : ''}`}
+      className={`map-node ${node.kind}${selected ? ' is-selected' : ''}${orphaned ? ' is-orphaned' : ''}`}
       data-state={state.kind}
       data-mapping-hint={details}
       style={{ '--node-height': `${nodeHeight(node)}px`, height: 'var(--node-height)', width: NODE_WIDTH } as CSSProperties}
@@ -96,6 +103,11 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
         </span>
         <div className="node-caption">
           <strong className={changedContext ? 'changed-context' : undefined}>{node.name}</strong>
+          {orphaned && (
+            <span className="orphaned-mark" role="img" aria-label="Orphaned reference" title={ORPHANED_HINT}>
+              <ExclamationTriangleIcon />
+            </span>
+          )}
           {node.preview && <PreviewBadge {...node.preview} />}
           {portNote ? (
             <div className="node-meta port-note">{portNote}</div>

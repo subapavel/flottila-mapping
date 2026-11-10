@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { FieldDto, StructureLoaded } from '../../api/client';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
-import { connectedFields, expressionText, keptRows, mappedHow, schemaLines, typeKind, xsdType } from './definition-model';
+import { connectedFields, expressionText, keptRows, mappedHow, orphans, schemaLines, typeKind, xsdType } from './definition-model';
+import { fieldAt } from './rows';
 
 const field = (step: string, extra: Partial<FieldDto> = {}): FieldDto => ({
   kind: step.startsWith('@') ? 'attribute' : 'element',
@@ -138,6 +139,40 @@ describe('the connected fields', () => {
     expect([...connected.source]).toEqual(['/Doc/X']);
     expect([...connected.target]).toEqual(['/Doc/A']);
     expect([...connectedFields({ formatVersion: 1 }).target]).toEqual([]);
+  });
+});
+
+describe('the orphaned references (GLOSSARY: Orphaned reference, Field status)', () => {
+  test('a field is found at any depth of a recursive type; a missing step, a step below a leaf or another root finds none', () => {
+    expect(fieldAt(doc, '/Doc')).toBe(doc.root);
+    expect(fieldAt(doc, '/Doc/@id')?.valueType).toBe('xs:string');
+    expect(fieldAt(doc, '/Doc/Part/Part/Part/Name')?.valueType).toBe('xs:token');
+    expect(fieldAt(doc, '/Doc/Gone')).toBeUndefined();
+    expect(fieldAt(doc, '/Doc/Plain/Below')).toBeUndefined();
+    expect(fieldAt(doc, '/Other/Name')).toBeUndefined();
+  });
+
+  test('are the source-field boxes reading a field the source structure lacks, and the target fields holding one', () => {
+    const model: MappingModel = {
+      formatVersion: 1,
+      targetFieldMappings: {
+        '/T/A': { id: 't1', result: 'f1', boxes: { a1: { kind: 'source', field: '/Doc/Gone' }, f1: { kind: 'function', fn: 'toUpperCase', inputs: ['a1'] } } },
+        '/T/B': { id: 't2', result: 'a2', boxes: { a2: { kind: 'source', field: '/Doc/Part/Part/Name' } } },
+        '/T/C': { id: 't3', result: 'a3', boxes: { a3: { kind: 'source', field: '/Doc/@id' }, a4: { kind: 'source', field: '/Other/X' } } },
+      },
+    };
+
+    const found = orphans(model, doc);
+
+    expect([...found.boxes]).toEqual(['a1', 'a4']);
+    expect([...found.targets]).toEqual(['/T/A', '/T/C']);
+  });
+
+  test('are none while the source structure is not loaded, nor in a model without target field mappings', () => {
+    const model: MappingModel = { formatVersion: 1, targetFieldMappings: { '/T/A': { id: 't1', result: 'a1', boxes: { a1: { kind: 'source', field: '/Doc/Gone' } } } } };
+
+    expect(orphans(model, undefined)).toEqual({ boxes: new Set(), targets: new Set() });
+    expect(orphans({ formatVersion: 1 }, doc)).toEqual({ boxes: new Set(), targets: new Set() });
   });
 });
 

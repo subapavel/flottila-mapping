@@ -14,7 +14,7 @@ import { testPreview } from '../mock/test-preview';
 import { formatOf } from '../test/documents';
 import { testSourceKey } from '../test/test-session';
 import { AddVariable } from './AddVariable';
-import { connectedFields, keptRows, typeKind, type Side } from './definition-model';
+import { connectedFields, keptRows, orphans, typeKind, type Side } from './definition-model';
 import './definition.css';
 import { action, ActionMenu, useActionMenu, type MenuItem } from './expression/ActionMenu';
 import { Canvas } from './expression/Canvas';
@@ -68,6 +68,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
   const sourceQuery = useStructure(mappingId, api, sourceRef);
   const targetQuery = useStructure(mappingId, api, targetRef);
   const connected = useMemo(() => connectedFields(model), [model]);
+  const orphaned = useMemo(() => orphans(model, sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined), [model, sourceQuery.data]);
   const mappings = model.targetFieldMappings ?? {};
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const [dataFlow, setDataFlow] = useState(true);
@@ -79,6 +80,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
       new Map(data && loaded(data).kind === 'loaded' ? keptRows(loaded(data), () => true).map((row) => [row.path, typeKind(row.field)] as const) : []);
     return { source: types(sourceQuery.data), target: types(targetQuery.data) };
   }, [sourceQuery.data, targetQuery.data]);
+  const sourceFields = useMemo(() => [...fieldTypes.source.keys()], [fieldTypes]);
   // a variable a discard took away leaves nothing selected; a JSON property may be named like a variable
   const selectedTarget = picked !== null && VARIABLE_STEP.test(picked) && !variables.includes(picked) && !fieldTypes.target.has(picked) ? null : picked;
 
@@ -110,6 +112,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
       onMode={(mode) => setView(side, mode)}
       editing={editing}
       connected={connected[side]}
+      orphaned={side === 'target' ? orphaned.targets : undefined}
       mappings={mappings}
       selected={side === 'source' ? selectedSource : selectedTarget}
       onPick={side === 'source' ? setSelectedSource : (path) => store.getState().selectTarget(path)}
@@ -242,6 +245,10 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
                   browserState={browserState}
                   fieldTypes={fieldTypes}
                   findField={(side, path) => (side === 'source' ? setSelectedSource(path) : store.getState().selectTarget(path))}
+                  orphaned={orphaned.boxes}
+                  sourceFields={sourceFields}
+                  // a box is orphaned only against a loaded source structure, and a refused source field refuses the remap as it refuses a link (ADR-0027)
+                  remap={(box, field) => store.getState().remap(selectedTarget, box, field, refusalAt(loaded(sourceQuery.data), field, 'source'))}
                 />
               )}
             </div>

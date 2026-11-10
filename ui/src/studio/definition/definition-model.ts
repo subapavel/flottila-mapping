@@ -1,5 +1,5 @@
 import type { FieldDto, StructureLoaded } from '../../api/client';
-import { reachedSourceFields, type TreeRow } from './rows';
+import { fieldAt, reachedSourceFields, type TreeRow } from './rows';
 import type { AuthoringId, FieldPath, MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
 import { localPath } from '../../model/field-path';
 
@@ -117,6 +117,33 @@ export function mappedHow(mapping: TargetFieldMapping | undefined): 'direct' | '
   if (result === undefined) return undefined;
   if (result.kind === 'source') return 'direct';
   return reachedSourceFields(mapping).length > 0 ? 'indirect' : undefined;
+}
+
+/** The orphaned references on the source side (GLOSSARY: Orphaned reference), as `orphans` finds them. */
+export interface Orphans {
+  /** The source-field boxes, in any target field mapping, that read a field the source structure lacks. */
+  boxes: ReadonlySet<AuthoringId>;
+  /** The target fields whose target field mapping holds such a box: their rows carry the orphaned field status. */
+  targets: ReadonlySet<FieldPath>;
+}
+
+/**
+ * The orphaned source-field references of the working copy against the loaded source structure (GLOSSARY: Orphaned
+ * reference, Field status): derived from the working copy, so a remap clears them at once. None while `source` is not
+ * loaded.
+ */
+export function orphans(model: MappingModel, source: StructureLoaded | undefined): Orphans {
+  const boxes = new Set<AuthoringId>();
+  const targets = new Set<FieldPath>();
+  if (source === undefined) return { boxes, targets };
+  for (const [path, mapping] of Object.entries(model.targetFieldMappings ?? {})) {
+    for (const [id, box] of Object.entries(mapping.boxes)) {
+      if (box.kind !== 'source' || fieldAt(source, box.field) !== undefined) continue;
+      boxes.add(id);
+      targets.add(path);
+    }
+  }
+  return { boxes, targets };
 }
 
 /** The fields each pane marks as connected: the source fields any target field mapping reads, and the mapped target fields. */
