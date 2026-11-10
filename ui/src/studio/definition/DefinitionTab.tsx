@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient, StructureLoaded } from '../../api/client';
-import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
+import type { BrowserStateStore } from '../browser-state/browser-state';
 import { reachedSourceFields, refusalAt } from './rows';
 import { useStructure } from '../shared/structure-query';
 import type { WorkingCopyStore } from '../store/working-copy';
@@ -12,6 +12,7 @@ import { addNode, addVariable, canvasOf, definitionPreview, newPreviewId, variab
 import { testInput, testInstances } from '../mock/test-instances';
 import { testPreview } from '../mock/test-preview';
 import { formatOf } from '../shared/documents';
+import type { TestSession } from '../shared/test-session';
 import { AddVariable } from './AddVariable';
 import { connectedFields, keptRows, orphanedMappings, orphans, typeKind, type Side } from './definition-model';
 import './definition.css';
@@ -29,6 +30,8 @@ export interface DefinitionTabProps {
   mappingId: string;
   api: ApiClient;
   store: WorkingCopyStore;
+  /** The open mapping's test session, which the Display Queue runs when there is no trace yet (#177). */
+  session: TestSession;
   browserState: BrowserStateStore;
   /** Where the messages are chosen: the Signature tab. */
   onChooseMessages: () => void;
@@ -48,7 +51,7 @@ const VARIABLE_STEP = /\/\$[A-Za-z_][A-Za-z0-9_]*$/;
  * source-field box to that target field mapping (the link command), which the fields' refusals refuse (ADR-0027). The
  * target pane lists the orphaned target field mappings in a group of their own, to open or, in edit mode, delete (#174).
  */
-export function DefinitionTab({ mappingId, api, store, browserState, onChooseMessages }: DefinitionTabProps) {
+export function DefinitionTab({ mappingId, api, store, session, browserState, onChooseMessages }: DefinitionTabProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const editing = useStore(store, (s) => s.editing);
   const previewStore = definitionPreview(store, browserState, mappingId);
@@ -221,13 +224,10 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
                 instances={{
                   library: testInstances(store, browserState, mappingId),
                   format: formatOf(sourceRef),
-                  // the test session keeps its source document in the browser state at each change
-                  resource: () => {
-                    const text = browserState.read(testSourceKey(mappingId));
-                    return { text: typeof text === 'string' ? text : '', values: testPreview(store, browserState, mappingId).getState().values };
-                  },
+                  resource: () => ({ text: session.getState().source, values: testPreview(store, browserState, mappingId).getState().values }),
                   onLoad: (text) => testInput(store).getState().load(text),
-                  disabled: !editing,
+                  editing,
+                  disabled: false,
                 }}
               />
             )
@@ -253,6 +253,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
                   key={selectedTarget}
                   mappingId={mappingId}
                   store={store}
+                  session={session}
                   targetField={selectedTarget}
                   catalogue={catalogue.data}
                   browserState={browserState}

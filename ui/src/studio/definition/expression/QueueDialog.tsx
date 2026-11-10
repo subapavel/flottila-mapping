@@ -1,8 +1,13 @@
-import { Label, Modal, ModalBody, ModalHeader, Switch } from '@patternfly/react-core';
+import { Alert, Button, Label, Modal, ModalBody, ModalHeader, Switch } from '@patternfly/react-core';
+import { FileImportIcon } from '@patternfly/react-icons';
 import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useStore } from 'zustand';
 import type { TraceEntry } from '../../../api/client';
 import type { BrowserStateStore } from '../../browser-state/browser-state';
+import { currentInstance, type TestInstancesStore } from '../../mock/test-instances';
+import { parseDocument, type DocumentFormat } from '../../shared/documents';
+import type { TestSession } from '../../shared/test-session';
 import { displayEntry, type ShownValue } from './display-queue';
 import { TARGET, type ExpressionGraph, type ExpressionNode } from './expression-graph';
 import { readPanelPreference, savePanelPreference } from '../../shared/panel-preferences';
@@ -26,7 +31,96 @@ export interface QueueDialogProps {
   /** The target field mapping's authoring id, under which the trace keeps the target field's occurrences. */
   mappingId: string | undefined;
   browserState: BrowserStateStore;
+  /** What a dialog without a trace runs (#177). */
+  test: QueueTest;
   onClose: () => void;
+}
+
+/** The test run of a Display Queue without a trace (#177): the open mapping's test session and what it runs on. */
+export interface QueueTest {
+  session: TestSession;
+  /** The test instances: the latest of the source's format is the data of an empty source. */
+  library: TestInstancesStore;
+  /** The source message's format, which a test file must have. */
+  format: DocumentFormat;
+  /** The trace level the run shows in the log (a preview, never sent). */
+  level: string;
+  /** Whether the studio is in edit mode: only then is a test file offered. */
+  editing: boolean;
+}
+
+/**
+ * The body of a dialog without a trace (#177): while a run is under way, that it runs; else, without a source document,
+ * a test file to load in edit mode or, in read mode, where one is loaded; else nothing (`RunFailure` shows a failed run).
+ */
+function NoTrace({ test: { session, format, level, editing } }: { test: QueueTest }) {
+  // an empty source with a test instance takes the latest when the dialog opens (useRunWithoutTrace)
+  const empty = useStore(session, (s) => s.source === '');
+  const running = useStore(session, (s) => s.running);
+  const file = useRef<HTMLInputElement>(null);
+
+  const load = async (event: ChangeEvent<HTMLInputElement>) => {
+    // the input is cleared after each read, so a change always brings a file
+    const chosen = event.target.files![0]!;
+    event.target.value = '';
+    let text: string;
+    try {
+      text = await chosen.text();
+      parseDocument(text, format);
+    } catch (error) {
+      session.getState().failRun(level, `${chosen.name} is not a valid ${format} test input: ${(error as Error).message}`);
+      return;
+    }
+    session.getState().setSource(text);
+    await session.getState().runTest(level);
+  };
+
+  if (running) return <p role="status" className="queue-note">Running the simulation…</p>;
+  if (!empty) return null;
+  if (!editing) return <p className="queue-note">No test data yet. A test document can be loaded in edit mode.</p>;
+  return (
+    <div className="queue-load">
+      <p className="queue-note">No test data yet. Load a test file: the simulation runs on it and the queue shows here.</p>
+      <Button variant="secondary" icon={<FileImportIcon />} onClick={() => file.current?.click()}>
+        Load test file
+      </Button>
+      <input ref={file} type="file" hidden aria-label="Test file" accept={`.${format.toLowerCase()}`} onChange={(e) => void load(e)} />
+    </div>
+  );
+}
+
+/** The diagnostics of the last run when it failed, was refused or did not start (#177): its lines between Start and End. */
+function RunFailure({ session }: { session: TestSession }) {
+  // a failed run always has its log section; a run under way is not failed yet
+  const failure = useStore(session, (s) => (s.runFailed && !s.running ? s.runLog : null));
+  if (failure === null) return null;
+  return (
+    <Alert variant="danger" isInline title="The simulation failed" className="queue-failure">
+      <ul aria-label="Run diagnostics">
+        {failure.lines
+          .filter((line) => line.time === undefined)
+          .map((line, i) => (
+            <li key={i}>{line.message}</li>
+          ))}
+      </ul>
+    </Alert>
+  );
+}
+
+/**
+ * Runs the test once when the dialog opens without a trace and with test data (#177): the source document, else the
+ * latest test instance, loaded into the source first. In read mode too: a test runs there, as in SAP PO.
+ */
+function useRunWithoutTrace(traced: boolean, { session, library, format, level }: QueueTest) {
+  useEffect(() => {
+    if (traced) return;
+    if (session.getState().source === '') {
+      const latest = currentInstance(library.getState().value, format);
+      if (latest === undefined) return;
+      session.getState().loadInstance(latest);
+    }
+    void session.getState().runTest(level);
+  }, [traced, session, library, format, level]);
 }
 
 function Value({ value }: { value: ShownValue }) {
@@ -53,8 +147,11 @@ function Cell({ cell }: { cell: QueueCell }) {
  * The Display Queue of a node (the prototype's Queue dialog, GLOSSARY: Display queue): the queues the last test run traced
  * for its inputs and output, read by authoring id, a row per value and per context's end; the target field adds its
  * occurrences per parent slot. After an edit the trace is a stale trace: it still shows, marked, until the next run.
+ * Without a trace it runs the test on the test data, or asks for a test file in edit mode (#177, as SAP Integration
+ * Suite does); a failed run shows its diagnostics here as in the processing log.
  */
-export function QueueDialog({ graph, node, trace, stale, mappingId, browserState, onClose }: QueueDialogProps) {
+export function QueueDialog({ graph, node, trace, stale, mappingId, browserState, test, onClose }: QueueDialogProps) {
+  useRunWithoutTrace(trace !== undefined, test);
   const [numbers, setNumbers] = useState(() => readPanelPreference(browserState, NUMBERS_KEY, false, isBoolean));
   const { name, columns } = queueColumns(graph, node, trace ?? {});
   const count = Math.max(0, ...columns.map((c) => c.cells?.length ?? 0));
@@ -75,8 +172,9 @@ export function QueueDialog({ graph, node, trace, stale, mappingId, browserState
           </strong>
           <Switch id="queue-row-numbers" label="Row numbers" isChecked={numbers} onChange={(_, checked) => changeNumbers(checked)} />
         </div>
+        <RunFailure session={test.session} />
         {trace === undefined ? (
-          <p className="queue-note">No trace: run the simulation on the Test tab.</p>
+          <NoTrace test={test} />
         ) : (
           <>
             {stale && (

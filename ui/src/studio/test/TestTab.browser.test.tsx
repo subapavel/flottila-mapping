@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import type { ApiClient, Diagnostic, TestResult } from '../../api/client';
 import { fakeApiClient, type FakeScenario } from '../../api/fake/fake-api';
-import type { BrowserStateStore } from '../browser-state/browser-state';
-import type { WorkingCopyStore } from '../store/working-copy';
+import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
+import { selectUnsaved, type WorkingCopyStore } from '../store/working-copy';
 import { readInstance } from '../mock/test-instances';
 import { studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
@@ -29,9 +29,9 @@ const output: TestResult = {
   trace: { a1: { kind: 'queue', contexts: [['PO-1']], capped: false, slotCount: 1, contextCount: 1 } },
 };
 
-function memoryBrowserState(): BrowserStateStore {
+function memoryBrowserState(): BrowserStateStore & { values: Map<string, unknown> } {
   const values = new Map<string, unknown>();
-  return { read: (key) => values.get(key), write: (key, value) => void values.set(key, value) };
+  return { values, read: (key) => values.get(key), write: (key, value) => void values.set(key, value) };
 }
 
 let root: Root | undefined;
@@ -158,11 +158,36 @@ describe('the Test tab (#158)', () => {
     await expect.element(tree.getByRole('row', { name: /OrderId PO-1/ })).toBeVisible();
   });
 
-  test('in view mode Run is disabled and the source read-only, as in the prototype', async () => {
-    await renderTest({ editing: false });
+  // the owner's rule of #177 replaces #158's "Run needs edit mode": a test runs in read mode too, as in SAP PO
+  test('in read mode Run runs the source, edited as a throw-away input: never kept, never unsaved, no leave guard', async () => {
+    const api = scenario({ test: { [MAPPING]: output } });
+    const runTest = vi.spyOn(api, 'runTest');
+    const browserState = memoryBrowserState();
+    const store = await renderTest({ api, editing: false, browserState });
 
-    await expect.element(runButton()).toBeDisabled();
-    await expect.element(source().getByRole('textbox', { name: 'Input XML' })).toHaveAttribute('readonly');
+    await source().getByRole('textbox', { name: 'Input XML' }).fill(INPUT);
+    await expect.element(runButton()).toBeEnabled();
+    await runButton().click();
+
+    await expect.element(result()).toMatchTextContent(OUTPUT);
+    expect(runTest).toHaveBeenCalledExactlyOnceWith(MAPPING, { model: store.getState().workingCopy, input: INPUT });
+    expect(browserState.values.has(testSourceKey(MAPPING))).toBe(false);
+    expect(selectUnsaved(store.getState())).toBe(false);
+    const leaving = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(false);
+    // the parameter values are kept in the browser, so read mode leaves them as they are
+    await source().getByRole('button', { name: 'Parameters' }).click();
+    await expect.element(source().getByRole('textbox', { name: 'ConversationId' })).toHaveAttribute('readonly');
+  });
+
+  test('in edit mode the source is kept in the browser', async () => {
+    const browserState = memoryBrowserState();
+    await renderTest({ browserState });
+
+    await source().getByRole('textbox', { name: 'Input XML' }).fill(INPUT);
+
+    expect(browserState.values.get(testSourceKey(MAPPING))).toBe(INPUT);
   });
 
   test('the trace level and the parameters are previews', async () => {

@@ -42,13 +42,29 @@ export interface TestDocumentProps {
   parameters: { title: string; rows: ParameterRow[] }[];
   values: Readonly<Record<string, string>>;
   onParameter?: (id: string, value: string) => void;
+  /** Whether the parameter values are read-only; as the document, unless told. */
+  valuesReadOnly?: boolean;
 }
 
 /**
  * A pane of the Test tab (the prototype's TestDocument): the source document, which the author types, or the result of
  * the last run, each as a tree of fields and values or as text, and a Parameters section, a preview.
  */
-export function TestDocument({ side, format, text, failed = false, mode, onMode, edit, readOnly, stale = false, parameters, values, onParameter }: TestDocumentProps) {
+export function TestDocument({
+  side,
+  format,
+  text,
+  failed = false,
+  mode,
+  onMode,
+  edit,
+  readOnly,
+  stale = false,
+  parameters,
+  values,
+  onParameter,
+  valuesReadOnly = readOnly,
+}: TestDocumentProps) {
   const input = side === 'Input';
   const title = input ? 'Source' : 'Result';
   const [section, setSection] = useState<Section>('Document');
@@ -231,7 +247,7 @@ export function TestDocument({ side, format, text, failed = false, mode, onMode,
                     {entries.map(({ id, label, initial }) => (
                       <tr key={id}>
                         <td>{label}</td>
-                        <td>{onParameter && <input aria-label={label} readOnly={readOnly} value={values[id] ?? initial} onChange={(e) => onParameter(id, e.target.value)} />}</td>
+                        <td>{onParameter && <input aria-label={label} readOnly={valuesReadOnly} value={values[id] ?? initial} onChange={(e) => onParameter(id, e.target.value)} />}</td>
                       </tr>
                     ))}
                   </tbody>

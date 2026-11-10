@@ -16,7 +16,7 @@ import { formatOf } from '../shared/documents';
 import { InstanceTools } from '../mock/InstanceTools';
 import { DOCUMENT_MODES, TestDocument, type DocumentMode, type ParameterRow } from './TestDocument';
 import './test.css';
-import { logLines, logText, type LogLine, type TestSession } from './test-session';
+import { logLines, logText, type LogLine, type TestSession } from '../shared/test-session';
 
 export interface TestTabProps {
   mappingId: string;
@@ -52,7 +52,8 @@ function LogBody({ lines }: { lines: readonly LogLine[] }) {
 /**
  * The Test tab (the prototype's TestPanel): the source document and the result of the last run side by side, the Run
  * simulation bar, and the processing log with the last run and the latest compile. Run sends the working copy and the
- * source document to the service (ADR-0013) in edit mode, as in the prototype; its trace feeds the display queue. The
+ * source document to the service (ADR-0013), in read mode too, as in SAP PO (#177): there the source is a throw-away
+ * input, and only edit mode loads a file or changes the test instances. The run's trace feeds the display queue. The
  * trace level, the parameters and the test instances are previews (ADR-0028) and never reach the service.
  */
 export function TestTab({ mappingId, store, session, browserState }: TestTabProps) {
@@ -106,7 +107,8 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
           format={src}
           resource={() => ({ text: source, values })}
           onLoad={(text) => testInput(store).getState().load(text)}
-          disabled={!editing || running}
+          editing={editing}
+          disabled={running}
         />
         <PaneSizeTools upper pane="input and result" label="Input and result layout" view={layout.view} onChange={layout.setView} />
       </div>
@@ -126,13 +128,15 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
               mode={views.source}
               onMode={(mode) => setView('source', mode)}
               edit={(value) => session.getState().setSource(value)}
-              readOnly={!editing || running}
+              readOnly={running}
               parameters={[
                 { title: 'Import Parameters', rows: parameterRows(signatureParameters, 'Import') },
                 { title: 'Header Parameters', rows: HEADER_ROWS },
               ]}
               values={values}
               onParameter={(id, value) => preview.getState().setValue(id, value)}
+              // the parameter values are kept in the browser: read mode leaves them as they are
+              valuesReadOnly={!editing || running}
             />
             <TestDocument
               side="Output"
@@ -152,7 +156,7 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
           <Toolbar role="toolbar" aria-label="Simulation controls" className="simulation-toolbar" inset={{ default: 'insetSm' }}>
             <ToolbarContent>
               <ToolbarItem>
-                <Button size="sm" icon={<PlayIcon />} isDisabled={!editing || running} isLoading={running} title="Start the Transformation" onClick={run}>
+                <Button size="sm" icon={<PlayIcon />} isDisabled={running} isLoading={running} title="Start the Transformation" onClick={run}>
                   Run simulation
                 </Button>
               </ToolbarItem>

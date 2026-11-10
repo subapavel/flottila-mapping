@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import type { ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
-import type { BrowserStateStore } from '../browser-state/browser-state';
-import type { StudioTab, WorkingCopyStore } from '../store/working-copy';
-import { testInstancesKey, type TestInstance } from './test-instances';
+import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
+import { selectUnsaved, type StudioTab, type WorkingCopyStore } from '../store/working-copy';
+import { testInstances, testInstancesKey, type TestInstance } from './test-instances';
 import { studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
 
@@ -168,11 +168,62 @@ describe('the test instance library, a preview feature (#170)', () => {
     await expect.element(studioButton('Save')).toBeDisabled();
   });
 
-  test('in view mode the tools are disabled, as in the prototype', async () => {
-    await renderStudio({ editing: false, browserState: memoryBrowserState({ [KEY]: [kept('a', 'First', INPUT, 1)] }) });
+  // the owner's rule of #177 replaces the prototype's disabled select: in read mode an instance can be chosen for a run
+  test('in read mode Load, Add, Save and Delete stay disabled; the select loads the latest instance, or the one chosen, and changes nothing', async () => {
+    const library = [kept('a', 'First', INPUT, 1), kept('b', 'Second', OTHER, 2)];
+    const browserState = memoryBrowserState({ [KEY]: library });
+    const store = await renderStudio({ editing: false, browserState });
 
     for (const name of ['Load Test Instance', 'Add Test Instance', 'Save Test Instance', 'Delete Test Instance']) await expect.element(tool(name)).toBeDisabled();
-    await expect.element(select()).toBeDisabled();
+    await expect.element(select()).toBeEnabled();
+    await expect.element(select()).toHaveDisplayValue('Second');
+    await expect.element(input()).toHaveValue(OTHER);
+
+    await select().selectOptions('First');
+
+    await expect.element(input()).toHaveValue(INPUT);
+    await expect.element(select()).toHaveDisplayValue('First');
+    expect(selectUnsaved(store.getState())).toBe(false);
+    expect(browserState.values.get(KEY)).toEqual(library);
+    expect(browserState.values.has(testSourceKey(MAPPING))).toBe(false);
+    store.getState().setTab('overview');
+    store.getState().setTab('test');
+    await expect.element(select()).toHaveDisplayValue('First');
+    await expect.element(input()).toHaveValue(INPUT);
+
+    // edit mode shows the library's current instance, the one Save and Delete change
+    store.getState().startEditing();
+    await expect.element(select()).toHaveDisplayValue('Second');
+  });
+
+  test('a source typed in read mode is what Add Test Instance keeps after Edit, from the Queue test input too', async () => {
+    const browserState = memoryBrowserState();
+    const store = await renderStudio({ editing: false, browserState });
+    await input().fill(INPUT);
+    store.getState().startEditing();
+    store.getState().setTab('definition');
+    const tools = page.getByRole('group', { name: 'Queue test input' });
+
+    await tools.getByRole('button', { name: 'Add Test Instance' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add Test Instance' });
+    await dialog.getByRole('textbox', { name: 'Test instance name' }).fill('Typed');
+    await dialog.getByRole('button', { name: 'OK' }).click();
+
+    await expect.element(tools.getByRole('combobox', { name: 'Queue test input' })).toHaveDisplayValue('Typed');
+    expect(testInstances(store, browserState, MAPPING).getState().value).toMatchObject([{ name: 'Typed', text: INPUT }]);
+  });
+
+  test('in read mode the Queue test input chooses an instance for the Test tab too', async () => {
+    const store = await renderStudio({ editing: false, tab: 'definition', browserState: memoryBrowserState({ [KEY]: [kept('a', 'First', INPUT, 1), kept('b', 'Second', OTHER, 2)] }) });
+    const tools = page.getByRole('group', { name: 'Queue test input' });
+    await expect.element(tools.getByRole('button', { name: 'Load Test Instance' })).toBeDisabled();
+
+    await tools.getByRole('combobox', { name: 'Queue test input' }).selectOptions('First');
+    store.getState().setTab('test');
+
+    await expect.element(input()).toHaveValue(INPUT);
+    await expect.element(select()).toHaveDisplayValue('First');
+    expect(selectUnsaved(store.getState())).toBe(false);
   });
 
   test('the Mapping expression offers the same library as the queue test input; a choice there loads the Test tab source', async () => {

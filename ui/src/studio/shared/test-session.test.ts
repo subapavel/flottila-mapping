@@ -71,10 +71,12 @@ describe('the processing log lines', () => {
 });
 
 describe('the test session', () => {
-  test('the source document is read from and kept in the browser per mapping; anything but text starts empty', () => {
+  test('the source document is read from and, in edit mode, kept in the browser per mapping; anything but text starts empty', () => {
     const api = fakeApiClient();
     const browserState = memoryBrowserState({ [testSourceKey(MAPPING)]: '<kept/>' });
-    const session = createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), runOf(api), MAPPING, browserState);
+    const store = storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' });
+    store.getState().startEditing();
+    const session = createTestSession(store, runOf(api), MAPPING, browserState);
     expect(session.getState().source).toBe('<kept/>');
 
     session.getState().setSource('<typed/>');
@@ -82,6 +84,28 @@ describe('the test session', () => {
     expect(browserState.values.get(testSourceKey(MAPPING))).toBe('<typed/>');
     const other = memoryBrowserState({ [testSourceKey(MAPPING)]: 42 });
     expect(createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), runOf(api), MAPPING, other).getState().source).toBe('');
+  });
+
+  test('in read mode the source is a throw-away input: the browser keeps none of it (#177)', () => {
+    const api = fakeApiClient();
+    const browserState = memoryBrowserState({ [testSourceKey(MAPPING)]: '<kept/>' });
+    const session = createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), runOf(api), MAPPING, browserState);
+
+    session.getState().setSource('<typed/>');
+
+    expect(session.getState().source).toBe('<typed/>');
+    expect(browserState.values.get(testSourceKey(MAPPING))).toBe('<kept/>');
+  });
+
+  test('a run that cannot start is logged as a failed run with its reason (#177)', () => {
+    const api = fakeApiClient();
+    const runTest = vi.spyOn(api, 'runTest');
+    const session = createTestSession(storeOf(api, { model: { formatVersion: 1 }, etag: '"e"' }), runOf(api), MAPPING, memoryBrowserState(), () => at(5));
+
+    session.getState().failRun('Info', 'a.xml is not a valid XML test input');
+
+    expect(session.getState()).toMatchObject({ running: false, runFailed: true, runLog: { at: at(5).getTime(), level: 'Info', lines: runLines(at(5), at(5), { failure: 'a.xml is not a valid XML test input' }) } });
+    expect(runTest).not.toHaveBeenCalled();
   });
 
   test('a run sends only the working copy and the source, keeps the answer in the store and logs it; a second run waits', async () => {
