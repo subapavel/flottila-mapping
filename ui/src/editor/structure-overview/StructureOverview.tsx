@@ -1,5 +1,4 @@
 import { Button, SearchInput, ToggleGroup, ToggleGroupItem } from '@patternfly/react-core';
-import { skipToken, useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useId, useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
@@ -20,6 +19,7 @@ import {
 } from './field-status';
 import { anchorLinks, fieldLinks, fxMarks, linkGutter, markedRows, rowAnchors, type Gutter, type LinkLine } from './links';
 import { expandAllPaths, fieldCount, occurrenceText, reachedSourceFields, refusalAt, searchRows, treeRows, type TreeRow } from './rows';
+import { useStructure } from './structure-query';
 import './structure-overview.css';
 
 type Side = 'source' | 'target';
@@ -274,14 +274,7 @@ function activated(e: KeyboardEvent) {
   return true;
 }
 
-/**
- * The structure of one side as the service loads it; the trees and the rest of the editor share its query. A side not
- * chosen yet (ADR-0029) loads nothing, and its query keeps no data.
- */
-export function useStructure(mappingId: string, api: ApiClient, ref: StructureRef | undefined) {
-  const request = ref && { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
-  return useQuery({ queryKey: ['structure', request ?? null], queryFn: request ? () => api.loadStructure(request) : skipToken });
-}
+export { useStructure };
 
 /** The source tree's statuses: none, and the same map on every render so that its rows stay memoised. */
 const NO_STATUSES: ReadonlyMap<FieldPath, FieldStatus> = new Map();

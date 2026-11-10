@@ -16,6 +16,7 @@ import { describeError, type ApiClient } from '../../api/client';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import { SaveConflict } from '../../editor/SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
+import { DefinitionTab } from '../definition/DefinitionTab';
 import { CopyTextButton } from './CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
@@ -249,7 +250,13 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
         )}
         <TabContent className="studio-tab-panel" id={TAB_PANEL_ID} ref={panelRef} aria-labelledby={tabLabelId(tab)}>
           {/* PatternFly renders no panel without children: a tab not built yet has an empty body (#154) */}
-          {needsMessages ? <ChooseMessages /> : <></>}
+          {needsMessages ? (
+            <ChooseMessages />
+          ) : tab === 'definition' ? (
+            <DefinitionTab mappingId={mappingId} api={api} store={store} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
+          ) : (
+            <></>
+          )}
         </TabContent>
       </main>
       <DiscardDialog isOpen={asking} name={name} then="return to view mode" onDiscard={leaveEditing} onKeepEditing={() => setAsking(false)} />
