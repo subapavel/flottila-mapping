@@ -17,7 +17,8 @@ loop itself is `docs/WORKFLOW.md`.
 | scout | `.claude/agents/scout.md` | Haiku 5.5 · medium | nothing | locating code, decisions, prior evidence |
 | reviewer-standards | `.claude/agents/reviewer-standards.md` | by class | nothing | the Standards axis of `/code-review` |
 | reviewer-spec | `.claude/agents/reviewer-spec.md` | by class | nothing | the Spec axis of `/code-review` |
-| gate-reviewer | `.claude/agents/gate-reviewer.md` | Fable 5.1 · high | nothing | milestone gates only |
+| gate-reviewer | `.claude/agents/gate-reviewer.md` | Fable 5.2 · high | nothing | milestone gates only |
+| grilling-adviser | `.claude/agents/grilling-adviser.md` | Fable 5.2 · high | nothing (read-only) | evaluating the questions and recommendations of every grilling (`wayfinder:grilling` ticket or `/grill-with-docs` for a spec) before the owner sees them; its recommendation is the one put to the owner (owner, 2026-11-10) |
 
 The architect never edits `src/`, `ui/src/` or a test, and never runs Maven or npm itself: the
 verifier does. It reads hand-backs, the red tests it approves and `git diff --stat`, not whole
@@ -34,7 +35,7 @@ never lower it mid-ticket.
 | `class:A` mechanical | docs, CI, fixtures, scripts, a UI component from an agreed design, a standard function with an oracle | implementer (`/tdd`) or the oracle | Sonnet 5.5 · medium | none — automatic gate only | — |
 | `class:B` standard | a function family, a REST endpoint, an editor feature, an importer, a fix | implementer (`/tdd`) or the oracle | Opus 5.5 · high | none — automatic gate only | — |
 | `class:C` hard path | XDM / IR / queue representation, compiler and code generator, mapping-model format, public API, concurrency, security boundary | test-author (Opus 5.5 · xhigh) | Opus 5.5 · xhigh | both axes, Opus 5.5 · xhigh, before merge | before the tests, xhigh |
-| `class:G` gate | milestone gate rows | — | — | gate-reviewer (Fable 5.1 · high) | — |
+| `class:G` gate | milestone gate rows | — | — | gate-reviewer (Fable 5.2 · high) | — |
 
 Modifier labels:
 
@@ -71,6 +72,13 @@ integration branch (`docs/WORKFLOW.md` §5).
 **Design draft (designer → architect, class C)** — at most 40 lines: proposal (types, formats,
 signatures), proposed test names, rejected alternatives with one line each, what is expensive to
 reverse (→ ADR draft), conflicts with ADRs or the glossary, open questions.
+
+**Grilling advice (grilling-adviser → architect, every grilling round)** — the designer (first
+round) or the architect (later rounds) writes the questions and recommendations; the adviser
+evaluates that draft and never writes the round itself. At most 40 lines: the frontier questions
+with choices, the cost of each choice and its recommendation; disagreements with the draft;
+later-round questions; missing facts. The architect asks each round with the
+adviser's recommendation and names any disagreement with the draft.
 
 **Acceptance spec (architect → test-author, class C)** — ticket id, worktree branch, allowed test
 paths, behaviours one line each with test names, fixtures, what counts as red.

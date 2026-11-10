@@ -8,4 +8,6 @@ in flight: none. Spec gate on 7b2052a VERIFIED_PASS (JMH NOT_RUN, no benchmarks.
 preview features: tracked under #162 (#163–#172). Backlog until the Flottila platform model exists: #165, #167, #168, #169, #171.
 carried to the spec review: see the #153 evidence comment (Signature tab wording in the contract, fake API vs service, Jackson required members, test shape notes).
 carried from #145: owner questions on ADR-0013 (F-29..F-32) and ADR-0012 off-screen links, likely moot under ADR-0028. Retro for spec 5, #135, #145 deferred.
-next action: owner — merge PR #175; answer F-34 (ADR-0013/0019 paths). Retro for spec 5, #135, #145, #152 deferred.
+after: PR #175 and PR #176 (F-34 amendment) merged. #177 (Display Queue offers test data; owner rules in its comments) in flight on `t/177-display-queue-test-data`.
+rule (owner, 2026-11-10): every grilling round goes through the `grilling-adviser` (Fable 5.2) before the owner, and its recommendation is the one put to the owner (`AGENTS.md`). Gate-reviewer is Fable 5.2 too.
+next action: architect — finish #177 (gate, PR); then `/grill-with-docs` for spec 6 "Speed" (`docs/GATE.md`): designer or architect draft → `grilling-adviser` → owner. Retro for spec 5, #135, #145, #152 deferred.
