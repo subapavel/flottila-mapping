@@ -10,7 +10,7 @@ import {
   type TestResult,
   type TraceEntry,
 } from '../../api/client';
-import type { AuthoringId, Box, FieldPath, MappingModel, ParamValue } from '../../generated/mapping-model';
+import type { AuthoringId, Box, FieldPath, MappingModel, ParamValue, StructureRef } from '../../generated/mapping-model';
 import { applied, refusalOf, type CommandResult, type FieldRefusal, type Refusal } from '../../model/command';
 import { deleteBoxes } from '../../model/delete-box';
 import { deleteTargetFieldMapping } from '../../model/delete-target-field-mapping';
@@ -20,8 +20,10 @@ import { paste } from '../../model/paste';
 import { remap } from '../../model/remap';
 import { sameModel } from '../../model/same-model';
 import { setContext } from '../../model/set-context';
+import { setDescription } from '../../model/set-description';
 import { setInput } from '../../model/set-input';
 import { setParam } from '../../model/set-param';
+import { setStructure } from '../../model/set-structure';
 import { setResult, unwire, wire } from '../../model/wire';
 
 /** How many edits undo keeps (spec #104, story 51: at least 100); an older one is dropped. */
@@ -129,6 +131,10 @@ export interface WorkingCopyState {
   remap: (targetField: FieldPath, box: AuthoringId, field: FieldPath, sourceRefusal?: FieldRefusal) => void;
   /** Removes the target field mapping of `targetField` with all its boxes, such as an orphaned one. */
   deleteTargetFieldMapping: (targetField: FieldPath) => void;
+  /** Sets the mapping description (GLOSSARY); an empty one removes it (ADR-0029). */
+  setDescription: (description: string) => void;
+  /** Sets the structure of one side of the signature (GLOSSARY: Signature), such as a new mapping's first message. */
+  setStructure: (side: 'source' | 'target', structure: StructureRef) => void;
   /**
    * Takes the answer of a refresh of the working copy `sent` (ADR-0027); its diagnostics become the set. When one of
    * its fingerprints differs from the working copy's, its model replaces the working copy as one undo step, or, when
@@ -301,6 +307,10 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       remap: (targetField, box, field, sourceRefusal) => void apply(remap(get().workingCopy, { targetField, box, field, sourceRefusal })),
 
       deleteTargetFieldMapping: (targetField) => void apply(deleteTargetFieldMapping(get().workingCopy, { targetField })),
+
+      setDescription: (description) => void apply(setDescription(get().workingCopy, { description })),
+
+      setStructure: (side, structure) => void apply(setStructure(get().workingCopy, { side, structure })),
 
       applyRefresh: (sent, answer) => {
         const current = get().workingCopy;
