@@ -81,6 +81,16 @@ check "re-run: exit" "$rc" 0
 check "re-run: the later file wins" "$(lines "$out" 'ok   orders/small/latency 110 us/op (baseline 100)')" 1
 check "re-run: no second re-run" "$(lines "$out" 'RERUN')" 0
 
+# a regressed tree result fails, but it is no JMH benchmark to re-run
+rows "${base_rows[@]}"
+tree tree-worse.json 30
+out=$(run bench pass.json tree-worse.json); rc=$?
+check "tree regression: exit" "$rc" 1
+check "tree regression: fail" "$(lines "$out" 'FAIL bench ui/tree-20128/scroll: 30 ms is worse than the baseline 22 ms beyond 20 %')" 1
+check "tree regression: no re-run" "$(lines "$out" 'RERUN')" 0
+check "tree regression: verdict" "$(lines "$out" 'RATCHET FAIL: 1 problem(s)')" 1
+rows "${base_rows[@]/	25	MB\/s/	32	MB/s}"
+
 # regression twice: the re-run is still worse
 jmh again.json "$(bm $B.OrdersBench.smallLatency us/op '[[125],[125],[125]]' '[[8100],[8100],[8100]]')" \
   "$(bm $B.OrdersBench.largeThroughput ms/op '[[330],[330],[330]]' '[[5.0E7],[5.0E7],[5.0E7]]' "$ten_mib")"

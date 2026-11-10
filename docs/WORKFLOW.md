@@ -127,14 +127,22 @@ most one gate that builds `service` at a time.
 4. `java scripts/ratchet.java regen --all`: every report must be present, a drop fails, the
    verifier alone commits `ratchet/` to the integration branch;
 5. the JMH scenarios (ADR-0021):
-   `java -jar bench/jmh/target/benchmarks.jar -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
+   `java -jar bench/jmh/target/benchmarks.jar -foe true -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
    (about 5–6 minutes), plus the `ui/tree-20128/scroll` Playwright scenario.
+   - The verifier names the machine: `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh <spec>`.
+     Only with that label, and `nproc` = 4, does step 5 judge
+     (`java scripts/ratchet.java bench .logs/<spec>-jmh.json`) and step 4 write `bench.tsv`.
+     Without it, step 5 measures and prints, the judgement is `NOT_RUN`, and nothing is written to
+     `ratchet/` or `bench/RESULTS.md`.
    - Results go to `bench/RESULTS.md` with machine label `claude-cloud-4vcpu`, the date and the
-     commit. The score is the median of the three forks.
+     commit, written by the architect from the verifier's output. The score is the median of the
+     per-fork means.
    - A scenario worse than `ratchet/bench.tsv` by more than its tolerance (20 % for time and
-     throughput, 10 % for B/op) is measured once more. The gate fails if it is still worse, or
-     if a GATE check 7 target is missed.
-   - `regen --all` reads `.logs/<spec>-jmh.json` too, so the verifier runs this step before
+     throughput, 10 % for B/op) is measured once more: the judgement prints the regressed
+     benchmarks as one include regex, the gate re-runs only them into `.logs/<spec>-jmh-2.json`
+     and judges both files again. The gate fails if it is still worse, if a GATE check 7 target is
+     missed, or if a `bench.tsv` row has no result.
+   - `regen --all` reads the final results too, so the verifier runs this step before
      step 4. A baseline moves only on a gain beyond the tolerance (ADR-0019).
 
 Run order: 1, 1b, 2, 5, 4, 3. Regen reads the reports of 1 and 1b, and step 3's `clean`
