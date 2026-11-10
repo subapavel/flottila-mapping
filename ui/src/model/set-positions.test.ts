@@ -36,6 +36,12 @@ describe('the set positions command (ADR-0029)', () => {
     expect(layoutOf(result, NOTE)).toEqual({ target: { x: 300, y: 0 }, boxes: { n1: { x: 12, y: 34 } } });
   });
 
+  test("the target's position alone leaves the boxes' positions as they were", () => {
+    const result = setPositions(model, { targetField: NOTE, layout: { target: { x: 320, y: 8 } } });
+
+    expect(layoutOf(result, NOTE)).toEqual({ target: { x: 320, y: 8 }, boxes: { n1: { x: 0, y: 0 } } });
+  });
+
   test('positions equal to the kept ones after rounding give back the same model', () => {
     const result = setPositions(model, { targetField: NOTE, layout: { target: { x: 300.2, y: -0.3 }, boxes: { n1: { x: 0, y: 0.4 } } } });
 
