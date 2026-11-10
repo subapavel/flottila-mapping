@@ -1,5 +1,5 @@
 import { Button, SearchInput, ToggleGroup, ToggleGroupItem } from '@patternfly/react-core';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useId, useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from 'zustand';
@@ -106,9 +106,9 @@ export function StructureOverview({
 }: StructureOverviewProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const diagnostics = useStore(store, (s) => s.diagnostics);
-  const source = useTree(mappingId, api, model.source!, expanded.source, 'source', search.source);
+  const source = useTree(mappingId, api, model.source, expanded.source, 'source', search.source);
   const statuses = useMemo(() => fieldStatuses(model, diagnostics, source.structure), [model, diagnostics, source.structure]);
-  const target = useTree(mappingId, api, model.target!, expanded.target, 'target', search.target, statuses, statusFilter);
+  const target = useTree(mappingId, api, model.target, expanded.target, 'target', search.target, statuses, statusFilter);
   const orphaned = useMemo(() => (target.structure ? orphanedMappings(model, target.structure) : []), [model, target.structure]);
   const selectedOrphan = orphaned.find((path) => path === selectedField);
   const [picked, setPicked] = useState<string | null>(null);
@@ -274,10 +274,13 @@ function activated(e: KeyboardEvent) {
   return true;
 }
 
-/** The structure of one side as the service loads it; the trees and the rest of the editor share its query. */
-export function useStructure(mappingId: string, api: ApiClient, ref: StructureRef) {
-  const request = { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
-  return useQuery({ queryKey: ['structure', request], queryFn: () => api.loadStructure(request) });
+/**
+ * The structure of one side as the service loads it; the trees and the rest of the editor share its query. A side not
+ * chosen yet (ADR-0029) loads nothing, and its query keeps no data.
+ */
+export function useStructure(mappingId: string, api: ApiClient, ref: StructureRef | undefined) {
+  const request = ref && { base: mappingId.split('/').slice(0, -1).join('/'), bundle: ref.bundle, root: ref.root };
+  return useQuery({ queryKey: ['structure', request ?? null], queryFn: request ? () => api.loadStructure(request) : skipToken });
 }
 
 /** The source tree's statuses: none, and the same map on every render so that its rows stay memoised. */
@@ -292,7 +295,7 @@ const NO_STATUSES: ReadonlyMap<FieldPath, FieldStatus> = new Map();
 function useTree(
   mappingId: string,
   api: ApiClient,
-  ref: StructureRef,
+  ref: StructureRef | undefined,
   expanded: string[] | undefined,
   side: Side,
   search: string,
