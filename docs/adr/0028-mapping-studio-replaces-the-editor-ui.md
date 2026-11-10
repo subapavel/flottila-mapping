@@ -49,6 +49,11 @@ The owner's prototype is the UI. It is on branch `prototype/mapping-studio`, und
 - The prototype's component state moves into a **UI slice** of that store: tab, edit mode, the selected target path, open dialogs and the drilldown path.
 - Viewer preferences go through `BrowserStateStore`, not raw `localStorage`: panel sizes, view modes (tree, table or text) and the last tab.
 - Mock state lives in its own Zustand store in `mock/`, kept per mapping id in `BrowserStateStore`. It never reaches `ApiClient`.
+- Preview edits belong to the edit session, as in the prototype:
+  - while editing, they are a draft that makes the studio unsaved (Save and Check enabled, the leave guard asks);
+  - Save commits the draft to browser state together with the model save;
+  - Discard reverts the draft;
+  - a refused or 409 save keeps the draft.
 - Port to TypeScript strict. No new state library (Redux, Jotai) and no form library: the forms are small.
 
 ## Considered options
