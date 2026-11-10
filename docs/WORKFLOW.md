@@ -107,9 +107,11 @@ directories, comma-separated, e.g. `engine/xdm,engine/ir`):
 | 4 | in `ui/`: `npm run licences`, `typecheck`, `lint`, `test`, `test:browser`, `e2e`; `npm run gen:types && git diff --exit-code src/generated` | `ui/.logs/<t>-<check>.log` | `ui/` or `contract/` changed |
 | 5 | `java scripts/ratchet.java check` | `.logs/<t>-ratchet.log` | always: no listed case failing or missing, no coverage below `ratchet/` of the integration branch; unbuilt modules print `NOT_RUN` (ADR-0019) |
 
-Budget on the VM (4 vCPU), three gates in parallel: an engine ticket under 30 s for step 1 (it
-builds the whole engine because of `engine/oracle`), a service ticket under 60 s; step 2 about 15 s
-(measured by #22 in `bench/RESULTS.md`, F-5). The verifier runs at
+Budget on the VM (4 vCPU), three gates in parallel: an engine ticket about 110 s for step 1 (it
+builds the whole engine because of `engine/oracle`), a service ticket about 80 s alone; step 2 about
+24 s alone (measured on the spec-1 code, `bench/RESULTS.md`, F-13; the earlier 30 s, 60 s and 15 s
+came from #22 on a scratch reactor, F-5). Note of 2026-11-10 (owner, #181): cutting this time is a
+process spec after milestone 1, not part of speed work. The verifier runs at
 most one gate that builds `service` at a time.
 
 **Spec gate** (verifier, integration branch, one at a time):
@@ -128,7 +130,9 @@ most one gate that builds `service` at a time.
    verifier alone commits `ratchet/` to the integration branch;
 5. the JMH scenarios (ADR-0021):
    `java -jar bench/jmh/target/benchmarks.jar -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
-   (about 5–6 minutes), plus the `ui/tree-20128/scroll` Playwright scenario.
+   (about 5–6 minutes; large throughput in forks with a 1 GB heap, and `<mapping>/large/heap`
+   in its own fork with `-Xmx128m`, which may need a second invocation; ADR-0021 note of
+   2026-11-10), plus the `ui/tree-20128/scroll` Playwright scenario.
    - Results go to `bench/RESULTS.md` with machine label `claude-cloud-4vcpu`, the date and the
      commit. The score is the median of the three forks.
    - A scenario worse than `ratchet/bench.tsv` by more than its tolerance (20 % for time and
