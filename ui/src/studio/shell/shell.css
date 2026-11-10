@@ -106,6 +106,21 @@ p {
   font-size: 15px;
   color: #dde5ed;
 }
+.mast-right {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-left: auto;
+}
+.help-button {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #e5ebf0;
+  font-size: 18px;
+  border: 0;
+  padding: 7px;
+}
 
 .main {
   display: flex;
@@ -194,9 +209,31 @@ p {
   border: 0;
   color: inherit;
 }
+.feedback.ok {
+  background: #e8f5ef;
+  border-color: #a6ccba;
+  color: #215a40;
+}
 .feedback.warn {
   background: #fff4d6;
   border-color: #ddbc60;
+}
+.feedback ul {
+  padding-left: 20px;
+}
+.check-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.copy-text-button.pf-v6-c-button {
+  padding: 4px;
+  min-width: 28px;
+  min-height: 28px;
+}
+.copy-tooltip,
+.copy-tooltip * {
+  pointer-events: none;
 }
 .feedback-alert {
   margin: 0 0 12px;
@@ -266,6 +303,9 @@ p {
   }
   .mast-product {
     font-size: 12px;
+  }
+  .mast-right {
+    gap: 8px;
   }
   .tab-line .pf-v6-c-tabs__link {
     padding-inline: 8px;

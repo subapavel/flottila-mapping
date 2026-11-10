@@ -1,5 +1,5 @@
 import { Button, Tab, Tabs, TabTitleText } from '@patternfly/react-core';
-import { CodeIcon, EditIcon, ExchangeAltIcon, FlaskIcon, ListAltIcon, ProjectDiagramIcon, SaveIcon } from '@patternfly/react-icons';
+import { CheckCircleIcon, CodeIcon, EditIcon, ExchangeAltIcon, FlaskIcon, ListAltIcon, ProjectDiagramIcon, SaveIcon } from '@patternfly/react-icons';
 import type { KeyboardEvent, Ref, RefObject } from 'react';
 import { STUDIO_TABS, type StudioTab } from '../../editor/store/working-copy';
 
@@ -57,18 +57,21 @@ export interface EditorHeaderProps {
   editing: boolean;
   unsaved: boolean;
   saving: boolean;
+  checking: boolean;
   editButtonRef: Ref<HTMLButtonElement>;
   onEdit: () => void;
   onCancel: () => void;
+  onCheck: () => void;
   onSave: () => void;
 }
 
 /**
  * The tab line of the studio (the prototype's EditorHeader): the tabs Overview to Functions, then the mapping's title
- * and, in view mode, Edit; in edit mode, Cancel and Save, which is enabled while the working copy has unsaved changes.
+ * and, in view mode, Edit; in edit mode, Cancel, Check and Save, the last two enabled while the working copy has
+ * unsaved changes and Check is not under way, or Save not sent.
  */
 export function EditorHeader(props: EditorHeaderProps) {
-  const { title, activeTab, onTabChange, panelRef, editing, unsaved, saving, editButtonRef, onEdit, onCancel, onSave } = props;
+  const { title, activeTab, onTabChange, panelRef, editing, unsaved, saving, checking, editButtonRef, onEdit, onCancel, onCheck, onSave } = props;
   return (
     <header className="tab-line">
       <Tabs
@@ -104,6 +107,9 @@ export function EditorHeader(props: EditorHeaderProps) {
           <>
             <Button size="sm" variant="link" onClick={onCancel}>
               Cancel
+            </Button>
+            <Button size="sm" variant="secondary" icon={<CheckCircleIcon />} isDisabled={!unsaved || checking} onClick={onCheck}>
+              {checking ? 'Checking…' : 'Check'}
             </Button>
             <Button size="sm" variant="primary" icon={<SaveIcon />} isDisabled={!unsaved || saving} onClick={onSave}>
               Save

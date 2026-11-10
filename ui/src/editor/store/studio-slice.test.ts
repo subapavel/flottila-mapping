@@ -1,7 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { Diagnostic, StoredMapping } from '../../api/client';
 import type { MappingModel } from '../../generated/mapping-model';
-import { createWorkingCopyStore, selectUnsaved, STUDIO_TABS, type WorkingCopyPorts } from './working-copy';
+import { COMPILE_DELAY_MS, createWorkingCopyStore, selectUnsaved, STUDIO_TABS, type WorkingCopyPorts } from './working-copy';
 
 const ORDER = 'Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `/${ORDER}/OrderId`;
@@ -88,6 +88,44 @@ describe('the studio slice of the working-copy store (ADR-0028)', () => {
     expect(s.getState().selection).toBeNull();
     expect(s.getState().selected).toEqual([]);
     expect(s.getState().refusal).toBeNull();
+  });
+});
+
+describe('the count of compile answers', () => {
+  test('starts at 0 and counts each answer, a failure too, even one with the same title as the last', async () => {
+    vi.useFakeTimers();
+    try {
+      const answers = [() => Promise.resolve([] as Diagnostic[]), () => Promise.reject(new Error('down')), () => Promise.reject(new Error('down'))];
+      const s = store(withSides, { compile: () => answers.shift()!() });
+      expect(s.getState().compiles).toBe(0);
+
+      for (const expected of [1, 2, 3]) {
+        s.getState().scheduleCompile();
+        await vi.advanceTimersByTimeAsync(COMPILE_DELAY_MS);
+        expect(s.getState().compiles).toBe(expected);
+      }
+      expect(s.getState().compileFailure).toBe('down');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a cancelled compile is not counted', async () => {
+    vi.useFakeTimers();
+    try {
+      let answer: (d: Diagnostic[]) => void = () => undefined;
+      const s = store(withSides, { compile: () => new Promise<Diagnostic[]>((resolve) => (answer = resolve)) });
+      s.getState().scheduleCompile();
+      await vi.advanceTimersByTimeAsync(COMPILE_DELAY_MS);
+      s.getState().cancelCompile();
+
+      answer([]);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(s.getState().compiles).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

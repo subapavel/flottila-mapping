@@ -77,6 +77,8 @@ export interface WorkingCopyState {
   diagnostics: Diagnostic[];
   /** The title of the transport error the last compile failed with; `null` once a compile answers. */
   compileFailure: string | null;
+  /** How many compiles answered, with diagnostics or a failure: a change tells that the latest one answered. */
+  compiles: number;
   /** What the last test run answered: output or a runtime error with its trace, or compile's refusal; `null` before a run. */
   lastRun: TestResult | null;
   /** The working copy the last test run ran; its trace is a stale trace once the working copy differs from it. */
@@ -238,6 +240,7 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       conflict: false,
       diagnostics: [],
       compileFailure: null,
+      compiles: 0,
       lastRun: null,
       lastRunModel: null,
       tab: 'overview',
@@ -392,10 +395,10 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           running = new AbortController();
           ports.compile(get().workingCopy, running.signal).then(
             (diagnostics) => {
-              if (current === generation) set({ diagnostics, compileFailure: null });
+              if (current === generation) set((state) => ({ diagnostics, compileFailure: null, compiles: state.compiles + 1 }));
             },
             (error: unknown) => {
-              if (current === generation) set({ compileFailure: describeError(error).title });
+              if (current === generation) set((state) => ({ compileFailure: describeError(error).title, compiles: state.compiles + 1 }));
             },
           );
         }, COMPILE_DELAY_MS);

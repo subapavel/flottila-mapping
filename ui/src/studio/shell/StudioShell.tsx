@@ -7,19 +7,17 @@ import {
   EmptyStateActions,
   EmptyStateBody,
   EmptyStateFooter,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
   TabContent,
 } from '@patternfly/react-core';
 import { CubesIcon, TimesIcon } from '@patternfly/react-icons';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../../api/client';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import { SaveConflict } from '../../editor/SaveConflict';
-import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyStore } from '../../editor/store/working-copy';
+import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
+import { CopyTextButton } from './CopyTextButton';
+import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
 import { Masthead } from './Masthead';
 
@@ -35,6 +33,24 @@ export function openingTab(hash: string, kept: unknown): StudioTab {
   const named = hash.slice(1);
   if (isStudioTab(named)) return named;
   return isStudioTab(kept) ? kept : 'overview';
+}
+
+const CHECK_PASSED = 'Structures assigned and graph connections complete.';
+
+/**
+ * What a check finds in the working copy (the prototype's runCheck, over the real compile): a missing source or target
+ * in our words, then the failure of the latest compile, or else each of its errors and warnings but the missing
+ * structures already named.
+ */
+function checkIssues({ workingCopy, compileFailure, diagnostics }: WorkingCopyState): string[] {
+  const issues: string[] = [];
+  if (workingCopy.source === undefined) issues.push('Choose a source structure.');
+  if (workingCopy.target === undefined) issues.push('Choose a target structure.');
+  if (compileFailure !== null) return [...issues, `The mapping could not be compiled: ${compileFailure}`];
+  for (const { code, severity, message } of diagnostics) {
+    if (code !== 'missing-structure') issues.push(`${severity === 'error' ? 'Error' : 'Warning'}: ${message}`);
+  }
+  return issues;
 }
 
 export interface StudioShellProps {
@@ -112,10 +128,41 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
   // A compile the store scheduled after an edit must not answer into a closed studio.
   useEffect(() => () => store.getState().cancelCompile(), [store]);
 
+  // Check: a compile of the working copy as it is now; its answer is the result, an edit before it ends the check.
+  const [check, setCheck] = useState<string[] | null>(null);
+  const [checking, setChecking] = useState(false);
+  useEffect(
+    () =>
+      store.subscribe((state, previous) => {
+        if (state.workingCopy === previous.workingCopy) return;
+        setCheck(null);
+        setChecking(false);
+      }),
+    [store],
+  );
+  useEffect(() => {
+    if (!checking) return undefined;
+    const answered = store.getState().compiles;
+    const unsubscribe = store.subscribe((state) => {
+      if (state.compiles === answered) return;
+      setCheck(checkIssues(state));
+      setChecking(false);
+    });
+    store.getState().scheduleCompile();
+    return unsubscribe;
+  }, [checking, store]);
+  const runCheck = () => {
+    if (!editing || !unsaved) return;
+    setNotice(null);
+    setCheck(null);
+    setChecking(true);
+  };
+
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<ReturnType<typeof describeError> | null>(null);
   const [saved, setSaved] = useState(0);
   const save = async () => {
+    if (!editing || !unsaved || saving) return;
     setSaving(true);
     setFailure(null);
     try {
@@ -129,8 +176,23 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
     }
   };
 
+  // Ctrl+S or Cmd+S saves and F7 checks, as Save and Check do; a key pressed in a dialog is the dialog's.
+  useEffect(() => {
+    const press = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void save();
+      } else if (event.key === 'F7') {
+        event.preventDefault();
+        runCheck();
+      }
+    };
+    window.addEventListener('keydown', press);
+    return () => window.removeEventListener('keydown', press);
+  });
+
   const [asking, setAsking] = useState(false);
-  const keepEditingId = useId();
   const leaveEditing = () => {
     setAsking(false);
     setFailure(null);
@@ -152,11 +214,14 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
           editing={editing}
           unsaved={unsaved}
           saving={saving}
+          checking={checking}
           editButtonRef={editButtonRef}
           onEdit={() => store.getState().startEditing()}
           onCancel={() => (unsaved ? setAsking(true) : leaveEditing())}
+          onCheck={runCheck}
           onSave={() => void save()}
         />
+        {check !== null && <CheckResult issues={check} copyable={tab !== 'definition' && tab !== 'functions'} onDismiss={() => setCheck(null)} />}
         {notice !== null && (
           <div className="feedback" role="status">
             {notice}
@@ -182,22 +247,7 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
           {needsMessages ? <ChooseMessages /> : <></>}
         </TabContent>
       </main>
-      <Modal variant="small" isOpen={asking} onClose={() => setAsking(false)} aria-labelledby="discard-title" elementToFocus={`#${CSS.escape(keepEditingId)}`}>
-        <ModalHeader title="Discard changes?" labelId="discard-title" />
-        <ModalBody>
-          <p>
-            Discard your unsaved changes to <strong>{name}</strong> and return to view mode?
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="danger" onClick={leaveEditing}>
-            Discard changes
-          </Button>
-          <Button id={keepEditingId} variant="link" onClick={() => setAsking(false)}>
-            Keep editing
-          </Button>
-        </ModalFooter>
-      </Modal>
+      <DiscardDialog isOpen={asking} name={name} then="return to view mode" onDiscard={leaveEditing} onKeepEditing={() => setAsking(false)} />
       <SaveConflict store={store} />
       <AlertGroup className="mapping-save-toast" isToast isLiveRegion aria-label="Save notifications">
         {saved > 0 && (
@@ -212,6 +262,33 @@ export function StudioShell({ mappingId, api, store, browserState, listHref }: S
         )}
       </AlertGroup>
     </>
+  );
+}
+
+/** The result of a check (the prototype's check banner): the issues found or that it passed, to copy and dismiss. */
+function CheckResult({ issues, copyable, onDismiss }: { issues: string[]; copyable: boolean; onDismiss: () => void }) {
+  const found = issues.length > 0;
+  return (
+    <div className={`feedback ${found ? 'warn' : 'ok'}`} role="status">
+      <div>
+        <strong>{found ? 'Check found issues' : 'Check passed'}</strong>
+        {found ? (
+          <ul>
+            {issues.map((issue, i) => (
+              <li key={i}>{issue}</li>
+            ))}
+          </ul>
+        ) : (
+          <span> · {CHECK_PASSED}</span>
+        )}
+      </div>
+      <div className="check-actions">
+        {copyable && <CopyTextButton label="check result" text={found ? ['Check found issues', ...issues].join('\n') : `Check passed · ${CHECK_PASSED}`} />}
+        <button aria-label="Dismiss check" onClick={onDismiss}>
+          <TimesIcon />
+        </button>
+      </div>
+    </div>
   );
 }
 

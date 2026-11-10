@@ -6,6 +6,7 @@ import { page, userEvent } from 'vitest/browser';
 import { ApiProblem, type ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import { selectUnsaved } from '../../editor/store/working-copy';
 import type { MappingModel } from '../../generated/mapping-model';
 import { Studio, studioStore } from './Studio';
 import { StudioShell } from './StudioShell';
@@ -133,6 +134,357 @@ describe('the studio shell (ADR-0028)', () => {
 
     await expect.element(button('Save')).toBeDisabled();
     await expect.element(button('Cancel')).toBeVisible();
+  });
+});
+
+describe('Check (the prototype main.jsx runCheck)', () => {
+  const checkBanner = () => page.getByRole('status').filter({ hasText: /^Check/ });
+  const warning = (code: string, message: string, severity: 'error' | 'warning' = 'warning') => ({
+    severity,
+    code,
+    message,
+    location: { kind: 'pointer' as const, pointer: '/x' },
+  });
+
+  test('is shown in edit mode only and enabled only while the working copy has unsaved changes', async () => {
+    const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+    await expect.element(button('Check')).not.toBeInTheDocument();
+    await button('Edit').click();
+    await expect.element(button('Check')).toBeDisabled();
+
+    store.getState().link(ORDER_ID, ORDER_ID);
+
+    await expect.element(button('Check')).toBeEnabled();
+  });
+
+  test('a clean working copy passes: the ok banner, until it is dismissed', async () => {
+    const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+
+    await button('Check').click();
+
+    await expect.element(button('Checking…')).toBeDisabled();
+    await expect.element(checkBanner()).toHaveTextContent('Check passed · Structures assigned and graph connections complete.');
+    await expect.element(checkBanner()).toHaveClass('feedback ok');
+    await expect.element(button('Check')).toBeEnabled();
+    await page.getByRole('button', { name: 'Dismiss check' }).click();
+    await expect.element(checkBanner()).not.toBeInTheDocument();
+  });
+
+  test('lists the missing structures in our words and each error and warning of a fresh compile', async () => {
+    const compile = { 'mappings/blank': [warning('missing-structure', 'no source'), warning('unknown-function', 'no such function', 'error'), warning('unreachable-box', 'box b1 is unreachable')] };
+    const store = await renderShell(fakeApiClient({ 'mappings/blank': { formatVersion: 1 } }, { compile }), 'mappings/blank');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+
+    await button('Check').click();
+
+    await expect.element(checkBanner()).toHaveClass('feedback warn');
+    await expect.element(checkBanner()).toMatchTextContent(/^Check found issues/);
+    const items = checkBanner().getByRole('listitem');
+    await expect.element(items).toHaveLength(4);
+    for (const [i, text] of [
+      'Choose a source structure.',
+      'Choose a target structure.',
+      'Error: no such function',
+      'Warning: box b1 is unreachable',
+    ].entries()) {
+      await expect.element(items.nth(i)).toHaveTextContent(text);
+    }
+  });
+
+  test('a mapping with a source but no target asks for the target alone', async () => {
+    const source = (await fakeApiClient().getMapping('mappings/order-id-copy')).model.source;
+    const store = await renderShell(fakeApiClient({ 'mappings/half': { formatVersion: 1, source } }), 'mappings/half');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+
+    await button('Check').click();
+
+    await expect.element(checkBanner().getByRole('listitem')).toHaveLength(1);
+    await expect.element(checkBanner().getByRole('listitem')).toHaveTextContent('Choose a target structure.');
+  });
+
+  test('a compile that fails is an issue in itself, without the stale diagnostics', async () => {
+    const fake = fakeApiClient({ 'mappings/blank': { formatVersion: 1 } }, { compile: { 'mappings/blank': [warning('unreachable-box', 'stale')] } });
+    let fail = false;
+    const compile: ApiClient['compile'] = (...args) =>
+      fail ? Promise.reject(new ApiProblem({ type: 'about:blank', title: 'Bad Gateway', status: 502, detail: '' })) : fake.compile(...args);
+    const store = await renderShell({ ...fake, compile }, 'mappings/blank');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await expect.poll(() => store.getState().diagnostics).toHaveLength(1);
+    fail = true;
+
+    await button('Check').click();
+
+    const items = checkBanner().getByRole('listitem');
+    await expect.element(items.nth(2)).toHaveTextContent('The mapping could not be compiled: Bad Gateway');
+    await expect.element(items).toHaveLength(3);
+  });
+
+  test('an edit clears the result, and an edit while it checks ends the check with no result', async () => {
+    const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await button('Check').click();
+    await expect.element(checkBanner()).toBeVisible();
+
+    store.getState().link(NOTE, NOTE);
+    await expect.element(checkBanner()).not.toBeInTheDocument();
+
+    await button('Check').click();
+    await expect.element(button('Checking…')).toBeVisible();
+    store.getState().undo();
+    await expect.element(button('Check')).toBeEnabled();
+    const answered = store.getState().compiles;
+    await expect.poll(() => store.getState().compiles).toBeGreaterThan(answered);
+    await expect.element(checkBanner()).not.toBeInTheDocument();
+  });
+
+  test('Cancel clears the result', async () => {
+    const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await button('Check').click();
+    await expect.element(checkBanner()).toBeVisible();
+
+    await button('Cancel').click();
+    await discardDialog().getByRole('button', { name: 'Discard changes' }).click();
+
+    await expect.element(checkBanner()).not.toBeInTheDocument();
+  });
+
+  test('F7 checks in edit mode with unsaved changes, and does nothing otherwise', async () => {
+    const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+    await expect.element(button('Edit')).toBeVisible();
+    await userEvent.keyboard('{F7}');
+    await button('Edit').click();
+    await userEvent.keyboard('{F7}');
+    // a check under way would have renamed the button Checking…
+    await expect.element(button('Check')).toBeDisabled();
+    await expect.element(checkBanner()).not.toBeInTheDocument();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await expect.element(button('Check')).toBeEnabled();
+
+    await userEvent.keyboard('{F7}');
+
+    await expect.element(checkBanner()).toMatchTextContent(/^Check passed/);
+  });
+
+  test('F7 and Ctrl+S do nothing in view mode, even with the unsaved changes a refresh leaves; Check clears the notice', async () => {
+    const corpus = (await fakeApiClient().getMapping('mappings/order-id-copy')).model;
+    const stale: MappingModel = { ...corpus, source: { ...corpus.source!, fingerprint: 'sha256:stale' } };
+    const fake = fakeApiClient({ 'mappings/stale': stale });
+    const saveMapping = vi.fn(fake.saveMapping);
+    const store = await renderShell({ ...fake, saveMapping }, 'mappings/stale');
+    const notice = page.getByRole('status').filter({ hasText: 'The structures changed' });
+    await expect.element(notice).toBeVisible();
+    expect(selectUnsaved(store.getState())).toBe(true);
+
+    await userEvent.keyboard('{F7}');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await button('Edit').click();
+
+    await expect.element(notice).toBeVisible();
+    expect(saveMapping).not.toHaveBeenCalled();
+    await button('Check').click();
+    await expect.element(notice).not.toBeInTheDocument();
+    await expect.element(checkBanner()).toBeVisible();
+  });
+
+  test('a store change that leaves the working copy alone does not end the check', async () => {
+    const fake = fakeApiClient();
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    const compile = vi.fn((...args: Parameters<ApiClient['compile']>) => answered.then(() => fake.compile(...args)));
+    const store = await renderShell({ ...fake, compile }, 'mappings/order-unmapped');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await button('Check').click();
+    await expect.poll(() => compile.mock.calls.length).toBeGreaterThan(0);
+
+    store.getState().setTab('signature');
+
+    // the tab and anything the change did to the check render together
+    await expect.element(tab('Signature')).toHaveAttribute('aria-selected', 'true');
+    await expect.element(button('Checking…')).toBeDisabled();
+    await expect.element(checkBanner()).not.toBeInTheDocument();
+    answer();
+    await expect.element(checkBanner()).toMatchTextContent(/^Check passed/);
+  });
+
+  test('the copy button copies the result as text, on every tab but Definition and Functions', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    try {
+      const store = await renderShell(fakeApiClient({ 'mappings/blank': { formatVersion: 1 } }), 'mappings/blank');
+      await button('Edit').click();
+      store.getState().link(ORDER_ID, ORDER_ID);
+      await button('Check').click();
+      const copy = page.getByRole('button', { name: 'Copy check result to clipboard' });
+
+      await copy.click();
+
+      await expect.poll(() => writeText.mock.calls).toEqual([['Check found issues\nChoose a source structure.\nChoose a target structure.']]);
+      await expect.element(checkBanner().getByText('Copied!')).toBeInTheDocument();
+      for (const name of ['Definition', 'Functions']) {
+        await tab(name).click();
+        await expect.element(copy).not.toBeInTheDocument();
+      }
+      for (const name of ['Test', 'Signature', 'Overview']) {
+        await tab(name).click();
+        await expect.element(copy).toBeVisible();
+      }
+    } finally {
+      writeText.mockRestore();
+    }
+  });
+
+  test('a passed check copies its sentence; a copy the browser refuses says how to copy by hand', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+    try {
+      const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+      await button('Edit').click();
+      store.getState().link(ORDER_ID, ORDER_ID);
+      await button('Check').click();
+
+      await page.getByRole('button', { name: 'Copy check result to clipboard' }).click();
+
+      await expect.element(checkBanner().getByText('Could not copy. Select the text and copy it manually.')).toBeInTheDocument();
+      expect(writeText.mock.calls).toEqual([['Check passed · Structures assigned and graph connections complete.']]);
+    } finally {
+      writeText.mockRestore();
+    }
+  });
+
+  test('the copy receipt goes after 2.4 s', async () => {
+    const original = window.setTimeout;
+    const timers = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: TimerHandler, delay?: number, ...rest: unknown[]) =>
+      original(fn, delay === 2400 ? 200 : delay, ...rest)) as typeof window.setTimeout);
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    try {
+      const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+      await button('Edit').click();
+      store.getState().link(ORDER_ID, ORDER_ID);
+      await button('Check').click();
+      await page.getByRole('button', { name: 'Copy check result to clipboard' }).click();
+      await expect.element(checkBanner().getByText('Copied!')).toBeInTheDocument();
+
+      await expect.element(checkBanner().getByText('Copied!')).not.toBeInTheDocument();
+    } finally {
+      writeText.mockRestore();
+      timers.mockRestore();
+    }
+  });
+
+  test('the copy tooltip shows on hover, on focus and with a receipt; Escape hides it and the receipt', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    try {
+      const store = await renderShell(fakeApiClient(), 'mappings/order-unmapped');
+      await button('Edit').click();
+      store.getState().link(ORDER_ID, ORDER_ID);
+      await button('Check').click();
+      const copy = page.getByRole('button', { name: 'Copy check result to clipboard' });
+      const tooltip = page.getByRole('tooltip');
+      const away = page.getByRole('heading', { level: 1 });
+
+      await copy.hover();
+      await expect.element(tooltip).toHaveTextContent('Copy to clipboard');
+      await away.hover();
+      await expect.element(tooltip).not.toBeInTheDocument();
+      (copy.element() as HTMLElement).focus();
+      await expect.element(tooltip).toHaveTextContent('Copy to clipboard');
+      (copy.element() as HTMLElement).blur();
+      await expect.element(tooltip).not.toBeInTheDocument();
+
+      await copy.click();
+      await away.hover();
+      (copy.element() as HTMLElement).blur();
+      await expect.element(tooltip).toHaveTextContent('Copied!');
+      (copy.element() as HTMLElement).focus();
+      await userEvent.keyboard('{Shift}');
+      await expect.element(tooltip).toHaveTextContent('Copied!');
+      await userEvent.keyboard('{Escape}');
+      await expect.element(tooltip).not.toBeInTheDocument();
+      await expect.element(checkBanner().getByText('Copied!')).not.toBeInTheDocument();
+    } finally {
+      writeText.mockRestore();
+    }
+  });
+});
+
+describe('Ctrl+S and Cmd+S (the prototype main.jsx keys)', () => {
+  test('save as Save does, in edit mode with unsaved changes', async () => {
+    const fake = fakeApiClient();
+    const saveMapping = vi.fn(fake.saveMapping);
+    const store = await renderShell({ ...fake, saveMapping }, 'mappings/order-unmapped');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await expect.element(button('Save')).toBeEnabled();
+
+    await userEvent.keyboard('{Control>}s{/Control}');
+
+    await expect.element(page.getByRole('heading', { name: /Mapping order-unmapped saved/ })).toBeVisible();
+    store.getState().link(NOTE, NOTE);
+    await expect.element(button('Save')).toBeEnabled();
+    await userEvent.keyboard('{Meta>}S{/Meta}');
+    await expect.element(button('Save')).toBeDisabled();
+    expect(saveMapping).toHaveBeenCalledTimes(2);
+  });
+
+  test('do nothing in view mode, without unsaved changes, or while a dialog is open', async () => {
+    const fake = fakeApiClient();
+    const saveMapping = vi.fn(fake.saveMapping);
+    const store = await renderShell({ ...fake, saveMapping }, 'mappings/order-unmapped');
+    await expect.element(button('Edit')).toBeVisible();
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await button('Edit').click();
+    await userEvent.keyboard('{Control>}s{/Control}');
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await button('Cancel').click();
+    await expect.element(discardDialog()).toBeVisible();
+
+    await userEvent.keyboard('{Control>}s{/Control}');
+
+    await discardDialog().getByRole('button', { name: 'Keep editing' }).click();
+    await expect.element(button('Save')).toBeEnabled();
+    expect(saveMapping).not.toHaveBeenCalled();
+  });
+
+  test('a second Ctrl+S while the service has not answered sends nothing more', async () => {
+    const fake = fakeApiClient();
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    const saveMapping = vi.fn((...args: Parameters<ApiClient['saveMapping']>) => answered.then(() => fake.saveMapping(...args)));
+    const store = await renderShell({ ...fake, saveMapping }, 'mappings/order-unmapped');
+    await button('Edit').click();
+    store.getState().link(ORDER_ID, ORDER_ID);
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await expect.element(button('Save')).toBeDisabled();
+
+    await userEvent.keyboard('{Control>}s{/Control}');
+
+    answer();
+    await expect.element(page.getByRole('heading', { name: /Mapping order-unmapped saved/ })).toBeVisible();
+    expect(saveMapping).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the masthead help', () => {
+  test('opens About Mapping studio with the interaction help for our product', async () => {
+    renderStudio(fakeApiClient(), 'mappings/order-id-copy');
+
+    await page.getByRole('button', { name: 'About Mapping studio' }).click();
+
+    const about = page.getByRole('dialog', { name: 'About Mapping studio' });
+    await expect.element(about).toMatchTextContent(/^About Mapping studioOpen a mapping from its Flottila package\. Choose Edit to make changes\./);
+    await expect.element(about).toMatchTextContent(/Drag a source field onto a target for a direct connection\./);
+    await expect.element(about).toMatchTextContent(/Lay Out Mapping arranges the expression from left to right at its fixed scale\./);
+    await expect.element(about).toMatchTextContent(/Save writes the mapping file to the workspace\. Test runs the mapping on the service\.$/);
+    await expect.element(about).not.toMatchTextContent(/browser|SAP PO|prototype/);
+    await about.getByRole('button', { name: 'Close' }).click();
+    await expect.element(about).not.toBeInTheDocument();
   });
 });
 
