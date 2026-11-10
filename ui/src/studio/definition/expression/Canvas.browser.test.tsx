@@ -564,3 +564,82 @@ describe('an orphaned reference and its remap (GLOSSARY: Orphaned reference, Rem
     expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: '/Doc/Code' });
   });
 });
+
+describe('drag-to-remap: a source row dropped on an orphaned box (GLOSSARY: Remap, #174)', () => {
+  const GONE = `/${ORDER}/Gone`;
+  /** order-id-copy with box a1 reading Gone, a field the order structure lacks. */
+  async function orphanApi(): Promise<ApiClient> {
+    const { model } = await fakeApiClient().getMapping(MAPPING);
+    model.targetFieldMappings![ORDER_ID]!.boxes.a1 = { kind: 'source', field: GONE };
+    return fakeApiClient({ [MAPPING]: model });
+  }
+  const sourceRow = (name: string) =>
+    page.getByRole('table', { name: 'source fields' }).getByRole('row').filter({ has: page.getByRole('button', { name, exact: true }) });
+  /** Drops a source field's drag data on an element, as a source row dragged in edit mode carries it. */
+  const dropField = (element: Element, field: string) => {
+    const data = new DataTransfer();
+    data.setData('application/x-flottila-source-field', field);
+    element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
+  };
+
+  test('points the box at the dropped field, keeping its id and its wire, as one undo step', async () => {
+    const store = await renderCanvas({ api: await orphanApi(), editing: true });
+    await expect.element(node(/^Source field Gone/)).toBeVisible();
+
+    await userEvent.dragAndDrop(sourceRow('Note'), node(/^Source field Gone/));
+
+    await expect.poll(() => mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: NOTE });
+    expect(mappingOf(store).result).toBe('a1');
+    expect(store.getState().past).toHaveLength(1);
+    await expect.element(node(/^Source field Note\. Complete/)).toBeVisible();
+    await expect.element(canvas().getByRole('img', { name: 'Orphaned reference' })).not.toBeInTheDocument();
+    await expect.element(targetRow('OrderId').getByRole('img', { name: 'Connected' })).toBeVisible();
+  });
+
+  test('a function dropped from the catalogue on the orphaned box adds a box, and the box stays orphaned', async () => {
+    const store = await renderCanvas({ api: await orphanApi(), editing: true });
+    await catalogue().getByRole('button', { name: /^Text/ }).click();
+
+    await userEvent.dragAndDrop(catalogue().getByRole('button', { name: /^toUpperCase\b/ }).first(), node(/^Source field Gone/));
+
+    await expect.poll(() => Object.keys(mappingOf(store).boxes)).toHaveLength(2);
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: GONE });
+    await expect.element(node(/^Source field Gone/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+  });
+
+  test('in view mode a dropped source field changes nothing', async () => {
+    const store = await renderCanvas({ api: await orphanApi() });
+    await expect.element(node(/^Source field Gone/)).toBeVisible();
+
+    dropField(node(/^Source field Gone/).element(), NOTE);
+
+    await expect.element(node(/^Source field Gone/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
+    expect(store.getState().workingCopy).toBe(store.getState().baseline);
+  });
+
+  test('a box that is not orphaned takes no source row', async () => {
+    const store = await renderCanvas({ editing: true });
+    await expect.element(node(/^Source field OrderId\. Complete/)).toBeVisible();
+
+    dropField(node(/^Source field OrderId/).element(), NOTE);
+
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: ORDER_ID });
+    expect(store.getState().workingCopy).toBe(store.getState().baseline);
+  });
+
+  test('a refused source field refuses the drop as it refuses a link: the alert says why, and the box stays orphaned', async () => {
+    // the same-step structure of #116: Doc's two Note fields are refused (ambiguous-field-path), Code is not
+    const { model } = await fakeApiClient().getMapping(MAPPING);
+    model.source = { bundle: ['../structures/refused/same-step.xsd'], fingerprint: 'sha256:d26971c5a6f2df7fa0bf9f7287ae22f1e93ef12dd6ea4ac8ce748990ba0ec32e', root: { element: 'Doc' } };
+    model.targetFieldMappings![ORDER_ID]!.boxes.a1 = { kind: 'source', field: '/Doc/Gone' };
+    const store = await renderCanvas({ api: fakeApiClient({ [MAPPING]: model }), editing: true });
+    await expect.element(node(/^Source field Gone/)).toBeVisible();
+
+    await userEvent.dragAndDrop(sourceRow('Note').first(), node(/^Source field Gone/));
+
+    await expect.element(page.getByRole('heading', { name: /The source field \/Doc\/Note is refused: ambiguous-field-path/ })).toBeVisible();
+    expect(mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: '/Doc/Gone' });
+    await userEvent.dragAndDrop(sourceRow('Code'), node(/^Source field Gone/));
+    await expect.poll(() => mappingOf(store).boxes.a1).toEqual({ kind: 'source', field: '/Doc/Code' });
+  });
+});

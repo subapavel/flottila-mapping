@@ -466,6 +466,121 @@ describe('the Definition tab panes (#156)', () => {
   });
 });
 
+describe('the orphaned target field mappings (GLOSSARY: Orphaned target field mapping, #174)', () => {
+  const MISSING = `/${ORDER}/Missing`;
+  /** order-id-copy with a second target field mapping, at Missing, a target field the order structure lacks. */
+  async function orphanedTargetApi(): Promise<ApiClient> {
+    const { model } = await fakeApiClient().getMapping(MAPPING);
+    model.targetFieldMappings![MISSING] = { id: 't2', result: 'a2', boxes: { a2: { kind: 'source', field: ORDER_ID } } };
+    return fakeApiClient({ [MAPPING]: model });
+  }
+  const orphans = () => pane('target').getByRole('region', { name: 'Orphaned target field mappings' });
+  const open = () => orphans().getByRole('button', { name: 'Open /Order/Missing' });
+  const remove = () => orphans().getByRole('button', { name: 'Delete /Order/Missing' });
+  const canvasPanel = () => page.getByRole('region', { name: 'Field mapping canvas' });
+
+  test('a mapping whose target field mappings all have their rows shows no group', async () => {
+    await renderDefinition();
+
+    await expect.element(field('target', 'OrderId')).toBeVisible();
+    await expect.element(orphans()).not.toBeInTheDocument();
+  });
+
+  test('are listed in a group of their own in the target pane; Open shows the expression on the canvas', async () => {
+    const store = await renderDefinition({ api: await orphanedTargetApi() });
+
+    await expect.element(orphans()).toMatchTextContent('/Order/Missing');
+    await expect.element(orphans().getByRole('listitem')).toHaveLength(1);
+    await expect.element(field('target', 'Missing')).not.toBeInTheDocument();
+    await expect.element(open()).toHaveAttribute('aria-pressed', 'false');
+
+    await open().click();
+
+    expect(store.getState().selectedTarget).toBe(MISSING);
+    await expect.element(open()).toHaveAttribute('aria-pressed', 'true');
+    await expect.element(page.getByRole('toolbar', { name: 'Mapping expression' })).toMatchTextContent('/Order/Missing');
+    await expect.element(page.getByRole('group', { name: 'Mapping canvas' }).getByRole('group', { name: /^Source field OrderId\. Complete/ })).toBeVisible();
+    expect(selectUnsaved(store.getState())).toBe(false);
+  });
+
+  test('in view mode Delete is disabled', async () => {
+    await renderDefinition({ api: await orphanedTargetApi() });
+
+    await expect.element(remove()).toBeDisabled();
+  });
+
+  test('Delete in edit mode removes it with its boxes as one undo step, and the canvas it showed asks for a target field', async () => {
+    const store = await renderDefinition({ api: await orphanedTargetApi(), editing: true });
+    await open().click();
+
+    await remove().click();
+
+    expect(store.getState().workingCopy.targetFieldMappings?.[MISSING]).toBeUndefined();
+    expect(Object.keys(store.getState().workingCopy.targetFieldMappings ?? {})).toEqual([ORDER_ID]);
+    expect(store.getState().past).toHaveLength(1);
+    expect(store.getState().selectedTarget).toBeNull();
+    await expect.element(orphans()).not.toBeInTheDocument();
+    await expect.element(canvasPanel()).toHaveTextContent('Select a target field to see its mapping expression.');
+
+    store.getState().undo();
+
+    await expect.element(orphans()).toMatchTextContent('/Order/Missing');
+    expect(selectUnsaved(store.getState())).toBe(false);
+  });
+
+  test('Delete leaves another selected target field selected', async () => {
+    const store = await renderDefinition({ api: await orphanedTargetApi(), editing: true });
+    await field('target', 'OrderId').click();
+
+    await remove().click();
+
+    await expect.element(orphans()).not.toBeInTheDocument();
+    expect(store.getState().selectedTarget).toBe(ORDER_ID);
+    await expect.element(page.getByRole('group', { name: 'Mapping canvas' }).getByRole('group', { name: /^Target field OrderId\. Complete/ })).toBeVisible();
+  });
+});
+
+describe('the store refusals (#174)', () => {
+  const refused = { code: 'unsupported-construct', side: 'target' as const, file: 'order.xsd', line: 3, column: 1 };
+  /** The fake ApiClient with the order structure's Note refused, on both sides, as a field refusal marks it (ADR-0027). */
+  async function refusedNoteApi(): Promise<ApiClient> {
+    const fake = fakeApiClient();
+    const structure = await fake.loadStructure({ base: 'mappings', bundle: ['../structures/skeleton/order.xsd'], root: { element: ORDER } });
+    if (structure.kind !== 'loaded') throw new Error('the fake order structure did not load');
+    const type = structure.root.type!;
+    const withRefusal = { ...structure, types: { ...structure.types, [type]: structure.types[type]!.map((f) => (f.step === 'Note' ? { ...f, refusal: refused } : f)) } };
+    return { ...fake, loadStructure: async () => withRefusal };
+  }
+  const refusalAlert = () => page.getByRole('heading', { name: /The target field \/Q\{urn:flottila:corpus:skeleton\}Order\/Note is refused: unsupported-construct, declared at order.xsd:3:1/ });
+  const dismiss = () => page.getByRole('button', { name: 'Dismiss refusal' });
+
+  test('a refused drop shows why in a warning alert, which the author dismisses; the next refusal shows again', async () => {
+    const store = await renderDefinition({ api: await refusedNoteApi(), editing: true });
+
+    await userEvent.dragAndDrop(row('source', 'Quantity'), row('target', 'Note'));
+
+    await expect.element(refusalAlert()).toBeVisible();
+    expect(store.getState().workingCopy).toBe(store.getState().baseline);
+    await dismiss().click();
+    await expect.element(refusalAlert()).not.toBeInTheDocument();
+
+    await userEvent.dragAndDrop(row('source', 'Quantity'), row('target', 'Note'));
+
+    await expect.element(refusalAlert()).toBeVisible();
+  });
+
+  test('a command that applies clears the alert', async () => {
+    const store = await renderDefinition({ api: await refusedNoteApi(), editing: true });
+    await userEvent.dragAndDrop(row('source', 'Quantity'), row('target', 'Note'));
+    await expect.element(refusalAlert()).toBeVisible();
+
+    await userEvent.dragAndDrop(row('source', 'Quantity'), row('target', 'Quantity'));
+
+    await expect.poll(() => store.getState().refusal).toBeNull();
+    await expect.element(refusalAlert()).not.toBeInTheDocument();
+  });
+});
+
 describe('the definition bar, the expression header and the field menus (#157)', () => {
   const bar = (name: string) => page.getByRole('toolbar', { name: 'Definition actions' }).getByRole('button', { name, exact: true });
   const header = (name: string) => page.getByRole('toolbar', { name: 'Mapping expression' }).getByRole('button', { name, exact: true });

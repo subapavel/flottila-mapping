@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { FieldDto, StructureLoaded } from '../../api/client';
 import type { MappingModel, TargetFieldMapping } from '../../generated/mapping-model';
-import { connectedFields, expressionText, keptRows, mappedHow, orphans, schemaLines, typeKind, xsdType } from './definition-model';
+import { connectedFields, expressionText, keptRows, mappedHow, orphanedMappings, orphans, schemaLines, typeKind, xsdType } from './definition-model';
 import { fieldAt } from './rows';
 
 const field = (step: string, extra: Partial<FieldDto> = {}): FieldDto => ({
@@ -173,6 +173,24 @@ describe('the orphaned references (GLOSSARY: Orphaned reference, Field status)',
 
     expect(orphans(model, undefined)).toEqual({ boxes: new Set(), targets: new Set() });
     expect(orphans({ formatVersion: 1 }, doc)).toEqual({ boxes: new Set(), targets: new Set() });
+  });
+});
+
+describe('the orphaned target field mappings (GLOSSARY, #174)', () => {
+  const mapped = (...paths: string[]): MappingModel => ({
+    formatVersion: 1,
+    targetFieldMappings: Object.fromEntries(paths.map((path, i) => [path, { id: `t${i}`, result: null, boxes: {} }])),
+  });
+
+  test('are the target field paths the target structure lacks, in the model order, at any depth', () => {
+    const model = mapped('/Doc/Part/Part/Gone', '/Doc/@id', '/Other/Name', '/Doc/Part/Part/Name', '/Doc/Plain/Below');
+
+    expect(orphanedMappings(model, doc)).toEqual(['/Doc/Part/Part/Gone', '/Other/Name', '/Doc/Plain/Below']);
+  });
+
+  test('are none while the target structure is not loaded, nor in a model without target field mappings', () => {
+    expect(orphanedMappings(mapped('/Doc/Gone'), undefined)).toEqual([]);
+    expect(orphanedMappings({ formatVersion: 1 }, doc)).toEqual([]);
   });
 });
 
