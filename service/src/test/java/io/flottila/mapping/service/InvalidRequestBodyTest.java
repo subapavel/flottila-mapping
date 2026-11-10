@@ -192,6 +192,8 @@ class InvalidRequestBodyTest {
         created("missing target", t, r -> r.remove("target"), m -> m.remove("target")),
         created("null source", t, r -> r.putNull("source"), m -> m.remove("source")),
         created("null target", t, r -> r.putNull("target"), m -> m.remove("target")),
+        // a null description is none, as a missing one (ADR-0029)
+        created("null description", t, r -> r.putNull("description"), m -> {}),
         created(
             "missing source and target",
             t,
