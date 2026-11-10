@@ -1,5 +1,5 @@
 import { Switch } from '@patternfly/react-core';
-import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
+import { Table, Tbody, Th, Thead, Tr } from '@patternfly/react-table';
 import { AngleDownIcon, AngleRightIcon, CheckIcon, CubeIcon, SearchIcon } from '@patternfly/react-icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type KeyboardEvent } from 'react';
@@ -24,6 +24,12 @@ const WIDE = '(min-width: 1550px)';
 const LINE_HEIGHT = 20.4;
 /** Rows rendered beyond the scrolled view on each side. */
 const OVERSCAN = 8;
+/**
+ * PatternFly's classes of a table row and cell (react-styles table.d.ts): the virtualised body renders plain elements
+ * with them, since its rows are all new on each frame of a fast scroll and PatternFly's Tr and Td cost more per cell.
+ */
+const TR = 'pf-v6-c-table__tr';
+const TD = 'pf-v6-c-table__td';
 
 const subscribeWide = (change: () => void) => {
   const query = window.matchMedia(WIDE);
@@ -387,8 +393,8 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
             const typeLabel = format === 'XML' ? xsdType(field.valueType ?? '') : (field.valueType ?? '');
             const name = stepName(path);
             return (
-              <Tr key={item.key} className={selected === path ? 'active-field' : undefined} style={{ height }} {...rowActions(path)}>
-                <Td>
+              <tr key={item.key} className={selected === path ? `${TR} active-field` : TR} style={{ height }} {...rowActions(path)}>
+                <td className={TD}>
                   <div className="field-cell" style={{ '--level': depth } as CSSProperties}>
                     {expandable && toggleable ? (
                       <button className="caret" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${localPath(path)}`} aria-expanded={expanded} onClick={() => onToggle(path)}>
@@ -409,29 +415,29 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
                       </span>
                     )}
                   </div>
-                </Td>
+                </td>
                 {selection && (
-                  <Td>
+                  <td className={TD}>
                     <Switch
                       aria-label={`Select /${localPath(path)}`}
                       isChecked={selection.marked.includes(path)}
                       onChange={(_event, checked) => selection.setMarked(checked ? [...selection.marked, path] : selection.marked.filter((p) => p !== path))}
                     />
-                  </Td>
+                  </td>
                 )}
                 {mapping && (
-                  <Td>
+                  <td className={TD}>
                     <code className="mapping-code">{expressionText(mapping[path]) || `No mapping for /${localPath(path)}`}</code>
-                  </Td>
+                  </td>
                 )}
                 {table && (
                   <>
-                    <Td className="occurs">{occurrenceText(field)}</Td>
-                    <Td className="field-type-column">{expandable ? '' : typeLabel}</Td>
-                    <Td className="description-column" />
+                    <td className={`${TD} occurs`}>{occurrenceText(field)}</td>
+                    <td className={`${TD} field-type-column`}>{expandable ? '' : typeLabel}</td>
+                    <td className={`${TD} description-column`} />
                   </>
                 )}
-              </Tr>
+              </tr>
             );
           })}
           {spacer(bottom)}
