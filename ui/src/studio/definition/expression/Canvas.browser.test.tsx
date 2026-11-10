@@ -575,11 +575,14 @@ describe('drag-to-remap: a source row dropped on an orphaned box (GLOSSARY: Rema
   }
   const sourceRow = (name: string) =>
     page.getByRole('table', { name: 'source fields' }).getByRole('row').filter({ has: page.getByRole('button', { name, exact: true }) });
-  /** Drops a source field's drag data on an element, as a source row dragged in edit mode carries it. */
-  const dropField = (element: Element, field: string) => {
+  /**
+   * Drops a source field's drag data on a canvas node, as a source row dragged in edit mode carries it: on the box the
+   * node draws, inside React Flow's node wrapper, where a real drop lands.
+   */
+  const dropField = (wrapper: Element, field: string) => {
     const data = new DataTransfer();
     data.setData('application/x-flottila-source-field', field);
-    element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
+    wrapper.querySelector('.map-node')!.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
   };
 
   test('points the box at the dropped field, keeping its id and its wire, as one undo step', async () => {
