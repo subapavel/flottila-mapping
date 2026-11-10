@@ -16,6 +16,7 @@ import { describeError, type ApiClient } from '../../api/client';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import { SaveConflict } from '../../editor/SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
+import { DefinitionTab } from '../definition/DefinitionTab';
 import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
 import { CopyTextButton } from './CopyTextButton';
@@ -255,6 +256,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
             <ChooseMessages />
           ) : tab === 'overview' ? (
             <MappingOverview mappingId={mappingId} store={store} />
+          ) : tab === 'definition' ? (
+            <DefinitionTab mappingId={mappingId} api={api} store={store} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
           ) : tab === 'signature' ? (
             <Signature mappingId={mappingId} api={api} store={store} browserState={browserState} />
           ) : (
