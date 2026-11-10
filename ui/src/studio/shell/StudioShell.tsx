@@ -279,7 +279,7 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
           ) : tab === 'overview' ? (
             <MappingOverview mappingId={mappingId} store={store} />
           ) : tab === 'definition' ? (
-            <DefinitionTab mappingId={mappingId} api={api} store={store} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
+            <DefinitionTab mappingId={mappingId} api={api} store={store} session={testSession} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
           ) : tab === 'test' ? (
             <TestTab mappingId={mappingId} store={store} session={testSession} browserState={browserState} />
           ) : tab === 'signature' ? (

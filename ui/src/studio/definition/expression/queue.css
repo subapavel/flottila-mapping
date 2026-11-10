@@ -33,6 +33,16 @@
 .queue-occurrences {
   margin-top: 12px;
 }
+/* a dialog without test data in edit mode: the test file to load (#177) */
+.queue-load {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.queue-failure {
+  margin-bottom: 10px;
+}
 .queue-occurrences h4 {
   font-size: 14px;
   font-weight: 650;

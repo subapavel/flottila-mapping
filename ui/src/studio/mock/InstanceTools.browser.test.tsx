@@ -8,7 +8,7 @@ import type { ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
 import { selectUnsaved, type StudioTab, type WorkingCopyStore } from '../store/working-copy';
-import { testInstancesKey, type TestInstance } from './test-instances';
+import { testInstances, testInstancesKey, type TestInstance } from './test-instances';
 import { studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
 
@@ -190,6 +190,27 @@ describe('the test instance library, a preview feature (#170)', () => {
     store.getState().setTab('test');
     await expect.element(select()).toHaveDisplayValue('First');
     await expect.element(input()).toHaveValue(INPUT);
+
+    // edit mode shows the library's current instance, the one Save and Delete change
+    store.getState().startEditing();
+    await expect.element(select()).toHaveDisplayValue('Second');
+  });
+
+  test('a source typed in read mode is what Add Test Instance keeps after Edit, from the Queue test input too', async () => {
+    const browserState = memoryBrowserState();
+    const store = await renderStudio({ editing: false, browserState });
+    await input().fill(INPUT);
+    store.getState().startEditing();
+    store.getState().setTab('definition');
+    const tools = page.getByRole('group', { name: 'Queue test input' });
+
+    await tools.getByRole('button', { name: 'Add Test Instance' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add Test Instance' });
+    await dialog.getByRole('textbox', { name: 'Test instance name' }).fill('Typed');
+    await dialog.getByRole('button', { name: 'OK' }).click();
+
+    await expect.element(tools.getByRole('combobox', { name: 'Queue test input' })).toHaveDisplayValue('Typed');
+    expect(testInstances(store, browserState, MAPPING).getState().value).toMatchObject([{ name: 'Typed', text: INPUT }]);
   });
 
   test('in read mode the Queue test input chooses an instance for the Test tab too', async () => {

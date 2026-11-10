@@ -176,6 +176,9 @@ describe('the Test tab (#158)', () => {
     const leaving = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(leaving);
     expect(leaving.defaultPrevented).toBe(false);
+    // the parameter values are kept in the browser, so read mode leaves them as they are
+    await source().getByRole('button', { name: 'Parameters' }).click();
+    await expect.element(source().getByRole('textbox', { name: 'ConversationId' })).toHaveAttribute('readonly');
   });
 
   test('in edit mode the source is kept in the browser', async () => {
