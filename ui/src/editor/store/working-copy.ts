@@ -89,13 +89,24 @@ export interface WorkingCopyState {
   editing: boolean;
   /** The target field whose mapping the studio shows, or none. */
   selectedTarget: FieldPath | null;
+  /**
+   * The preview features (ADR-0028, `studio/mock`) that hold a draft of this edit session, by a name each picks. A draft
+   * is unsaved like a change of the working copy, but never part of it: its owner keeps it in the browser.
+   */
+  previewDrafts: readonly string[];
+  /** How many saves succeeded: a change tells a preview's owner to keep its draft as the saved state. */
+  commits: number;
+  /** How many times the working copy's changes were dropped (discard, reload): a change tells a preview to drop its draft. */
+  reverts: number;
   setTab: (tab: StudioTab) => void;
   /** Switches the studio to edit mode. */
   startEditing: () => void;
   selectTarget: (field: FieldPath | null) => void;
+  /** Records whether the preview `name` holds a draft. */
+  setPreviewDraft: (name: string, draft: boolean) => void;
   /**
    * Ends edit mode and drops the working copy's changes: the baseline becomes the working copy again, undo and redo are
-   * cleared, and so are the selection and the last refusal.
+   * cleared, and so are the selection, the last refusal and the preview drafts (`reverts` counts it).
    */
   discard: () => void;
   /**
@@ -151,11 +162,14 @@ export interface WorkingCopyState {
   paste: (targetField: FieldPath) => void;
   /**
    * Sends the working copy with the baseline's ETag; what the service wrote becomes the baseline, and the history
-   * stays. A save conflict opens `conflict`; any other error rejects, and a refusal with diagnostics (422
-   * `model-refused`) replaces the diagnostics first.
+   * stays, and the preview drafts are saved (`commits` counts it). A save conflict opens `conflict` and any other error
+   * rejects, both keeping the drafts; a refusal with diagnostics (422 `model-refused`) replaces the diagnostics first.
    */
   save: () => Promise<void>;
-  /** Drops the working copy and its history and loads the file from disk as the baseline. Rejects with the port's error. */
+  /**
+   * Drops the working copy, its history and the preview drafts (`reverts` counts it) and loads the file from disk as the
+   * baseline. Rejects with the port's error, and then drops nothing.
+   */
   reload: () => Promise<void>;
   /** Closes a save conflict and keeps the working copy. */
   keepEditing: () => void;
@@ -180,8 +194,8 @@ export interface Clipboard {
 
 export type WorkingCopyStore = ReturnType<typeof createWorkingCopyStore>;
 
-/** Whether the working copy has changes the baseline lacks. */
-export const selectUnsaved = (state: WorkingCopyState): boolean => !sameModel(state.workingCopy, state.baseline);
+/** Whether the edit session has unsaved changes: the working copy has changes the baseline lacks, or a preview a draft. */
+export const selectUnsaved = (state: WorkingCopyState): boolean => state.previewDrafts.length > 0 || !sameModel(state.workingCopy, state.baseline);
 
 /** The trace of the last test run by authoring id; none before a run or when compile refused it (ADR-0015). */
 export const selectTrace = (state: WorkingCopyState): Record<string, TraceEntry> | undefined =>
@@ -246,12 +260,21 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       tab: 'overview',
       editing: false,
       selectedTarget: null,
+      previewDrafts: [],
+      commits: 0,
+      reverts: 0,
 
       setTab: (tab) => set({ tab }),
 
       startEditing: () => set({ editing: true }),
 
       selectTarget: (selectedTarget) => set({ selectedTarget }),
+
+      setPreviewDraft: (name, draft) =>
+        set((state) => {
+          const others = state.previewDrafts.filter((n) => n !== name);
+          return { previewDrafts: draft ? [...others, name] : others };
+        }),
 
       discard: () =>
         set((state) => ({
@@ -262,6 +285,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           selected: [],
           refusal: null,
           editing: false,
+          previewDrafts: [],
+          reverts: state.reverts + 1,
         })),
 
       link: (sourceField, targetField, refusals) =>
@@ -369,12 +394,14 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           baseline: stored.model,
           etag: stored.etag,
           workingCopy: state.workingCopy === sent ? stored.model : state.workingCopy,
+          previewDrafts: [],
+          commits: state.commits + 1,
         }));
       },
 
       reload: async () => {
         const stored = await ports.load();
-        set({
+        set((state) => ({
           baseline: stored.model,
           etag: stored.etag,
           workingCopy: stored.model,
@@ -383,7 +410,9 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           selection: null,
           selected: [],
           conflict: false,
-        });
+          previewDrafts: [],
+          reverts: state.reverts + 1,
+        }));
       },
 
       keepEditing: () => set({ conflict: false }),

@@ -17,6 +17,7 @@ import type { BrowserStateStore } from '../../editor/browser-state/browser-state
 import { SaveConflict } from '../../editor/SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
 import { FunctionsTab } from '../functions/FunctionsTab';
+import { useFunctionsPreview } from '../mock/functions-store';
 import { CopyTextButton } from './CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
@@ -83,6 +84,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
   const hasMessages = useStore(store, (s) => s.workingCopy.source !== undefined && s.workingCopy.target !== undefined);
   const panelRef = useRef<HTMLElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
+  // a preview's draft follows the edit session while any tab is open (ADR-0028)
+  const functions = useFunctionsPreview(store, browserState, mappingId);
 
   const keepTab = useCallback(
     (next: StudioTab) => {
@@ -251,7 +254,7 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
         <TabContent className="studio-tab-panel" id={TAB_PANEL_ID} ref={panelRef} aria-labelledby={tabLabelId(tab)}>
           {/* PatternFly renders no panel without children: a tab not built yet has an empty body (#154) */}
           {tab === 'functions' ? (
-            <FunctionsTab mappingId={mappingId} store={store} browserState={browserState} api={api} />
+            <FunctionsTab mappingId={mappingId} store={store} functions={functions} api={api} />
           ) : needsMessages ? (
             <ChooseMessages />
           ) : (

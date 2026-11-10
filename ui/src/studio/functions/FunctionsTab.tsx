@@ -4,9 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useStore } from 'zustand';
 import type { ApiClient } from '../../api/client';
-import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
-import { createFunctionsStore } from '../mock/functions-store';
+import type { FunctionsStore } from '../mock/functions-store';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import { downloadFile } from './download';
 import {
@@ -36,8 +35,8 @@ export interface FunctionsTabProps {
   mappingId: string;
   /** The open mapping's store, read for edit mode and the messages only: the functions never enter the model. */
   store: WorkingCopyStore;
-  /** Where the functions are kept, under the mapping's id. */
-  browserState: BrowserStateStore;
+  /** The mapping's functions, a draft of the edit session over the ones saved in the browser. */
+  functions: FunctionsStore;
   /** Read for the standard functions' names, which a function may not take. */
   api: ApiClient;
 }
@@ -46,13 +45,12 @@ export interface FunctionsTabProps {
  * The Functions tab, a preview (ADR-0028, ADR-0030, #169; the prototype's FunctionsTab): the class and package of the
  * mapping's functions, Export and Import Source Text, the list of Java areas and user-defined functions with their
  * editor, and the import instructions and archives. The functions live in the browser only (`mock/functions-store`),
- * never in the mapping file. They are edited in edit mode once the mapping has both messages; otherwise they are
- * read-only, and only Export Source Text works.
+ * never in the mapping file; Save keeps an edit and Discard drops it. They are edited in edit mode once the mapping has
+ * both messages; otherwise they are read-only, and only Export Source Text works.
  */
-export function FunctionsTab({ mappingId, store, browserState, api }: FunctionsTabProps) {
-  const [functionsStore] = useState(() => createFunctionsStore(browserState, mappingId));
-  const state = useStore(functionsStore, (s) => s.functions);
-  const edit = useStore(functionsStore, (s) => s.edit);
+export function FunctionsTab({ mappingId, store, functions, api }: FunctionsTabProps) {
+  const state = useStore(functions, (s) => s.functions);
+  const edit = useStore(functions, (s) => s.edit);
   const editing = useStore(store, (s) => s.editing);
   const hasMessages = useStore(store, (s) => s.workingCopy.source !== undefined && s.workingCopy.target !== undefined);
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });

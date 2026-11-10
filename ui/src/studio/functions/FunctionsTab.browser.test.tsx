@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
-import type { ApiClient } from '../../api/client';
+import { ApiProblem, type ApiClient } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import { functionsKey } from '../mock/functions-store';
@@ -12,7 +12,7 @@ import { StudioShell } from '../shell/StudioShell';
 import { emptyFunctions, newFunction, type FunctionsState } from './function-model';
 
 const MAPPING = 'mappings/order-id-copy';
-const ORDER_ID = '/Q{urn:flottila:corpus:skeleton}Order/OrderId';
+const UNMAPPED = 'mappings/order-unmapped';
 
 function memoryBrowserState(): BrowserStateStore {
   const values = new Map<string, unknown>();
@@ -50,6 +50,26 @@ function openFunctions(options: { api?: ApiClient; browserState?: BrowserStateSt
   );
 }
 
+/** The shell on the Functions tab in edit mode over a store the test holds, on `order-unmapped`, which has both messages. */
+async function renderShell(api: ApiClient, browserState: BrowserStateStore) {
+  const store = studioStore(api, UNMAPPED, await api.getMapping(UNMAPPED));
+  store.getState().setTab('functions');
+  store.getState().startEditing();
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <StudioShell mappingId={UNMAPPED} api={api} store={store} browserState={browserState} listHref="/?api=fake" />
+    </QueryClientProvider>,
+  );
+  return store;
+}
+
+/** Whether the page asks before it unloads: a `beforeunload` listener cancelled the event. */
+function asksBeforeUnload(): boolean {
+  const event = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
 /** A browser state that already holds `state` for the mapping. */
 function keeping(state: FunctionsState, mappingId = MAPPING): BrowserStateStore {
   const browserState = memoryBrowserState();
@@ -74,46 +94,92 @@ afterEach(() => {
 });
 
 describe('the Functions tab, a preview kept in the browser (ADR-0028, ADR-0030, #169)', () => {
-  test('a function added in edit mode survives a reload of the studio', async () => {
-    const browserState = memoryBrowserState();
-    openFunctions({ browserState, startEditing: true });
+  test('a function edit makes the studio unsaved: Save and Check are enabled and the page asks before it unloads', async () => {
+    openFunctions({ startEditing: true });
+    await expect.element(button('Save')).toBeDisabled();
+    expect(asksBeforeUnload()).toBe(false);
 
     await functionActions().getByRole('button', { name: 'Insert row' }).click();
-    await expect.element(button('Select function calculate1')).toHaveAttribute('aria-pressed', 'true');
-    await source('calculate1').fill('return in0;');
-    unmount();
-    openFunctions({ browserState });
 
-    await button('Select function calculate1').click();
-    await expect.element(source('calculate1')).toHaveValue('return in0;');
+    await expect.element(button('Save')).toBeEnabled();
+    await expect.element(button('Check')).toBeEnabled();
+    expect(asksBeforeUnload()).toBe(true);
   });
 
-  test('Save sends the model without the functions', async () => {
+  test('Discard reverts the functions to the last saved ones', async () => {
+    const saved = { ...emptyFunctions(), functions: [{ ...newFunction('calculate1', 'f1'), body: 'return in0;' }] };
+    const browserState = keeping(saved);
+    openFunctions({ browserState, startEditing: true });
+    await button('Select function calculate1').click();
+    await source('calculate1').fill('return "draft";');
+    await functionActions().getByRole('button', { name: 'Insert row' }).click();
+    await expect.element(button('Select function calculate2')).toBeVisible();
+
+    await button('Cancel').click();
+    await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard changes' }).click();
+
+    await expect.element(button('Edit')).toBeVisible();
+    await expect.element(button('Select function calculate2')).not.toBeInTheDocument();
+    await button('Select function calculate1').click();
+    await expect.element(source('calculate1')).toHaveValue('return in0;');
+    expect(browserState.read(functionsKey(MAPPING))).toEqual(saved);
+    await button('Edit').click();
+    await expect.element(button('Save')).toBeDisabled();
+  });
+
+  test('Save keeps the functions in the browser with the model save, which sends the working copy without them', async () => {
     const fake = fakeApiClient();
     const saveMapping = vi.fn(fake.saveMapping);
     const api = { ...fake, saveMapping };
-    const opened = await api.getMapping('mappings/order-unmapped');
-    const store = studioStore(api, 'mappings/order-unmapped', opened);
-    store.getState().setTab('functions');
-    store.getState().startEditing();
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <StudioShell mappingId="mappings/order-unmapped" api={api} store={store} browserState={memoryBrowserState()} listHref="/?api=fake" />
-      </QueryClientProvider>,
-    );
+    const browserState = memoryBrowserState();
+    const store = await renderShell(api, browserState);
     await functionActions().getByRole('button', { name: 'Insert row' }).click();
     await source('calculate1').fill('return "kept in the browser";');
-    await expect.element(button('Save')).toBeDisabled();
-    // an edit of the mapping, so that Save has something to send
-    store.getState().link(ORDER_ID, ORDER_ID);
+    expect(browserState.read(functionsKey(UNMAPPED))).toBeUndefined();
 
     await button('Save').click();
 
     await expect.element(page.getByRole('heading', { name: /Mapping order-unmapped saved/ })).toBeVisible();
+    await expect.element(button('Save')).toBeDisabled();
     const [, sent] = saveMapping.mock.calls[0]!;
     expect(sent).toEqual(store.getState().workingCopy);
-    expect(sent.udfs).toEqual(opened.model.udfs);
     expect(JSON.stringify(sent)).not.toMatch(/calculate1|kept in the browser/);
+    unmount();
+    openFunctions({ api, browserState, mappingId: UNMAPPED });
+    await button('Select function calculate1').click();
+    await expect.element(source('calculate1')).toHaveValue('return "kept in the browser";');
+  });
+
+  test('a refused save and a save conflict keep the draft', async () => {
+    const fake = fakeApiClient();
+    const refused = new ApiProblem({ type: 'urn:flottila:mapping:problem:internal', title: 'Internal error', status: 500, detail: 'disk full' });
+    const conflict = new ApiProblem({ type: 'urn:flottila:mapping:problem:mapping-changed', title: 'Mapping changed', status: 409, detail: 'changed on disk' });
+    const saveMapping = vi.fn().mockRejectedValueOnce(refused).mockRejectedValueOnce(conflict);
+    const browserState = memoryBrowserState();
+    await renderShell({ ...fake, saveMapping }, browserState);
+    await functionActions().getByRole('button', { name: 'Insert row' }).click();
+
+    await button('Save').click();
+    await expect.element(page.getByRole('heading', { name: /Internal error/ })).toBeVisible();
+    await button('Save').click();
+    await page.getByRole('dialog', { name: 'Save conflict' }).getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect.element(button('Save')).toBeEnabled();
+    await expect.element(button('Select function calculate1')).toBeVisible();
+    expect(browserState.read(functionsKey(UNMAPPED))).toBeUndefined();
+  });
+
+  test('Reload after a save conflict drops the draft with the working copy', async () => {
+    const fake = fakeApiClient();
+    const conflict = new ApiProblem({ type: 'urn:flottila:mapping:problem:mapping-changed', title: 'Mapping changed', status: 409, detail: 'changed on disk' });
+    await renderShell({ ...fake, saveMapping: () => Promise.reject(conflict) }, memoryBrowserState());
+    await functionActions().getByRole('button', { name: 'Insert row' }).click();
+
+    await button('Save').click();
+    await page.getByRole('dialog', { name: 'Save conflict' }).getByRole('button', { name: 'Reload' }).click();
+
+    await expect.element(button('Select function calculate1')).not.toBeInTheDocument();
+    await expect.element(button('Save')).toBeDisabled();
   });
 
   test('view mode is read-only: only Export Source Text works', async () => {
@@ -244,6 +310,8 @@ describe('editing functions (the prototype FunctionsTab)', () => {
     await page.getByRole('combobox', { name: 'Execution Kind' }).selectOptions('Context');
 
     await expect.element(page.getByText('public static void calculate1(Context var1, ContextOut out, MappingRun run) {')).toBeVisible();
+    await button('Save').click();
+    await expect.element(button('Save')).toBeDisabled();
     expect((browserState.read(functionsKey(MAPPING)) as FunctionsState).functions[0]).toMatchObject({
       title: 'Total',
       description: 'Sums the lines',
@@ -306,6 +374,8 @@ describe('editing functions (the prototype FunctionsTab)', () => {
     await expect.element(page.getByRole('group', { name: 'Signature Variables' }).getByText('Description', { exact: true })).not.toBeInTheDocument();
     await expect.element(page.getByRole('combobox', { name: 'Variable kind' })).not.toBeInTheDocument();
     await source('init').fill('run.state().clear();');
+    await button('Save').click();
+    await expect.element(button('Save')).toBeDisabled();
     expect((browserState.read(functionsKey(MAPPING)) as FunctionsState).javaAreas.init).toEqual({
       body: 'run.state().clear();',
       description: 'Prepares the run',
@@ -381,7 +451,8 @@ describe('import instructions and archives (the prototype Dependencies)', () => 
     const browserState = memoryBrowserState();
     openFunctions({ browserState, startEditing: true });
     const actions = page.getByRole('toolbar', { name: 'Import actions' });
-    const imports = () => (browserState.read(functionsKey(MAPPING)) as FunctionsState).imports.slice(6);
+    // the added import instructions as the draft has them
+    const imports = () => [...document.querySelectorAll<HTMLInputElement>('[aria-label^="Import instruction"]')].map((input) => input.value);
 
     await page.getByRole('cell', { name: 'java.util.*', exact: true }).click();
     await expect.element(actions.getByRole('button', { name: 'Delete row' })).toBeDisabled();
@@ -394,23 +465,28 @@ describe('import instructions and archives (the prototype Dependencies)', () => 
     await expect.element(actions.getByRole('button', { name: 'Move down' })).toBeDisabled();
 
     await actions.getByRole('button', { name: 'Move up' }).click();
-    expect(imports()).toEqual(['java.util.stream.*', 'java.util.function.*']);
+    await expect.poll(imports).toEqual(['java.util.stream.*', 'java.util.function.*']);
     await actions.getByRole('button', { name: 'Move down' }).click();
-    expect(imports()).toEqual(['java.util.function.*', 'java.util.stream.*']);
+    await expect.poll(imports).toEqual(['java.util.function.*', 'java.util.stream.*']);
     await actions.getByRole('button', { name: 'Delete row' }).click();
-    expect(imports()).toEqual(['java.util.function.*']);
+    await expect.poll(imports).toEqual(['java.util.function.*']);
     await page.getByRole('textbox', { name: 'Import instruction 7' }).click();
     await actions.getByRole('button', { name: 'Insert row' }).click();
     await page.getByRole('textbox', { name: 'Import instruction 8' }).fill('java.util.stream.*');
     await page.getByRole('textbox', { name: 'Import instruction 7' }).click();
     await actions.getByRole('button', { name: 'Insert row' }).click();
-    expect(imports()).toEqual(['java.util.function.*', '', 'java.util.stream.*']);
+    await expect.poll(imports).toEqual(['java.util.function.*', '', 'java.util.stream.*']);
   });
 
   test('an archive and its namespace are chosen in the catalogue, and cut, copied and pasted', async () => {
     const browserState = memoryBrowserState();
     openFunctions({ browserState, startEditing: true });
-    const archives = () => (browserState.read(functionsKey(MAPPING)) as FunctionsState).archives;
+    // the archives as the draft has them, an empty field shown as Choose…
+    const archives = () =>
+      [...document.querySelectorAll('[aria-label="Archives Used"] tbody tr')].map((row) => {
+        const [name, namespace] = [...row.querySelectorAll('.sig-lookup span')].map((span) => (span.textContent === 'Choose…' ? '' : span.textContent));
+        return { name, namespace };
+      });
     await button('Archives Used').click();
     const actions = page.getByRole('toolbar', { name: 'Archive actions' });
     await actions.getByRole('button', { name: 'Insert row' }).click();
@@ -433,13 +509,13 @@ describe('import instructions and archives (the prototype Dependencies)', () => 
     await catalogue.getByRole('button', { name: 'JAVA_JSONXML' }).click();
     await expect.element(catalogue.getByRole('button', { name: 'JAVA_JSONXML' })).toHaveAttribute('aria-pressed', 'true');
     await catalogue.getByRole('button', { name: 'Apply' }).click();
-    expect(archives()[0]).toEqual({ name: 'JAVA_JSONXML', namespace: 'urn:example:common:functions' });
+    await expect.poll(() => archives()[0]).toEqual({ name: 'JAVA_JSONXML', namespace: 'urn:example:common:functions' });
 
     await page.getByRole('button', { name: 'Choose archive namespace 2' }).click();
     const namespaces = page.getByRole('dialog', { name: 'Choose Namespace' });
     await expect.element(namespaces.getByRole('row').first()).toHaveTextContent('Namespace');
     await namespaces.getByRole('cell', { name: 'urn:example:common:mappings' }).dblClick();
-    expect(archives()[1]).toEqual({ name: '', namespace: 'urn:example:common:mappings' });
+    await expect.poll(() => archives()[1]).toEqual({ name: '', namespace: 'urn:example:common:mappings' });
     await page.getByRole('button', { name: 'Choose archive name 2' }).click();
     await page.getByRole('dialog', { name: 'Choose Imported Archive' }).getByRole('button', { name: 'Cancel' }).click();
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
@@ -449,19 +525,19 @@ describe('import instructions and archives (the prototype Dependencies)', () => 
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
     await expect.element(actions.getByRole('button', { name: 'Paste Object' })).toBeDisabled();
     await actions.getByRole('button', { name: 'Cut Object' }).click();
-    expect(archives()[0]).toEqual({ name: '', namespace: '' });
+    await expect.poll(() => archives()[0]).toEqual({ name: '', namespace: '' });
     await actions.getByRole('button', { name: 'Paste Object' }).click();
-    expect(archives()[0]).toEqual({ name: 'JAVA_JSONXML', namespace: 'urn:example:common:functions' });
+    await expect.poll(() => archives()[0]).toEqual({ name: 'JAVA_JSONXML', namespace: 'urn:example:common:functions' });
     await actions.getByRole('button', { name: 'Copy Object' }).click();
     await page.getByRole('button', { name: 'Choose archive namespace 2' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
     await actions.getByRole('button', { name: 'Paste Object' }).click();
-    expect(archives()).toEqual([
+    await expect.poll(archives).toEqual([
       { name: 'JAVA_JSONXML', namespace: 'urn:example:common:functions' },
       { name: 'JAVA_JSONXML', namespace: 'urn:example:common:functions' },
     ]);
     await actions.getByRole('button', { name: 'Delete row' }).click();
-    expect(archives()).toHaveLength(1);
+    await expect.poll(archives).toHaveLength(1);
     await button('Import Instructions').click();
     await expect.element(page.getByRole('table', { name: 'Import Instructions' })).toBeVisible();
   });
