@@ -24,7 +24,7 @@ import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
 import { useTestSession } from '../test/test-session';
 import { TestTab } from '../test/TestTab';
-import { CopyTextButton } from './CopyTextButton';
+import { CopyTextButton } from '../shared/CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
 import { Masthead } from './Masthead';

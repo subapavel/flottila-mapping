@@ -2,8 +2,8 @@ import { Button, Modal, ModalBody, ModalHeader } from '@patternfly/react-core';
 import { FileImportIcon, FileMedicalIcon, SaveIcon, TrashIcon } from '@patternfly/react-icons';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useStore } from 'zustand';
-import { Tool } from '../definition/Tool';
-import { PreviewBadge } from '../mock/PreviewBadge';
+import { Tool } from '../shared/Tool';
+import { PreviewBadge } from './PreviewBadge';
 import {
   currentInstance,
   instanceActions,
@@ -13,9 +13,9 @@ import {
   type InstanceFormat,
   type InstanceResource,
   type TestInstancesStore,
-} from '../mock/test-instances';
-import { parseDocument } from './documents';
-import './test.css';
+} from './test-instances';
+import { parseDocument } from '../shared/documents';
+import './mock.css';
 
 export interface InstanceToolsProps {
   library: TestInstancesStore;

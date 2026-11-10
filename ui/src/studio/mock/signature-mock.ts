@@ -1,6 +1,6 @@
 import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { WorkingCopyStore } from '../store/working-copy';
-import type { MessageChoice } from '../signature/structure-names';
+import type { MessageChoice } from '../shared/structure-names';
 import { previewDraft, type PreviewDraftStore } from './preview-draft';
 
 /** The follow-up issue of several source or target messages (spec #152, preview features). */

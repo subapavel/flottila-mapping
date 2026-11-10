@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { ApiClient, Diagnostic, StoredMapping, TestResult } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
-import type { BrowserStateStore } from '../browser-state/browser-state';
+import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
 import { createWorkingCopyStore } from '../store/working-copy';
-import { compileLines, createTestSession, followCompiles, logLines, logText, runLines, stamp, testSourceKey } from './test-session';
+import { compileLines, createTestSession, followCompiles, logLines, logText, runLines, stamp } from './test-session';
 
 const MAPPING = 'mappings/order-id-copy';
 const at = (seconds: number) => new Date(2026, 10, 10, 13, 5, seconds);

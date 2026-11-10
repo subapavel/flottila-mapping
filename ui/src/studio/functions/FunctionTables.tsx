@@ -1,7 +1,7 @@
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, CutIcon, PasteIcon, PlusIcon, SearchIcon, TrashIcon } from '@patternfly/react-icons';
 import { useState, type ReactNode } from 'react';
 import { ArchiveCatalog } from './ArchiveCatalog';
-import { INITIAL_IMPORTS, JAVA_TYPES, moveRow, nameIssue, variable, type Archive, type FunctionsState, type Udf, type Variable, type VariableKind } from './function-model';
+import { INITIAL_IMPORTS, JAVA_TYPES, moveRow, nameIssue, variable, type Archive, type FunctionsState, type Udf, type Variable, type VariableKind } from '../mock/function-model';
 import { Tool } from './ToolbarTools';
 
 /** Insert, Delete, Move up and Move down for the rows of a table, and any further tools (the prototype's RowTools). */

@@ -2,12 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
-import type { TestResult } from '../../api/client';
-import { fakeApiClient } from '../../api/fake/fake-api';
-import type { BrowserStateStore } from '../browser-state/browser-state';
-import type { WorkingCopyStore } from '../store/working-copy';
-import { studioStore } from '../shell/Studio';
-import { StudioShell } from '../shell/StudioShell';
+import type { TestResult } from '../../../api/client';
+import { fakeApiClient } from '../../../api/fake/fake-api';
+import type { BrowserStateStore } from '../../browser-state/browser-state';
+import type { WorkingCopyStore } from '../../store/working-copy';
+import { studioStore } from '../../shell/Studio';
+import { StudioShell } from '../../shell/StudioShell';
 
 const ORDER = 'Q{urn:flottila:corpus:skeleton}Order';
 const ORDER_ID = `/${ORDER}/OrderId`;

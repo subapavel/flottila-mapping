@@ -2,7 +2,7 @@
  * Export Source Text and Import Source Text of the Functions tab (the prototype's functionSource.js): one Java class
  * whose editable sections sit between marker comments, so that a file edited elsewhere can be read back.
  */
-import { AREAS, ATTRIBUTES, builtIn, declaration, metadata, type AreaName, type FunctionsState, type JavaArea, type Udf } from './function-model';
+import { AREAS, ATTRIBUTES, builtIn, declaration, metadata, type AreaName, type FunctionsState, type JavaArea, type Udf } from '../mock/function-model';
 
 /** A section's marker: a stable hash of its identity, across saves in the browser and method renames. */
 function marker(id: string): string {

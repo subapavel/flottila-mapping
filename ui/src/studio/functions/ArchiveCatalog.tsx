@@ -1,7 +1,7 @@
 import { Button } from '@patternfly/react-core';
 import { RedoIcon, SearchIcon } from '@patternfly/react-icons';
 import { useRef, useState, type FormEvent } from 'react';
-import { ARCHIVE_EXAMPLES, type Archive } from './function-model';
+import { ARCHIVE_EXAMPLES, type Archive } from '../mock/function-model';
 import { Dialog, Tool } from './ToolbarTools';
 
 /**

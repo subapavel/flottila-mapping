@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { createStore } from 'zustand/vanilla';
 import { describeError, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
-import type { BrowserStateStore } from '../browser-state/browser-state';
+import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
 import type { WorkingCopyStore } from '../store/working-copy';
 import { currentInstance, testInput, testInstances, type TestInstance } from '../mock/test-instances';
 import { testPreview } from '../mock/test-preview';
-import { formatOf } from './documents';
+import { formatOf } from '../shared/documents';
 
 /** A line of the processing log: its time when it opens a section, else a detail of the section above it. */
 export interface LogLine {
@@ -19,9 +19,6 @@ export interface LogSection {
   at: number;
   lines: LogLine[];
 }
-
-/** The key of a mapping's source document in the browser state, kept per mapping like the prototype's simulation. */
-export const testSourceKey = (mappingId: string) => `mapping:${mappingId}:test-source`;
 
 /** A log line's time as the prototype stamps it: hours, minutes and seconds on a 24-hour clock. */
 export const stamp = (at: Date) => at.toLocaleTimeString('en-GB', { hour12: false });

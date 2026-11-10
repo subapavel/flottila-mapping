@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { WorkingCopyStore } from '../store/working-copy';
 import type { StructureRef } from '../../generated/mapping-model';
-import { messageName } from '../signature/structure-names';
+import { messageName } from '../shared/structure-names';
 import './overview.css';
 
 export interface MappingOverviewProps {

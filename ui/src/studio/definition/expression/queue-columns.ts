@@ -1,6 +1,6 @@
-import type { TraceEntry } from '../../api/client';
+import type { TraceEntry } from '../../../api/client';
 import { displayEntry, queueSize, type ShownValue } from './display-queue';
-import type { ExpressionGraph, ExpressionNode } from '../definition/expression/expression-graph';
+import type { ExpressionGraph, ExpressionNode } from './expression-graph';
 
 /** A cell of the Display Queue (the prototype's queue cells): a value, or where a context ends, before the next or at the end. */
 export type QueueCell = { kind: 'value'; value: ShownValue } | { kind: 'boundary' | 'end' };

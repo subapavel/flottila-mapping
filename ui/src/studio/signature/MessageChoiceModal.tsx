@@ -15,7 +15,7 @@ import {
 import { useId, useState, type FormEvent } from 'react';
 import type { Diagnostic } from '../../api/client';
 import { choiceOf, draftOf, ROOT_KINDS, type ChoiceDraft, type Direction } from './message-choice';
-import type { MessageChoice, RootKind } from './structure-names';
+import type { MessageChoice, RootKind } from '../shared/structure-names';
 
 /** Why a choice was not applied: a title, and the diagnostics of a structure the service refused. */
 export interface ChoiceFailure {

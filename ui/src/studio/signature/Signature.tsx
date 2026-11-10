@@ -31,10 +31,10 @@ import {
   type Side,
   type SignatureMockStore,
 } from '../mock/signature-mock';
-import { CopyTextButton } from '../shell/CopyTextButton';
+import { CopyTextButton } from '../shared/CopyTextButton';
 import { ROOT_KINDS } from './message-choice';
 import { MessageChoiceModal, type ChoiceFailure } from './MessageChoiceModal';
-import { messageName, messageNamespace, rootKind, type MessageChoice, type RootKind } from './structure-names';
+import { messageName, messageNamespace, rootKind, type MessageChoice, type RootKind } from '../shared/structure-names';
 import './signature-tab.css';
 
 /** The row id of a side's message in the mapping file, the first row of its table. */

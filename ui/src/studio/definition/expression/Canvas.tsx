@@ -48,10 +48,10 @@ import {
 } from '../../mock/definition-preview';
 import { PreviewBadge } from '../../mock/PreviewBadge';
 import { previewFunction } from '../../mock/preview-functions';
-import { QueueDialog } from '../../test/QueueDialog';
+import { QueueDialog } from './QueueDialog';
 import type { Side } from '../definition-model';
-import { FieldTypeIcon } from '../FieldTypeIcon';
-import { SideBySide } from '../SplitLayout';
+import { FieldTypeIcon } from '../../shared/FieldTypeIcon';
+import { SideBySide } from '../../shared/SplitLayout';
 import { action, ActionMenu, deleteAction, isContextMenuKey, useActionMenu, type MenuItem } from './ActionMenu';
 import { expressionGraph, inspectExpression, NODE_WIDTH, portId, TARGET, upstream, wireEnd, type ExpressionEdge, type ExpressionNode } from './expression-graph';
 import { arrange, layoutOf, shownPositions, type Positions } from './expression-layout';

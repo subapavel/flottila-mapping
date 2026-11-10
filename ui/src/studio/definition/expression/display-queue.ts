@@ -1,4 +1,4 @@
-import type { TraceEntry } from '../../api/client';
+import type { TraceEntry } from '../../../api/client';
 
 /** One slot of a context: a value, the empty value `""`, or SUPPRESS (`null` on the wire, ADR-0015). */
 export type ShownValue = { kind: 'value'; text: string } | { kind: 'empty' } | { kind: 'suppress' };

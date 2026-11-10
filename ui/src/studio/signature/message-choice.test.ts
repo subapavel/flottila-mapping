@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { choiceOf, draftOf, type ChoiceDraft } from './message-choice';
-import type { MessageChoice } from './structure-names';
+import type { MessageChoice } from '../shared/structure-names';
 
 const ORDER = 'Q{urn:flottila:corpus:skeleton}Order';
 const empty = draftOf(undefined);

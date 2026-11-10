@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { TraceEntry } from '../../api/client';
+import type { TraceEntry } from '../../../api/client';
 import { displayEntry, queueSize } from './display-queue';
 
 describe('the display-queue view model', () => {

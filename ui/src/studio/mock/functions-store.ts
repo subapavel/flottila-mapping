@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createStore } from 'zustand/vanilla';
 import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { readFunctions, type FunctionsState } from '../functions/function-model';
+import { readFunctions, type FunctionsState } from './function-model';
 
 /** The key of a mapping's saved Functions tab state in the browser (ADR-0028: mock state per mapping id). */
 export const functionsKey = (mappingId: string) => `mapping:${mappingId}:functions-preview`;

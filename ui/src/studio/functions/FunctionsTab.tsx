@@ -7,7 +7,7 @@ import type { ApiClient } from '../../api/client';
 import type { WorkingCopyStore } from '../store/working-copy';
 import type { FunctionsStore } from '../mock/functions-store';
 import { PreviewBadge } from '../mock/PreviewBadge';
-import { downloadFile } from './download';
+import { downloadFile } from '../shared/download';
 import {
   AREAS,
   ATTRIBUTES,
@@ -22,7 +22,7 @@ import {
   type ExecutionKind,
   type JavaArea,
   type Udf,
-} from './function-model';
+} from '../mock/function-model';
 import { exportSource, importSource } from './function-source';
 import { Dependencies, NameEditor, RowTools, Variables } from './FunctionTables';
 import { Dialog, Tool } from './ToolbarTools';

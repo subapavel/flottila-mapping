@@ -12,7 +12,7 @@ import {
 } from '@patternfly/react-icons';
 import { useState } from 'react';
 import { FILTERS, type Side } from './definition-model';
-import { Tool } from './Tool';
+import { Tool } from '../shared/Tool';
 
 export type ViewMode = 'Tree' | 'Table' | 'Text';
 

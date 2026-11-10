@@ -16,7 +16,7 @@ import {
 } from 'react';
 import type { ApiClient, FieldDto, StructureLoaded } from '../../api/client';
 import { expandAllPaths, nameMatches, occurrenceText, treeRows, type TreeRow } from './rows';
-import { useStructure } from './structure-query';
+import { useStructure } from '../shared/structure-query';
 import { SOURCE_FIELD_DRAG } from '../store/drag';
 import type { FieldPath, StructureRef, TargetFieldMappings } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
@@ -24,9 +24,9 @@ import { variableName, VARIABLES_ISSUE } from '../mock/definition-preview';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import { expressionText, keptRows, mappedHow, schemaLines, typeKind, xsdType, type SchemaLine, type Side } from './definition-model';
 import { isContextMenuKey } from './expression/ActionMenu';
-import { FieldTypeIcon } from './FieldTypeIcon';
+import { FieldTypeIcon } from '../shared/FieldTypeIcon';
 import { TreeToolbar, type SelectionChange, type TreeFilter, type ViewMode } from './TreeToolbar';
-import { ViewSwitch } from './ViewSwitch';
+import { ViewSwitch } from '../shared/ViewSwitch';
 
 export const VIEW_MODES: readonly ViewMode[] = ['Tree', 'Table', 'Text'];
 
