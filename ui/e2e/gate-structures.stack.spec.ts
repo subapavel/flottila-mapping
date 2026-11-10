@@ -18,7 +18,7 @@ async function open(page: Page, mapping: string): Promise<string[]> {
     if (message.type() === 'error') problems.push(message.text());
   });
   page.on('pageerror', (error) => problems.push(error.message));
-  await page.goto(`/?mapping=${mapping}`);
+  await page.goto(`/?mapping=${mapping}&host=dev`);
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();
   return problems;

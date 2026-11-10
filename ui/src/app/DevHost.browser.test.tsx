@@ -164,6 +164,17 @@ describe('the mapping list', () => {
     await expect.element(page.getByTestId(`sink:${NOTE}`)).toBeVisible();
   });
 
+  test('a mapping with neither source nor target (ADR-0029) opens and refreshes without an error', async () => {
+    const fake = fakeApiClient({ 'mappings/blank': { formatVersion: 1 } });
+    const refresh = vi.fn(fake.refresh);
+    render({ ...fake, refresh }, { mapping: 'mappings/blank' });
+
+    await expect.element(page.getByRole('heading', { name: 'mappings/blank' })).toBeVisible();
+    await expect.poll(() => refresh.mock.calls.length).toBe(1);
+    await expect.element(page.getByRole('button', { name: 'Refresh structures' })).toBeEnabled();
+    await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
+  });
+
   test('an empty workspace says so', async () => {
     render(fakeApiClient({}));
 

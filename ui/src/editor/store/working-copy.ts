@@ -33,6 +33,10 @@ export const COMPILE_DELAY_MS = 500;
 /** The code of a field path the structure no longer has (GLOSSARY: Orphaned reference). */
 const ORPHANED_REFERENCE = 'orphaned-reference';
 
+/** The Mapping studio's tabs, in their order on the tab bar (ADR-0028); the active one is the URL hash. */
+export const STUDIO_TABS = ['overview', 'definition', 'test', 'signature', 'functions'] as const;
+export type StudioTab = (typeof STUDIO_TABS)[number];
+
 /** The ports of one open mapping's store. */
 export interface WorkingCopyPorts {
   /** Draws a fresh authoring id. */
@@ -73,10 +77,27 @@ export interface WorkingCopyState {
   diagnostics: Diagnostic[];
   /** The title of the transport error the last compile failed with; `null` once a compile answers. */
   compileFailure: string | null;
+  /** How many compiles answered, with diagnostics or a failure: a change tells that the latest one answered. */
+  compiles: number;
   /** What the last test run answered: output or a runtime error with its trace, or compile's refusal; `null` before a run. */
   lastRun: TestResult | null;
   /** The working copy the last test run ran; its trace is a stale trace once the working copy differs from it. */
   lastRunModel: MappingModel | null;
+  /** The studio's active tab (ADR-0028, UI slice). */
+  tab: StudioTab;
+  /** Whether the studio is in edit mode; a mapping opens in view mode (GLOSSARY: View mode). */
+  editing: boolean;
+  /** The target field whose mapping the studio shows, or none. */
+  selectedTarget: FieldPath | null;
+  setTab: (tab: StudioTab) => void;
+  /** Switches the studio to edit mode. */
+  startEditing: () => void;
+  selectTarget: (field: FieldPath | null) => void;
+  /**
+   * Ends edit mode and drops the working copy's changes: the baseline becomes the working copy again, undo and redo are
+   * cleared, and so are the selection and the last refusal.
+   */
+  discard: () => void;
   /**
    * Links a source field to a target field (the link command in `model/`); `refusals` are the refusals the two fields
    * carry in their trees, which refuse the link (ADR-0027).
@@ -219,8 +240,29 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
       conflict: false,
       diagnostics: [],
       compileFailure: null,
+      compiles: 0,
       lastRun: null,
       lastRunModel: null,
+      tab: 'overview',
+      editing: false,
+      selectedTarget: null,
+
+      setTab: (tab) => set({ tab }),
+
+      startEditing: () => set({ editing: true }),
+
+      selectTarget: (selectedTarget) => set({ selectedTarget }),
+
+      discard: () =>
+        set((state) => ({
+          workingCopy: state.baseline,
+          past: [],
+          future: [],
+          selection: null,
+          selected: [],
+          refusal: null,
+          editing: false,
+        })),
 
       link: (sourceField, targetField, refusals) =>
         void apply(
@@ -264,7 +306,8 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
         const current = get().workingCopy;
         set({ diagnostics: answer.diagnostics });
         const { source, target } = answer.model;
-        if (source!.fingerprint === current.source!.fingerprint && target!.fingerprint === current.target!.fingerprint) return null;
+        // a side not chosen yet is absent on both (ADR-0029): absent equals absent
+        if (source?.fingerprint === current.source?.fingerprint && target?.fingerprint === current.target?.fingerprint) return null;
         apply(applied(current === sent ? answer.model : { ...current, source, target }));
         return answer.diagnostics.filter((d) => d.code === ORPHANED_REFERENCE).length;
       },
@@ -352,10 +395,10 @@ export function createWorkingCopyStore(opened: StoredMapping, ports: WorkingCopy
           running = new AbortController();
           ports.compile(get().workingCopy, running.signal).then(
             (diagnostics) => {
-              if (current === generation) set({ diagnostics, compileFailure: null });
+              if (current === generation) set((state) => ({ diagnostics, compileFailure: null, compiles: state.compiles + 1 }));
             },
             (error: unknown) => {
-              if (current === generation) set({ compileFailure: describeError(error).title });
+              if (current === generation) set((state) => ({ compileFailure: describeError(error).title, compiles: state.compiles + 1 }));
             },
           );
         }, COMPILE_DELAY_MS);

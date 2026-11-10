@@ -11,7 +11,7 @@ test('the dev host opens a mapping on the fake API, links a field, saves and run
   });
   page.on('pageerror', (error) => problems.push(error.message));
 
-  await page.goto('/?mapping=mappings/order-unmapped&api=fake');
+  await page.goto('/?mapping=mappings/order-unmapped&api=fake&host=dev');
 
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();

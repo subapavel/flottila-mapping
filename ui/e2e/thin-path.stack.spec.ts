@@ -13,7 +13,7 @@ test('@stack the real service: open, link, save, run a test, and the saved file 
   });
   page.on('pageerror', (error) => problems.push(error.message));
 
-  await page.goto('/?mapping=mappings/order-id-copy');
+  await page.goto('/?mapping=mappings/order-id-copy&host=dev');
 
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeVisible();
   await expect(page.getByRole('tree', { name: 'Target structure' })).toBeVisible();

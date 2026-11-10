@@ -12,7 +12,7 @@ const verticalScroll = (page: Page) => page.evaluate(() => document.documentElem
 
 test('at 1440 x 900 the editor fills the window without a page scroll, on the Editor and on the Test tab', async ({ page }) => {
   const problems = collectProblems(page);
-  await page.goto(`/?mapping=mappings/order-id-copy&field=${encodeURIComponent(ORDER_ID)}&api=fake`);
+  await page.goto(`/?mapping=mappings/order-id-copy&field=${encodeURIComponent(ORDER_ID)}&api=fake&host=dev`);
 
   await expect(page.getByRole('tab', { name: 'Editor' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tree', { name: 'Source structure' })).toBeInViewport();

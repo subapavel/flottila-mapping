@@ -18,7 +18,7 @@ test('ui/tree-20128/scroll', async ({ page }, testInfo) => {
     [`flottila-mapping:v1:mapping:${TREE_MAPPING}:expanded`, JSON.stringify({ source: expandable, target: expandable })] as const,
   );
 
-  await page.goto(`/?mapping=${TREE_MAPPING}&api=fake`);
+  await page.goto(`/?mapping=${TREE_MAPPING}&api=fake&host=dev`);
   const tree = page.getByRole('tree', { name: 'Source structure' });
   await expect(tree.getByRole('treeitem').first()).toBeVisible();
   await expect(page.getByTestId(/^field-link:/).first()).toBeAttached();

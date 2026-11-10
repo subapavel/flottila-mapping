@@ -9,7 +9,8 @@ test('the dev host lists the mappings on the fake API, opens one and goes back t
   });
   page.on('pageerror', (error) => problems.push(error.message));
 
-  await page.goto('/?api=fake');
+  // the dev host and its editor stay on ?host=dev until the studio's tabs replace them (#154)
+  await page.goto('/?api=fake&host=dev');
 
   const list = page.getByRole('table', { name: 'Mappings' });
   await expect(list.getByRole('button')).toHaveText(['mappings/order-id-copy', 'mappings/order-unmapped', 'mappings/tree-20128']);
@@ -33,7 +34,7 @@ test('the start parameters open a mapping with a target field selected', async (
   });
   page.on('pageerror', (error) => problems.push(error.message));
 
-  await page.goto(`/?mapping=mappings/order-id-copy&field=${encodeURIComponent(ORDER_ID)}&api=fake`);
+  await page.goto(`/?mapping=mappings/order-id-copy&field=${encodeURIComponent(ORDER_ID)}&api=fake&host=dev`);
 
   await expect(page.getByRole('heading', { name: 'mappings/order-id-copy' })).toBeVisible();
   await expect(page.getByTestId(`sink:${ORDER_ID}`)).toBeVisible();
