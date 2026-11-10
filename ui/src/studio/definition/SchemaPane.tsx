@@ -9,6 +9,8 @@ import { useStructure } from '../../editor/structure-overview/structure-query';
 import { SOURCE_FIELD_DRAG } from '../../editor/store/drag';
 import type { FieldPath, StructureRef, TargetFieldMappings } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
+import { variableName, VARIABLES_ISSUE } from '../mock/definition-preview';
+import { PreviewBadge } from '../mock/PreviewBadge';
 import { expressionText, keptRows, mappedHow, schemaLines, typeKind, xsdType, type SchemaLine, type Side } from './definition-model';
 import { isContextMenuKey } from './expression/ActionMenu';
 import { FieldTypeIcon } from './FieldTypeIcon';
@@ -62,7 +64,20 @@ export interface SchemaPaneProps {
   onAssign: () => void;
   /** Opens a field's context menu, by a right click or the context menu key on its row. */
   onFieldMenu: (event: ReactMouseEvent | KeyboardEvent, path: FieldPath) => void;
+  /** The target tree's mapping variables (#163, a preview): each shows first under its open parent. */
+  variables?: readonly FieldPath[];
 }
+
+const NO_VARIABLES: readonly FieldPath[] = [];
+
+/** A variable's row under its parent's: no type, no children, at most once (the prototype's `0..1`). */
+const variableRow = (path: FieldPath, depth: number): TreeRow => ({
+  path,
+  depth,
+  field: { kind: 'element', step: path.slice(path.lastIndexOf('/') + 1), namespace: '', localName: variableName(path), min: 0, max: 1, nillable: false },
+  expandable: false,
+  expanded: false,
+});
 
 /**
  * One message pane of the Definition tab (the prototype's SchemaPane): the message's name, file and format, its Tree,
@@ -138,6 +153,7 @@ function LoadedPane({
   onAdd,
   onDirect,
   onFieldMenu,
+  variables = NO_VARIABLES,
 }: SchemaPaneProps & { structure: StructureLoaded; format: string; fileName: string }) {
   const source = side === 'source';
   const title = source ? 'Source' : 'Target';
@@ -166,7 +182,14 @@ function LoadedPane({
     };
     return (path: FieldPath, field: FieldDto) => (!term || nameMatches(field, term)) && (!filter.active || accepts(path));
   }, [term, filter, connected, marked, mappings]);
-  const rows = useMemo(() => (keep ? keptRows(structure, keep) : treeRows(structure, expanded ?? all, side)), [structure, keep, expanded, all, side]);
+  const rows = useMemo(() => {
+    if (keep) return keptRows(structure, keep);
+    // a search or a filter shows the fields it accepts; the open tree shows each parent's variables first among its children
+    return treeRows(structure, expanded ?? all, side).flatMap((row) =>
+      row.expanded ? [row, ...variables.filter((v) => v.slice(0, v.lastIndexOf('/')) === row.path).map((v) => variableRow(v, row.depth + 1))] : [row],
+    );
+  }, [structure, keep, expanded, all, side, variables]);
+  const variableSet = useMemo(() => new Set(variables), [variables]);
 
   const toggleSearch = () => {
     setSearchOpen(!searchOpen);
@@ -310,6 +333,7 @@ function LoadedPane({
           selected={selected}
           mapping={mode === 'Table' && !source && mappingColumn ? mappings : undefined}
           selection={mode === 'Table' && !source && selectionColumn ? { marked, setMarked } : undefined}
+          variables={variableSet}
           fieldActions={fieldActions}
           rowActions={rowActions}
         />
@@ -341,12 +365,14 @@ interface FieldRowsProps {
   mapping?: TargetFieldMappings;
   /** The selection column's selected fields, when it is shown. */
   selection?: { marked: readonly FieldPath[]; setMarked: (marked: readonly FieldPath[]) => void };
+  /** The rows that are mapping variables, a preview. */
+  variables: ReadonlySet<FieldPath>;
   fieldActions: FieldActions;
   rowActions: RowActions;
 }
 
 /** The tree or the table of a pane, one PatternFly table row per visible row, only those near the scrolled view rendered. */
-function FieldRows({ side, rows, table, toggleable, onToggle, format, connected, selected, mapping, selection, fieldActions, rowActions }: FieldRowsProps) {
+function FieldRows({ side, rows, table, toggleable, onToggle, format, connected, selected, mapping, selection, variables, fieldActions, rowActions }: FieldRowsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const height = useSyncExternalStore(subscribeWide, rowHeight);
   // Same-step siblings share a field path (ADR-0008): the second and later rows of a path get `#n` as their key.
@@ -397,9 +423,10 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
           {spacer(top)}
           {items.map((item) => {
             const { path, depth, field, expandable, expanded } = rows[item.index]!;
-            const type = typeKind(field);
+            const variable = variables.has(path);
+            const type = variable ? 'variable' : typeKind(field);
             const typeLabel = format === 'XML' ? xsdType(field.valueType ?? '') : (field.valueType ?? '');
-            const name = stepName(path);
+            const name = variable ? variableName(path) : stepName(path);
             return (
               <tr key={item.key} className={selected === path ? `${TR} active-field` : TR} style={{ height }} data-field-path={path} {...rowActions(path)}>
                 <td className={TD}>
@@ -413,10 +440,16 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
                         {expandable && <AngleDownIcon />}
                       </span>
                     )}
-                    <button className={`field-name${expandable ? ' branch' : ''}`} title={`${localPath(path)} · ${type} · ${occurrenceText(field)}`} {...fieldActions(path)}>
+                    <button
+                      className={`field-name${expandable ? ' branch' : ''}`}
+                      aria-label={variable ? `Variable ${name}` : undefined}
+                      title={`${localPath(path)} · ${variable ? 'Variable' : type} · ${occurrenceText(field)}`}
+                      {...fieldActions(path)}
+                    >
                       <FieldTypeIcon type={type} />
                       {name}
                     </button>
+                    {variable && <PreviewBadge feature="Variables" issue={VARIABLES_ISSUE} />}
                     {connected.has(path) && (
                       <span className="wired-mark" role="img" title="Connected" aria-label="Connected">
                         <CheckIcon />

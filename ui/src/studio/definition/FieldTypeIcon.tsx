@@ -19,7 +19,7 @@ const NUMERIC_TYPES = new Set([
   'unsignedShort',
   'unsignedByte',
 ]);
-const SYMBOLS: Record<string, string> = { string: 'T', boolean: 'T/F', array: '[ ]', null: '∅' };
+const SYMBOLS: Record<string, string> = { string: 'T', boolean: 'T/F', array: '[ ]', null: '∅', variable: 'V' };
 
 /** A field's type as an icon (the prototype's FieldTypeIcon): a cube for a structure field, else a symbol of its value type. */
 export function FieldTypeIcon({ type }: { type: string }) {

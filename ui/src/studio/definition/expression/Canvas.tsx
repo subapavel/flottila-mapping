@@ -23,13 +23,34 @@ import type { BrowserStateStore } from '../../../editor/browser-state/browser-st
 import { selectTrace, selectTraceStale, type WorkingCopyStore } from '../../../editor/store/working-copy';
 import type { BoxPosition, FieldPath, MappingModel } from '../../../generated/mapping-model';
 import type { CommandResult } from '../../../model/command';
-import { stepName } from '../../../model/field-path';
+import { localPath, stepName } from '../../../model/field-path';
 import { rewire, type WireEnd } from '../../../model/rewire';
 import { properAncestors } from '../../../model/set-context';
 import { setResult, wire } from '../../../model/wire';
+import {
+  addNode,
+  addWire,
+  availableVariables,
+  canvasOf,
+  definitionPreview,
+  disconnectNode,
+  isPreviewId,
+  moveNodes,
+  newPreviewId,
+  PREVIEW_PREFIX,
+  removeNodes,
+  removeWire,
+  setParams,
+  variableName,
+  VARIABLES_ISSUE,
+  type DefinitionPreviewData,
+  type PreviewNode,
+} from '../../mock/definition-preview';
 import { PreviewBadge } from '../../mock/PreviewBadge';
+import { previewFunction } from '../../mock/preview-functions';
 import { QueueDialog } from '../../test/QueueDialog';
 import type { Side } from '../definition-model';
+import { FieldTypeIcon } from '../FieldTypeIcon';
 import { SideBySide } from '../SplitLayout';
 import { action, ActionMenu, deleteAction, isContextMenuKey, useActionMenu, type MenuItem } from './ActionMenu';
 import { expressionGraph, inspectExpression, NODE_WIDTH, portId, TARGET, upstream, wireEnd, type ExpressionEdge, type ExpressionNode } from './expression-graph';
@@ -39,6 +60,8 @@ import { FunctionCatalogue, functionDragType } from './FunctionCatalogue';
 import { FunctionParameters } from './FunctionParameters';
 import { MappingHint } from './MappingHint';
 import { MappingNode, nodeRole, type MappingFlowNode } from './MappingNode';
+import { previewPositions, VARIABLE_ROLE, VARIABLES, withPreview } from './preview-graph';
+import { PreviewParameters } from './PreviewParameters';
 
 const types = { mapping: MappingNode };
 const fixedView = { minZoom: 1, maxZoom: 1, padding: 0 };
@@ -49,6 +72,9 @@ const endOf = (edge: ExpressionEdge): WireEnd => (edge.target === TARGET ? 'targ
 
 /** The input handle a wire ends at. */
 const handleOf = (edge: ExpressionEdge) => portId(edge.slot ?? 0);
+
+/** The positions of the model's nodes only, for a model command. */
+const modelOnly = (positions: Positions): Positions => Object.fromEntries(Object.entries(positions).filter(([id]) => !isPreviewId(id)));
 
 /** A wire from `source` into a handle, or `moving` moved there: the rewire command, else the wire or set result command. */
 function connection(model: MappingModel, targetField: FieldPath, source: string, target: string, handle: string | null | undefined, moving?: ExpressionEdge): CommandResult {
@@ -95,7 +121,9 @@ function ViewFit({ nodeIds, host }: { nodeIds: string; host: RefObject<HTMLEleme
 }
 
 export interface CanvasProps {
+  mappingId: string;
   store: WorkingCopyStore;
+  /** The target field, or a preview variable (#163), whose expression shows. */
   targetField: FieldPath;
   catalogue: Catalogue;
   browserState: BrowserStateStore;
@@ -105,7 +133,7 @@ export interface CanvasProps {
   findField: (side: Side, path: FieldPath) => void;
 }
 
-function Drawing({ store, targetField, catalogue, browserState, fieldTypes, findField }: CanvasProps) {
+function Drawing({ mappingId, store, targetField, catalogue, browserState, fieldTypes, findField }: CanvasProps) {
   const host = useRef<HTMLDivElement>(null);
   const edgeDrag = useRef<string | null>(null);
   const inputDrag = useRef<ExpressionEdge | undefined>(undefined);
@@ -115,9 +143,22 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
   const canPaste = useStore(store, (s) => s.clipboard !== null);
   const trace = useStore(store, selectTrace);
   const stale = useStore(store, selectTraceStale);
-  const mapping = model.targetFieldMappings?.[targetField];
-  const graph = useMemo(() => expressionGraph(targetField, mapping, catalogue, model.udfs), [targetField, mapping, catalogue, model.udfs]);
-  const shown = useMemo(() => shownPositions(graph, mapping?.layout), [graph, mapping?.layout]);
+  const previewStore = definitionPreview(store, browserState, mappingId);
+  const preview = useStore(previewStore, (s) => s.value);
+  const editPreview = (change: (data: DefinitionPreviewData) => DefinitionPreviewData) => previewStore.getState().edit(change);
+  // a variable's expression is all preview: the model holds no mapping for it
+  const variable = preview.variables.includes(targetField);
+  const canvasData = canvasOf(preview, targetField);
+  const previewNodes = useMemo(() => new Map<string, PreviewNode>(canvasData.nodes.map((n) => [n.id, n])), [canvasData]);
+  const mapping = variable ? undefined : model.targetFieldMappings?.[targetField];
+  const modelGraph = useMemo(() => {
+    const g = expressionGraph(targetField, mapping, catalogue, model.udfs);
+    if (!variable) return g;
+    return { ...g, nodes: g.nodes.map((n) => (n.id === TARGET ? { ...n, name: variableName(targetField), role: VARIABLE_ROLE, preview: VARIABLES } : n)) };
+  }, [targetField, mapping, catalogue, model.udfs, variable]);
+  const graph = useMemo(() => withPreview(modelGraph, canvasData, catalogue), [modelGraph, canvasData, catalogue]);
+  const layout = useMemo(() => (variable ? canvasData.target && { target: canvasData.target, boxes: {} } : mapping?.layout), [variable, canvasData.target, mapping?.layout]);
+  const shown = useMemo(() => previewPositions(graph, shownPositions(modelGraph, layout), canvasData), [graph, modelGraph, layout, canvasData]);
   const { states, floating } = useMemo(() => inspectExpression(graph), [graph]);
   const edgeById = useMemo(() => new Map(graph.edges.map((e) => [e.id, e])), [graph]);
   const [moving, setMoving] = useState<Positions>({});
@@ -133,19 +174,49 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
   const selectedNode = graph.nodes.find((n) => selected.has(n.id));
   const queueNode = graph.nodes.find((n) => n.id === queue);
 
+  /** Whether a wire is a preview wire (ADR-0028): on a variable's canvas, from or into a preview node, or one moved. */
+  const previewWire = (source: string, target: string, moving?: ExpressionEdge) => variable || isPreviewId(source) || isPreviewId(target) || moving?.preview === true;
+  const slotOf = (target: string, handle: string | null | undefined) => (target === TARGET ? 0 : Number((handle ?? portId(0)).slice(2)));
   const canConnect = (source: string, target: string, handle: string | null | undefined, moving?: ExpressionEdge) => {
+    if (previewWire(source, target, moving)) {
+      // a model wire stays in the model; a preview wire takes a free input of another node
+      if (moving && !moving.preview) return false;
+      const slot = slotOf(target, handle);
+      return source !== target && !graph.edges.some((e) => e !== moving && e.target === target && (e.slot ?? 0) === slot);
+    }
     const result = connection(model, targetField, source, target, handle, moving);
     return result.kind === 'applied' && result.model !== model;
   };
   const connect = (source: string, target: string, handle: string | null | undefined, moving?: ExpressionEdge) => {
+    if (previewWire(source, target, moving)) {
+      const slot = slotOf(target, handle);
+      const added = { id: `${PREVIEW_PREFIX}${source}->${target}#${slot}`, source, target, slot };
+      editPreview((d) => addWire(moving ? removeWire(d, targetField, moving.id) : d, targetField, added));
+      return;
+    }
     const to = wireEnd(target, handle);
     if (moving) actions.rewire(targetField, source, endOf(moving), to);
     else if (to === 'target') actions.setResult(targetField, source);
     else actions.wire(targetField, source, to.box, to.slot);
   };
   const disconnect = (edge: ExpressionEdge) => {
-    if (edge.target === TARGET) actions.setResult(targetField, null);
+    if (edge.preview) editPreview((d) => removeWire(d, targetField, edge.id));
+    else if (edge.target === TARGET) actions.setResult(targetField, null);
     else actions.unwire(targetField, edge.target, edge.slot!);
+  };
+  /** Deletes nodes: preview nodes from the preview, boxes from the model. */
+  const remove = (ids: readonly string[]) => {
+    const previews = ids.filter(isPreviewId);
+    const boxes = ids.filter((id) => !isPreviewId(id));
+    if (previews.length) editPreview((d) => removeNodes(d, targetField, previews));
+    if (boxes.length) actions.deleteBoxes(boxes);
+  };
+  /** Keeps the positions of moved or laid out nodes: a preview node's and a variable's own target in the preview, the others in the model. */
+  const place = (positions: Positions, moved: readonly string[]) => {
+    const previews = Object.fromEntries(moved.filter(isPreviewId).map((id) => [id, positions[id]!]));
+    const ownTarget = variable && moved.includes(TARGET) ? positions[TARGET] : undefined;
+    if (Object.keys(previews).length || ownTarget) editPreview((d) => moveNodes(d, targetField, previews, ownTarget));
+    if (!variable && moved.some((id) => !isPreviewId(id))) actions.setPositions(targetField, layoutOf(modelOnly(positions)));
   };
   const togglePalette = () => setPaletteOpen(!paletteOpen);
   /** A spot below every node, for a function added by a click. */
@@ -153,14 +224,28 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
     const all = Object.values(shown);
     return { x: Math.min(...all.map((p) => p.x)), y: Math.max(...all.map((p) => p.y)) + 72 };
   };
-  const addFunction = (fn: string, at: BoxPosition = freeSpot()) => actions.insertBox(targetField, fn, at, layoutOf(shown));
-  const layOut = () => actions.setPositions(targetField, layoutOf(arrange(graph)));
-  const deleteFloatingObjects = () => actions.deleteBoxes(floating);
+  const addPreviewNode = (node: Omit<PreviewNode, 'id'>) => editPreview((d) => addNode(d, targetField, { id: newPreviewId(), ...node }));
+  /** Adds a catalogue function: a box, or on a variable's canvas a preview node. */
+  const addFunction = (fn: string, at: BoxPosition = freeSpot()) => {
+    if (variable) addPreviewNode({ kind: 'function', ref: fn, position: at });
+    else actions.insertBox(targetField, fn, at, layoutOf(modelOnly(shown)));
+  };
+  const addPreview = (key: string) => addPreviewNode({ kind: 'function', ref: key, position: freeSpot() });
+  const layOut = () => place(arrange(graph), graph.nodes.map((n) => n.id));
+  const deleteFloatingObjects = () => remove(floating);
   const copyBranch = (id: string) => {
-    const branch = [...upstream(graph, id)];
+    // the model's branch: a box copies no preview node that feeds it
+    const branch = [...upstream(modelGraph, id)];
     actions.copy(targetField, branch, Object.fromEntries(branch.map((box) => [box, shown[box]!])));
   };
-  const paste = () => actions.paste(targetField, layoutOf(shown));
+  const paste = () => actions.paste(targetField, layoutOf(modelOnly(shown)));
+  const scope = availableVariables(preview.variables, targetField);
+  /** The preview function a node stands for: Value mapping or a lookup (#166, #165). */
+  const previewFn = (id: string) => {
+    const own = previewNodes.get(id);
+    return own?.kind === 'function' ? previewFunction(own.ref) : undefined;
+  };
+  const hasParameters = (n: ExpressionNode) => previewFn(n.id) !== undefined || Boolean(n.fn && catalogue[n.fn]?.params?.length);
 
   const connectionActions = (from: ExpressionNode): MenuItem[] =>
     graph.nodes.flatMap((destination) =>
@@ -170,17 +255,25 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
     );
   const nodeMenu = (event: ReactMouseEvent | KeyboardEvent, id: string, element: Element) => {
     const n = graph.nodes.find((item) => item.id === id)!;
+    const own = previewNodes.get(id);
     setSelected(new Set([id]));
     const items: MenuItem[] = [action('Display Queue', () => setQueue(id))];
-    if (n.fn && catalogue[n.fn]?.params?.length) items.push(action('Properties', () => setParameters(id)));
+    if (hasParameters(n)) items.push(action('Properties', () => setParameters(id)));
     const destinations = editing && n.output ? connectionActions(n) : [];
     if (destinations.length) items.push(action('Connect to', null, { children: destinations }));
     const wired = graph.edges.some((e) => e.source === id || e.target === id);
-    items.push(
-      action('Disconnect', () => (n.kind === 'target' ? actions.setResult(targetField, null) : actions.disconnectBox(targetField, id)), { disabled: !editing || !wired }),
-      deleteAction('Delete', () => actions.deleteBoxes([id]), { disabled: !editing || n.kind === 'target' }),
-    );
-    if (n.kind !== 'function') items.push(action('Find Field', () => findField(n.kind === 'source' ? 'source' : 'target', n.path!)));
+    const disconnectAll = () => {
+      if (own || variable) editPreview((d) => disconnectNode(d, targetField, id));
+      else if (n.kind === 'target') actions.setResult(targetField, null);
+      else actions.disconnectBox(targetField, id);
+    };
+    items.push(action('Disconnect', disconnectAll, { disabled: !editing || !wired }), deleteAction('Delete', () => remove([id]), { disabled: !editing || n.kind === 'target' }));
+    // another target field of a grouped expression (#164) leaves the canvas
+    if (own?.kind === 'target') items.push(action('Ungroup', () => remove([id]), { disabled: !editing }));
+    // a variable is found in the target tree
+    if (n.kind !== 'function') items.push(action('Find Field', () => findField(n.kind === 'source' && !n.role ? 'source' : 'target', n.path!)));
+    // a preview node is no box to copy, nor has a context
+    if (own) return showMenu(event, `Node actions for ${n.name}`, items, element);
     if (n.kind !== 'target') items.push(action('Copy', () => copyBranch(id)));
     if (n.kind === 'source') {
       const choices = properAncestors(n.path!);
@@ -201,7 +294,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
       [
         deleteAction('Delete Floating Objects', deleteFloatingObjects, { disabled: !editing || floating.length === 0 }),
         action('Lay Out Mapping', layOut, { disabled: !editing }),
-        action('Paste', paste, { disabled: !editing || !canPaste }),
+        action('Paste', paste, { disabled: !editing || !canPaste || variable }),
       ],
       host.current,
     );
@@ -226,7 +319,9 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
     const to = state.toHandle;
     inputDrag.current = undefined;
     // React Flow connects an output to an input; an occupied input dragged onto another input moves the wire's end there
-    if (edge && to?.type === 'target' && (edge.target !== to.nodeId || handleOf(edge) !== to.id)) connect(edge.source, to.nodeId, to.id, edge);
+    if (edge && to?.type === 'target' && (edge.target !== to.nodeId || handleOf(edge) !== to.id) && canConnect(edge.source, to.nodeId, to.id, edge)) {
+      connect(edge.source, to.nodeId, to.id, edge);
+    }
   };
   const onNodesChange = (changes: NodeChange<MappingFlowNode>[]) => {
     const sizes = changes.flatMap((c) => (c.type === 'dimensions' && c.dimensions ? [c] : []));
@@ -248,7 +343,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
     const ended = moves.filter((c) => !c.dragging);
     if (ended.length) {
       setMoving({});
-      actions.setPositions(targetField, layoutOf({ ...shown, ...Object.fromEntries(ended.map((c) => [c.id, c.position!])) }));
+      place({ ...shown, ...Object.fromEntries(ended.map((c) => [c.id, c.position!])) }, ended.map((c) => c.id));
     }
   };
   const onEdgesChange = (changes: EdgeChange[]) => {
@@ -264,8 +359,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
     });
   };
   const onDelete = ({ nodes: gone, edges: cut }: { nodes: MappingFlowNode[]; edges: Edge[] }) => {
-    const boxes = gone.map((n) => n.id);
-    if (boxes.length) actions.deleteBoxes(boxes);
+    if (gone.length) remove(gone.map((n) => n.id));
     else for (const e of cut) disconnect(edgeById.get(e.id)!);
   };
   const drop = (event: DragEvent) => {
@@ -288,8 +382,8 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
       data: {
         node: n,
         state,
-        fieldType: n.path === undefined ? undefined : fieldTypes[n.kind === 'source' ? 'source' : 'target'].get(n.path),
-        ...(n.fn && catalogue[n.fn]?.params?.length && { editParameters: () => setParameters(n.id) }),
+        fieldType: n.role ? 'variable' : n.path === undefined ? undefined : fieldTypes[n.kind === 'source' ? 'source' : 'target'].get(n.path),
+        ...(hasParameters(n) && { editParameters: () => setParameters(n.id) }),
         ...(settings && { settings }),
       },
       measured: measured[n.id],
@@ -315,6 +409,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
     };
   });
   const editingBox = parameters === null ? undefined : graph.nodes.find((n) => n.id === parameters);
+  const editingPreview = editingBox && previewFn(editingBox.id);
 
   return (
     <section className="canvas-panel panel" aria-label="Field mapping canvas">
@@ -329,7 +424,7 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
       >
         <aside id="mapping-functions" className="mapping-functions" hidden={!paletteOpen}>
           <h3>Functions</h3>
-          {paletteOpen && <FunctionCatalogue catalogue={catalogue} disabled={!editing} add={(fn) => addFunction(fn)} />}
+          {paletteOpen && <FunctionCatalogue catalogue={catalogue} disabled={!editing} add={(fn) => addFunction(fn)} addPreview={addPreview} />}
         </aside>
         <div className="expression-drawing">
           <div className="function-rail" role="toolbar" aria-label="Mapping tools" aria-orientation="vertical">
@@ -374,10 +469,16 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
                 </g>
               </svg>
             </button>
-            <button type="button" disabled={!selectedNode || selectedNode.kind === 'target'} aria-label="Copy" title="Copy" onClick={() => copyBranch(selectedNode!.id)}>
+            <button
+              type="button"
+              disabled={!selectedNode || selectedNode.kind === 'target' || isPreviewId(selectedNode.id)}
+              aria-label="Copy"
+              title="Copy"
+              onClick={() => copyBranch(selectedNode!.id)}
+            >
               <CopyIcon />
             </button>
-            <button type="button" disabled={!editing || !canPaste} aria-label="Paste" title="Paste" onClick={paste}>
+            <button type="button" disabled={!editing || !canPaste || variable} aria-label="Paste" title="Paste" onClick={paste}>
               <PasteIcon />
             </button>
           </div>
@@ -443,7 +544,19 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
           <span>– No target path</span>
         </span>
       </footer>
-      {editingBox && (
+      {editingBox && editingPreview && (
+        <PreviewParameters
+          fn={editingPreview}
+          values={previewNodes.get(editingBox.id)!.params}
+          readOnly={!editing}
+          close={() => setParameters(null)}
+          save={(params) => {
+            editPreview((d) => setParams(d, targetField, editingBox.id, params));
+            setParameters(null);
+          }}
+        />
+      )}
+      {editingBox && !editingPreview && (
         <FunctionParameters
           fn={editingBox.fn!}
           params={catalogue[editingBox.fn!]!.params!}
@@ -451,7 +564,8 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
           readOnly={!editing}
           close={() => setParameters(null)}
           save={(params) => {
-            actions.setParams(targetField, editingBox.id, params, catalogue);
+            if (isPreviewId(editingBox.id)) editPreview((d) => setParams(d, targetField, editingBox.id, params));
+            else actions.setParams(targetField, editingBox.id, params, catalogue);
             setParameters(null);
           }}
         />
@@ -466,10 +580,40 @@ function Drawing({ store, targetField, catalogue, browserState, fieldTypes, find
                 addFunction(fn);
                 setAdding(false);
               }}
+              addPreview={(key) => {
+                addPreview(key);
+                setAdding(false);
+              }}
             />
-            <p className="muted">
-              Variables <PreviewBadge feature="Variables" issue={163} />
-            </p>
+            <section className="palette-variables" aria-label="Variables">
+              <h3>
+                Variables <PreviewBadge feature="Variables" issue={VARIABLES_ISSUE} />
+              </h3>
+              {scope.length === 0 ? (
+                <p className="muted">
+                  No variables are available for this target. Choose Add Variable on a parent in the target tree, or open a target that follows an existing variable in the
+                  same branch.
+                </p>
+              ) : (
+                <ul>
+                  {scope.map((v) => (
+                    <li key={v}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addPreviewNode({ kind: 'variable', ref: v });
+                          setAdding(false);
+                        }}
+                      >
+                        <FieldTypeIcon type="variable" />
+                        <b>{variableName(v)}</b>
+                        <small>/{localPath(v)}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </ModalBody>
         </Modal>
       )}

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { collectProblems } from './problems';
 
 // The Overview and Signature tabs on the fake API (#155): a new mapping chooses its messages on Signature, saves them,
-// and the Overview names them; a second message is a preview that never makes the mapping unsaved.
+// and the Overview names them; a second message is a preview, a draft that makes the mapping unsaved until Save (ADR-0028).
 test('New mapping, Add source message and Add target message on Signature, Save; the Overview names both messages', async ({ page }) => {
   const problems = collectProblems(page);
   await page.goto('/?api=fake');
@@ -27,7 +27,7 @@ test('New mapping, Add source message and Add target message on Signature, Save;
 
   await page.getByRole('toolbar', { name: 'Source message actions' }).getByRole('button', { name: 'Insert row' }).click();
   await expect(page.getByRole('table', { name: 'Source signature' }).getByRole('row')).toHaveCount(3);
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
 
   await page.getByRole('tab', { name: 'Overview' }).click();
   const details = page.getByRole('region', { name: 'Overview' });

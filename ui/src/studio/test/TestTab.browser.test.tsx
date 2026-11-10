@@ -7,6 +7,7 @@ import type { ApiClient, Diagnostic, TestResult } from '../../api/client';
 import { fakeApiClient, type FakeScenario } from '../../api/fake/fake-api';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import { readInstance } from '../mock/test-instances';
 import { studioStore } from '../shell/Studio';
 import { StudioShell } from '../shell/StudioShell';
 
@@ -222,7 +223,7 @@ describe('the Test tab (#158)', () => {
     await expect.element(source().getByRole('code').last()).toHaveTextContent('/Order/Line[1]/Sku');
   });
 
-  test('Save Document Source downloads the document as it shows', async () => {
+  test('Save Document Source downloads the document as it shows, zipped as the prototype does (#170)', async () => {
     const created = vi.spyOn(URL, 'createObjectURL');
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     try {
@@ -231,8 +232,8 @@ describe('the Test tab (#158)', () => {
 
       await source().getByRole('button', { name: 'Save Document Source' }).click();
 
-      expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('instance.xml');
-      expect(await (created.mock.calls[0]![0] as Blob).text()).toBe(INPUT);
+      expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('schema.zip');
+      expect(await readInstance(created.mock.calls[0]![0] as Blob, 'XML')).toBe(INPUT);
       await expect.element(result().getByRole('button', { name: 'Save Document Source' })).toBeDisabled();
     } finally {
       created.mockRestore();

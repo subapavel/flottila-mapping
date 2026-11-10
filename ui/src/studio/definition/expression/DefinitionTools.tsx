@@ -1,23 +1,10 @@
 import { Button, Modal, ModalBody, ModalHeader } from '@patternfly/react-core';
-import {
-  CodeBranchIcon,
-  CodeIcon,
-  ExpandIcon,
-  FileImportIcon,
-  FolderOpenIcon,
-  LinkIcon,
-  ObjectGroupIcon,
-  PlusCircleIcon,
-  SaveIcon,
-  TrashIcon,
-  WindowMinimizeIcon,
-  WindowRestoreIcon,
-} from '@patternfly/react-icons';
+import { CodeBranchIcon, CodeIcon, ExpandIcon, FolderOpenIcon, LinkIcon, ObjectGroupIcon, TrashIcon, WindowMinimizeIcon, WindowRestoreIcon } from '@patternfly/react-icons';
 import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import type { BrowserStateStore } from '../../../editor/browser-state/browser-state';
 import type { FieldPath, MappingModel } from '../../../generated/mapping-model';
 import { localPath } from '../../../model/field-path';
-import { PreviewBadge } from '../../mock/PreviewBadge';
+import { InstanceTools, type InstanceToolsProps } from '../../test/InstanceTools';
 import { expressionText } from '../definition-model';
 import { readPanelPreference, savePanelPreference } from '../panel-preferences';
 import type { SplitView } from '../SplitLayout';
@@ -111,8 +98,11 @@ export function DefinitionBar({ editing, dataFlow, onDataFlow, view, onView, onC
   );
 }
 
-/** The Mapping expression header: its title and target field, the test instance tools (a preview, #170), its pane size tools. */
-export function ExpressionHeader({ targetField, view, onView }: { targetField: FieldPath | null; view: SplitView; onView: (view: SplitView) => void }) {
+/**
+ * The Mapping expression header: its title and target field, the queue test input (the prototype's QueueInputTools: the
+ * test instance tools, a preview, #170, without Generate; a file must parse), its pane size tools.
+ */
+export function ExpressionHeader({ targetField, view, onView, instances }: { targetField: FieldPath | null; view: SplitView; onView: (view: SplitView) => void; instances: Omit<InstanceToolsProps, 'validateFile' | 'selectLabel'> }) {
   const path = targetField === null ? '' : `/${localPath(targetField)}`;
   return (
     <header className="expression-toolbar" role="toolbar" aria-label="Mapping expression">
@@ -122,12 +112,8 @@ export function ExpressionHeader({ targetField, view, onView }: { targetField: F
         </h2>
         <code title={path}>{path}</code>
       </div>
-      <div className="instance-tools" role="group" aria-label="Test instance tools">
-        <PreviewBadge feature="Test instances" issue={170} />
-        <Tool label="Import test instance" icon={FileImportIcon} disabled onClick={() => undefined} />
-        <Tool label="New test instance" icon={PlusCircleIcon} disabled onClick={() => undefined} />
-        <Tool label="Save test instance" icon={SaveIcon} disabled onClick={() => undefined} />
-        <Tool label="Delete test instance" icon={TrashIcon} disabled onClick={() => undefined} />
+      <div className="expression-input-tools" role="group" aria-label="Queue test input">
+        <InstanceTools {...instances} selectLabel="Queue test input" validateFile />
       </div>
       <PaneSizeTools pane="mapping expression" label="Expression layout" view={view} onChange={onView} />
     </header>

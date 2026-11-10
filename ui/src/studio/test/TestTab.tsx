@@ -1,5 +1,5 @@
 import { Button, Modal, ModalBody, ModalFooter, ModalHeader, Toolbar, ToolbarContent, ToolbarItem } from '@patternfly/react-core';
-import { FileImportIcon, PlayIcon, PlusCircleIcon, SaveIcon, TrashIcon } from '@patternfly/react-icons';
+import { PlayIcon } from '@patternfly/react-icons';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
@@ -7,12 +7,13 @@ import { selectTraceStale, type WorkingCopyStore } from '../../editor/store/work
 import { PaneSizeTools } from '../definition/expression/DefinitionTools';
 import { readPanelPreference, savePanelPreference } from '../definition/panel-preferences';
 import { SideBySide, useSplitLayout, VerticalSplitLayout } from '../definition/SplitLayout';
-import { Tool } from '../definition/Tool';
 import { PreviewBadge } from '../mock/PreviewBadge';
-import { signatureMockKey, type PreviewParameter } from '../mock/signature-mock';
-import { createTestPreview, HEADER_DEFAULTS, TRACE_LEVEL_ISSUE, TRACE_LEVELS, type TraceLevel } from '../mock/test-preview';
+import { signatureMock, type PreviewParameter } from '../mock/signature-mock';
+import { testInput, testInstances } from '../mock/test-instances';
+import { HEADER_DEFAULTS, testPreview, TRACE_LEVEL_ISSUE, TRACE_LEVELS, type TraceLevel } from '../mock/test-preview';
 import { CopySurface } from '../shell/CopyTextButton';
 import { formatOf } from './documents';
+import { InstanceTools } from './InstanceTools';
 import { DOCUMENT_MODES, TestDocument, type DocumentMode, type ParameterRow } from './TestDocument';
 import './test.css';
 import { logLines, logText, type LogLine, type TestSession } from './test-session';
@@ -29,9 +30,7 @@ const viewKey = (pane: 'source' | 'result') => `test.${pane}.view`;
 const isMode = (value: unknown): value is DocumentMode => DOCUMENT_MODES.includes(value as DocumentMode);
 
 /** The preview parameters of the signature (#167) in one direction, as rows of a pane's parameter table. */
-function parameterRows(browserState: BrowserStateStore, mappingId: string, direction: PreviewParameter['direction']): ParameterRow[] {
-  const kept = browserState.read(signatureMockKey(mappingId)) as { parameters?: unknown } | undefined;
-  const parameters = Array.isArray(kept?.parameters) ? (kept.parameters as PreviewParameter[]) : [];
+function parameterRows(parameters: readonly PreviewParameter[], direction: PreviewParameter['direction']): ParameterRow[] {
   return parameters.filter((p) => p.direction === direction && p.name.trim()).map((p) => ({ id: `param:${p.id}`, label: p.name, initial: '' }));
 }
 
@@ -66,7 +65,10 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
   const runFailed = useStore(session, (s) => s.runFailed);
   const runLog = useStore(session, (s) => s.runLog);
   const compileLog = useStore(session, (s) => s.compileLog);
-  const [preview] = useState(() => createTestPreview(browserState, mappingId));
+  const preview = testPreview(store, browserState, mappingId);
+  const library = testInstances(store, browserState, mappingId);
+  // the signature's parameters as this edit session has them (a draft, ADR-0028)
+  const signatureParameters = useStore(signatureMock(store, browserState, mappingId), (s) => s.value.parameters);
   const trace = useStore(preview, (s) => s.traceLevel);
   const values = useStore(preview, (s) => s.values);
   const [views, setViews] = useState(() => ({
@@ -99,11 +101,13 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
       }}
     >
       <div role="toolbar" aria-label="Test instance actions" className="test-instance-bar panel">
-        <PreviewBadge feature="Test instances" issue={170} />
-        <Tool label="Import test instance" icon={FileImportIcon} disabled onClick={() => undefined} />
-        <Tool label="New test instance" icon={PlusCircleIcon} disabled onClick={() => undefined} />
-        <Tool label="Save test instance" icon={SaveIcon} disabled onClick={() => undefined} />
-        <Tool label="Delete test instance" icon={TrashIcon} disabled onClick={() => undefined} />
+        <InstanceTools
+          library={library}
+          format={src}
+          resource={() => ({ text: source, values })}
+          onLoad={(text) => testInput(store).getState().load(text)}
+          disabled={!editing || running}
+        />
         <PaneSizeTools upper pane="input and result" label="Input and result layout" view={layout.view} onChange={layout.setView} />
       </div>
       <VerticalSplitLayout
@@ -124,7 +128,7 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
               edit={(value) => session.getState().setSource(value)}
               readOnly={!editing || running}
               parameters={[
-                { title: 'Import Parameters', rows: parameterRows(browserState, mappingId, 'Import') },
+                { title: 'Import Parameters', rows: parameterRows(signatureParameters, 'Import') },
                 { title: 'Header Parameters', rows: HEADER_ROWS },
               ]}
               values={values}
@@ -139,7 +143,7 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
               mode={views.result}
               onMode={(mode) => setView('result', mode)}
               readOnly={false}
-              parameters={[{ title: 'Export Parameters', rows: parameterRows(browserState, mappingId, 'Export') }]}
+              parameters={[{ title: 'Export Parameters', rows: parameterRows(signatureParameters, 'Export') }]}
               values={values}
             />
           </SideBySide>

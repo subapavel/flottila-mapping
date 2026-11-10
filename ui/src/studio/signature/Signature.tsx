@@ -21,10 +21,11 @@ import type { BrowserStateStore } from '../../editor/browser-state/browser-state
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import {
-  createSignatureMock,
   OCCURRENCES,
   PARAMETERS_ISSUE,
   SEVERAL_MESSAGES_ISSUE,
+  signatureActions,
+  signatureMock,
   type Occurrence,
   type PreviewParameter,
   type Side,
@@ -102,11 +103,11 @@ export interface SignatureProps {
  * The Signature tab (the prototype's Signature): the source and target message tables, editable in edit mode. The
  * first row of a side is its message in the mapping file (GLOSSARY: Signature); choosing it loads the structure,
  * sets the side on the working copy and refreshes it (ADR-0027). Further messages and the parameters are preview
- * features (ADR-0028), kept in the browser per mapping and never in the file.
+ * features (ADR-0028), a draft of the edit session that Save keeps in the browser per mapping, never in the file.
  */
 export function Signature({ mappingId, api, store, browserState }: SignatureProps) {
   const editing = useStore(store, (s) => s.editing);
-  const [mock] = useState(() => createSignatureMock(browserState, mappingId));
+  const mock = signatureMock(store, browserState, mappingId);
   const [clipboard, setClipboard] = useState<MessageChoice | null>(null);
   const [choosing, setChoosing] = useState<Choosing | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -137,12 +138,12 @@ export function Signature({ mappingId, api, store, browserState }: SignatureProp
   const apply = async (choice: MessageChoice): Promise<ChoiceFailure | null> => {
     const { side, row } = choosing!;
     if (row === PRIMARY) return choosePrimary(side, choice);
-    mock.getState().patchMessage(side, row, { choice });
+    signatureActions(mock).patchMessage(side, row, { choice });
     setChoosing(null);
     return null;
   };
 
-  const chosenRow = choosing && (choosing.row === PRIMARY ? store.getState().workingCopy[choosing.side] : mock.getState()[choosing.side].find((m) => m.id === choosing.row)?.choice);
+  const chosenRow = choosing && (choosing.row === PRIMARY ? store.getState().workingCopy[choosing.side] : mock.getState().value[choosing.side].find((m) => m.id === choosing.row)?.choice);
 
   return (
     <fieldset className="signature mode-fields" aria-label="Mapping signature" disabled={!editing}>
@@ -211,7 +212,7 @@ interface MessagesProps {
 /** One side's message table (the prototype's Messages): its message in the mapping file, then the preview messages. */
 function Messages({ side, pkg, store, mock, clipboard, setClipboard, choose }: MessagesProps) {
   const primary = useStore(store, (s) => s.workingCopy[side]);
-  const previews = useStore(mock, (s) => s[side]);
+  const previews = useStore(mock, (s) => s.value[side]);
   const [selected, select] = useState('');
   const rows: MessageRow[] = [
     ...(primary ? [{ id: PRIMARY, preview: false, choice: primary, occurrence: '1' as const }] : []),
@@ -219,7 +220,7 @@ function Messages({ side, pkg, store, mock, clipboard, setClipboard, choose }: M
   ];
   const row = rows.find((r) => r.id === selected);
   const at = previews.findIndex((m) => m.id === selected);
-  const actions = mock.getState();
+  const actions = signatureActions(mock);
   const label = cap(side);
 
   // without the side's message, Insert row chooses it; with it, a preview message goes after the selected row, or last
@@ -343,7 +344,7 @@ const newParameter = (id: string, name = ''): PreviewParameter => ({ id, name, t
 
 /** The parameters table (the prototype's Signature parameters): a preview feature, kept in the browser (#167). */
 function Parameters({ store, mock, editing, onLog }: { store: WorkingCopyStore; mock: SignatureMockStore; editing: boolean; onLog: (log: string) => void }) {
-  const parameters = useStore(mock, (s) => s.parameters);
+  const parameters = useStore(mock, (s) => s.value.parameters);
   // an Import parameter is typed in the source's words, an Export one in the target's: JSON has no xsd: prefix
   const json = {
     Import: useStore(store, (s) => s.workingCopy.source !== undefined && rootKind(s.workingCopy.source.root) === 'json'),
@@ -352,7 +353,7 @@ function Parameters({ store, mock, editing, onLog }: { store: WorkingCopyStore; 
   const [selected, select] = useState('');
   const [blankId, setBlankId] = useState(() => crypto.randomUUID());
   const table = useRef<HTMLTableElement>(null);
-  const actions = mock.getState();
+  const actions = signatureActions(mock);
   const parameter = parameters.find((p) => p.id === selected);
 
   const add = (name = '') => {

@@ -34,6 +34,10 @@ export interface ExpressionNode {
   inputs: Port[];
   /** Whether the node has an output port: every box has one, the target none. */
   output: boolean;
+  /** A preview node (ADR-0028), which the model does not hold: its feature and follow-up issue. */
+  preview?: { feature: string; issue: number };
+  /** What the node is in words, when its kind does not say it: a mapping variable. */
+  role?: string;
 }
 
 /** A wire: a box's output into an input slot of another box, or into the target (no slot). */
@@ -42,6 +46,8 @@ export interface ExpressionEdge {
   source: AuthoringId;
   target: string;
   slot?: number;
+  /** A preview wire, which the model does not hold. */
+  preview?: boolean;
 }
 
 export interface ExpressionGraph {
@@ -107,7 +113,7 @@ export interface NodeState {
 }
 
 /**
- * Each node's state and the floating boxes (the prototype's `inspectExpression`). Walking from the target: a node with an
+ * Each node's state and the floating boxes (the prototype's `inspectExpression`). Walking from each target: a node with an
  * unconnected input is incomplete, and so is one that reads an incomplete node; the others it reaches are complete. A box
  * it does not reach is detached and floating. A cycle of a hand-written model reads as incomplete.
  */
@@ -144,7 +150,8 @@ export function inspectExpression({ nodes, edges }: ExpressionGraph): { states: 
     states.set(id, state);
     return state;
   };
-  visit(TARGET);
+  // the target, and the other target fields a grouped expression shows (a preview, #164)
+  for (const n of nodes) if (n.kind === 'target') visit(n.id);
   const floating: AuthoringId[] = [];
   for (const n of nodes) {
     if (states.has(n.id)) continue;

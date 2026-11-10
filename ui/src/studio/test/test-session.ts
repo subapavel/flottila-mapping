@@ -3,6 +3,9 @@ import { createStore } from 'zustand/vanilla';
 import { describeError, type ApiClient, type Diagnostic, type TestResult } from '../../api/client';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import { currentInstance, testInput, testInstances, type TestInstance } from '../mock/test-instances';
+import { testPreview } from '../mock/test-preview';
+import { formatOf } from './documents';
 
 /** A line of the processing log: its time when it opens a section, else a detail of the section above it. */
 export interface LogLine {
@@ -135,9 +138,43 @@ export function followCompiles(session: TestSession, workingCopy: WorkingCopySto
   });
 }
 
-/** The test session of the open mapping, for as long as the studio is open, following its compiles. */
+const instanceKey = (i: TestInstance | undefined) => (i ? `${i.id}:${i.lastUsed}:${i.revision ?? 0}` : '');
+
+/**
+ * Makes the source document follow the test instance library (#170, the prototype's useSimulationSession): a change of
+ * the current instance of the source's format, by selection, a save over it, a new one, a delete or a revert, loads its
+ * document and values, as does a document the instance tools load from a file. At the start an empty source takes the
+ * current instance's document. Returns the unsubscribe.
+ */
+export function followInstances(session: TestSession, workingCopy: WorkingCopyStore, browserState: BrowserStateStore, mappingId: string): () => void {
+  const library = testInstances(workingCopy, browserState, mappingId);
+  const preview = testPreview(workingCopy, browserState, mappingId);
+  const current = () => {
+    const source = workingCopy.getState().workingCopy.source;
+    return source && currentInstance(library.getState().value, formatOf(source));
+  };
+  const take = (instance: TestInstance) => {
+    session.getState().setSource(instance.text);
+    preview.setState({ values: instance.values });
+  };
+  let shown = current();
+  if (shown && session.getState().source === '') take(shown);
+  const unfollowLibrary = library.subscribe(() => {
+    const next = current();
+    if (instanceKey(next) !== instanceKey(shown) && next) take(next);
+    shown = next;
+  });
+  const unfollowFiles = testInput(workingCopy).subscribe((state) => session.getState().setSource(state.text!));
+  return () => {
+    unfollowLibrary();
+    unfollowFiles();
+  };
+}
+
+/** The test session of the open mapping, for as long as the studio is open, following its compiles and test instances. */
 export function useTestSession(workingCopy: WorkingCopyStore, api: ApiClient, mappingId: string, browserState: BrowserStateStore): TestSession {
   const [session] = useState(() => createTestSession(workingCopy, api, mappingId, browserState));
   useEffect(() => followCompiles(session, workingCopy), [session, workingCopy]);
+  useEffect(() => followInstances(session, workingCopy, browserState, mappingId), [session, workingCopy, browserState, mappingId]);
   return session;
 }

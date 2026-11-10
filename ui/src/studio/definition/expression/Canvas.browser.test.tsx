@@ -370,10 +370,13 @@ describe('the functions drilldown (#157)', () => {
     ] as const) {
       await expect.element(catalogue().getByRole('button', { name: new RegExp(`^${group}`) })).toMatchTextContent(String(count));
     }
+    await catalogue().getByRole('button', { name: /^Constants/ }).click();
+    const sender = catalogue().getByRole('button', { name: /^sender/ });
+    await expect.element(sender).toHaveAttribute('aria-disabled', 'true');
+    await expect.element(sender).toHaveAccessibleDescription('Not available yet (#172)');
+    // Value mapping is a preview function since #160 (PreviewFeatures.browser.test)
     await catalogue().getByRole('button', { name: /^Conversions/ }).click();
-    const valueMapping = catalogue().getByRole('button', { name: /Value mapping/ });
-    await expect.element(valueMapping).toHaveAttribute('aria-disabled', 'true');
-    await expect.element(valueMapping).toHaveAccessibleDescription('Not available yet (#166)');
+    await expect.element(catalogue().getByRole('button', { name: /Value mapping/ })).not.toHaveAttribute('aria-disabled');
   });
 
   test('a search opens every group that matches and says when nothing does', async () => {
