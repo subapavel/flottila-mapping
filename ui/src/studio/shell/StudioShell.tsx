@@ -17,6 +17,7 @@ import type { BrowserStateStore } from '../../editor/browser-state/browser-state
 import { SaveConflict } from '../../editor/SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
 import { MappingOverview } from '../overview/MappingOverview';
+import { Signature } from '../signature/Signature';
 import { CopyTextButton } from './CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
@@ -254,6 +255,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
             <ChooseMessages />
           ) : tab === 'overview' ? (
             <MappingOverview mappingId={mappingId} store={store} />
+          ) : tab === 'signature' ? (
+            <Signature mappingId={mappingId} api={api} store={store} browserState={browserState} />
           ) : (
             <></>
           )}
