@@ -26,9 +26,7 @@ the command and the evidence it needs. A change to a check after this point is a
    on the unsaved working copy; shown by the `@stack` Playwright suite (ADR-0013). A runtime
    error (`po:MINOCCURS`) returns its QName, the `AuthoringId` and the trace up to the error,
    and diagnostics carry their stable codes (ADR-0015). `openapi.json` and the generated
-   `ui/src/generated/` types have an empty diff. A UDF box shows in the display queue like any
-   function box, with its `run.log` messages; a UDF exception returns `flottila:UDF-ERROR` with the
-   `AuthoringId` (ADR-0020).
+   `ui/src/generated/` types have an empty diff.
 4. **Semantics.** The milestone-1 functions of issue #3 (ADR-0002, ADR-0003) pass their
    golden-corpus cases: all PO 7.5 node functions (`removeContexts`, `splitByValue` in all three
    modes, `collapseContexts`, `useOneAsMany`, `createIf`, `exists`, `mapWithDefault`,
@@ -43,15 +41,8 @@ the command and the evidence it needs. A change to a check after this point is a
    (portable profile); the differential run (our runtime vs
    Saxon-HE 12.5 on the exported XSLT, XMLUnit identical) agrees on every corpus input: every
    such case id is in `ratchet/oracle/differential.txt` (ADR-0018).
-6. **UDF.** Java UDFs from `corpus/udfs/` of each kind (single value, context, queue) and one
-   stateful UDF (`MappingRun`) compile in-process, run and pass their golden-corpus cases, which are
-   in `ratchet/oracle/corpus.txt` (all metamorphic variants, including the deterministic-fold and
-   call-order witnesses). The `@stack` suite shows a UDF box with its messages in the display queue
-   and adds a UDF through the scan endpoint. A looping UDF in the corpus ends in `flottila:TIMEOUT`
-   within the timeout, and a UDF calling a forbidden API fails to compile with `udf-forbidden-api`
-   (ADR-0020). The two observation requests of ADR-0020 (a single-value UDF fed a missing field or
-   a SUPPRESS slot, #2 §7.15; a shared box with UDF state) are answered, their cases are
-   `observed`, and no UDF case has `provenance: assumed`.
+6. **UDF.** Removed from milestone 1 (ADR-0030, F-33). User-defined functions depend on
+   Flottila's data model and wait for it. A UDF box in a mapping stays a design-time error.
 7. **Speed.** The seven JMH benchmarks of ADR-0021 run on the gate commit in spec-gate step 5
    on `claude-cloud-4vcpu`, in the closure-compiled interpreter (milestone 1 has no bytecode
    tier). They cover the `corpus/bench/` mappings `orders`, `wide` and `contexts`, end to end,
@@ -69,8 +60,8 @@ the command and the evidence it needs. A change to a check after this point is a
    ArchUnit rules A–C (ADR-0016) and an empty `contract/` diff. The spec gate
    (`scripts/gate-spec.sh`) passes on the VM. Floors on the gate commit (ADR-0019): JaCoCo lines
    ≥ 90 % and branches ≥ 80 % on `xdm`, `ir`, `runtime`, `serializer`, `mapping`, `xslt-export`,
-   `api`, `udf-api`, `udf`, lines ≥ 80 % on `structure`, `structure-import`, `service` (CI `backend`), and PIT
-   ≥ 80 % on the nine class-C modules (the nightly run of the gate commit). The ratchet is green
+   `api`, lines ≥ 80 % on `structure`, `structure-import`, `service` (CI `backend`), and PIT
+   ≥ 80 % on the class-C modules (the nightly run of the gate commit). The ratchet is green
    (`java scripts/ratchet.java check` on the gate commit). The drift tests (ADR-0011, ADR-0015),
    the workspace-escape test (ADR-0014) and the diagnostic-catalogue test (ADR-0018) are green. Every spec of the milestone was merged through `/run-spec` with its review. `ui/` (ADR-0013): typecheck, lint with the import-boundary rules, Vitest
    (node and browser), Playwright e2e on the fake API and the `@stack` suite green; line
@@ -105,19 +96,24 @@ separate export spec.
 | 3 | Standard functions | Statistics, arithmetic (ADR-0005), text, boolean, `Constant`, `CopyValue`, `FixValues`, `FormatNum` and date over one F&O core (ADR-0003), the function catalogue with `portable` and `fidelity`. | 4, 5 |
 | 4 | Structures in full | Full XSD (choice and effective occurrence, imports, refusals with `{file, line, column}`), WSDL 1.1/2.0, JSON Schema 2020-12 as source (JSON target a compile error), schema bundle and fingerprint, refresh and orphaned references. | 1 |
 | 5 | Editor in full | Function editor (canvas, quick insert, inspector with fidelity, display queue with occurrences per parent slot), target-tree status filter, undo, 409 on save, diagnostics in the UI, the `ui/tree-20128/scroll` p95 scenario. | 2, 3 (UI), 7 (tree) |
-| 6 | Speed | `corpus/bench/{orders,wide,contexts}` with seeded generators, the seven JMH benchmarks through `engine/api`, the bench rules in `scripts/ratchet.java`, spec-gate step 5; it opens the optional `po-owner-local` observation request (ADR-0021). | 7 (engine) |
-| 7 | UDFs | `engine/udf-api`, `engine/udf`, the scan endpoint, `MappingRun`, isolation with `flottila:TIMEOUT` and `flottila:UDF-ERROR`, `corpus/udfs/`, the UDF box in the editor; it opens the two ADR-0020 observation requests. Its last ticket writes `HANDOVER.md`. | 6, 9 |
+| 6 | Speed | `corpus/bench/{orders,wide,contexts}` with seeded generators, the seven JMH benchmarks through `engine/api`, the bench rules in `scripts/ratchet.java`, spec-gate step 5; it opens the optional `po-owner-local` observation request (ADR-0021). Its last ticket writes `HANDOVER.md`. | 7 (engine), 9 |
 
-Observation requests never block a spec. Specs 2, 3 and 7 implement the assumed readings with
+Spec 7 "UDFs" left milestone 1 on 2026-11-10 (ADR-0030, F-33): UDFs depend on Flottila's data model.
+
+Observation requests never block a spec. Specs 2 and 3 implement the assumed readings with
 `provenance: assumed`; an answer turns the case `observed`, and a divergence from PO becomes a
 finding and a fix ticket in the running spec, or the next spec touching that function. `/gate`
-waits until every request named in checks 4 and 6 is answered.
+waits until every request named in check 4 is answered.
 
 ## After milestone 1
 
 In this order (grilling #19): **JSON output** (constructor records, serializer and export, ADR-0008)
 → **bytecode tier** (`engine/bytecode` and the fifth metamorphic variant, ADR-0021) →
 **`formatVersion` 2 and the PO importer** (ADR-0010). The XSLT front end follows them.
+
+Waiting for Flottila's data model (ADR-0030), each starting with a grilling once the model exists:
+UDFs (ADR-0020 is the starting point, #169), lookups (#165), parameters, headers, properties and
+attachments (#167), several source or target messages (#168) and the test trace level (#171).
 
 ## Out of the gate
 
