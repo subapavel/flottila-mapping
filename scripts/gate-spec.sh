@@ -102,6 +102,29 @@ fi
 # step 4 leaves ratchet/bench.tsv alone; the gate never writes bench/RESULTS.md. A first judgement that prints RERUN
 # re-runs those benchmarks once into .logs/<spec>-jmh-2.json and judges again; step 4 reads the final results.
 bench_results=()
+# The tree scenario (#188): three runs of ui/e2e/tree-20128.spec.ts against the fake API. TREE_P95_FILE names the
+# file the spec writes its result to; the median of the three goes to ui/.logs/<spec>-tree-20128.json, the shape
+# scripts/ratchet.java bench reads. A run that fails or writes nothing leaves no median file (the judgement then
+# finds no result). Printed whatever the label; judged below only on the labelled machine. Without ui/ step 2
+# already says NOT_RUN.
+tree_file=
+if [ -f ui/package.json ]; then
+  tree_scores=()
+  for run in 1 2 3; do
+    run_file="$PWD/ui/.logs/${spec}-tree-20128-${run}.json"
+    rm -f "$run_file"
+    step "5 tree-20128 run $run" "ui/.logs/${spec}-tree-20128-${run}.log" \
+      bash -c "cd ui && TREE_P95_FILE='$run_file' npm run e2e -- tree-20128"
+    score=$(sed -n 's/.*"score": *\([0-9.]*\).*/\1/p' "$run_file" 2> /dev/null)
+    [ -n "$score" ] && tree_scores+=("$score")
+  done
+  if [ "${#tree_scores[@]}" = 3 ]; then
+    median=$(printf '%s\n' "${tree_scores[@]}" | sort -n | sed -n 2p)
+    tree_file="ui/.logs/${spec}-tree-20128.json"
+    printf '{"scenario":"ui/tree-20128/scroll","score":%s,"unit":"ms"}\n' "$median" > "$tree_file"
+    echo "tree-20128 p95 median $median ms (runs ${tree_scores[*]})"
+  fi
+fi
 jmh() { java -jar bench/jmh/target/benchmarks.jar -foe true -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff "$@"; }
 if [ -f bench/jmh/target/benchmarks.jar ]; then
   step "5 jmh" ".logs/${spec}-jmh.log" jmh ".logs/${spec}-jmh.json"
@@ -112,6 +135,7 @@ if [ -f bench/jmh/target/benchmarks.jar ]; then
     status=1
   else
     bench_results=(".logs/${spec}-jmh.json")
+    [ -n "$tree_file" ] && bench_results+=("$tree_file")
     if java scripts/ratchet.java bench "${bench_results[@]}" > ".logs/${spec}-bench.log" 2>&1; then
       echo "VERIFIED_PASS  5 bench judgement  (.logs/${spec}-bench.log)"
     else
