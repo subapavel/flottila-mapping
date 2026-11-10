@@ -750,6 +750,42 @@ class MappingsResourceTest {
         bytes(Fixtures.DESCRIBED_NEW_MAPPING));
   }
 
+  /**
+   * A description is at most 4,000 code points (ADR-0029): one more is 422 {@code model-refused}
+   * with stage 1's {@code invalid-value} at {@code /description}, and nothing is written; exactly
+   * 4,000 is created. Each code point here is a supplementary character, two UTF-16 units.
+   */
+  @Test
+  void createWithADescriptionOver4000CodePointsIs422AndNothingIsWritten() {
+    TempWorkspace.mkdirs("creating-long");
+    String clef = "𝄞";
+
+    Http.Reply over = createDescribed("creating-long/over", clef.repeat(4001));
+    Http.Reply at = createDescribed("creating-long/at", clef.repeat(4000));
+
+    JsonNode problem = assertProblem(over, 422, "model-refused");
+    assertThat(described(problem.path("diagnostics")))
+        .containsExactly("error invalid-value at pointer /description");
+    assertThat(TempWorkspace.exists("creating-long/over.mapping.json")).isFalse();
+    assertThat(at.status()).as("%s", at).isEqualTo(201);
+    assertThat(at.json().path("description").textValue()).isEqualTo(clef.repeat(4000));
+    assertThat(TempWorkspace.exists("creating-long/at.mapping.json")).isTrue();
+  }
+
+  /** A create of {@code id} with {@code description} and no structure. */
+  private Http.Reply createDescribed(String id, String description) {
+    return http()
+        .post(
+            "api/mappings",
+            "application/json",
+            bytes(
+                "{\"id\": "
+                    + Wire.quoted(id)
+                    + ", \"description\": "
+                    + Wire.quoted(description)
+                    + "}"));
+  }
+
   /** The corpus mapping's working copy without its target side. */
   private static final String WITHOUT_TARGET =
       """

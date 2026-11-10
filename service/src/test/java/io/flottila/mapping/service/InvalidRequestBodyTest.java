@@ -329,8 +329,14 @@ class InvalidRequestBodyTest {
   @Test
   void aMissingMemberIsNamedMissingAndANullMemberNull() {
     Map<String, ObjectNode[]> pairs = new LinkedHashMap<>();
+    // every required member of every request record (#153: each is @JsonProperty(required = true))
     pairs.put("api/mappings id", pair(createTemplate(), "id"));
+    pairs.put("api/mappings source.bundle", pair(createTemplate(), "source", "bundle"));
+    pairs.put("api/mappings source.root", pair(createTemplate(), "source", "root"));
     pairs.put("api/structures base", pair(structureTemplate(), "base"));
+    pairs.put("api/structures bundle", pair(structureTemplate(), "bundle"));
+    pairs.put("api/structures root", pair(structureTemplate(), "root"));
+    pairs.put("api/mappings/" + TEST_ID + "/test model", pair(testTemplate(), "model"));
     pairs.put("api/mappings/" + TEST_ID + "/test input", pair(testTemplate(), "input"));
 
     pairs.forEach(
@@ -360,6 +366,14 @@ class InvalidRequestBodyTest {
   private static ObjectNode[] pair(ObjectNode template, String member) {
     return new ObjectNode[] {
       edited(template, r -> r.remove(member)), edited(template, r -> r.putNull(member))
+    };
+  }
+
+  /** {@code template} without {@code member} of its object {@code in}, and with it set to null. */
+  private static ObjectNode[] pair(ObjectNode template, String in, String member) {
+    return new ObjectNode[] {
+      edited(template, r -> object(r, in).remove(member)),
+      edited(template, r -> object(r, in).putNull(member))
     };
   }
 
