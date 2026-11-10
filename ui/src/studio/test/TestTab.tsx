@@ -171,7 +171,7 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
           </Toolbar>
         }
       >
-        <section className="panel test-log" aria-labelledby="processing-log-heading">
+        <section className="panel test-log" aria-labelledby="processing-log-heading" tabIndex={0}>
           <header>
             <h3 id="processing-log-heading">Processing log</h3>
             {lines.length > 0 && (
