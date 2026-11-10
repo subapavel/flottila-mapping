@@ -28,7 +28,8 @@ export const PREVIEW_FUNCTIONS: readonly PreviewFunction[] = [
     output: true,
     issue: VALUE_MAPPING_ISSUE,
     parameters: [
-      { key: 'context', label: 'Value-Mapping Context', type: 'String', initial: 'http://sap.com/xi/XI' },
+      // the prototype's http://sap.com/xi/XI goes: the studio has no namespace (ADR-0028, Terms)
+      { key: 'context', label: 'Value-Mapping Context', type: 'String', initial: '' },
       { key: 'agency1', label: 'Source Agency', type: 'vmsagency', initial: 'SenderParty' },
       { key: 'schema1', label: 'Source Schema', type: 'String', initial: '' },
       { key: 'agency2', label: 'Target Agency', type: 'vmtagency', initial: 'ReceiverParty' },
