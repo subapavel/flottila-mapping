@@ -6,6 +6,7 @@ import { ViewSwitch } from '../definition/ViewSwitch';
 import { downloadFile } from '../functions/download';
 import { PreviewBadge } from '../mock/PreviewBadge';
 import { PARAMETERS_ISSUE } from '../mock/signature-mock';
+import { zipInstance } from '../mock/test-instances';
 import { CopySurface } from '../shell/CopyTextButton';
 import { documentRows, prettyText, type DocumentFormat } from './documents';
 
@@ -42,8 +43,6 @@ export interface TestDocumentProps {
   values: Readonly<Record<string, string>>;
   onParameter?: (id: string, value: string) => void;
 }
-
-const EXTENSION: Record<DocumentFormat, string> = { XML: 'xml', JSON: 'json' };
 
 /**
  * A pane of the Test tab (the prototype's TestDocument): the source document, which the author types, or the result of
@@ -101,7 +100,8 @@ export function TestDocument({ side, format, text, failed = false, mode, onMode,
       setError(`Cannot process this ${format} document. ${(e as Error).message}`);
     }
   };
-  const download = () => downloadFile(`${input ? 'instance' : 'result'}.${EXTENSION[format]}`, new Blob([displayed], { type: format === 'XML' ? 'application/xml' : 'application/json' }));
+  // the prototype's downloadInstance: the document as instance.<format> in schema.zip (#170)
+  const download = () => downloadFile('schema.zip', new Blob([zipInstance(displayed, format)], { type: 'application/zip' }));
   const empty = (
     <div className="result-empty">
       <CodeIcon />

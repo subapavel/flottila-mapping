@@ -8,6 +8,10 @@ import { useStructure } from '../../editor/structure-overview/structure-query';
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
 import type { FieldPath } from '../../generated/mapping-model';
 import { localPath, stepName } from '../../model/field-path';
+import { testInput, testInstances } from '../mock/test-instances';
+import { testPreview } from '../mock/test-preview';
+import { formatOf } from '../test/documents';
+import { testSourceKey } from '../test/test-session';
 import { connectedFields, keptRows, typeKind, type Side } from './definition-model';
 import './definition.css';
 import { action, ActionMenu, useActionMenu, type MenuItem } from './expression/ActionMenu';
@@ -156,7 +160,26 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
           initialShare={layout.share}
           onCommit={layout.setShare}
           view={view}
-          toolbar={dataFlow && <ExpressionHeader targetField={selectedTarget} view={view} onView={layout.setView} />}
+          toolbar={
+            dataFlow && (
+              <ExpressionHeader
+                targetField={selectedTarget}
+                view={view}
+                onView={layout.setView}
+                instances={{
+                  library: testInstances(store, browserState, mappingId),
+                  format: formatOf(sourceRef),
+                  // the test session keeps its source document in the browser state at each change
+                  resource: () => {
+                    const text = browserState.read(testSourceKey(mappingId));
+                    return { text: typeof text === 'string' ? text : '', values: testPreview(store, browserState, mappingId).getState().values };
+                  },
+                  onLoad: (text) => testInput(store).getState().load(text),
+                  disabled: !editing,
+                }}
+              />
+            )
+          }
         >
           {!dataFlow ? (
             <TextPreview

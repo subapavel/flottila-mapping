@@ -1,5 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
+import type { WorkingCopyStore } from '../../editor/store/working-copy';
+import { perWorkingCopy } from './preview-draft';
 
 /** The follow-up issue of the trace level in test runs (spec #152, preview features). */
 export const TRACE_LEVEL_ISSUE = 171;
@@ -64,3 +66,7 @@ export function createTestPreview(browserState: BrowserStateStore, mappingId: st
 }
 
 export type TestPreviewStore = ReturnType<typeof createTestPreview>;
+
+/** The Test tab's previews of the open mapping, one per working copy store, so that a test instance can set the values. */
+export const testPreview = (workingCopy: WorkingCopyStore, browserState: BrowserStateStore, mappingId: string): TestPreviewStore =>
+  perWorkingCopy(workingCopy, testPreviewKey(mappingId), () => createTestPreview(browserState, mappingId));

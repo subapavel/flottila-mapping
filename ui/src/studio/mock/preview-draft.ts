@@ -51,22 +51,23 @@ export function createPreviewDraft<T>(workingCopy: WorkingCopyStore, browserStat
   return draft;
 }
 
-const drafts = new WeakMap<WorkingCopyStore, Map<string, PreviewDraftStore<unknown>>>();
+const kept = new WeakMap<WorkingCopyStore, Map<string, unknown>>();
 
 /**
- * The draft of a preview feature for the open mapping's store, made on first use: one per working copy store and key, so
- * that a draft lives as long as the edit session, not as long as the tab that shows it.
+ * What `make` makes for the open mapping's store under `key`, made on first use: one per working copy store and key, so
+ * that it lives as long as the studio's store, not as long as the tab that shows it.
  */
-export function previewDraft<T>(workingCopy: WorkingCopyStore, browserState: BrowserStateStore, options: PreviewDraftOptions<T>): PreviewDraftStore<T> {
-  let byKey = drafts.get(workingCopy);
+export function perWorkingCopy<T>(workingCopy: WorkingCopyStore, key: string, make: () => T): T {
+  let byKey = kept.get(workingCopy);
   if (!byKey) {
     byKey = new Map();
-    drafts.set(workingCopy, byKey);
+    kept.set(workingCopy, byKey);
   }
-  let draft = byKey.get(options.key);
-  if (!draft) {
-    draft = createPreviewDraft(workingCopy, browserState, options) as PreviewDraftStore<unknown>;
-    byKey.set(options.key, draft);
-  }
-  return draft as PreviewDraftStore<T>;
+  if (!byKey.has(key)) byKey.set(key, make());
+  return byKey.get(key) as T;
+}
+
+/** The draft of a preview feature for the open mapping's store, one per working copy store and key (`perWorkingCopy`). */
+export function previewDraft<T>(workingCopy: WorkingCopyStore, browserState: BrowserStateStore, options: PreviewDraftOptions<T>): PreviewDraftStore<T> {
+  return perWorkingCopy(workingCopy, options.key, () => createPreviewDraft(workingCopy, browserState, options));
 }

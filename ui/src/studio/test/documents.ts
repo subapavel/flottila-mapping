@@ -10,6 +10,7 @@ const PARSER_ERROR = ['http://www.mozilla.org/newlayout/xml/parsererror.xml', 'h
 /** Parses a test document (the prototype's parsePayload); throws when the text is not well-formed XML or valid JSON. */
 export function parseDocument(text: string, format: 'XML'): XMLDocument;
 export function parseDocument(text: string, format: 'JSON'): unknown;
+export function parseDocument(text: string, format: DocumentFormat): unknown;
 export function parseDocument(text: string, format: DocumentFormat): unknown {
   if (format === 'JSON') return JSON.parse(text);
   const doc = new DOMParser().parseFromString(text, 'application/xml');
