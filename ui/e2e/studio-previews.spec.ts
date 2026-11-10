@@ -74,11 +74,22 @@ test('variables, a grouped target, value mapping, lookups and test instances wor
   await page.getByRole('dialog', { name: 'RFC Lookup' }).getByRole('button', { name: 'Apply' }).click();
 
   await page.getByRole('tab', { name: 'Test' }).click();
-  await page.getByRole('button', { name: 'Add Test Instance' }).click();
-  const instance = page.getByRole('dialog', { name: 'Add Test Instance' });
-  await instance.getByRole('textbox', { name: 'Test instance name' }).fill('first order');
-  await instance.getByRole('button', { name: 'OK' }).click();
-  await expect(page.getByRole('combobox', { name: 'Select test instance' })).toContainText('first order');
+  const source = page.getByRole('region', { name: 'Source', exact: true }).getByRole('textbox', { name: 'Input XML' });
+  const documents = {
+    'first order': `<Order xmlns="urn:flottila:corpus:skeleton">\n  <OrderId>PO-1</OrderId>\n  <Note>first</Note>\n</Order>`,
+    'second order': `<Order xmlns="urn:flottila:corpus:skeleton">\n  <OrderId>PO-2</OrderId>\n</Order>`,
+  };
+  for (const [name, text] of Object.entries(documents)) {
+    await source.fill(text);
+    await page.getByRole('button', { name: 'Add Test Instance' }).click();
+    const instance = page.getByRole('dialog', { name: 'Add Test Instance' });
+    await instance.getByRole('textbox', { name: 'Test instance name' }).fill(name);
+    await instance.getByRole('button', { name: 'OK' }).click();
+    await expect(instance).toBeHidden();
+  }
+  // choosing an instance loads its document into Source
+  await page.getByRole('combobox', { name: 'Select test instance' }).selectOption('first order');
+  await expect(source).toHaveValue(documents['first order']);
   await settled(page);
   await page.screenshot({ path: '.logs/160-test-instances.png' });
 

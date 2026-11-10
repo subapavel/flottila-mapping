@@ -3,8 +3,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
-import type { ApiClient } from '../../api/client';
+import type { ApiClient, StructureLoaded } from '../../api/client';
 import { fakeApiClient } from '../../api/fake/fake-api';
+import { orderStructure } from '../../api/fake/order-structure';
 import type { BrowserStateStore } from '../../editor/browser-state/browser-state';
 import type { WorkingCopyStore } from '../../editor/store/working-copy';
 import type { MappingModel } from '../../generated/mapping-model';
@@ -35,10 +36,10 @@ interface Rendered {
 }
 
 /** The studio in edit mode on the Definition tab with OrderId's mapping selected; every request to the service is recorded. */
-async function renderDefinition(): Promise<Rendered> {
+async function renderDefinition(overrides: Partial<ApiClient> = {}): Promise<Rendered> {
   const fake = fakeApiClient();
   const calls: unknown[] = [];
-  const api: ApiClient = { ...fake };
+  const api: ApiClient = { ...fake, ...overrides };
   for (const name of ['saveMapping', 'compile', 'runTest', 'refresh'] as const) {
     const real = fake[name] as (...args: unknown[]) => Promise<unknown>;
     (api as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => {
@@ -181,6 +182,25 @@ describe('mapping variables, a preview feature (#163)', () => {
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard changes' }).click();
     await expect.element(field('Variable total')).not.toBeInTheDocument();
     await expect.element(page.getByText('Select a target field to see its mapping expression.')).toBeVisible();
+  });
+});
+
+describe('a field named like a variable (#163)', () => {
+  test('a JSON property `$total` stays a target field: Add Variable does not take its name, and selecting it shows its own canvas', async () => {
+    const type = '/Q{urn:flottila:corpus:skeleton}Order';
+    const dollar = { kind: 'json-property' as const, step: '$total', namespace: '', localName: '$total', min: 0, max: 1, valueType: 'xs:string', nillable: false };
+    const structure: StructureLoaded = { ...orderStructure, types: { ...orderStructure.types, [type]: [...orderStructure.types[type]!, dollar] } };
+    await renderDefinition({ loadStructure: () => Promise.resolve(structure) });
+
+    await field('Order').click({ button: 'right' });
+    await menuItem('Add Variable').click();
+    const dialog = page.getByRole('dialog', { name: 'Add Variable' });
+    await dialog.getByRole('textbox', { name: 'Variable name' }).fill('total');
+    await expect.element(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+    await field('$total').click();
+    await expect.element(node(/^Target field \$total/)).toBeVisible();
   });
 });
 
