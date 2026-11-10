@@ -73,9 +73,11 @@ integration branch (`docs/WORKFLOW.md` §5).
 signatures), proposed test names, rejected alternatives with one line each, what is expensive to
 reverse (→ ADR draft), conflicts with ADRs or the glossary, open questions.
 
-**Grilling advice (grilling-adviser → architect, every grilling round)** — at most 40 lines: the
-frontier questions with choices, the cost of each choice and its recommendation; disagreements
-with the draft; later-round questions; missing facts. The architect asks each round with the
+**Grilling advice (grilling-adviser → architect, every grilling round)** — the designer (first
+round) or the architect (later rounds) writes the questions and recommendations; the adviser
+evaluates that draft and never writes the round itself. At most 40 lines: the frontier questions
+with choices, the cost of each choice and its recommendation; disagreements with the draft;
+later-round questions; missing facts. The architect asks each round with the
 adviser's recommendation and names any disagreement with the draft.
 
 **Acceptance spec (architect → test-author, class C)** — ticket id, worktree branch, allowed test

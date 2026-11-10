@@ -36,8 +36,9 @@ the queue representation, the mapping-model format, the module layout and build,
 architecture, the oracles and the ratchet. They are charted as one wayfinder map whose draft is
 `docs/wayfinder/phase-0-map.md`; `/wayfinder` publishes it to GitHub and works it ticket by ticket.
 A grilling or prototype ticket needs the owner (HITL); research tickets run AFK in parallel.
-Every grilling round goes designer (or architect) draft → `grilling-adviser` → owner; the owner is
-asked with the adviser's recommendation (`AGENTS.md`, owner's rule 2026-11-10).
+Every grilling round goes draft (designer first round, architect later rounds) → `grilling-adviser`
+→ owner; the owner is asked with the adviser's recommendation (`AGENTS.md`, owner's rule
+2026-11-10).
 
 Phase 0 ends when the map has no open ticket and its destination holds: ADRs for each decision,
 the glossary sharpened, and the first spec (milestone 1, `docs/GATE.md`) ready for `/to-tickets`.
