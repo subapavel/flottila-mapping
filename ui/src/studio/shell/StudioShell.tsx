@@ -17,6 +17,8 @@ import type { BrowserStateStore } from '../../editor/browser-state/browser-state
 import { SaveConflict } from '../../editor/SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
 import { DefinitionTab } from '../definition/DefinitionTab';
+import { FunctionsTab } from '../functions/FunctionsTab';
+import { useFunctionsPreview } from '../mock/functions-store';
 import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
 import { CopyTextButton } from './CopyTextButton';
@@ -85,6 +87,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
   const hasMessages = useStore(store, (s) => s.workingCopy.source !== undefined && s.workingCopy.target !== undefined);
   const panelRef = useRef<HTMLElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
+  // a preview's draft follows the edit session while any tab is open (ADR-0028)
+  const functions = useFunctionsPreview(store, browserState, mappingId);
 
   const keepTab = useCallback(
     (next: StudioTab) => {
@@ -260,6 +264,8 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
             <DefinitionTab mappingId={mappingId} api={api} store={store} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
           ) : tab === 'signature' ? (
             <Signature mappingId={mappingId} api={api} store={store} browserState={browserState} />
+          ) : tab === 'functions' ? (
+            <FunctionsTab mappingId={mappingId} store={store} functions={functions} api={api} />
           ) : (
             <></>
           )}
