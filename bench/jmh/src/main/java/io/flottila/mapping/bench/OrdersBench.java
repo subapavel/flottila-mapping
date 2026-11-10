@@ -22,17 +22,17 @@ import org.openjdk.jmh.annotations.Warmup;
 
 /**
  * The {@code orders} benchmarks of ADR-0021, end to end through {@code engine/api}: input bytes in,
- * output bytes out. A method's name is its scenario with {@code _} for {@code /}: {@code
- * orders_small_latency} is {@code orders/small/latency}, and its {@code -prof gc} metric {@code
- * gc.alloc.rate.norm} is {@code orders/small/alloc}; {@code compile_orders} is {@code
- * compile/orders}. The defaults are the ratchet's runs (ADR-0021): three forks of three warm-up and
- * five measured iterations of one second; the command line overrides them.
+ * output bytes out. The scenarios {@code scripts/ratchet.java} reads from {@code
+ * <Mapping>Bench.<method>} (#184): {@code smallLatency} is {@code orders/small/latency}, and its
+ * {@code -prof gc} metric {@code gc.alloc.rate.norm} is {@code orders/small/alloc}; {@code compile}
+ * is {@code compile/orders}. The defaults are the ratchet's runs (ADR-0021): three forks of three
+ * warm-up and five measured iterations of one second; the command line overrides them.
  */
 @BenchmarkMode(Mode.AverageTime)
 @Fork(3)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
-public class OrdersBenchmarks {
+public class OrdersBench {
 
   /** The small input and the mapping compiled once, as a deploy compiles it. */
   @State(Scope.Benchmark)
@@ -71,7 +71,7 @@ public class OrdersBenchmarks {
   /** {@code orders/small/latency}: one run of the small input, µs/op. */
   @Benchmark
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
-  public byte[] orders_small_latency(Small small) throws MalformedInputException {
+  public byte[] smallLatency(Small small) throws MalformedInputException {
     return small.facade.run(small.compiled, small.input);
   }
 
@@ -81,7 +81,7 @@ public class OrdersBenchmarks {
    */
   @Benchmark
   @OutputTimeUnit(TimeUnit.MILLISECONDS)
-  public CompileResult compile_orders(Model model) throws MalformedJsonException {
+  public CompileResult compile(Model model) throws MalformedJsonException {
     return model.facade.compile(model.model, model.resolver, CompileOptions.TEST_RUN);
   }
 }

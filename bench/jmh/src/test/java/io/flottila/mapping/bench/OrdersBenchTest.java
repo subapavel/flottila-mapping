@@ -11,14 +11,14 @@ import org.junit.jupiter.api.Test;
  * times a run that writes the target message and a compile that is not refused. That the message is
  * right is the differential case {@code bench/orders/001}.
  */
-class OrdersBenchmarksTest {
+class OrdersBenchTest {
 
   @Test
   void theSmallLatencyBenchmarkRunsTheSmallInput() throws Exception {
-    OrdersBenchmarks.Small small = new OrdersBenchmarks.Small();
+    OrdersBench.Small small = new OrdersBench.Small();
     small.setUp();
 
-    byte[] output = new OrdersBenchmarks().orders_small_latency(small);
+    byte[] output = new OrdersBench().smallLatency(small);
 
     // the first order's number, date, customer and price, and the last order's last pick
     assertThat(new String(output, UTF_8))
@@ -30,10 +30,9 @@ class OrdersBenchmarksTest {
 
   @Test
   void theCompileBenchmarkCompilesTheModelAsATestRun() throws Exception {
-    OrdersBenchmarks.Model model = new OrdersBenchmarks.Model();
+    OrdersBench.Model model = new OrdersBench.Model();
     model.setUp();
 
-    assertThat(new OrdersBenchmarks().compile_orders(model))
-        .isInstanceOf(CompileResult.Compiled.class);
+    assertThat(new OrdersBench().compile(model)).isInstanceOf(CompileResult.Compiled.class);
   }
 }
