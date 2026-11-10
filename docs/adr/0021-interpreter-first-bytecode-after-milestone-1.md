@@ -122,8 +122,8 @@ The UDF compile (javac) is not a JMH scenario. It is JDK code, and its rough num
 
 ## Notes of 2026-11-10 (spec 6 grilling, #181, owner)
 
-- **Tree target.** The scroll target reads p95 < 33.3 ms, no dropped frame at p95, instead of
-  p95 ≤ 16.7 ms (F-26, #128). The 20 % tolerance stays.
+- **Tree target.** The scroll target reads p95 < 33.3 ms, no dropped frame at p95, instead of the one-vsync
+  target (F-26, #128). The 20 % tolerance stays.
 - **`orders` row.** "One single-value UDF" cannot be built: ADR-0030 removes UDFs from milestone 1
   (F-35). The mapping uses `FormatNum` on the amounts and `DateTrans` on a date, through `Lift`,
   in its place.
