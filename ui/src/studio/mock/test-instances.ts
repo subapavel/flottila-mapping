@@ -1,5 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { createStore } from 'zustand/vanilla';
+import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { BrowserStateStore } from '../browser-state/browser-state';
 import type { WorkingCopyStore } from '../store/working-copy';
 import { perWorkingCopy, previewDraft, type PreviewDraftStore } from './preview-draft';
@@ -114,6 +114,23 @@ export function instanceActions(library: TestInstancesStore, format: InstanceFor
     save: (resource: InstanceResource) => edit((list) => saveInstance(list, format, resource)),
     remove: () => edit((list) => removeInstance(list, format)),
   };
+}
+
+export interface InstanceChoiceState {
+  /** The instance last chosen in read mode, by id; `null` before a choice. */
+  id: string | null;
+  choose: (id: string) => void;
+}
+
+const choices = new WeakMap<TestInstancesStore, StoreApi<InstanceChoiceState>>();
+
+/**
+ * The instance chosen in read mode (#177), one per library: the test session loads it into the source for a run, and the
+ * library, its current instance and the browser state stay as they are. Edit mode selects in the library instead.
+ */
+export function instanceChoice(library: TestInstancesStore): StoreApi<InstanceChoiceState> {
+  if (!choices.has(library)) choices.set(library, createStore<InstanceChoiceState>()((set) => ({ id: null, choose: (id) => set({ id }) })));
+  return choices.get(library)!;
 }
 
 export interface TestInputState {

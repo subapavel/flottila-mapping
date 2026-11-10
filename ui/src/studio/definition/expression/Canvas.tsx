@@ -48,9 +48,13 @@ import {
 } from '../../mock/definition-preview';
 import { PreviewBadge } from '../../mock/PreviewBadge';
 import { previewFunction } from '../../mock/preview-functions';
+import { testInstances } from '../../mock/test-instances';
+import { testPreview } from '../../mock/test-preview';
 import { QueueDialog } from './QueueDialog';
 import type { Side } from '../definition-model';
+import { formatOf } from '../../shared/documents';
 import { FieldTypeIcon } from '../../shared/FieldTypeIcon';
+import type { TestSession } from '../../shared/test-session';
 import { SideBySide } from '../../shared/SplitLayout';
 import { action, ActionMenu, deleteAction, isContextMenuKey, useActionMenu, type MenuItem } from './ActionMenu';
 import { expressionGraph, inspectExpression, NODE_WIDTH, portId, TARGET, upstream, wireEnd, type ExpressionEdge, type ExpressionNode } from './expression-graph';
@@ -124,6 +128,8 @@ function ViewFit({ nodeIds, host }: { nodeIds: string; host: RefObject<HTMLEleme
 export interface CanvasProps {
   mappingId: string;
   store: WorkingCopyStore;
+  /** The open mapping's test session, which the Display Queue runs when there is no trace yet (#177). */
+  session: TestSession;
   /** The target field, or a preview variable (#163), whose expression shows. */
   targetField: FieldPath;
   catalogue: Catalogue;
@@ -140,7 +146,7 @@ export interface CanvasProps {
   remap: (box: AuthoringId, field: FieldPath) => void;
 }
 
-function Drawing({ mappingId, store, targetField, catalogue, browserState, fieldTypes, findField, orphaned, sourceFields, remap }: CanvasProps) {
+function Drawing({ mappingId, store, session, targetField, catalogue, browserState, fieldTypes, findField, orphaned, sourceFields, remap }: CanvasProps) {
   const host = useRef<HTMLDivElement>(null);
   const edgeDrag = useRef<string | null>(null);
   const inputDrag = useRef<ExpressionEdge | undefined>(undefined);
@@ -150,6 +156,7 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
   const canPaste = useStore(store, (s) => s.clipboard !== null);
   const trace = useStore(store, selectTrace);
   const stale = useStore(store, selectTraceStale);
+  const traceLevel = useStore(testPreview(store, browserState, mappingId), (s) => s.traceLevel);
   const previewStore = definitionPreview(store, browserState, mappingId);
   const preview = useStore(previewStore, (s) => s.value);
   const editPreview = (change: (data: DefinitionPreviewData) => DefinitionPreviewData) => previewStore.getState().edit(change);
@@ -637,7 +644,16 @@ function Drawing({ mappingId, store, targetField, catalogue, browserState, field
       )}
       {/* an undo or a delete that removes the node closes its queue */}
       {queueNode && (
-        <QueueDialog graph={graph} node={queueNode} trace={trace} stale={stale} mappingId={mapping?.id} browserState={browserState} onClose={closeDialog} />
+        <QueueDialog
+          graph={graph}
+          node={queueNode}
+          trace={trace}
+          stale={stale}
+          mappingId={mapping?.id}
+          browserState={browserState}
+          test={{ session, library: testInstances(store, browserState, mappingId), format: formatOf(model.source!), level: traceLevel, editing }}
+          onClose={closeDialog}
+        />
       )}
       <ActionMenu menu={menu} onClose={closeMenu} />
     </section>

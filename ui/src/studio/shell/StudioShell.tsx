@@ -24,7 +24,7 @@ import { useFunctionsPreview } from '../mock/functions-store';
 import { refreshMutation } from '../shared/structure-query';
 import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
-import { useTestSession } from '../test/test-session';
+import { useTestSession } from '../shared/test-session';
 import { TestTab } from '../test/TestTab';
 import { CopyTextButton } from '../shared/CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
@@ -279,7 +279,7 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
           ) : tab === 'overview' ? (
             <MappingOverview mappingId={mappingId} store={store} />
           ) : tab === 'definition' ? (
-            <DefinitionTab mappingId={mappingId} api={api} store={store} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
+            <DefinitionTab mappingId={mappingId} api={api} store={store} session={testSession} browserState={browserState} onChooseMessages={() => changeTab('signature')} />
           ) : tab === 'test' ? (
             <TestTab mappingId={mappingId} store={store} session={testSession} browserState={browserState} />
           ) : tab === 'signature' ? (

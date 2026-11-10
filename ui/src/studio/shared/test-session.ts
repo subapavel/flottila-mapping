@@ -4,9 +4,9 @@ import { createStore } from 'zustand/vanilla';
 import { describeError, type ApiClient, type Diagnostic, type TestRequest, type TestResult } from '../../api/client';
 import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-state';
 import type { WorkingCopyStore } from '../store/working-copy';
-import { currentInstance, testInput, testInstances, type TestInstance } from '../mock/test-instances';
+import { currentInstance, instanceChoice, testInput, testInstances, type TestInstance } from '../mock/test-instances';
 import { testPreview } from '../mock/test-preview';
-import { formatOf } from '../shared/documents';
+import { formatOf } from './documents';
 
 /** A line of the processing log: its time when it opens a section, else a detail of the section above it. */
 export interface LogLine {
@@ -70,21 +70,25 @@ export function logLines(...sections: (LogSection | null)[]): LogLine[] {
 export const logText = (lines: readonly LogLine[]) => lines.map((l) => `${l.detail ? '  ' : ''}${l.time ? `${l.time} ` : ''}${l.message}`).join('\n');
 
 export interface TestSessionState {
-  /** The source document as typed; kept in the browser per mapping. */
+  /** The source document as typed; kept in the browser per mapping in edit mode, a throw-away input in read mode (#177). */
   source: string;
   /** The latest compile's log section, from when the studio opened. */
   compileLog: LogSection | null;
   /** The last run's log section, with the trace level it showed (a preview, never sent). */
   runLog: (LogSection & { level: string }) | null;
-  /** Whether the last run ended without an output: refused, a runtime error, or a failed call. */
+  /** Whether the last run ended without an output: refused, a runtime error, a failed call, or one that could not start. */
   runFailed: boolean;
   running: boolean;
   setSource: (source: string) => void;
+  /** Loads a test instance: its document as the source, its values as the run's parameters. */
+  loadInstance: (instance: TestInstance) => void;
   /**
    * Runs the working copy on the source document (ADR-0013: the working copy, saved or not) and keeps the answer in the
    * working copy's store (its trace for the display queue) and the log; a run under way ignores another.
    */
   runTest: (level: string) => Promise<void>;
+  /** Logs a run that could not start, such as on a test file that cannot be read, as a failed run with its reason. */
+  failRun: (level: string, failure: string) => void;
 }
 
 /**
@@ -108,7 +112,16 @@ export function createTestSession(
     running: false,
     setSource: (source) => {
       set({ source });
-      browserState.write(testSourceKey(mappingId), source);
+      // read mode never saves the source (#177): the browser keeps none of it
+      if (workingCopy.getState().editing) browserState.write(testSourceKey(mappingId), source);
+    },
+    loadInstance: (instance) => {
+      get().setSource(instance.text);
+      testPreview(workingCopy, browserState, mappingId).setState({ values: instance.values });
+    },
+    failRun: (level, failure) => {
+      const at = now();
+      set({ runFailed: true, runLog: { at: at.getTime(), level, lines: runLines(at, at, { failure }) } });
     },
     runTest: async (level) => {
       if (get().running) return;
@@ -148,20 +161,16 @@ const instanceKey = (i: TestInstance | undefined) => (i ? `${i.id}:${i.lastUsed}
 /**
  * Makes the source document follow the test instance library (#170, the prototype's useSimulationSession): a change of
  * the current instance of the source's format, by selection, a save over it, a new one, a delete or a revert, loads its
- * document and values, as does a document the instance tools load from a file. At the start an empty source takes the
- * current instance's document. Returns the unsubscribe.
+ * document and values, as do an instance chosen in read mode (#177) and a document the instance tools load from a file.
+ * At the start an empty source takes the current instance's document, the latest. Returns the unsubscribe.
  */
 export function followInstances(session: TestSession, workingCopy: WorkingCopyStore, browserState: BrowserStateStore, mappingId: string): () => void {
   const library = testInstances(workingCopy, browserState, mappingId);
-  const preview = testPreview(workingCopy, browserState, mappingId);
   const current = () => {
     const source = workingCopy.getState().workingCopy.source;
     return source && currentInstance(library.getState().value, formatOf(source));
   };
-  const take = (instance: TestInstance) => {
-    session.getState().setSource(instance.text);
-    preview.setState({ values: instance.values });
-  };
+  const take = (instance: TestInstance) => session.getState().loadInstance(instance);
   let shown = current();
   if (shown && session.getState().source === '') take(shown);
   const unfollowLibrary = library.subscribe(() => {
@@ -169,9 +178,12 @@ export function followInstances(session: TestSession, workingCopy: WorkingCopySt
     if (instanceKey(next) !== instanceKey(shown) && next) take(next);
     shown = next;
   });
+  // a choice is made in the select, among the library's instances
+  const unfollowChoice = instanceChoice(library).subscribe(({ id }) => take(library.getState().value.find((i) => i.id === id)!));
   const unfollowFiles = testInput(workingCopy).subscribe((state) => session.getState().setSource(state.text!));
   return () => {
     unfollowLibrary();
+    unfollowChoice();
     unfollowFiles();
   };
 }
