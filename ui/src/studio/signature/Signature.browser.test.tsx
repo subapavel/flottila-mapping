@@ -239,11 +239,14 @@ describe('the Signature tab (the prototype Signature)', () => {
 });
 
 describe('several source or target messages, a preview feature (#168)', () => {
-  test('a second message is marked preview, kept in the browser and never reaches the model or the service', async () => {
+  test('a second message is marked preview, a draft Save keeps in the browser, and never reaches the model or the service', async () => {
     const fake = fakeApiClient();
     const loadStructure = vi.fn(fake.loadStructure);
+    const saveMapping = vi.fn(fake.saveMapping);
+    const refresh = vi.fn(fake.refresh);
     const browserState = memoryBrowserState();
-    renderStudio({ ...fake, loadStructure }, 'mappings/order-id-copy', { startEditing: true, browserState });
+    renderStudio({ ...fake, loadStructure, saveMapping, refresh }, 'mappings/order-id-copy', { startEditing: true, browserState });
+    const original = (await fake.getMapping('mappings/order-id-copy')).model;
 
     await tool('Source', 'Insert row').click();
 
@@ -261,11 +264,16 @@ describe('several source or target messages, a preview feature (#168)', () => {
     await expect.element(messages('Source').getByLabelText('Source messages chosen')).toHaveTextContent('2');
     await row('Source', 2).getByRole('combobox', { name: 'Occurrence' }).selectOptions('0..unbounded');
     expect(loadStructure).not.toHaveBeenCalled();
-    await expect.element(button('Save')).toBeDisabled();
+    // ADR-0028 (owner, 2026-11-10): a preview edit is a draft of the edit session, kept by Save
+    expect(browserState.values.has(signatureMockKey('mappings/order-id-copy'))).toBe(false);
+    await button('Save').click();
+    await expect.element(page.getByRole('heading', { name: /Mapping order-id-copy saved/ })).toBeVisible();
     expect(browserState.values.get(signatureMockKey('mappings/order-id-copy'))).toMatchObject({
       source: [{ choice: { bundle: ['extra.xsd'], root: { element: 'Q{urn:example:extra}Extra' } }, occurrence: '0..unbounded' }],
       target: [],
     });
+    expect(saveMapping.mock.calls[0]![1]).toEqual(original);
+    expect(JSON.stringify([saveMapping.mock.calls, refresh.mock.calls])).not.toMatch(/extra/i);
 
     unmount();
     renderStudio(fake, 'mappings/order-id-copy', { browserState });
@@ -310,6 +318,7 @@ describe('several source or target messages, a preview feature (#168)', () => {
     await tool('Target', 'Delete row').click();
     await expect.element(table('Target').getByRole('row')).toHaveLength(2);
     await expect.element(tool('Target', 'Delete row')).toBeDisabled();
+    // back to the saved preview messages: no draft is left
     await expect.element(button('Save')).toBeDisabled();
   });
 
@@ -334,10 +343,11 @@ describe('several source or target messages, a preview feature (#168)', () => {
     await row('Target', 2).getByRole('button', { name: 'Select row 2' }).click();
     await tool('Target', 'Paste Object').click();
     await expect.element(row('Target', 2).getByRole('button', { name: 'Choose message 2' })).toHaveTextContent('Order');
-    await expect.element(button('Save')).toBeDisabled();
+    // ADR-0028 (owner, 2026-11-10): a preview edit makes the studio unsaved
+    await expect.element(button('Save')).toBeEnabled();
   });
 
-  test('without a file message Insert row chooses it, and a preview message left after Cancel stays beside the offer', async () => {
+  test('without a file message Insert row chooses it; Discard drops the preview message with the file message', async () => {
     renderStudio(fakeApiClient(blank()), 'mappings/blank', { startEditing: true });
     await tool('Source', 'Insert row').click();
     await chooseElement('source', ORDER_XSD, ORDER);
@@ -347,9 +357,29 @@ describe('several source or target messages, a preview feature (#168)', () => {
     await button('Cancel').click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard changes' }).click();
 
-    await expect.element(table('Source').getByRole('row')).toHaveLength(2);
-    await expect.element(row('Source', 1).getByText('Preview')).toBeVisible();
+    // ADR-0028 (owner, 2026-11-10): Discard reverts the preview draft too; #155 kept the preview message
+    await expect.element(table('Source').getByRole('row')).toHaveLength(1);
     await expect.element(button('Add source message')).toBeDisabled();
+    await expect.element(button('Edit')).toBeEnabled();
+  });
+
+  test('a refused save and a save conflict keep the preview messages as a draft', async () => {
+    const fake = fakeApiClient();
+    const problem = new ApiProblem({ type: 'urn:flottila:mapping:problem:mapping-changed', title: 'Mapping changed', status: 409, detail: 'changed on disk' });
+    const failure = new ApiProblem({ type: 'about:blank', title: 'Service Unavailable', status: 503, detail: 'offline' });
+    const saveMapping = vi.fn().mockRejectedValueOnce(failure).mockRejectedValueOnce(problem);
+    const browserState = memoryBrowserState();
+    renderStudio({ ...fake, saveMapping }, 'mappings/order-id-copy', { startEditing: true, browserState });
+    await tool('Source', 'Insert row').click();
+
+    await button('Save').click();
+    await expect.element(page.getByRole('heading', { name: /Service Unavailable/ })).toBeVisible();
+    await button('Save').click();
+    await page.getByRole('dialog', { name: 'Save conflict' }).getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect.element(table('Source').getByRole('row')).toHaveLength(3);
+    await expect.element(button('Save')).toBeEnabled();
+    expect(browserState.values.has(signatureMockKey('mappings/order-id-copy'))).toBe(false);
   });
 });
 
@@ -375,7 +405,10 @@ describe('mapping parameters, a preview feature (#167)', () => {
     await params().getByRole('combobox', { name: 'Parameter direction' }).selectOptions('Export');
     await params().getByRole('textbox', { name: 'Parameter description' }).fill('the order date');
     await names().nth(0).fill('orderDate');
-    await expect.element(button('Save')).toBeDisabled();
+    // ADR-0028 (owner, 2026-11-10): a draft until Save
+    expect(browserState.values.has(signatureMockKey('mappings/order-id-copy'))).toBe(false);
+    await button('Save').click();
+    await expect.element(page.getByRole('heading', { name: /Mapping order-id-copy saved/ })).toBeVisible();
     expect(browserState.values.get(signatureMockKey('mappings/order-id-copy'))).toMatchObject({
       parameters: [{ name: 'orderDate', type: 'integer', direction: 'Export', description: 'the order date' }],
     });
@@ -424,6 +457,7 @@ describe('mapping parameters, a preview feature (#167)', () => {
     await paramTool('Delete parameter').click();
     await expect.element(names()).toHaveLength(2);
     await expect.element(names().nth(0)).toHaveValue('date');
-    await expect.element(button('Save')).toBeDisabled();
+    // ADR-0028 (owner, 2026-11-10): a preview edit makes the studio unsaved
+    await expect.element(button('Save')).toBeEnabled();
   });
 });

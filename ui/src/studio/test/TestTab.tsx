@@ -9,7 +9,7 @@ import { readPanelPreference, savePanelPreference } from '../definition/panel-pr
 import { SideBySide, useSplitLayout, VerticalSplitLayout } from '../definition/SplitLayout';
 import { Tool } from '../definition/Tool';
 import { PreviewBadge } from '../mock/PreviewBadge';
-import { signatureMockKey, type PreviewParameter } from '../mock/signature-mock';
+import { signatureMock, type PreviewParameter } from '../mock/signature-mock';
 import { createTestPreview, HEADER_DEFAULTS, TRACE_LEVEL_ISSUE, TRACE_LEVELS, type TraceLevel } from '../mock/test-preview';
 import { CopySurface } from '../shell/CopyTextButton';
 import { formatOf } from './documents';
@@ -29,9 +29,7 @@ const viewKey = (pane: 'source' | 'result') => `test.${pane}.view`;
 const isMode = (value: unknown): value is DocumentMode => DOCUMENT_MODES.includes(value as DocumentMode);
 
 /** The preview parameters of the signature (#167) in one direction, as rows of a pane's parameter table. */
-function parameterRows(browserState: BrowserStateStore, mappingId: string, direction: PreviewParameter['direction']): ParameterRow[] {
-  const kept = browserState.read(signatureMockKey(mappingId)) as { parameters?: unknown } | undefined;
-  const parameters = Array.isArray(kept?.parameters) ? (kept.parameters as PreviewParameter[]) : [];
+function parameterRows(parameters: readonly PreviewParameter[], direction: PreviewParameter['direction']): ParameterRow[] {
   return parameters.filter((p) => p.direction === direction && p.name.trim()).map((p) => ({ id: `param:${p.id}`, label: p.name, initial: '' }));
 }
 
@@ -67,6 +65,8 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
   const runLog = useStore(session, (s) => s.runLog);
   const compileLog = useStore(session, (s) => s.compileLog);
   const [preview] = useState(() => createTestPreview(browserState, mappingId));
+  // the signature's parameters as this edit session has them (a draft, ADR-0028)
+  const signatureParameters = useStore(signatureMock(store, browserState, mappingId), (s) => s.value.parameters);
   const trace = useStore(preview, (s) => s.traceLevel);
   const values = useStore(preview, (s) => s.values);
   const [views, setViews] = useState(() => ({
@@ -124,7 +124,7 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
               edit={(value) => session.getState().setSource(value)}
               readOnly={!editing || running}
               parameters={[
-                { title: 'Import Parameters', rows: parameterRows(browserState, mappingId, 'Import') },
+                { title: 'Import Parameters', rows: parameterRows(signatureParameters, 'Import') },
                 { title: 'Header Parameters', rows: HEADER_ROWS },
               ]}
               values={values}
@@ -139,7 +139,7 @@ export function TestTab({ mappingId, store, session, browserState }: TestTabProp
               mode={views.result}
               onMode={(mode) => setView('result', mode)}
               readOnly={false}
-              parameters={[{ title: 'Export Parameters', rows: parameterRows(browserState, mappingId, 'Export') }]}
+              parameters={[{ title: 'Export Parameters', rows: parameterRows(signatureParameters, 'Export') }]}
               values={values}
             />
           </SideBySide>
