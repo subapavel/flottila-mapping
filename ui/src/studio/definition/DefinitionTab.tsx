@@ -14,12 +14,13 @@ import { testPreview } from '../mock/test-preview';
 import { formatOf } from '../test/documents';
 import { testSourceKey } from '../test/test-session';
 import { AddVariable } from './AddVariable';
-import { connectedFields, keptRows, orphans, typeKind, type Side } from './definition-model';
+import { connectedFields, keptRows, orphanedMappings, orphans, typeKind, type Side } from './definition-model';
 import './definition.css';
 import { action, ActionMenu, useActionMenu, type MenuItem } from './expression/ActionMenu';
 import { Canvas } from './expression/Canvas';
 import { ClearMapping, DefinitionBar, ExpressionHeader, TextPreview, useDependencies } from './expression/DefinitionTools';
 import { MessageOverview } from './MessageOverview';
+import { OrphanedMappings } from './OrphanedMappings';
 import { readPanelPreference, savePanelPreference } from './panel-preferences';
 import { SchemaPane, VIEW_MODES } from './SchemaPane';
 import { useSplitLayout, VerticalSplitLayout } from './SplitLayout';
@@ -45,7 +46,8 @@ const VARIABLE_STEP = /\/\$[A-Za-z_][A-Za-z0-9_]*$/;
  * field (#157), the height between them resizable and kept per user, as are each pane's view mode and their widths. A
  * target row selects its target field mapping (the store's selected target); a source row is selected in its pane only.
  * In edit mode a source row dropped on a target row, or double-clicked while a target field is selected, adds a
- * source-field box to that target field mapping (the link command), which the fields' refusals refuse (ADR-0027).
+ * source-field box to that target field mapping (the link command), which the fields' refusals refuse (ADR-0027). The
+ * target pane lists the orphaned target field mappings in a group of their own, to open or, in edit mode, delete (#174).
  */
 export function DefinitionTab({ mappingId, api, store, browserState, onChooseMessages }: DefinitionTabProps) {
   const model = useStore(store, (s) => s.workingCopy);
@@ -69,6 +71,7 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
   const targetQuery = useStructure(mappingId, api, targetRef);
   const connected = useMemo(() => connectedFields(model), [model]);
   const orphaned = useMemo(() => orphans(model, sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined), [model, sourceQuery.data]);
+  const orphanedTargets = useMemo(() => orphanedMappings(model, targetQuery.data?.kind === 'loaded' ? targetQuery.data : undefined), [model, targetQuery.data]);
   const mappings = model.targetFieldMappings ?? {};
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => api.getCatalogue() });
   const [dataFlow, setDataFlow] = useState(true);
@@ -102,6 +105,11 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
     });
     store.getState().selectTarget(target);
   };
+  /** Deletes an orphaned target field mapping; the canvas that showed it has nothing left to show. */
+  const deleteOrphan = (path: FieldPath) => {
+    store.getState().deleteTargetFieldMapping(path);
+    if (store.getState().selectedTarget === path) store.getState().selectTarget(null);
+  };
   const pane = (side: Side) => (
     <SchemaPane
       side={side}
@@ -123,6 +131,12 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
       onAssign={onChooseMessages}
       onFieldMenu={(event, path) => fieldMenu(event, side, path)}
       variables={side === 'target' ? variables : undefined}
+      footer={
+        side === 'target' &&
+        orphanedTargets.length > 0 && (
+          <OrphanedMappings paths={orphanedTargets} selected={selectedTarget} editing={editing} onOpen={(path) => store.getState().selectTarget(path)} onDelete={deleteOrphan} />
+        )
+      }
     />
   );
 

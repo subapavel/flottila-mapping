@@ -2,8 +2,10 @@ import { CogIcon, ExclamationTriangleIcon } from '@patternfly/react-icons';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
+import type { FieldPath } from '../../../generated/mapping-model';
 import { localPath, stepName } from '../../../model/field-path';
 import { properAncestors } from '../../../model/set-context';
+import { SOURCE_FIELD_DRAG } from '../../store/drag';
 import { PreviewBadge } from '../../mock/PreviewBadge';
 import { FieldTypeIcon } from '../FieldTypeIcon';
 import { NODE_WIDTH, nodeHeight, type ExpressionNode, type NodeState, type Port } from './expression-graph';
@@ -25,10 +27,12 @@ export type MappingNodeData = {
   settings?: string;
   /** A source-field box that reads a field the source structure lacks (GLOSSARY: Orphaned reference). */
   orphaned?: boolean;
+  /** Points an orphaned box at a source field dropped on it (GLOSSARY: Remap); absent for any other box and in view mode. */
+  remap?: (field: FieldPath) => void;
 };
 
 /** What an orphaned box's mark says. */
-const ORPHANED_HINT = 'Orphaned reference: the source structure has no such field. Choose Remap in the node menu.';
+const ORPHANED_HINT = 'Orphaned reference: the source structure has no such field. Drop a source field here, or choose Remap in the node menu.';
 
 export type MappingFlowNode = Node<MappingNodeData, 'mapping'>;
 
@@ -59,10 +63,11 @@ function PortHandle({ node, state, port, index, count, input }: { node: Expressi
 
 /**
  * A box or the target on the canvas (the prototype's MappingNode): its symbol with the state mark, its name, a changed
- * context or the missing inputs below it, a gear for a function with parameters, and its ports.
+ * context or the missing inputs below it, a gear for a function with parameters, and its ports. A source row dropped on
+ * a box that takes a remap remaps it; any other drop, such as a catalogue function's, goes on to the canvas.
  */
 export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) {
-  const { node, state, fieldType, editParameters, settings, orphaned } = data;
+  const { node, state, fieldType, editParameters, settings, orphaned, remap } = data;
   const refresh = useUpdateNodeInternals();
   const ports = JSON.stringify(node.inputs.map((p) => p.id));
   const previousPorts = useRef(ports);
@@ -90,6 +95,13 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
       data-state={state.kind}
       data-mapping-hint={details}
       style={{ '--node-height': `${nodeHeight(node)}px`, height: 'var(--node-height)', width: NODE_WIDTH } as CSSProperties}
+      onDrop={
+        remap &&
+        ((e) => {
+          const field = e.dataTransfer.getData(SOURCE_FIELD_DRAG);
+          if (field !== '') remap(field);
+        })
+      }
     >
       {node.inputs.map((port, i) => (
         <PortHandle key={port.id} node={node} state={state} port={port} index={i} count={node.inputs.length} input />

@@ -13,6 +13,7 @@ import { CubesIcon, TimesIcon } from '@patternfly/react-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { describeError, type ApiClient } from '../../api/client';
+import { describeRefusal, type Refusal } from '../../model/command';
 import type { BrowserStateStore } from '../browser-state/browser-state';
 import { SaveConflict } from './SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../store/working-copy';
@@ -79,7 +80,8 @@ export interface StudioShellProps {
  * both ways. The structures are refreshed once on open (ADR-0027); Save sends `If-Match` and meets a save conflict in
  * its dialog; Cancel with unsaved changes asks before it discards them; the page asks before it unloads while the
  * working copy differs from the baseline, and `onUnsavedChange` hears of it, for leaving within the page. Check and F7
- * check the working copy; Ctrl+S and Cmd+S save it.
+ * check the working copy; Ctrl+S and Cmd+S save it. A command the store refuses, such as a drop, a link or a remap, shows
+ * why in an inline warning the author can dismiss (#174).
  */
 export function StudioShell({ mappingId, api, store, browserState, listHref, onUnsavedChange }: StudioShellProps) {
   const name = mappingId.slice(mappingId.lastIndexOf('/') + 1);
@@ -216,6 +218,10 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
     requestAnimationFrame(() => editButtonRef.current?.focus());
   };
 
+  // A refused command says why until it is dismissed or a command applies; each refusal is a new object, so the next one shows.
+  const refusal = useStore(store, (s) => s.refusal);
+  const [dismissed, setDismissed] = useState<Refusal | null>(null);
+
   const needsMessages = (tab === 'definition' || tab === 'test') && !hasMessages;
 
   return (
@@ -257,6 +263,15 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
               ))}
             </ul>
           </Alert>
+        )}
+        {refusal !== null && refusal !== dismissed && (
+          <Alert
+            variant="warning"
+            isInline
+            title={describeRefusal(refusal)}
+            className="feedback-alert"
+            actionClose={<AlertActionCloseButton aria-label="Dismiss refusal" onClose={() => setDismissed(refusal)} />}
+          />
         )}
         <TabContent className="studio-tab-panel" id={TAB_PANEL_ID} ref={panelRef} aria-labelledby={tabLabelId(tab)}>
           {needsMessages ? (

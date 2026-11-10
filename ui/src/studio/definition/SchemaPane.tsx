@@ -2,7 +2,18 @@ import { Switch } from '@patternfly/react-core';
 import { Table, Tbody, Th, Thead, Tr } from '@patternfly/react-table';
 import { AngleDownIcon, AngleRightIcon, CheckIcon, CubeIcon, ExclamationTriangleIcon, SearchIcon } from '@patternfly/react-icons';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 import type { ApiClient, FieldDto, StructureLoaded } from '../../api/client';
 import { expandAllPaths, nameMatches, occurrenceText, treeRows, type TreeRow } from './rows';
 import { useStructure } from './structure-query';
@@ -68,6 +79,8 @@ export interface SchemaPaneProps {
   onFieldMenu: (event: ReactMouseEvent | KeyboardEvent, path: FieldPath) => void;
   /** The target tree's mapping variables (#163, a preview): each shows first under its open parent. */
   variables?: readonly FieldPath[];
+  /** Shown below the loaded structure's rows in every view: the target pane's orphaned target field mappings (#174). */
+  footer?: ReactNode;
 }
 
 const NO_VARIABLES: readonly FieldPath[] = [];
@@ -158,6 +171,7 @@ function LoadedPane({
   onDirect,
   onFieldMenu,
   variables = NO_VARIABLES,
+  footer,
 }: SchemaPaneProps & { structure: StructureLoaded; format: string; fileName: string }) {
   const source = side === 'source';
   const title = source ? 'Source' : 'Target';
@@ -348,6 +362,7 @@ function LoadedPane({
           <code>/{selected === null ? '' : localPath(selected)}</code>
         </div>
       )}
+      {footer}
     </>
   );
 }
@@ -461,7 +476,7 @@ function FieldRows({ side, rows, table, toggleable, onToggle, format, connected,
                       <span
                         className="orphaned-mark"
                         role="img"
-                        title="Orphaned reference: this mapping reads a source field the source structure no longer has. Remap it from the node menu."
+                        title="Orphaned reference: this mapping reads a source field the source structure no longer has. Drop a source field on its box, or remap it from the node menu."
                         aria-label="Orphaned reference"
                       >
                         <ExclamationTriangleIcon />

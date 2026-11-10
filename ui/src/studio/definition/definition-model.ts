@@ -146,6 +146,16 @@ export function orphans(model: MappingModel, source: StructureLoaded | undefined
   return { boxes, targets };
 }
 
+/**
+ * The orphaned target field mappings (GLOSSARY): the field paths of the working copy's target field mappings that the
+ * loaded target structure lacks, in the model's order. They have no row in the target tree. None while `target` is not
+ * loaded.
+ */
+export function orphanedMappings(model: MappingModel, target: StructureLoaded | undefined): FieldPath[] {
+  if (target === undefined) return [];
+  return Object.keys(model.targetFieldMappings ?? {}).filter((path) => fieldAt(target, path) === undefined);
+}
+
 /** The fields each pane marks as connected: the source fields any target field mapping reads, and the mapped target fields. */
 export function connectedFields(model: MappingModel): Record<Side, ReadonlySet<FieldPath>> {
   const mappings = Object.entries(model.targetFieldMappings ?? {});
