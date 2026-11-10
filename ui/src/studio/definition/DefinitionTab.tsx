@@ -225,21 +225,26 @@ export function DefinitionTab({ mappingId, api, store, browserState, onChooseMes
                 setDataFlow(true);
               }}
             />
-          ) : selectedTarget === null || !catalogue.data ? (
-            <section className="panel canvas-panel" aria-label="Field mapping canvas">
-              <p className="graph-empty">{selectedTarget === null ? 'Select a target field to see its mapping expression.' : 'Loading the function catalogue…'}</p>
-            </section>
           ) : (
-            <Canvas
-              key={selectedTarget}
-              mappingId={mappingId}
-              store={store}
-              targetField={selectedTarget}
-              catalogue={catalogue.data}
-              browserState={browserState}
-              fieldTypes={fieldTypes}
-              findField={(side, path) => (side === 'source' ? setSelectedSource(path) : store.getState().selectTarget(path))}
-            />
+            // the prototype's workbench: the canvas fills the mapping area and shrinks with it (definition.css)
+            <div className="workbench">
+              {selectedTarget === null || !catalogue.data ? (
+                <section className="panel canvas-panel" aria-label="Field mapping canvas">
+                  <p className="graph-empty">{selectedTarget === null ? 'Select a target field to see its mapping expression.' : 'Loading the function catalogue…'}</p>
+                </section>
+              ) : (
+                <Canvas
+                  key={selectedTarget}
+                  mappingId={mappingId}
+                  store={store}
+                  targetField={selectedTarget}
+                  catalogue={catalogue.data}
+                  browserState={browserState}
+                  fieldTypes={fieldTypes}
+                  findField={(side, path) => (side === 'source' ? setSelectedSource(path) : store.getState().selectTarget(path))}
+                />
+              )}
+            </div>
           )}
         </VerticalSplitLayout>
       </section>
