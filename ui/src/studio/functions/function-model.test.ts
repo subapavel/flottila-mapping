@@ -101,7 +101,7 @@ describe('readFunctions: what the browser kept', () => {
     expect(readFunctions(kept)).toEqual(kept);
   });
 
-  test.each([
+  test.each<[string, unknown]>([
     ['nothing', undefined],
     ['an array', []],
     ['imports not strings', { ...kept, imports: [1] }],
@@ -114,6 +114,13 @@ describe('readFunctions: what the browser kept', () => {
     ['a variable of an unknown kind', { ...kept, functions: [{ ...kept.functions[0], variables: [{ ...argument('a'), kind: 'Result' }] }] }],
     ['a variable description not a string', { ...kept, functions: [{ ...kept.functions[0], variables: [{ ...argument('a'), description: 1 }] }] }],
     ['a variable not an object', { ...kept, functions: [{ ...kept.functions[0], variables: ['a'] }] }],
+    ...(['id', 'name', 'javaType', 'title'] as const).map((key): [string, unknown] => [`a variable without ${key}`, { ...kept, functions: [{ ...kept.functions[0], variables: [{ ...argument('a'), [key]: 1 }] }] }]),
+    ...(['id', 'name', 'title', 'category', 'description'] as const).map((key): [string, unknown] => [`a function without ${key}`, { ...kept, functions: [{ ...kept.functions[0], [key]: null }] }]),
+    ['functions without variables', { ...kept, functions: [{ ...kept.functions[0], variables: undefined }] }],
+    ['an area of a variable not one', { ...kept, javaAreas: { init: { ...kept.javaAreas.init, variables: [{}] } } }],
+    ['an area description not a string', { ...kept, javaAreas: { init: { ...kept.javaAreas.init, description: 0 } } }],
+    ['an archive name not a string', { ...kept, archives: [{ name: 1, namespace: 'x' }] }],
+    ['functions not a list', { ...kept, functions: {} }],
   ])('reads %s as no functions', (_, value) => {
     expect(readFunctions(value)).toEqual(emptyFunctions());
   });

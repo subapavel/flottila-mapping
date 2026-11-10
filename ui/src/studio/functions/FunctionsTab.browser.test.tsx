@@ -155,6 +155,9 @@ describe('the Functions tab, a preview kept in the browser (ADR-0028, ADR-0030, 
     await expect.element(page.getByText('order_id_copy', { exact: true })).toBeVisible();
     await expect.element(page.getByText('mappings', { exact: true })).toBeVisible();
     await expect.element(page.getByText('Class attributes and shared methods are available to all functions in this mapping.')).toBeVisible();
+    await expect.element(page.getByText('}', { exact: true })).not.toBeInTheDocument();
+    await button('init').click();
+    await expect.element(page.getByText('}', { exact: true })).toBeVisible();
     await page.getByText('Preview', { exact: true }).hover();
     await expect.element(page.getByRole('tooltip')).toHaveTextContent('User-defined functions are kept in this browser only and are never saved in the mapping. Follow-up: #169.');
   });
@@ -219,6 +222,9 @@ describe('editing functions (the prototype FunctionsTab)', () => {
     await userEvent.keyboard('{Escape}');
     await expect.element(name).toHaveValue('calculate2');
     await expect.element(page.getByRole('alert')).not.toBeInTheDocument();
+    // leaving the field without a draft commits nothing
+    await page.getByRole('textbox', { name: 'Title' }).click();
+    await expect.element(name).toHaveValue('calculate2');
 
     await name.fill(' total ');
     await userEvent.keyboard('{Enter}');
@@ -279,6 +285,12 @@ describe('editing functions (the prototype FunctionsTab)', () => {
     await actions.getByRole('button', { name: 'Delete row' }).click();
     await expect.poll(declaration).toBe('public static String calculate1(String var1, MappingRun run) {');
     await expect.element(actions.getByRole('button', { name: 'Delete row' })).toBeDisabled();
+
+    // with no row selected Insert appends; with one selected, it inserts after it
+    await actions.getByRole('button', { name: 'Insert row' }).click();
+    await page.getByRole('textbox', { name: 'Variable title' }).nth(0).click();
+    await actions.getByRole('button', { name: 'Insert row' }).click();
+    await expect.poll(declaration).toBe('public static String calculate1(String var1, String var3, String var2, MappingRun run) {');
   });
 
   test('init has a description and box parameters, cleanUp neither; both say when they run', async () => {
@@ -341,6 +353,13 @@ describe('Export and Import Source Text', () => {
     openFunctions({ browserState, startEditing: true });
     const input = page.getByLabelText('Java source file');
     const dialog = page.getByRole('dialog', { name: 'Processing Log' });
+    const choose = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    try {
+      await button('Import Source Text').click();
+      expect(choose.mock.contexts).toEqual([input.element()]);
+    } finally {
+      choose.mockRestore();
+    }
 
     await input.upload(new File([exported], 'order_id_copy.java', { type: 'text/plain' }));
 
@@ -380,6 +399,12 @@ describe('import instructions and archives (the prototype Dependencies)', () => 
     expect(imports()).toEqual(['java.util.function.*', 'java.util.stream.*']);
     await actions.getByRole('button', { name: 'Delete row' }).click();
     expect(imports()).toEqual(['java.util.function.*']);
+    await page.getByRole('textbox', { name: 'Import instruction 7' }).click();
+    await actions.getByRole('button', { name: 'Insert row' }).click();
+    await page.getByRole('textbox', { name: 'Import instruction 8' }).fill('java.util.stream.*');
+    await page.getByRole('textbox', { name: 'Import instruction 7' }).click();
+    await actions.getByRole('button', { name: 'Insert row' }).click();
+    expect(imports()).toEqual(['java.util.function.*', '', 'java.util.stream.*']);
   });
 
   test('an archive and its namespace are chosen in the catalogue, and cut, copied and pasted', async () => {
@@ -419,8 +444,10 @@ describe('import instructions and archives (the prototype Dependencies)', () => 
     await page.getByRole('dialog', { name: 'Choose Imported Archive' }).getByRole('button', { name: 'Cancel' }).click();
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
 
+    await expect.element(actions.getByRole('button', { name: 'Move up' })).toBeEnabled();
     await page.getByRole('button', { name: 'Choose archive name 1' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+    await expect.element(actions.getByRole('button', { name: 'Paste Object' })).toBeDisabled();
     await actions.getByRole('button', { name: 'Cut Object' }).click();
     expect(archives()[0]).toEqual({ name: '', namespace: '' });
     await actions.getByRole('button', { name: 'Paste Object' }).click();
