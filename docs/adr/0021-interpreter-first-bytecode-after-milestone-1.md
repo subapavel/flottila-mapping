@@ -1,6 +1,6 @@
 # Milestone 1 runs a closure-compiled interpreter; the bytecode tier follows as the first engine spec after it; JMH targets and a noise-tolerant bench ratchet
 
-Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier); refined by ADR-0025 (the binding is in runtime, the algebra in xdm)
+Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier); refined by ADR-0025 (the binding is in runtime, the algebra in xdm); amended 2026-11-10 (tree target p95 < 33.3 ms, F-26; orders row and heap forks, see "Notes of 2026-11-10")
 
 FOUNDING §5 plans an interpreter (tier 0) and a Class-File API bytecode tier (tier 1), and §6
 left open whether milestone 1 ships bytecode. §7 asks for JMH proof early: latency on small
@@ -115,10 +115,20 @@ The UDF compile (javac) is not a JMH scenario. It is JDK code, and its rough num
   tolerance, so the baseline cannot slide down 20 % per spec. Lowering a baseline takes a
   finding (WORKFLOW §7).
 - The 20,128-field tree scenario (ADR-0013) is measured by Playwright on the VM as the p95
-  frame time while scrolling, in `ms`. The target is ≤ 16.7 ms (60 fps, ADR-0012), with a 20 %
-  tolerance.
+  frame time while scrolling, in `ms`. The target is p95 < 33.3 ms (no dropped frame at p95; amended
+  2026-11-10, F-26), with a 20 % tolerance.
 - Benchmarks run only in spec-gate step 5, never in a ticket gate or on CI. The full run takes
   about 5–6 minutes.
+
+## Notes of 2026-11-10 (spec 6 grilling, #181, owner)
+
+- **Tree target.** The scroll target reads p95 < 33.3 ms, no dropped frame at p95, instead of the one-vsync
+  target (F-26, #128). The 20 % tolerance stays.
+- **`orders` row.** "One single-value UDF" cannot be built: ADR-0030 removes UDFs from milestone 1
+  (F-35). The mapping uses `FormatNum` on the amounts and `DateTrans` on a date, through `Lift`,
+  in its place.
+- **Heap.** Large throughput is measured in forks with a 1 GB heap. `<mapping>/large/heap` is a
+  separate fork with `-Xmx128m`; it may need a second JMH invocation in spec-gate step 5.
 
 ## Considered options
 
