@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { collectProblems } from './problems';
 import { stackWorkspace } from './stack-workspace';
-import { dropFunction, fieldRow, link, node, nodeId, nodeMenu, openStudio, result, runTest, saveOverService, selectTarget, setParameters } from './studio';
+import { canvas, dropFunction, fieldRow, link, node, nodeId, nodeMenu, openStudio, result, runTest, saveOverService, selectTarget, setParameters } from './studio';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -83,7 +83,7 @@ test('@stack GATE 2: a field link by drag and drop, a function and a constant ar
   expect(problems).toEqual(['Failed to load resource: the server responded with a status of 409 (Conflict)']);
 });
 
-test('@stack a schema changed on disk: opening the mapping refreshes it and counts the orphaned reference; a new link fixes it', async ({ page }) => {
+test('@stack a schema changed on disk: opening the mapping refreshes it, marks the orphaned reference, and a remap fixes it', async ({ page }) => {
   const problems = collectProblems(page);
   // e2e-refresh is order-id-copy (box a1 reads OrderId) over a source schema of its own; OrderId becomes OrderNumber
   const schema = join(stackWorkspace, 'structures', 'e2e-refresh', 'order.xsd');
@@ -92,14 +92,23 @@ test('@stack a schema changed on disk: opening the mapping refreshes it and coun
 
   await expect(page.getByRole('status').filter({ hasText: 'The structures changed. Orphaned references: 1' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  // the target field whose mapping reads the lost field is marked, and so is box a1, which reads it
+  await expect((await fieldRow(page, 'target', ORDER_ID)).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
   await selectTarget(page, ORDER_ID);
-  // box a1 still reads OrderId, which the source no longer has
+  await expect(node(page, /^Source field OrderId/).getByRole('img', { name: 'Orphaned reference' })).toBeVisible();
   expect(await nodeId(page, /^Source field OrderId/)).toBe('a1');
 
-  // the studio has no remap control: the orphaned box goes, and the renamed field is linked anew
-  await nodeMenu(page, /^Source field OrderId/, 'Delete');
-  await (await fieldRow(page, 'source', `${ORDER}/OrderNumber`)).locator('button.field-name').dblclick();
+  // Remap in the node menu points the box at OrderNumber: it keeps its id and its wire into the target
+  await nodeMenu(page, /^Source field OrderId/, 'Remap');
+  const dialog = page.getByRole('dialog', { name: 'Remap · OrderId' });
+  await dialog.getByLabel('Source field', { exact: true }).selectOption(`${ORDER}/OrderNumber`);
+  await dialog.getByRole('button', { name: 'Remap', exact: true }).click();
+  await expect(dialog).toBeHidden();
   await expect(node(page, /^Source field OrderNumber\. Complete/)).toBeVisible();
+  expect(await nodeId(page, /^Source field OrderNumber/)).toBe('a1');
+  await expect(page.getByText('2 nodes · 1 connections')).toBeVisible();
+  await expect(canvas(page).getByRole('img', { name: 'Orphaned reference' })).toHaveCount(0);
+  await expect((await fieldRow(page, 'target', ORDER_ID)).getByRole('img', { name: 'Connected' })).toBeVisible();
 
   const input = readFileSync(corpus('cases/link/direct-copy/001/input.xml'), 'utf8').replaceAll('OrderId>', 'OrderNumber>');
   await runTest(page, input);
