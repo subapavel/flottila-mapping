@@ -225,7 +225,7 @@ describe('the Functions tab, a preview kept in the browser (ADR-0028, ADR-0030, 
     await button('init').click();
     await expect.element(page.getByText('}', { exact: true })).toBeVisible();
     await page.getByText('Preview', { exact: true }).hover();
-    await expect.element(page.getByRole('tooltip')).toHaveTextContent('User-defined functions are kept in this browser only and are never saved in the mapping. Follow-up: #169.');
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('User-defined functions: a preview kept in this browser only, never in the mapping file (#169).');
   });
 
   test('a mapping in the top folder is in the default package', async () => {

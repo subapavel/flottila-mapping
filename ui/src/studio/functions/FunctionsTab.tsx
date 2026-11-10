@@ -120,7 +120,7 @@ export function FunctionsTab({ mappingId, store, functions, api }: FunctionsTabP
           <span>Package Name</span>
           <code>{meta.packageName || '(default package)'}</code>
         </div>
-        <PreviewBadge issue={169} about="User-defined functions are kept in this browser only and are never saved in the mapping." />
+        <PreviewBadge feature="User-defined functions" issue={169} />
         <div className="udf-file-actions" role="toolbar" aria-label="Java source actions">
           <Tool label="Export Source Text" icon={DownloadIcon} onClick={download} />
           <Tool label="Import Source Text" icon={UploadIcon} disabled={!ready} onClick={() => file.current!.click()} />

@@ -18,6 +18,8 @@ import { SaveConflict } from '../../editor/SaveConflict';
 import { selectUnsaved, STUDIO_TABS, type StudioTab, type WorkingCopyState, type WorkingCopyStore } from '../../editor/store/working-copy';
 import { FunctionsTab } from '../functions/FunctionsTab';
 import { useFunctionsPreview } from '../mock/functions-store';
+import { MappingOverview } from '../overview/MappingOverview';
+import { Signature } from '../signature/Signature';
 import { CopyTextButton } from './CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';
 import { EditorHeader, TAB_PANEL_ID, tabLabelId } from './EditorHeader';
@@ -253,10 +255,14 @@ export function StudioShell({ mappingId, api, store, browserState, listHref, onU
         )}
         <TabContent className="studio-tab-panel" id={TAB_PANEL_ID} ref={panelRef} aria-labelledby={tabLabelId(tab)}>
           {/* PatternFly renders no panel without children: a tab not built yet has an empty body (#154) */}
-          {tab === 'functions' ? (
-            <FunctionsTab mappingId={mappingId} store={store} functions={functions} api={api} />
-          ) : needsMessages ? (
+          {needsMessages ? (
             <ChooseMessages />
+          ) : tab === 'overview' ? (
+            <MappingOverview mappingId={mappingId} store={store} />
+          ) : tab === 'signature' ? (
+            <Signature mappingId={mappingId} api={api} store={store} browserState={browserState} />
+          ) : tab === 'functions' ? (
+            <FunctionsTab mappingId={mappingId} store={store} functions={functions} api={api} />
           ) : (
             <></>
           )}
