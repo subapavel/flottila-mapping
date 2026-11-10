@@ -210,7 +210,7 @@ describe('the tabs on the URL hash', () => {
     const tabList = page.getByRole('tablist', { name: 'Editor views' });
     await expect.element(tabList).toBeVisible();
 
-    tabList.element().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    tabList.element().dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
 
     await expect.element(tab('Overview')).toHaveAttribute('aria-selected', 'true');
   });

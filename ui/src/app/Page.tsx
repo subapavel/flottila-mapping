@@ -6,7 +6,7 @@ import { MappingList } from '../studio/list/MappingList';
 import { Studio } from '../studio/shell/Studio';
 import { listHref, mappingOf, studioHref } from './routes';
 
-export interface AppProps {
+export interface PageProps {
   api: ApiClient;
   browserState: BrowserStateStore;
 }
@@ -22,7 +22,7 @@ interface Route {
  * plain links, so leaving a studio with unsaved changes meets its `beforeunload` question. Create opens the new mapping
  * in the same page, in edit mode on Signature, with a history entry; Back returns to the start page.
  */
-export function App({ api, browserState }: AppProps) {
+export function Page({ api, browserState }: PageProps) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
   const [route, setRoute] = useState<Route>(() => ({ mapping: mappingOf(window.location.search), editing: false }));
   useEffect(() => {

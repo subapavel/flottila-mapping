@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { fakeApiClient } from '../api/fake/fake-api';
 import type { BrowserStateStore } from '../editor';
-import { App } from './App';
+import { Page } from './Page';
 
 function memoryBrowserState(): BrowserStateStore {
   const values = new Map<string, unknown>();
@@ -19,7 +19,7 @@ function render() {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  root.render(<App api={fakeApiClient()} browserState={memoryBrowserState()} />);
+  root.render(<Page api={fakeApiClient()} browserState={memoryBrowserState()} />);
 }
 
 const table = () => page.getByRole('table', { name: 'Mappings' });

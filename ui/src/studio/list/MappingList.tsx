@@ -116,12 +116,13 @@ export function MappingList({ api, studioHref, listHref, onCreated }: MappingLis
           <h1>Mappings</h1>
         </header>
         <div className="panel">
-          <Toolbar>
+          {/* the inset lines the search up with the table's first column */}
+          <Toolbar className="list-toolbar" inset={{ default: 'insetLg' }}>
             <ToolbarContent>
               <ToolbarItem>
                 <SearchInput
                   aria-label="Find mappings"
-                  placeholder="Find by name, package, message or description"
+                  placeholder="Find mappings"
                   value={search}
                   onChange={(_, value) => setSearch(value)}
                   onClear={() => setSearch('')}
