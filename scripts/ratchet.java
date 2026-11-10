@@ -1,7 +1,11 @@
 // The ratchet (ADR-0019, format in ratchet/README.md). Single-file program, no dependencies:
 //
 //   java scripts/ratchet.java check        ticket-gate step 5: fail on a drop; unbuilt reports print NOT_RUN
-//   java scripts/ratchet.java regen --all  spec-gate step 4: require every report, refuse a drop, write ratchet/
+//   java scripts/ratchet.java regen --all [<bench result>...]
+//                                          spec-gate step 4: require every report, refuse a drop, write ratchet/;
+//                                          with bench results also judge them and write bench.tsv
+//   java scripts/ratchet.java bench <jmh.json> [<jmh-2.json>] [<tree.json>]
+//                                          spec-gate step 5: judge the bench results, write nothing
 //
 // Run from the repository root (or the root of a scratch copy; the working directory is the root).
 //
@@ -16,17 +20,28 @@
 //   <module>/target/pit-reports/mutations.xml          surviving mutants (generated - killed, NON_VIABLE excluded)
 //   ui/coverage/coverage-summary.json                  summed per directory (ui/src/model, ui/src/studio/store)
 //
-// bench.tsv belongs to the speed spec (ADR-0021); neither command touches it yet.
+//
+// Bench results (ADR-0021 "The bench ratchet", #184), in the order given; a later file's scenario replaces an
+// earlier one's, so the re-run of the regressed scenarios comes after the first run:
+//   a JMH JSON file (-rf json, a top-level array). The score is the median of the per-fork means of rawData
+//       (one array per fork). Names: see SCENARIOS. The large throughput benchmark carries the @Param
+//       inputBytes, the exact byte length of its input; MB/s = inputBytes / 2^20 / (seconds per op).
+//   the tree-scenario result, a JSON object {"scenario": "ui/tree-20128/scroll", "score": <p95>, "unit": "ms"}.
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Element;
@@ -56,25 +71,39 @@ public final class Ratchet {
   private static int failures = 0;
 
   public static void main(String[] args) throws Exception {
+    String verdict;
     if (args.length == 1 && args[0].equals("check")) {
-      run(false);
-    } else if (args.length == 2 && args[0].equals("regen") && args[1].equals("--all")) {
-      run(true);
+      run(false, List.of());
+      verdict = "RATCHET CHECK OK";
+    } else if (args.length >= 2 && args[0].equals("regen") && args[1].equals("--all")) {
+      run(true, paths(args, 2));
+      verdict = "RATCHET REGEN OK";
+    } else if (args.length >= 2 && args[0].equals("bench")) {
+      judgeBench(paths(args, 1));
+      verdict = "RATCHET BENCH OK";
     } else {
-      System.err.println("usage: java scripts/ratchet.java check | regen --all");
+      System.err.println(
+          "usage: java scripts/ratchet.java check | regen --all [<bench result>...] | bench <bench result>...");
       System.exit(2);
+      return;
     }
     if (failures > 0) {
       System.out.println("RATCHET FAIL: " + failures + " problem(s)");
       System.exit(1);
     }
-    System.out.println(regenMode ? "RATCHET REGEN OK" : "RATCHET CHECK OK");
+    System.out.println(verdict);
   }
 
-  private static boolean regenMode;
+  private static List<Path> paths(String[] args, int from) {
+    List<Path> paths = new ArrayList<>();
+    for (int i = from; i < args.length; i++) {
+      paths.add(ROOT.resolve(args[i]));
+    }
+    return paths;
+  }
 
-  private static void run(boolean regen) throws Exception {
-    regenMode = regen;
+  /** benchResults empty: bench.tsv is neither judged nor written (off the VM, or check). */
+  private static void run(boolean regen, List<Path> benchResults) throws Exception {
     // current = what this build measured; null = report absent
     Map<String, List<String>> oracle = readOracle();
     Map<String, int[]> coverage = measureCoverage();
@@ -161,6 +190,10 @@ public final class Ratchet {
       }
     }
     newFiles.put("mutation.tsv", new ArrayList<>(mutationRows.values()));
+
+    if (!benchResults.isEmpty()) {
+      newFiles.put("bench.tsv", judgeBench(benchResults));
+    }
 
     if (regen) {
       requireReportsForRegen(oracle, coverage);
@@ -449,6 +482,241 @@ public final class Ratchet {
         }
       }
     }
+  }
+
+  // ---- bench (ADR-0021 "The bench ratchet", GATE check 7) ----
+
+  /** The machine of the targets and of every bench.tsv row; scripts/gate-spec.sh judges only there. */
+  private static final String MACHINE = "claude-cloud-4vcpu";
+
+  private record Unit(boolean lowerIsBetter, double tolerance) {}
+
+  /** Direction and tolerance per unit; a result in any other unit fails. */
+  private static final Map<String, Unit> UNITS =
+      Map.of(
+          "us/op", new Unit(true, 0.20),
+          "ms/op", new Unit(true, 0.20),
+          "ms", new Unit(true, 0.20),
+          "B/op", new Unit(true, 0.10),
+          "MB/s", new Unit(false, 0.20));
+
+  /** Seconds per unit of a time per operation, for the large throughput. */
+  private static final Map<String, Double> SECONDS_PER_OP = Map.of("us/op", 1e-6, "ms/op", 1e-3);
+
+  private static final double MB = 1 << 20;
+
+  private enum Kind {
+    SCORE,
+    THROUGHPUT,
+    COMPLETES
+  }
+
+  /** Scenario names with %s for the mapping; alloc null: the benchmark has no alloc scenario. */
+  private record Naming(String primary, String alloc, Kind kind) {}
+
+  // The naming rule, the only one: the JMH benchmark io.flottila.mapping.bench.<Mapping>Bench.<method> gives the
+  // scenarios of SCENARIOS[<method>], where <mapping> is <Mapping> with a lower-case first letter
+  // (OrdersBench.smallLatency: orders/small/latency). The primary metric gives the primary scenario, the
+  // gc.alloc.rate.norm secondary metric (-prof gc) the alloc scenario. The heap fork (-Xmx128m) only has to
+  // complete, so it has no row. Any other benchmark name fails.
+  private static final Pattern BENCHMARK = Pattern.compile("io\\.flottila\\.mapping\\.bench\\.(\\w+)Bench\\.(\\w+)");
+  private static final Map<String, Naming> SCENARIOS =
+      Map.of(
+          "smallLatency", new Naming("%s/small/latency", "%s/small/alloc", Kind.SCORE),
+          "largeThroughput", new Naming("%s/large/throughput", "%s/large/alloc", Kind.THROUGHPUT),
+          "largeHeap", new Naming("%s/large/heap", null, Kind.COMPLETES),
+          "compile", new Naming("compile/%s", null, Kind.SCORE));
+
+  private enum Op {
+    AT_MOST("<="),
+    AT_LEAST(">="),
+    BELOW("<");
+
+    final String text;
+
+    Op(String text) {
+      this.text = text;
+    }
+  }
+
+  private record Target(Pattern scenario, Op op, double value, String unit) {
+    boolean met(double score) {
+      return switch (op) {
+        case AT_MOST -> score <= value;
+        case AT_LEAST -> score >= value;
+        case BELOW -> score < value;
+      };
+    }
+  }
+
+  /** GATE check 7 on claude-cloud-4vcpu. */
+  private static final List<Target> TARGETS =
+      List.of(
+          new Target(Pattern.compile("\\w+/small/latency"), Op.AT_MOST, 500, "us/op"),
+          new Target(Pattern.compile("\\w+/large/throughput"), Op.AT_LEAST, 20, "MB/s"),
+          new Target(Pattern.compile("compile/orders"), Op.AT_MOST, 5, "ms/op"),
+          new Target(Pattern.compile("ui/tree-20128/scroll"), Op.BELOW, 33.3, "ms"));
+
+  /** benchmark: the JMH benchmark that measured it, null for the tree result. */
+  private record Result(double score, String unit, String benchmark) {}
+
+  /**
+   * Judges the bench results against bench.tsv and the targets, prints the regressed JMH benchmarks as one
+   * include regex (RERUN), and returns the new bench.tsv: a row moves only on a gain beyond its tolerance.
+   */
+  private static List<String> judgeBench(List<Path> files) throws IOException {
+    Map<String, Result> results = readBenchResults(files);
+    results
+        .entrySet()
+        .removeIf(
+            e -> {
+              boolean unknown = !UNITS.containsKey(e.getValue().unit());
+              if (unknown) {
+                fail("bench " + e.getKey() + ": unknown unit " + e.getValue().unit());
+              }
+              return unknown;
+            });
+    TreeMap<String, String> rows = new TreeMap<>();
+    TreeSet<String> rerun = new TreeSet<>();
+    for (String row : readLines(RATCHET.resolve("bench.tsv"))) {
+      String[] c = row.split("\t");
+      String scenario = c[0];
+      rows.put(scenario, row);
+      Result now = results.get(scenario);
+      if (!c[1].equals(MACHINE)) {
+        fail("bench " + scenario + ": machine label " + c[1] + ", this judgement is for " + MACHINE);
+      } else if (now == null) {
+        fail("bench " + scenario + ": no result");
+      } else if (!now.unit().equals(c[3])) {
+        fail("bench " + scenario + ": unit " + now.unit() + ", the baseline is in " + c[3]);
+      } else {
+        Unit unit = UNITS.get(c[3]);
+        double base = Double.parseDouble(c[2]);
+        double worse = unit.lowerIsBetter() ? now.score() - base : base - now.score();
+        double margin = base * unit.tolerance();
+        String score = format(now.score()) + " " + c[3];
+        if (worse > margin) {
+          fail("bench " + scenario + ": " + score + " is worse than the baseline " + c[2] + " " + c[3] + " beyond "
+              + Math.round(unit.tolerance() * 100) + " %");
+          if (now.benchmark() != null) {
+            rerun.add(now.benchmark());
+          }
+        } else if (-worse > margin) {
+          System.out.println("GAIN " + scenario + " " + c[2] + " -> " + score);
+          rows.put(scenario, String.join("\t", scenario, MACHINE, format(now.score()), c[3]));
+        } else {
+          System.out.println("ok   " + scenario + " " + score + " (baseline " + c[2] + ")");
+        }
+      }
+    }
+    for (Map.Entry<String, Result> e : results.entrySet()) {
+      String scenario = e.getKey();
+      Result now = e.getValue();
+      if (!rows.containsKey(scenario)) {
+        System.out.println("NEW  " + scenario + " " + format(now.score()) + " " + now.unit());
+        rows.put(scenario, String.join("\t", scenario, MACHINE, format(now.score()), now.unit()));
+      }
+      for (Target t : TARGETS) {
+        if (!t.scenario().matcher(scenario).matches()) {
+          continue;
+        }
+        if (!t.unit().equals(now.unit())) {
+          fail("bench " + scenario + ": unit " + now.unit() + ", the target is in " + t.unit());
+        } else if (!t.met(now.score())) {
+          fail("bench " + scenario + ": " + format(now.score()) + " " + now.unit() + " misses the target "
+              + t.op().text + " " + format(t.value()) + " " + t.unit());
+        }
+      }
+    }
+    if (!rerun.isEmpty()) {
+      List<String> names = rerun.stream().map(n -> n.replace(".", "\\.")).toList();
+      System.out.println("RERUN ^(?:" + String.join("|", names) + ")$");
+    }
+    return new ArrayList<>(rows.values());
+  }
+
+  /** Per scenario, in file order: a later file's result replaces an earlier one's. */
+  private static Map<String, Result> readBenchResults(List<Path> files) throws IOException {
+    Map<String, Result> results = new TreeMap<>();
+    for (Path file : files) {
+      Object json = new Json(Files.readString(file)).parse();
+      if (json instanceof List<?> jmh) {
+        for (Object r : jmh) {
+          readJmhResult(asMap(r), results);
+        }
+      } else {
+        Map<String, Object> tree = asMap(json);
+        results.put(
+            (String) tree.get("scenario"),
+            new Result(((Number) tree.get("score")).doubleValue(), (String) tree.get("unit"), null));
+      }
+    }
+    return results;
+  }
+
+  private static void readJmhResult(Map<String, Object> r, Map<String, Result> results) {
+    String name = (String) r.get("benchmark");
+    Matcher m = BENCHMARK.matcher(name);
+    Naming naming = m.matches() ? SCENARIOS.get(m.group(2)) : null;
+    if (naming == null) {
+      fail("bench " + name + ": no scenario name (SCENARIOS in scripts/ratchet.java)");
+      return;
+    }
+    String mapping = Character.toLowerCase(m.group(1).charAt(0)) + m.group(1).substring(1);
+    String scenario = naming.primary().formatted(mapping);
+    Map<String, Object> primary = asMap(r.get("primaryMetric"));
+    double score = medianOfForkMeans(primary.get("rawData"));
+    String unit = (String) primary.get("scoreUnit");
+    switch (naming.kind()) {
+      case COMPLETES -> {
+        System.out.println("ok   " + scenario + " completed");
+        return;
+      }
+      case THROUGHPUT -> {
+        Double seconds = SECONDS_PER_OP.get(unit);
+        Object params = r.get("params"); // JMH 1.37 writes "params" only for a benchmark with a @Param
+        Object bytes = params == null ? null : asMap(params).get("inputBytes");
+        if (seconds == null) {
+          fail("bench " + name + ": unit " + unit + " is not a time per operation");
+          return;
+        }
+        if (bytes == null) {
+          fail("bench " + name + ": no inputBytes param");
+          return;
+        }
+        score = Long.parseLong((String) bytes) / MB / (score * seconds);
+        unit = "MB/s";
+      }
+      case SCORE -> {}
+    }
+    results.put(scenario, new Result(score, unit, name));
+    // JMH 1.37 always writes "secondaryMetrics"; gc.alloc.rate.norm is there with -prof gc
+    Object gc = asMap(r.get("secondaryMetrics")).get("gc.alloc.rate.norm");
+    if (naming.alloc() != null && gc != null) {
+      results.put(
+          naming.alloc().formatted(mapping),
+          new Result(medianOfForkMeans(asMap(gc).get("rawData")), (String) asMap(gc).get("scoreUnit"), name));
+    }
+  }
+
+  /** rawData holds one array of iteration scores per fork. */
+  private static double medianOfForkMeans(Object rawData) {
+    List<Double> means = new ArrayList<>();
+    for (Object fork : (List<?>) rawData) {
+      double sum = 0;
+      for (Object v : (List<?>) fork) {
+        sum += ((Number) v).doubleValue();
+      }
+      means.add(sum / ((List<?>) fork).size());
+    }
+    Collections.sort(means);
+    int n = means.size();
+    return n % 2 == 1 ? means.get(n / 2) : (means.get(n / 2 - 1) + means.get(n / 2)) / 2;
+  }
+
+  /** Four significant digits, no exponent, no trailing zeros. */
+  private static String format(double score) {
+    return new BigDecimal(score).round(new MathContext(4)).stripTrailingZeros().toPlainString();
   }
 
   // ---- helpers ----
