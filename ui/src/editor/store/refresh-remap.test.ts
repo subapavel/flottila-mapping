@@ -52,8 +52,8 @@ function answer(model: MappingModel, fingerprints: { source?: string; target?: s
   return {
     model: {
       ...copy,
-      source: { ...copy.source, fingerprint: fingerprints.source ?? copy.source.fingerprint },
-      target: { ...copy.target, fingerprint: fingerprints.target ?? copy.target.fingerprint },
+      source: { ...copy.source!, fingerprint: fingerprints.source ?? copy.source!.fingerprint },
+      target: { ...copy.target!, fingerprint: fingerprints.target ?? copy.target!.fingerprint },
     },
     diagnostics,
   };
@@ -91,7 +91,7 @@ describe('a refresh taken by the working-copy store (ADR-0027)', () => {
     const sent = s.getState().workingCopy;
 
     expect(s.getState().applyRefresh(sent, answer(sent, { target: 'sha256:new' }, []))).toBe(0);
-    expect(s.getState().workingCopy.target.fingerprint).toBe('sha256:new');
+    expect(s.getState().workingCopy.target!.fingerprint).toBe('sha256:new');
     expect(s.getState().past).toHaveLength(1);
   });
 
@@ -102,8 +102,8 @@ describe('a refresh taken by the working-copy store (ADR-0027)', () => {
 
     s.getState().undo();
 
-    expect(s.getState().workingCopy.source.fingerprint).toBe('sha256:old');
-    expect(s.getState().workingCopy.target.fingerprint).toBe('sha256:old');
+    expect(s.getState().workingCopy.source!.fingerprint).toBe('sha256:old');
+    expect(s.getState().workingCopy.target!.fingerprint).toBe('sha256:old');
     expect(selectUnsaved(s.getState())).toBe(false);
   });
 

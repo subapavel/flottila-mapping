@@ -158,9 +158,9 @@ function OpenMapping({
 
   // Orphaned references are marked live against the loaded source structure (spec #104, "Status derivation").
   const model = useStore(store, (s) => s.workingCopy);
-  const sourceQuery = useStructure(mappingId, api, model.source);
+  const sourceQuery = useStructure(mappingId, api, model.source!);
   const source = sourceQuery.data?.kind === 'loaded' ? sourceQuery.data : undefined;
-  const targetQuery = useStructure(mappingId, api, model.target);
+  const targetQuery = useStructure(mappingId, api, model.target!);
   const target = targetQuery.data?.kind === 'loaded' ? targetQuery.data : undefined;
   const orphaned = useMemo(() => orphanedBoxes(model, source), [model, source]);
   // the selected target field's status, as its target row shows it, for the inspector's target field view

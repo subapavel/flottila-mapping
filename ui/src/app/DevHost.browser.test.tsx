@@ -107,7 +107,7 @@ describe('the mapping list', () => {
   });
 
   test('a row whose name equals its id shows the id alone', async () => {
-    const api = { ...fakeApiClient(), listMappings: async () => [{ id: 'same', name: 'same' }, { id: 'a/b', name: 'B' }] };
+    const api = { ...fakeApiClient(), listMappings: async () => [{ id: 'same', name: 'same', package: '' }, { id: 'a/b', name: 'B', package: 'a' }] };
     render(api);
 
     await expect.element(page.getByRole('heading', { name: 'Mappings (2)' })).toBeVisible();
@@ -249,7 +249,7 @@ describe('the New mapping form', () => {
     await page.getByRole('button', { name: 'Create' }).click();
 
     await expect.element(page.getByRole('heading', { name: 'mappings/new-one' })).toBeVisible();
-    expect(createMapping.mock.calls[0]![0].source.root).toEqual({ wsdl: { interface: 'OrderPort', operation: 'place', direction: 'input' } });
+    expect(createMapping.mock.calls[0]![0].source!.root).toEqual({ wsdl: { interface: 'OrderPort', operation: 'place', direction: 'input' } });
   });
 
   test('takes one bundle reference per line, trimmed, without blank lines, and shows a 422 with its diagnostics', async () => {
@@ -260,7 +260,7 @@ describe('the New mapping form', () => {
 
     await expect.element(page.getByRole('heading', { name: /Model refused/ })).toBeVisible();
     await expect.element(page.getByRole('list', { name: 'Create diagnostics' })).toMatchTextContent(/schema-unreadable/);
-    expect(createMapping.mock.calls[0]![0].source.bundle).toEqual([ORDER_XSD, 'more/types.xsd']);
+    expect(createMapping.mock.calls[0]![0].source!.bundle).toEqual([ORDER_XSD, 'more/types.xsd']);
     await expect.element(page.getByRole('heading', { name: 'mappings/new-one' })).not.toBeInTheDocument();
   });
 

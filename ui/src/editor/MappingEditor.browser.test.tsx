@@ -150,7 +150,7 @@ describe('the structure overview', () => {
   });
 
   test('a structure the service refuses shows its diagnostics instead of the tree', async () => {
-    const broken: MappingModel = { ...corpusMapping, source: { ...corpusMapping.source, bundle: ['missing.xsd'] } };
+    const broken: MappingModel = { ...corpusMapping, source: { ...corpusMapping.source!, bundle: ['missing.xsd'] } };
     render('drafts/broken', fakeApiClient({ 'drafts/broken': broken }));
 
     await expect.element(page.getByText('schema-unreadable')).toBeVisible();

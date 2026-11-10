@@ -106,9 +106,9 @@ export function StructureOverview({
 }: StructureOverviewProps) {
   const model = useStore(store, (s) => s.workingCopy);
   const diagnostics = useStore(store, (s) => s.diagnostics);
-  const source = useTree(mappingId, api, model.source, expanded.source, 'source', search.source);
+  const source = useTree(mappingId, api, model.source!, expanded.source, 'source', search.source);
   const statuses = useMemo(() => fieldStatuses(model, diagnostics, source.structure), [model, diagnostics, source.structure]);
-  const target = useTree(mappingId, api, model.target, expanded.target, 'target', search.target, statuses, statusFilter);
+  const target = useTree(mappingId, api, model.target!, expanded.target, 'target', search.target, statuses, statusFilter);
   const orphaned = useMemo(() => (target.structure ? orphanedMappings(model, target.structure) : []), [model, target.structure]);
   const selectedOrphan = orphaned.find((path) => path === selectedField);
   const [picked, setPicked] = useState<string | null>(null);

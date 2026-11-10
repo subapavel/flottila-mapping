@@ -25,7 +25,7 @@ const corpusMapping = JSON.parse(corpusMappingText) as MappingModel;
  */
 const stale: MappingModel = {
   ...corpusMapping,
-  source: { ...corpusMapping.source, fingerprint: 'sha256:stale' },
+  source: { ...corpusMapping.source!, fingerprint: 'sha256:stale' },
   targetFieldMappings: {
     [NOTE]: {
       id: 't1',
@@ -126,8 +126,8 @@ describe('refresh on open (ADR-0027, story 57)', () => {
   test('a load failure on one side shows its file:line:column diagnostics and keeps that side’s fingerprint', async () => {
     const broken: MappingModel = {
       ...corpusMapping,
-      source: { ...corpusMapping.source, fingerprint: 'sha256:stale' },
-      target: { ...corpusMapping.target, bundle: ['missing.xsd'], fingerprint: 'sha256:kept' },
+      source: { ...corpusMapping.source!, fingerprint: 'sha256:stale' },
+      target: { ...corpusMapping.target!, bundle: ['missing.xsd'], fingerprint: 'sha256:kept' },
     };
     // no compile answers, so the panel holds the refresh's diagnostics
     const api: ApiClient = { ...fakeApiClient({ [DRAFT]: broken }), compile: () => new Promise(() => {}) };
@@ -142,8 +142,8 @@ describe('refresh on open (ADR-0027, story 57)', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect.element(page.getByText('Unsaved')).not.toBeInTheDocument();
     const saved = (await api.getMapping(DRAFT)).model;
-    expect(saved.source.fingerprint).toBe(corpusMapping.source.fingerprint);
-    expect(saved.target.fingerprint).toBe('sha256:kept');
+    expect(saved.source!.fingerprint).toBe(corpusMapping.source!.fingerprint);
+    expect(saved.target!.fingerprint).toBe('sha256:kept');
   });
 
   test('a refresh that fails shows its problem and leaves the working copy', async () => {

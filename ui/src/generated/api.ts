@@ -132,7 +132,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["Problem"];
                     };
                 };
-                /** @description model-refused: a structure cannot be loaded */
+                /** @description model-refused: a structure cannot be loaded, or the description is over 4,000 characters */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -592,8 +592,9 @@ export interface components {
         };
         CreateMappingRequest: {
             id: string;
-            source: components["schemas"]["StructureChoice"];
-            target: components["schemas"]["StructureChoice"];
+            description?: string;
+            source?: components["schemas"]["StructureChoice"];
+            target?: components["schemas"]["StructureChoice"];
         };
         DiagnosticDto: {
             /** @enum {string} */
@@ -643,6 +644,10 @@ export interface components {
         MappingSummary: {
             id: string;
             name: string;
+            package: string;
+            description?: string;
+            source?: string;
+            target?: string;
         };
         ParentSlotDto: {
             /** Format: int64 */
@@ -1050,6 +1055,27 @@ export interface components {
             params?: components["schemas"]["params"];
         };
         box: components["schemas"]["sourceFieldBox"] | components["schemas"]["standardFunctionBox"] | components["schemas"]["udfBox"] | components["schemas"]["unresolvedFunctionBox"];
+        /** @description An integer position; the studio rounds before it writes. */
+        coordinate: number;
+        /** BoxPosition */
+        boxPosition: {
+            x: components["schemas"]["coordinate"];
+            y: components["schemas"]["coordinate"];
+        };
+        /**
+         * Layout
+         * @description The positions of this target field mapping's target and boxes, which the engine ignores (ADR-0029). A position whose box no longer exists is dropped on save; an empty layout is not written.
+         */
+        layout: {
+            target?: components["schemas"]["boxPosition"];
+            /**
+             * LayoutBoxes
+             * @description The boxes' positions, keyed by their authoring id. A box without a position is placed by the studio.
+             */
+            boxes?: {
+                [key: string]: components["schemas"]["boxPosition"];
+            };
+        };
         /** @enum {unknown} */
         udfParamType: "string" | "int";
         /** StructureRef */
@@ -1070,6 +1096,7 @@ export interface components {
             boxes: {
                 [key: string]: components["schemas"]["box"];
             };
+            layout?: components["schemas"]["layout"];
         };
         /** UdfDeclaration */
         udfDeclaration: {
@@ -1088,7 +1115,7 @@ export interface components {
         };
         /**
          * MappingModel
-         * @description A Flottila mapping model, formatVersion 1 (ADR-0010, ADR-0011). Its canonical form is written by the engine's one writer.
+         * @description A Flottila mapping model, formatVersion 1 (ADR-0010, ADR-0011, ADR-0029). Its canonical form is written by the engine's one writer. source and target are absent until the Signature tab chooses them.
          */
         "mapping-model.schema": {
             /**
@@ -1096,8 +1123,10 @@ export interface components {
              * @constant
              */
             formatVersion: 1;
-            source: components["schemas"]["structureRef"];
-            target: components["schemas"]["structureRef"];
+            /** @description The mapping's free text, at most 4,000 characters (code points), which the engine ignores (ADR-0029). An empty one is not written. */
+            description?: string;
+            source?: components["schemas"]["structureRef"];
+            target?: components["schemas"]["structureRef"];
             /**
              * TargetFieldMappings
              * @description Keyed by target field path (ADR-0007). An unmapped field has no entry.
@@ -1165,7 +1194,29 @@ export interface components {
                     boxes: {
                         [key: string]: components["schemas"]["box"];
                     };
+                    layout?: components["schemas"]["layout"];
                 };
+                /**
+                 * Layout
+                 * @description The positions of this target field mapping's target and boxes, which the engine ignores (ADR-0029). A position whose box no longer exists is dropped on save; an empty layout is not written.
+                 */
+                layout: {
+                    target?: components["schemas"]["boxPosition"];
+                    /**
+                     * LayoutBoxes
+                     * @description The boxes' positions, keyed by their authoring id. A box without a position is placed by the studio.
+                     */
+                    boxes?: {
+                        [key: string]: components["schemas"]["boxPosition"];
+                    };
+                };
+                /** BoxPosition */
+                boxPosition: {
+                    x: components["schemas"]["coordinate"];
+                    y: components["schemas"]["coordinate"];
+                };
+                /** @description An integer position; the studio rounds before it writes. */
+                coordinate: number;
                 box: components["schemas"]["sourceFieldBox"] | components["schemas"]["standardFunctionBox"] | components["schemas"]["udfBox"] | components["schemas"]["unresolvedFunctionBox"];
                 /** SourceFieldBox */
                 sourceFieldBox: {
