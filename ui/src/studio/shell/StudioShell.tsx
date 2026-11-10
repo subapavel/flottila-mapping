@@ -24,7 +24,7 @@ import { useFunctionsPreview } from '../mock/functions-store';
 import { refreshMutation } from '../shared/structure-query';
 import { MappingOverview } from '../overview/MappingOverview';
 import { Signature } from '../signature/Signature';
-import { useTestSession } from '../test/test-session';
+import { useTestSession } from '../shared/test-session';
 import { TestTab } from '../test/TestTab';
 import { CopyTextButton } from '../shared/CopyTextButton';
 import { DiscardDialog } from './DiscardDialog';

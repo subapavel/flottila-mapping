@@ -16,7 +16,7 @@ import { formatOf } from '../shared/documents';
 import { InstanceTools } from '../mock/InstanceTools';
 import { DOCUMENT_MODES, TestDocument, type DocumentMode, type ParameterRow } from './TestDocument';
 import './test.css';
-import { logLines, logText, type LogLine, type TestSession } from './test-session';
+import { logLines, logText, type LogLine, type TestSession } from '../shared/test-session';
 
 export interface TestTabProps {
   mappingId: string;

@@ -6,7 +6,7 @@ import { testSourceKey, type BrowserStateStore } from '../browser-state/browser-
 import type { WorkingCopyStore } from '../store/working-copy';
 import { currentInstance, testInput, testInstances, type TestInstance } from '../mock/test-instances';
 import { testPreview } from '../mock/test-preview';
-import { formatOf } from '../shared/documents';
+import { formatOf } from './documents';
 
 /** A line of the processing log: its time when it opens a section, else a detail of the section above it. */
 export interface LogLine {
