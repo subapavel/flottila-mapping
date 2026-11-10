@@ -145,8 +145,8 @@ public final class EngineFacade {
 
   /**
    * A new mapping model in {@code formatVersion} 1 (ADR-0010) with no target field mapping and no
-   * UDF, and the structures chosen so far: a new mapping may have neither until the Signature tab
-   * chooses them (ADR-0029).
+   * UDF, and the structures chosen so far: a new mapping may have neither until they are chosen
+   * (ADR-0029).
    *
    * @param description the mapping's description, if any
    * @param source the source structure's schema bundle, root and fingerprint, if chosen
@@ -369,10 +369,7 @@ public final class EngineFacade {
               Severity.ERROR,
               MappingDiagnostics.MISSING_STRUCTURE,
               new AtPointer(pointer),
-              "the mapping has no "
-                  + side
-                  + " structure yet: choose it on the Signature tab before compile, test or"
-                  + " export"));
+              "the mapping has no " + side + " structure"));
     }
   }
 

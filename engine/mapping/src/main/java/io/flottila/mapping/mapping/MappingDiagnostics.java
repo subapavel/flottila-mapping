@@ -59,8 +59,8 @@ public final class MappingDiagnostics {
 
   /**
    * A model without its source or target structure, at {@code /source} or {@code /target}
-   * (ADR-0029): a new mapping has none until the Signature tab chooses them. Compile, test and
-   * export report it before any bundle is read, and run no further stage.
+   * (ADR-0029): a new mapping has none until they are chosen. Compile, test and export report it
+   * before any bundle is read, and run no further stage.
    */
   public static final String MISSING_STRUCTURE = "missing-structure";
 
