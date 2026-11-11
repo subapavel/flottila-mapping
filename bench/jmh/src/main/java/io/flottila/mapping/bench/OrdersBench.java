@@ -26,14 +26,14 @@ import org.openjdk.jmh.annotations.Warmup;
  * output bytes out. The scenarios {@code scripts/ratchet.java} reads from {@code
  * <Mapping>Bench.<method>} (#184): {@code smallLatency} is {@code orders/small/latency}, and its
  * {@code -prof gc} metric {@code gc.alloc.rate.norm} is {@code orders/small/alloc}; {@code
- * largeThroughput} is {@code orders/large/throughput}, in MB/s from its param {@code inputBytes} and
- * its time per run, and its {@code gc.alloc.rate.norm} is {@code orders/large/alloc}; {@code
+ * largeThroughput} is {@code orders/large/throughput}, in MB/s from its param {@code inputBytes}
+ * and its time per run, and its {@code gc.alloc.rate.norm} is {@code orders/large/alloc}; {@code
  * largeHeap} is {@code orders/large/heap}, which only has to complete; {@code compile} is {@code
  * compile/orders}. The defaults are the ratchet's runs (ADR-0021): three forks of three warm-up and
  * five measured iterations of one second; the command line overrides them. The large benchmarks fix
  * their forks' heap with {@code jvmArgsAppend}, which holds while the command line passes no {@code
- * -jvmArgsAppend} (#181 decision 2): 1 GB for the throughput and its allocation, 128 MB for the heap
- * proof.
+ * -jvmArgsAppend} (#181 decision 2): 1 GB for the throughput and its allocation, 128 MB for the
+ * heap proof.
  */
 @BenchmarkMode(Mode.AverageTime)
 @Fork(3)
@@ -57,7 +57,9 @@ public class OrdersBench {
     }
   }
 
-  /** The exact byte length of the large input, pinned with its digest by {@code OrdersInputTest}. */
+  /**
+   * The exact byte length of the large input, pinned with its digest by {@code OrdersInputTest}.
+   */
   static final String LARGE_BYTES = "10486142";
 
   /** The large input, generated from the seed at setup, and the mapping compiled once. */

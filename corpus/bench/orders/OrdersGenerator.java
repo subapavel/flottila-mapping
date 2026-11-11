@@ -2,10 +2,17 @@ package orders;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Objects;
 import java.util.Random;
+import java.util.regex.Pattern;
 
 /**
  * The seeded input generator of the {@code orders} bench mapping (ADR-0021, #181): sales orders of
@@ -13,6 +20,16 @@ import java.util.Random;
  * bytes on every JDK, because the specification of {@link Random} fixes its algorithm. The input
  * grows by whole orders until it holds at least {@code size} bytes; it is ASCII, so a character is
  * a byte.
+ *
+ * <p>The inputs for a comparison outside the benchmarks (the {@code po-owner-local} observation,
+ * ADR-0021) come from the bench jar, after {@code ./mvnw -B -Pbench -pl bench/jmh -am verify}:
+ *
+ * <pre>
+ * java -cp bench/jmh/target/benchmarks.jar orders.OrdersGenerator large orders-large.xml
+ * </pre>
+ *
+ * <p>{@code small} writes the small input. The pinned digests of both are in {@code
+ * OrdersInputTest}.
  */
 public final class OrdersGenerator {
 
@@ -32,7 +49,46 @@ public final class OrdersGenerator {
 
   private static final String END = "</SalesOrders>\n";
 
+  private static final String USAGE = "usage: orders.OrdersGenerator <small|large> <output file>";
+
   private OrdersGenerator() {}
+
+  /**
+   * Writes the small or the large input to the output file, from the seed and the size of {@code
+   * bench.json} beside this class on the class path: the bytes the benchmarks measure.
+   *
+   * @throws IllegalArgumentException when the arguments are not {@code small} or {@code large} and
+   *     a file
+   * @throws IOException when the file cannot be written
+   */
+  public static void main(String[] args) throws IOException {
+    if (args.length != 2 || !List.of("small", "large").contains(args[0])) {
+      throw new IllegalArgumentException(USAGE);
+    }
+    String bench;
+    try (InputStream in = OrdersGenerator.class.getResourceAsStream("bench.json")) {
+      bench =
+          new String(
+              Objects.requireNonNull(in, "no class-path resource orders/bench.json").readAllBytes(),
+              UTF_8);
+    }
+    int size = Math.toIntExact(number(bench, args[0] + "Bytes"));
+    Files.write(Path.of(args[1]), generate(number(bench, "seed"), size));
+  }
+
+  /**
+   * The number {@code member} of {@code bench.json}, read as {@code BenchMapping} reads it; a
+   * {@code bench.json} without it fails with a {@code NoSuchElementException}.
+   */
+  private static long number(String bench, String member) {
+    return Long.parseLong(
+        Pattern.compile("\"" + member + "\"\\s*:\\s*(\\d+)")
+            .matcher(bench)
+            .results()
+            .findFirst()
+            .orElseThrow()
+            .group(1));
+  }
 
   /**
    * The input of {@code seed}: whole orders, numbered from {@code SO-100001}, until the document
