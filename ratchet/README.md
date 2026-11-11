@@ -24,7 +24,7 @@ significant digits. Direction by unit:
 `us/op`, `ms/op`, `B/op`, `ms` lower is better, `MB/s` higher is better, any other unit fails.
 Tolerance 20 % (time, throughput) and 10 % (B/op); a worse score or a missed target is run twice more
 and judged on the median of the three runs (ADR-0021, Notes of 2026-11-11). `regen` moves a baseline only on a gain beyond the tolerance; lowering one takes a finding.
-A row with no result fails; a result with no row is a new row. `check` ignores `bench.tsv`.
+A baseline comes only from the spec gate's step 4 run; every other run is informative only and never moves or judges a baseline (F-36, ADR-0021). A row with no result fails; a result with no row is a new row. `check` ignores `bench.tsv`.
 
 Scenario names come from one rule in `scripts/ratchet.java` (`SCENARIOS`): the JMH benchmark
 `io.flottila.mapping.bench.<Mapping>Bench.<method>` with `<mapping>` = `<Mapping>` with a lower-case
