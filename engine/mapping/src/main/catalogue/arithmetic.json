@@ -42,7 +42,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Quotient scale follows Saxon-HE (ADR-0005); PO divides in float or BigDecimal mode."
+      "text": "Divides with decimal precision (scale as in XPath). SAP PO divides in float or BigDecimal mode."
     },
     "inputs": [
       {
@@ -204,7 +204,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in xs:double (ADR-0005)."
+      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in double precision. SAP PO computes in float or BigDecimal mode."
     },
     "inputs": [
       {
@@ -256,7 +256,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Computed in xs:double and cast back to xs:decimal (ADR-0005)."
+      "text": "Computed in double precision and returned as a decimal. SAP PO computes in float or BigDecimal mode."
     },
     "inputs": [
       {

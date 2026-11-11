@@ -60,6 +60,7 @@ import { action, ActionMenu, deleteAction, isContextMenuKey, useActionMenu, type
 import { expressionGraph, inspectExpression, NODE_WIDTH, portId, TARGET, upstream, wireEnd, type ExpressionEdge, type ExpressionNode } from './expression-graph';
 import { arrange, layoutOf, shownPositions, type Positions } from './expression-layout';
 import './expression.css';
+import { deviationNote } from './fidelity';
 import { FunctionCatalogue, functionDragType } from './FunctionCatalogue';
 import { FunctionParameters } from './FunctionParameters';
 import { MappingHint } from './MappingHint';
@@ -386,6 +387,9 @@ function Drawing({ mappingId, store, session, targetField, catalogue, browserSta
     const settings = Object.entries(n.params ?? {})
       .flatMap(([name, value]) => (typeof value === 'string' ? [`${name} ${value}`] : []))
       .join(' · ');
+    // a function box the catalogue lacks (a hand-written model) has no fidelity
+    const fidelity = n.fn === undefined ? undefined : catalogue[n.fn]?.fidelity;
+    const note = fidelity && deviationNote(fidelity);
     return {
       id: n.id,
       type: 'mapping',
@@ -396,6 +400,7 @@ function Drawing({ mappingId, store, session, targetField, catalogue, browserSta
         fieldType: n.role ? 'variable' : n.path === undefined ? undefined : fieldTypes[n.kind === 'source' ? 'source' : 'target'].get(n.path),
         ...(hasParameters(n) && { editParameters: () => openDialog('parameters', n.id) }),
         ...(settings && { settings }),
+        ...(note && { note }),
         ...(orphaned.has(n.id) && { orphaned: true }),
         // drag-to-remap: a source row dropped on an orphaned box, in edit mode, remaps it as the Remap dialog does
         ...(editing && orphaned.has(n.id) && { remap: (field: FieldPath) => remap(n.id, field) }),
@@ -405,7 +410,8 @@ function Drawing({ mappingId, store, session, targetField, catalogue, browserSta
       targetPosition: Position.Left,
       selected: selected.has(n.id),
       deletable: n.kind !== 'target',
-      ariaLabel: `${nodeRole(n)} ${n.name}. ${state.description}`,
+      // React Flow describes a node by its keyboard help, so a deviation note ends the name
+      ariaLabel: `${nodeRole(n)} ${n.name}. ${state.description}${note ? ` ${note}` : ''}`,
     };
   });
   const edges: Edge[] = graph.edges.map((e) => {

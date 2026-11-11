@@ -25,6 +25,8 @@ export type MappingNodeData = {
   editParameters?: () => void;
   /** The parameters a function card shows below its name, as text. */
   settings?: string;
+  /** The deviation note of a standard function box (GLOSSARY: Fidelity), shown in its hint only; absent for any other node. */
+  note?: string;
   /** A source-field box that reads a field the source structure lacks (GLOSSARY: Orphaned reference). */
   orphaned?: boolean;
   /** Points an orphaned box at a source field dropped on it (GLOSSARY: Remap); absent for any other box and in view mode. */
@@ -63,11 +65,12 @@ function PortHandle({ node, state, port, index, count, input }: { node: Expressi
 
 /**
  * A box or the target on the canvas (the prototype's MappingNode): its symbol with the state mark, its name, a changed
- * context or the missing inputs below it, a gear for a function with parameters, and its ports. A source row dropped on
+ * context or the missing inputs below it, a gear for a function with parameters, and its ports; a deviation note is in its
+ * hint only. A source row dropped on
  * a box that takes a remap remaps it; any other drop, such as a catalogue function's, goes on to the canvas.
  */
 export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) {
-  const { node, state, fieldType, editParameters, settings, orphaned, remap } = data;
+  const { node, state, fieldType, editParameters, settings, note, orphaned, remap } = data;
   const refresh = useUpdateNodeInternals();
   const ports = JSON.stringify(node.inputs.map((p) => p.id));
   const previousPorts = useRef(ports);
@@ -86,7 +89,7 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
   const openInputs = isFunction ? node.inputs.filter((p) => state.missing.includes(p.id)) : [];
   const portNote = openInputs.length ? `Missing: ${openInputs.map((p) => p.label).join(', ')}` : '';
   const path = node.path ? `/${localPath(node.path)}` : '';
-  const details = [node.name, nodeRole(node) + (fieldType ? ` · ${fieldType}` : ''), path, contextLabel, settings, orphaned && ORPHANED_HINT, state.description]
+  const details = [node.name, nodeRole(node) + (fieldType ? ` · ${fieldType}` : ''), path, contextLabel, settings, note, orphaned && ORPHANED_HINT, state.description]
     .filter(Boolean)
     .join('\n');
   return (

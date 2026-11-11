@@ -1,6 +1,7 @@
 import { AngleRightIcon, CogIcon, SearchIcon } from '@patternfly/react-icons';
 import { useMemo, useState } from 'react';
 import type { FunctionCatalogue as Catalogue } from '../../../api/client';
+import { deviationNote } from './fidelity';
 import { drilldown, type DrilldownFunction } from './function-groups';
 
 /** The drag type of a function dragged from the drilldown onto the canvas; its data is the catalogue name. */
@@ -12,7 +13,8 @@ const unavailable = (fn: DrilldownFunction) =>
 
 /**
  * The functions drilldown (the prototype's FunctionCatalogue) over the catalogue (spec #152): its groups open one by one,
- * or all that match while a search is typed; a function is added by a click or dragged onto the canvas. A function the
+ * or all that match while a search is typed; a function is added by a click or dragged onto the canvas. A catalogue
+ * function with a deviation (GLOSSARY: Fidelity) has its note as its tooltip and description, and no mark. A function the
  * catalogue lacks is a preview function (ADR-0028), added by a click through `addPreview` when given, or else is shown
  * disabled with "Not available yet" and its follow-up issue.
  */
@@ -73,6 +75,8 @@ export function FunctionCatalogue({
                     const preview = fn.preview !== undefined && addPreview !== undefined;
                     const lacking = fn.fn === undefined && !preview;
                     const off = disabled || lacking;
+                    // a catalogue function is described by its deviation note, if any; one the catalogue lacks by why it is not there
+                    const description = fn.fn === undefined ? unavailable(fn) : deviationNote(catalogue[fn.fn]!.fidelity);
                     return (
                       <li key={fn.key}>
                         <button
@@ -80,8 +84,8 @@ export function FunctionCatalogue({
                           className="catalogue-function"
                           aria-disabled={lacking || undefined}
                           disabled={disabled && !lacking}
-                          title={fn.fn === undefined ? unavailable(fn) : undefined}
-                          aria-description={fn.fn === undefined ? unavailable(fn) : undefined}
+                          title={description}
+                          aria-description={description}
                           draggable={!off && !preview}
                           onDragStart={(event) => {
                             event.dataTransfer.setData(functionDragType, fn.fn!);
