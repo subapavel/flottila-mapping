@@ -22,8 +22,8 @@ All files are line-based, sorted, UTF-8, LF. Columns are separated by one tab.
 judged (another label fails); score = median of the per-fork means of JMH `rawData`, four
 significant digits. Direction by unit:
 `us/op`, `ms/op`, `B/op`, `ms` lower is better, `MB/s` higher is better, any other unit fails.
-Tolerance 20 % (time, throughput) and 10 % (B/op); a worse score is measured twice before it
-fails. `regen` moves a baseline only on a gain beyond the tolerance; lowering one takes a finding.
+Tolerance 20 % (time, throughput) and 10 % (B/op); a worse score or a missed target is run twice more
+and judged on the median of the three runs (ADR-0021, Notes of 2026-11-11). `regen` moves a baseline only on a gain beyond the tolerance; lowering one takes a finding.
 A row with no result fails; a result with no row is a new row. `check` ignores `bench.tsv`.
 
 Scenario names come from one rule in `scripts/ratchet.java` (`SCENARIOS`): the JMH benchmark
@@ -56,15 +56,16 @@ still read, compared as a percent, and rewritten by `regen --all`. Module names 
 - `java scripts/ratchet.java regen --all [<bench result>...]` (spec-gate step 4): requires every
   report, refuses any drop, writes the files, prints the diff. With bench results it also judges
   them like `bench` and writes `bench.tsv`; without them (off the VM) `bench.tsv` is untouched.
-- `java scripts/ratchet.java bench <jmh.json> [<jmh-2.json>] [<tree.json>]` (spec-gate step 5):
+- `java scripts/ratchet.java bench <jmh.json> [<tree.json>] [<jmh-2.json> <jmh-3.json>]` (spec-gate step 5):
   judges the results against `bench.tsv` and the targets, exit 1 on a regression, a missed target,
   a row with no result or an unknown unit; writes nothing. A JMH file is a top-level array, the
-  tree result an object. A later file's scenario replaces an earlier one's, so the re-run follows
-  the first run. The regressed benchmarks print as one JMH include regex, `RERUN ^(?:…)$`.
+  tree result an object. A scenario in three or more files is judged on their median; in one or two
+  a later file's scenario replaces an earlier one's. The benchmarks that regressed or missed a
+  target print as one JMH include regex, `RERUN ^(?:…)$`.
 
 Inputs: `engine/oracle/target/surefire-reports/TEST-*.xml` (test name = case id),
 `*/target/site/jacoco/jacoco.csv`, `*/target/pit-reports/mutations.xml` (the gate log `.logs/<t>-pit.log` has one section per module, each preceded by `=== PIT <module> ===`),
 `ui/coverage/coverage-summary.json` (summed per directory), and for `bench` and `regen` the spec
-gate's `.logs/<spec>-jmh.json`, `.logs/<spec>-jmh-2.json` (the re-run) and the tree-scenario result.
+gate's `.logs/<spec>-jmh.json`, `.logs/<spec>-jmh-2.json` and `-jmh-3.json` (the re-runs) and the tree-scenario result.
 
 Floors below the ratchet are fixed in the build (ADR-0019): JaCoCo, PIT, Vitest thresholds.
