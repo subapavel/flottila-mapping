@@ -33,16 +33,33 @@ if [ "\$1" = -jar ]; then
 fi
 exec "$real_java" "\$@"
 EOF
-chmod +x "$tmp/mvnw" "$tmp/scripts/pit-summary.sh" "$tmp/bin/nproc" "$tmp/bin/java"
+cat > "$tmp/bin/npm" <<'EOF'
+#!/usr/bin/env bash
+root=$(cd "$(dirname "$0")/.." && pwd)
+if [ "$*" = "run e2e -- tree-20128" ]; then
+  echo "$TREE_P95_FILE" >> "$root/tree-calls"
+  n=$(wc -l < "$root/tree-calls")
+  [ -f "$root/canned/tree-$n" ] || exit 1
+  printf '{"scenario":"ui/tree-20128/scroll","score":%s,"unit":"ms"}\n' "$(cat "$root/canned/tree-$n")" > "$TREE_P95_FILE"
+fi
+exit 0
+EOF
+mkdir -p "$tmp/ui"
+echo '{}' > "$tmp/ui/package.json"
+chmod +x "$tmp/mvnw" "$tmp/scripts/pit-summary.sh" "$tmp/bin/nproc" "$tmp/bin/java" "$tmp/bin/npm"
 
 B=io.flottila.mapping.bench
 M=claude-cloud-4vcpu
+# tree <p95 of run 1> <run 2> <run 3>: the canned scores of the three tree runs; a missing one makes that run fail
+tree() { rm -f "$tmp"/canned/tree-*; local i=1; for v in "$@"; do echo "$v" > "$tmp/canned/tree-$i"; i=$((i + 1)); done; }
+tree 20.5 30 25
+treerow="ui/tree-20128/scroll	$M	25	ms"
 latency() { printf '[{"benchmark":"%s.OrdersBench.smallLatency","mode":"avgt","primaryMetric":{"score":0,"scoreUnit":"us/op","rawData":[[%s]]},"secondaryMetrics":{}},{"benchmark":"%s.OrdersBench.compile","mode":"avgt","primaryMetric":{"score":0,"scoreUnit":"ms/op","rawData":[[2]]},"secondaryMetrics":{}}]\n' "$B" "$2" "$B" > "$tmp/canned/jmh-$1.json"; }
 row="orders/small/latency	$M	100	us/op"
 # gate [<label>] [<nproc>]: the gate's output; the bench.tsv row, the calls and the logs reset first
 gate() {
-  printf '%s\n' "$row" > "$tmp/ratchet/bench.tsv"
-  rm -rf "$tmp/jmh-calls" "$tmp/.logs"
+  printf '%s\n%s\n' "$row" "$treerow" > "$tmp/ratchet/bench.tsv"
+  rm -rf "$tmp/jmh-calls" "$tmp/tree-calls" "$tmp/.logs" "$tmp/ui/.logs"
   (cd "$tmp" && MACHINE_LABEL=${1:-} NPROC=${2:-4} PATH="$tmp/bin:$PATH" scripts/gate-spec.sh 1 2>&1)
 }
 calls() { if [ -f "$tmp/jmh-calls" ]; then wc -l < "$tmp/jmh-calls"; else echo 0; fi; }
@@ -55,7 +72,7 @@ check "no label: one JMH run" "$(calls)" 1
 check "no label: fail on error" "$(sed -n 1p "$tmp/jmh-calls" | grep -c -- '-foe true')" 1
 check "no label: measured" "$(lines "$out" 'VERIFIED_PASS  5 jmh  (.logs/1-jmh.log)')" 1
 check "no label: judgement NOT_RUN" "$(echo "$out" | grep -c '^NOT_RUN  *5 bench judgement')" 1
-check "no label: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$row"
+check "no label: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
 check "no label: no RESULTS.md" "$(test -e "$tmp/bench/RESULTS.md" && echo written || echo none)" none
 out=$(gate other-label)
 check "other label: judgement NOT_RUN" "$(echo "$out" | grep -c '^NOT_RUN  *5 bench judgement')" 1
@@ -63,13 +80,13 @@ check "other label: judgement NOT_RUN" "$(echo "$out" | grep -c '^NOT_RUN  *5 be
 # the label but not 4 CPUs: the cross-check fails, nothing judged or written
 out=$(gate $M 2)
 check "nproc 2: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement  (MACHINE_LABEL=claude-cloud-4vcpu, but nproc is 2)')" 1
-check "nproc 2: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$row"
+check "nproc 2: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
 
 # the label, a pass: one JMH run, judged, step 4 writes the new compile/orders row
 out=$(gate $M)
 check "pass: one JMH run" "$(calls)" 1
 check "pass: judged" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement  (.logs/1-bench.log)')" 1
-check "pass: written" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n' "compile/orders	$M	2	ms/op" "$row")"
+check "pass: written" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n' "compile/orders	$M	2	ms/op" "$row" "$treerow")"
 
 # the label, a regression, then a pass on the re-run of the regressed scenario only
 latency 1 130
@@ -81,7 +98,7 @@ check "re-run: fail on error" "$(sed -n 2p "$tmp/jmh-calls" | grep -c -- '-foe t
 check "re-run: first judgement kept" "$(grep -c 'is worse than the baseline' "$tmp/.logs/1-bench.log")" 1
 check "re-run: judged again" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement after the re-run  (.logs/1-bench-2.log)')" 1
 check "re-run: no failed judgement" "$(lines "$out" 'EXECUTED_FAIL  5 bench')" 0
-check "re-run: written" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n' "compile/orders	$M	2	ms/op" "$row")"
+check "re-run: written" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n' "compile/orders	$M	2	ms/op" "$row" "$treerow")"
 
 # the label, a regression twice: the gate fails, step 4 writes nothing
 latency 2 125
@@ -89,7 +106,7 @@ out=$(gate $M)
 check "twice: two JMH runs" "$(calls)" 2
 check "twice: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement after the re-run  (.logs/1-bench-2.log)')" 1
 check "twice: regen refuses" "$(lines "$out" 'EXECUTED_FAIL  4 ratchet regen')" 1
-check "twice: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$row"
+check "twice: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
 
 # the label, a missed target and no regression: no re-run, the gate fails
 row="orders/small/latency	$M	550	us/op"
@@ -97,4 +114,45 @@ latency 1 600
 out=$(gate $M)
 check "target: one JMH run" "$(calls)" 1
 check "target: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement  (.logs/1-bench.log)')" 1
+
+# the tree scenario (#188): three runs of `npm run e2e -- tree-20128`, each with its own result file in TREE_P95_FILE,
+# the median in ui/.logs/<spec>-tree-20128.json. Unlabelled it is printed; labelled it is judged with the JMH file.
+tcalls() { if [ -f "$tmp/tree-calls" ]; then wc -l < "$tmp/tree-calls"; else echo 0; fi; }
+tfile="$tmp/ui/.logs/1-tree-20128.json"
+tjson() { printf '{"scenario":"ui/tree-20128/scroll","score":%s,"unit":"ms"}\n' "$1"; }
+row="orders/small/latency	$M	100	us/op"
+latency 1 105
+out=$(gate)
+check "tree, no label: three runs" "$(tcalls)" 3
+check "tree, no label: own file per run" "$(sort -u "$tmp/tree-calls" | wc -l)" 3
+check "tree, no label: runs pass" "$(echo "$out" | grep -c 'VERIFIED_PASS  5 tree-20128 run')" 3
+check "tree, no label: median file" "$(cat "$tfile")" "$(tjson 25)"
+check "tree, no label: median printed" "$(lines "$out" 'tree-20128 p95 median 25 ms')" 1
+check "tree, no label: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
+
+# the label: the median is judged and written by step 4 (a gain moves the baseline)
+tree 10 30 12
+out=$(gate $M)
+check "tree pass: median file" "$(cat "$tfile")" "$(tjson 12)"
+check "tree pass: judged" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement  (.logs/1-bench.log)')" 1
+check "tree pass: gain" "$(grep -c 'GAIN ui/tree-20128/scroll 25 -> 12' "$tmp/.logs/1-bench.log")" 1
+check "tree pass: written" "$(grep -c "^ui/tree-20128/scroll	$M	12	ms$" "$tmp/ratchet/bench.tsv")" 1
+
+# the label, a regressed tree result: fails without a re-run of anything
+treerow="ui/tree-20128/scroll	$M	10	ms"
+tree 20 30 25
+out=$(gate $M)
+check "tree regression: no JMH re-run" "$(calls)" 1
+check "tree regression: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement  (.logs/1-bench.log)')" 1
+check "tree regression: worse" "$(grep -c 'ui/tree-20128/scroll: 25 ms is worse than the baseline 10 ms' "$tmp/.logs/1-bench.log")" 1
+check "tree regression: regen refuses" "$(lines "$out" 'EXECUTED_FAIL  4 ratchet regen')" 1
+
+# the label, a tree run that fails: no median file, nothing to judge
+treerow="ui/tree-20128/scroll	$M	25	ms"
+tree 20 30
+out=$(gate $M)
+check "tree run fails: reported" "$(lines "$out" 'EXECUTED_FAIL  5 tree-20128 run 3')" 1
+check "tree run fails: no median file" "$(test -e "$tfile" && echo written || echo none)" none
+check "tree run fails: no result" "$(grep -c 'ui/tree-20128/scroll: no result' "$tmp/.logs/1-bench.log")" 1
+check "tree run fails: judgement fails" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement  (.logs/1-bench.log)')" 1
 exit "$fails"

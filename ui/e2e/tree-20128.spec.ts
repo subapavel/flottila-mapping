@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { TREE_FIELDS, TREE_MAPPING } from '../src/api/fake/generated-tree';
 import { collectProblems } from './problems';
@@ -62,6 +63,11 @@ test('ui/tree-20128/scroll', async ({ page }, testInfo) => {
   console.log(`${result.scenario} p95 frame time ${result.p95FrameMs} ms (${JSON.stringify(result)})`);
   testInfo.annotations.push({ type: 'p95-frame-ms', description: String(result.p95FrameMs) });
   await testInfo.attach('tree-20128-scroll.json', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+  // the spec gate (scripts/gate-spec.sh step 5, #188) names a file here and takes the median of three runs; CI sets nothing
+  const resultFile = process.env['TREE_P95_FILE'];
+  if (resultFile) {
+    writeFileSync(resultFile, JSON.stringify({ scenario: result.scenario, score: result.p95FrameMs, unit: 'ms' }));
+  }
 
   // scrolled to the end, the last field's row is shown and the root's has left the DOM
   await scroll.evaluate((element) => (element.scrollTop = element.scrollHeight));
