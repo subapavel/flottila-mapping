@@ -240,3 +240,55 @@ was not timed, so WORKFLOW section 6 is not compared.
   0 %), so it is an engine property, not noise. Follow-up: #194 (diagnose and reduce the orders allocation).
 - The time scores spread by 36 to 71 % across hosts on the same label, beyond the 20 % ratchet tolerance:
   F-36.
+
+## Orders allocation (#194)
+
+Machine `claude-cloud-4vcpu`: Intel Xeon Processor @ 2.10 GHz (family 6, model 207), 4 CPUs, MemTotal
+16,472,084 kB, JDK 25.0.5, JMH 1.37, 2026-11-11. Branch `t/194-orders-allocation` on `spec/181-speed`. A ticket
+run is informative only and moves no baseline (ADR-0021, Notes of 2026-11-11, point 4).
+
+**Profile.** JFR `jdk.ObjectAllocationInNewTLAB` and `jdk.ObjectAllocationOutsideTLAB` (weight: TLAB or object
+size) over eight runs of the large input in one JVM, grouped by the first engine frame on the stack. The JMH
+`-prof jfr` default, `jdk.ObjectAllocationSample`, was biased here: it put 34 % (about 270 MB) on the StAX parse
+(`XmlProjection.walk`), while a StAX pass reading every leaf allocates 28 MB (`ThreadMXBean`).
+
+| site (first engine frame) | before | after | cause before |
+| --- | ---: | ---: | --- |
+| `XmlSerializer` | 50.1 % | 26.9 % | `OutputStreamWriter`: a `char[]` and a `HeapCharBuffer` per `write` of a name, character or text run |
+| `formatNum` (`NumberPattern`, `FormatNumber`, `JavaPattern`, `XsDecimal`) | 26.1 % | 22.4 % | the pattern compiled to a picture, and the picture's sub-pictures matched by regex, per value |
+| `dateTrans` (`FormatDate`, `DatePattern`) | 15.2 % | 6.5 % | the pattern compiled, the picture tokenised and a parse `Pattern` compiled per value; a `Formatter` per padded component |
+| `XmlProjection` | 3.7 % | 18.7 % | the values themselves (`getElementText`) |
+| `EngineFacade` (output `toByteArray`) | 1.4 % | 7.2 % | the output copied out of its `ByteArrayOutputStream` |
+
+The shares are of about 794 MB per run before and about 142 MB after. What remains after is mostly the output
+`ByteArrayOutputStream`'s growth (20.6 %, under `XmlSerializer.drain`) and copy, the parsed values, and the
+per-value `BigDecimal` work of `formatNum`.
+
+**Change.** The serializer encodes UTF-8 into one 8 KB buffer, with the writer's bytes kept (a surrogate pair
+split between writes, `?` for a lone surrogate). `FormatNumber.Picture` and `FormatDate.Picture` hold a picture
+analysed once. The binders of `formatNum` and the date family compile a `Literal` pattern once, when the call
+binds. Date components are padded into the writer's builder. The output of all six bench inputs is
+byte-identical to the base's (SHA-256 of each).
+
+**Numbers.** Full run `-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc` on f5482d0, judged by `java scripts/ratchet.java bench`
+(`RATCHET BENCH OK`, every `large/heap` completed), against the #189 medians:
+
+| scenario | #189 median | #194 | change |
+| --- | ---: | ---: | ---: |
+| `orders/large/alloc` (B/op) | 793,300,000 | 142,100,000 | ÷ 5.58 |
+| `orders/small/alloc` (B/op) | 735,700 | 152,200 | ÷ 4.83 |
+| `orders/large/throughput` (MB/s) | 22.34 | 57.2 | + 156 % |
+| `orders/small/latency` (us/op) | 378.5 | 157.5 | - 58 % |
+| `contexts/large/alloc` (B/op) | 700,600,000 | 197,300,000 | ÷ 3.55 |
+| `contexts/small/alloc` (B/op) | 670,300 | 203,000 | ÷ 3.30 |
+| `contexts/large/throughput` (MB/s) | 25.2 | 48.66 | + 93 % |
+| `contexts/small/latency` (us/op) | 342.7 | 192.3 | - 44 % |
+| `wide/large/alloc` (B/op) | 46,470,000 | 12,100,000 | ÷ 3.84 |
+| `wide/small/alloc` (B/op) | 104,800 | 77,370 | ÷ 1.35 |
+| `wide/large/throughput` (MB/s) | 85.99 | 95.56 | + 11 % |
+| `wide/small/latency` (us/op) | 159.9 | 152.8 | - 4 % |
+| `compile/orders` (ms/op) | 1.114 | 1.16 | + 4 % |
+
+The #194 targets: `orders/large/alloc` ≤ 210,000,000 B/op met; `orders/small/alloc` down by at least the same
+factor (÷ 3.78) met; `orders/large/throughput` ≥ 30 MB/s met on this host. An earlier full run on ca28817,
+whose engine differs only in how `FormatDate` pads (allocation the same), gave 62.52 MB/s and 142,100,000 B/op.
