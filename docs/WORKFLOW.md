@@ -131,7 +131,7 @@ most one gate that builds `service` at a time.
 5. the JMH scenarios (ADR-0021):
    `java -jar bench/jmh/target/benchmarks.jar -foe true -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
    (about 5–6 minutes; large throughput in forks with a 1 GB heap, and `<mapping>/large/heap`
-   in its own fork with `-Xmx128m`, which may need a second invocation; ADR-0021 note of
+   in its own fork with `-Xmx128m`; one invocation suffices, `-f` keeps the fork's `jvmArgsAppend` (#185); ADR-0021 note of
    2026-11-10), plus the `ui/tree-20128/scroll` Playwright scenario.
    - The verifier names the machine: `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh <spec>`.
      Only with that label, and `nproc` = 4, does step 5 judge

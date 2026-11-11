@@ -112,6 +112,14 @@ check "median of three: exit" "$rc" 0
 check "median of three: the median" "$(lines "$out" 'NEW  orders/large/throughput 22.34 MB/s')" 1
 check "median of three: target met" "$(lines "$out" 'misses the target')" 0
 check "median of three: two files, the later wins" "$(lines "$out" 'NEW  orders/small/latency 400 us/op')" 1
+# the median in the first file (22.34, 34.69, 18.79) and in the last file (34.69, 18.79, 22.34): a judgement on one
+# fixed file (the second) would give 34.69 and 18.79
+out=$(run bench run-2.json run-1.json run-3.json); rc=$?
+check "median in the first file: exit" "$rc" 0
+check "median in the first file: the median" "$(lines "$out" 'NEW  orders/large/throughput 22.34 MB/s')" 1
+out=$(run bench run-1.json run-3.json run-2.json); rc=$?
+check "median in the last file: exit" "$rc" 0
+check "median in the last file: the median" "$(lines "$out" 'NEW  orders/large/throughput 22.34 MB/s')" 1
 
 # missed targets, no baselines: small latency <= 500 us/op, large throughput >= 20 MB/s, compile/orders <= 5 ms/op,
 # tree < 33.3 ms; each boundary itself passes except the tree's

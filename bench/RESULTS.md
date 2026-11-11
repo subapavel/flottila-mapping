@@ -292,3 +292,31 @@ byte-identical to the base's (SHA-256 of each).
 The #194 targets: `orders/large/alloc` ≤ 210,000,000 B/op met; `orders/small/alloc` down by at least the same
 factor (÷ 3.78) met; `orders/large/throughput` ≥ 30 MB/s met on this host. An earlier full run on ca28817,
 whose engine differs only in how `FormatDate` pads (allocation the same), gave 62.52 MB/s and 142,100,000 B/op.
+
+## Spec 6 gate (#181)
+
+The spec gate's step 5 on commit a7b9c8b (the ratchet regenerated on 088fe30), 2026-11-11 (the result files are
+from 11:34 UTC), machine label `claude-cloud-4vcpu`; host Intel Xeon @ 2.10 GHz, 4 CPUs, MemTotal 16,472,084 kB.
+JMH `-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc`, the three heap forks (`contexts`, `orders`, `wide` `large/heap`, `-Xmx128m`)
+completed, and `java scripts/ratchet.java bench` printed `RATCHET BENCH OK` with no re-run. The tree scenario's p95
+is 16.7 ms (three runs: 16.8, 16.7, 16.7; the median is 16.7). These are the first `ratchet/bench.tsv` baselines;
+F-36: baselines are written only by the spec gate.
+
+| scenario (the `bench.tsv` row) | baseline | target |
+| --- | --- | --- |
+| `orders/small/latency` | 166.6 us/op | ≤ 500 us/op |
+| `orders/small/alloc` | 152,200 B/op | none |
+| `orders/large/throughput` | 53.56 MB/s | ≥ 20 MB/s |
+| `orders/large/alloc` | 142,500,000 B/op | none |
+| `contexts/small/latency` | 191 us/op | ≤ 500 us/op |
+| `contexts/small/alloc` | 203,000 B/op | none |
+| `contexts/large/throughput` | 45.66 MB/s | ≥ 20 MB/s |
+| `contexts/large/alloc` | 197,300,000 B/op | none |
+| `wide/small/latency` | 156.3 us/op | ≤ 500 us/op |
+| `wide/small/alloc` | 77,420 B/op | none |
+| `wide/large/throughput` | 91.35 MB/s | ≥ 20 MB/s |
+| `wide/large/alloc` | 12,100,000 B/op | none |
+| `compile/orders` | 1.228 ms/op | ≤ 5 ms/op |
+| `ui/tree-20128/scroll` | 16.7 ms | < 33.3 ms |
+
+Sources: `181-bench.log`, `181-jmh.json` and `181-tree-20128.json` of the gate run, and `ratchet/bench.tsv`.
