@@ -486,41 +486,53 @@
       "mapping": "spec2-sort-descending",
       "input": "sort-001.xml",
       "case": "fn/sort/005",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All b,a,_,B,A,9,10,é,f,e,Z; confirms descending case-sensitive sorting. In-place variant after prior results saved."
+      "summary": "All b,a,_,B,A,9,10,é,f,e,Z; confirms descending case-sensitive sorting. In-place variant after prior results saved.",
+      "po75Result": "po75/spec2-sort-descending-005.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "All b,a,_,B,A,9,10,é,f,e,Z. Confirms descending case-sensitive ordering separately in each context; agrees with CPI."
     },
     {
       "mapping": "spec2-sort-numeric",
       "input": "sort-006.xml",
       "case": "fn/sort/006",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All -1,.25,+0.5,1.50,1.5,space-2-space,9,10,1.,007,7. Numeric order with stable equal values and original lexical forms preserved."
+      "summary": "All -1,.25,+0.5,1.50,1.5,space-2-space,9,10,1.,007,7. Numeric order with stable equal values and original lexical forms preserved.",
+      "po75Result": "po75/spec2-sort-numeric-006.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Numeric ascending ordering per context preserves lexical forms and stable equal values; agrees with CPI. See po75/spec2-sort-numeric-006-check.txt."
     },
     {
       "mapping": "spec2-sort-numeric",
       "input": "sort-014.xml",
       "case": "fn/sort/014",
-      "po75": "NOT_RUN",
+      "po75": "error-observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "error-observed",
       "reading": "confirmed",
-      "summary": "Run-time sort error on /Out/All: Cannot cast x to decimal number (quoted x in exact dialog). Confirms invalid-number failure; symbolic po:SORT not shown. No output."
+      "summary": "Run-time sort error on /Out/All: Cannot cast x to decimal number (quoted x in exact dialog). Confirms invalid-number failure; symbolic po:SORT not shown. No output.",
+      "po75Result": "po75/spec2-sort-numeric-014-error.txt",
+      "po75Reading": "confirmed",
+      "po75Summary": "Run-time error at /Out/All: Cannot cast 'x' to decimal number. Agrees with CPI; no output; symbolic po:SORT not displayed."
     },
     {
       "mapping": "spec2-sort-numeric-descending",
       "input": "sort-006.xml",
       "case": "fn/sort/007",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All 10,9,space-2-space,1.50,1.5,+0.5,.25,-1,007,7,1.; confirms stable descending numeric sort and preserved lexical forms."
+      "summary": "All 10,9,space-2-space,1.50,1.5,+0.5,.25,-1,007,7,1.; confirms stable descending numeric sort and preserved lexical forms.",
+      "po75Result": "po75/spec2-sort-numeric-descending-007.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Numeric descending order per context preserves lexical forms and stable equal values; agrees with CPI. See po75/spec2-sort-numeric-descending-007-check.txt."
     },
     {
       "mapping": "spec2-suppress-sort-format",
