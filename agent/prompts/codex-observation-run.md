@@ -60,7 +60,7 @@ git clone https://github.com/subapavel/flottila-mapping.git
 ```
 
 ```bash
-cd flottila-mapping && git checkout claude/sharp-hypatia-hkhf88
+cd flottila-mapping && git checkout main
 ```
 
 ```bash
