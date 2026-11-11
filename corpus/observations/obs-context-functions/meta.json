@@ -91,41 +91,53 @@
       "input": "f2.xml",
       "case": null,
       "attempt": "verified rerun after completed Save",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "other",
-      "summary": "No fixed assumed reading: V is 5, absent, D, 3. M1 preserves a SUPPRESS-only context and fills only the truly empty context. Matches the recorded M1 queue."
+      "summary": "No fixed assumed reading: V is 5, absent, D, 3. M1 preserves a SUPPRESS-only context and fills only the truly empty context. Matches the recorded M1 queue.",
+      "po75Result": "po75/ctx-2.xml",
+      "po75Reading": "other",
+      "po75Summary": "Saved and Check passed (0 problems, 0 warnings). Original f2.xml executed successfully. V is 5, absent, D, 3; numbered mapWithDefault queue preserves SUPPRESS-only context and fills only the truly empty context. Agrees with verified CPI rerun. See po75/ctx-2-check.txt and po75/ctx-2-queue.txt."
     },
     {
       "mapping": "ctx-3-each",
       "input": "f3.xml",
       "case": null,
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "other",
-      "summary": "No fixed assumed reading: Each value makes five Items with V a, a, empty string, b, empty string. Both splitByValue boxes use Each value."
+      "summary": "No fixed assumed reading: Each value makes five Items with V a, a, empty string, b, empty string. Both splitByValue boxes use Each value.",
+      "po75Result": "po75/ctx-3-each.xml",
+      "po75Reading": "other",
+      "po75Summary": "Saved and Check passed (0 problems, 0 warnings). Original f3.xml executed successfully. Each Value on both split nodes produces five Items with V a,a,empty string,b,empty string, agreeing with CPI. See po75/ctx-3-each-check.txt."
     },
     {
       "mapping": "ctx-3-change",
       "input": "f3.xml",
       "case": null,
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "other",
-      "summary": "No fixed assumed reading: Value change makes four Items with V [a,a], [empty string], [b], [empty string]. In-place variant of ctx_3_each, both splitByValue boxes changed."
+      "summary": "No fixed assumed reading: Value change makes four Items with V [a,a], [empty string], [b], [empty string]. In-place variant of ctx_3_each, both splitByValue boxes changed.",
+      "po75Result": "po75/ctx-3-change.xml",
+      "po75Reading": "other",
+      "po75Summary": "Saved and Check passed (0 problems, 0 warnings). Original f3.xml executed successfully. Value Change on both split nodes produces four Items with V [a,a], [empty string], [b], [empty string], agreeing with CPI. See po75/ctx-3-change-check.txt."
     },
     {
       "mapping": "ctx-3-empty",
       "input": "f3.xml",
       "case": null,
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "other",
-      "summary": "No fixed assumed reading: Empty value makes three Items with V [a,a], [b], then no V. Empty strings are consumed as separators and a trailing empty context remains. In-place final variant of ctx_3_each."
+      "summary": "No fixed assumed reading: Empty value makes three Items with V [a,a], [b], then no V. Empty strings are consumed as separators and a trailing empty context remains. In-place final variant of ctx_3_each.",
+      "po75Result": "po75/ctx-3-empty.xml",
+      "po75Reading": "other",
+      "po75Summary": "Saved and checked with zero problems/warnings. Original f3.xml: three Items with V [a,a], [b], then no V. Both SplitByValue nodes use Empty Value. Agrees with CPI. See po75/ctx-3-empty-check.txt."
     },
     {
       "mapping": "ctx-4",
@@ -155,21 +167,27 @@
       "mapping": "ctx-6a",
       "input": "f6.xml",
       "case": null,
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "other",
-      "summary": "No fixed assumed reading: All 5t1,7t3 selects the SUPPRESS-kept candidate. The suppressed slot still consumes Tag t2."
+      "summary": "No fixed assumed reading: All 5t1,7t3 selects the SUPPRESS-kept candidate. The suppressed slot still consumes Tag t2.",
+      "po75Result": "po75/ctx-6a.xml",
+      "po75Reading": "other",
+      "po75Summary": "All 5t1,7t3 selects SUPPRESS-kept candidate: suppressed slot consumes Tag t2. Agrees with CPI. Saved, Check 0 errors/0 warnings; original f6.xml. See po75/ctx-6a-check.txt."
     },
     {
       "mapping": "ctx-6b",
       "input": "f6.xml",
       "case": null,
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "contradicted",
-      "summary": "All 5,7, with no empty All. CC output queue is [5,SUPPRESS,7], contradicting the assumed conversion of SUPPRESS to an empty string. In-place variant of ctx_6a."
+      "summary": "All 5,7, with no empty All. CC output queue is [5,SUPPRESS,7], contradicting the assumed conversion of SUPPRESS to an empty string. In-place variant of ctx_6a.",
+      "po75Result": "po75/ctx-6b.xml",
+      "po75Reading": "contradicted",
+      "po75Summary": "All 5,7, no empty All; collapseContexts output queue [5,SUPPRESS,7]. Agrees with CPI. Saved, Check 0 errors/0 warnings; original f6.xml. See po75/ctx-6b-check.txt and po75/ctx-6b-queue.txt."
     },
     {
       "mapping": "spec2-collapse-contexts",
@@ -551,13 +569,16 @@
       "mapping": "spec2-suppress-sort-descending-format",
       "input": "sort-013.xml",
       "case": "fn/sort/013",
-      "po75": "ENVIRONMENT_BLOCKED",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "contradicted",
       "summary": "One empty All, not two. R1 queue shows SUPPRESS,SUPPRESS,empty string,empty string: descending puts SUPPRESS first. In-place variant after preceding result saved; final Save completed, then stopped at owner's request.",
       "po75AttemptReason": "Editor stopped responding after Save on copied descending variant; retry of navigation did not recover. Save, Check and execution unverified. Historical deferral reason retained.",
-      "po75Evidence": "po75/spec2-suppress-sort-descending-format-013-blocker.txt"
+      "po75Evidence": "po75/spec2-suppress-sort-descending-format-013-blocker.txt",
+      "po75Result": "po75/spec2-suppress-sort-descending-format-013.xml",
+      "po75Reading": "contradicted",
+      "po75Summary": "Retry after owner restarted PO: saved case-sensitive descending parameter verified, Check passed, test succeeded. One empty All; sort queue SUPPRESS,SUPPRESS,empty,empty. Contradicts the assumed two empty All, agrees with CPI. Earlier environment blocker retained."
     }
   ]
 }
