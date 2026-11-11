@@ -187,3 +187,56 @@ frame: a dropped frame would push the interval to 33.3 ms, and fewer than 5 % of
 same 16.7–16.8 ms was measured before the editor tickets touched the tree (#111, #114). The target as written
 sits at the measurement's floor; finding #128 asks the owner how to read it. JMH: NOT_RUN (no
 `bench/jmh` jar until spec 6).
+
+## Spec 6 first measurement (#189)
+
+Three runs of spec-gate step 5 (build `./mvnw -B -Pbench -pl bench/jmh -am package -DskipTests`; JMH
+`-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc`; `java scripts/ratchet.java bench`), machine label `claude-cloud-4vcpu`,
+2026-11-11. Nothing is written to `ratchet/bench.tsv`; the spec gate writes the first rows.
+
+| run | commit | date (UTC) | host |
+| --- | --- | --- | --- |
+| local 1 | 5a2515f | 01:19 | **not recorded**: the container restarted before a host file was written; the CPU is not known |
+| local 2 | 5a2515f | 01:28 | Intel Xeon Processor @ 2.10 GHz (family 6, model 207), 4 CPUs, MemTotal 16,472,084 kB |
+| remote | 001da99 | 01:04 | Intel Xeon Processor @ 2.10 GHz, 4 CPUs, MemTotal 16,472,400 kB (comment on #189) |
+
+The remote run measured 001da99, the local runs 5a2515f; the engine code is the same, 5a2515f only adds
+tooling (merge of #192). Scores are the `ratchet.java bench` lines (the median of the fork means); the JMH JSON
+of the local runs was used only to check them (same order of magnitude and ranking, raw fork-mean differs
+by the median rule). The remote run did not include the tree scenario.
+
+| scenario | run 1 | run 2 | remote | median | spread | target | judged on the median |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `compile/orders` (ms/op) | 0.6397 | 1.115 | 1.114 | 1.114 | 43 % | <= 5 | met |
+| `contexts/small/latency` (us/op) | 222.9 | 412.2 | 342.7 | 342.7 | 55 % | <= 500 | met |
+| `orders/small/latency` (us/op) | 249.3 | 386.2 | 378.5 | 378.5 | 36 % | <= 500 | met |
+| `wide/small/latency` (us/op) | 104.5 | 172.9 | 159.9 | 159.9 | 43 % | <= 500 | met |
+| `contexts/large/throughput` (MB/s) | 36.7 | 22.75 | 25.2 | 25.2 | 55 % | >= 20 | met |
+| `orders/large/throughput` (MB/s) | 34.69 | 18.79 | 22.34 | 22.34 | 71 % | >= 20 | met |
+| `wide/large/throughput` (MB/s) | 135.1 | 81.82 | 85.99 | 85.99 | 62 % | >= 20 | met |
+| `contexts/large/alloc` (B/op) | 700,600,000 | 700,600,000 | 700,600,000 | 700,600,000 | 0 % | none | - |
+| `orders/large/alloc` (B/op) | 793,300,000 | 793,300,000 | 793,300,000 | 793,300,000 | 0 % | none | - |
+| `wide/large/alloc` (B/op) | 46,470,000 | 46,480,000 | 46,470,000 | 46,470,000 | 0 % | none | - |
+| `contexts/small/alloc` (B/op) | 670,300 | 670,400 | 670,300 | 670,300 | 0 % | none | - |
+| `orders/small/alloc` (B/op) | 730,600 | 735,700 | 736,700 | 735,700 | 1 % | none | - |
+| `wide/small/alloc` (B/op) | 104,800 | 104,800 | 104,800 | 104,800 | 0 % | none | - |
+| `contexts/large/heap` | completed | completed | completed | - | - | completes at 128 MB | met |
+| `orders/large/heap` | completed | completed | completed | - | - | completes at 128 MB | met |
+| `wide/large/heap` | completed | completed | completed | - | - | completes at 128 MB | met |
+| `ui/tree-20128/scroll` (ms, p95 frame) | 16.7 | 16.8 | no run | 16.75 (two runs) | 1 % | < 33.3 | met |
+
+Spread is (max - min) / median. Each local tree run repeated the scenario three times with an identical score
+(16.7 and 16.8); no remote tree run exists, so the tree median is of two runs. All 3 forks of each `large/heap`
+benchmark completed in every run (30 forks per run). The remote JMH run took 00:04:51; the local gate budget
+was not timed, so WORKFLOW section 6 is not compared.
+
+### Reading
+
+- Run 2 judged `orders/large/throughput` at 18.79 MB/s, a missed target (`RATCHET FAIL`); runs 1 and remote met
+  it. The owner decided on 2026-11-11 that a target is judged on the median of three runs (#193); on the
+  median, 22.34 MB/s, every target is met. No target is missed.
+- Allocation per 10 MB message (input about 10.49 MB): `orders` 793.3 MB, about 76 times the input;
+  `contexts` 700.6 MB, about 67 times; `wide` 46.5 MB, about 4.4 times. It is stable across hosts (spread
+  0 %), so it is an engine property, not noise. Follow-up: #194 (diagnose and reduce the orders allocation).
+- The time scores spread by 36 to 71 % across hosts on the same label, beyond the 20 % ratchet tolerance:
+  F-36.
