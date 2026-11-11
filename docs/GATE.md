@@ -51,6 +51,7 @@ the command and the evidence it needs. A change to a check after this point is a
    - every large message (≥ 10 MB) at ≥ 20 MB/s, and it completes in a fork with `-Xmx128m`;
    - `compile/orders` at ≤ 5 ms/op warm.
 
+   A scenario that regresses or misses its target in the first run runs twice more and is judged on the median of the three (ADR-0021, Notes of 2026-11-11).
    No scenario is worse than `ratchet/bench.tsv` beyond its tolerance (ADR-0019). The
    20,128-field tree scenario has a p95 frame time below 33.3 ms (no dropped frame at p95; F-26, 2026-11-10). The optional PO observation
    request (`po-owner-local`) is informative only.

@@ -130,6 +130,23 @@ The UDF compile (javac) is not a JMH scenario. It is JDK code, and its rough num
 - **Heap.** Large throughput is measured in forks with a 1 GB heap. `<mapping>/large/heap` is a
   separate fork with `-Xmx128m`; it may need a second JMH invocation in spec-gate step 5.
 
+## Notes of 2026-11-11 (spec 6, #181, #189, #193, owner)
+
+The #189 measurement judged one commit (5a2515f) three times on `claude-cloud-4vcpu` hosts:
+`orders/large/throughput` was 34.69, 22.34 and 18.79 MB/s, so one run missed the target and two met it.
+
+1. **Median of three runs.** A target and a regression are judged on the median of three runs, not
+   on one run. A first run that regresses or misses a target is re-run twice, and the gate judges
+   the median of the three. A clean first run stays one run. This replaces the single re-run of
+   "The bench ratchet". `<mapping>/large/heap` only has to complete, so a fork that fails in any
+   run still fails the gate.
+2. **Large-message target as time.** The target is a 10 MB message in at most 500 ms, the same
+   requirement as 20 MB/s. The ratchet keeps `MB/s` as the unit.
+3. **No comparison with SAP PO.** The large-message target guards against regressions with
+   headroom. The PO editor freezes on a message of about 10 MB, so the PO comparison is
+   runtime-only and optional (#191). The observation request carries a second label,
+   `is-owner-local`, beside `po-owner-local`; both stay informative, never a gate condition.
+
 ## Considered options
 
 - **Bytecode for the whole IR in milestone 1**: rejected. In the trial it was 2.3–2.7× faster in
