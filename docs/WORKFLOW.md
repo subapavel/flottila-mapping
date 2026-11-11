@@ -142,10 +142,12 @@ most one gate that builds `service` at a time.
      commit, written by the architect from the verifier's output. The score is the median of the
      per-fork means.
    - A scenario worse than `ratchet/bench.tsv` by more than its tolerance (20 % for time and
-     throughput, 10 % for B/op) is measured once more: the judgement prints the regressed
-     benchmarks as one include regex, the gate re-runs only them into `.logs/<spec>-jmh-2.json`
-     and judges both files again. The gate fails if it is still worse, if a GATE check 7 target is
-     missed, or if a `bench.tsv` row has no result.
+     throughput, 10 % for B/op), or a missed target, is measured twice more: the judgement prints
+     the benchmarks as one include regex, the gate re-runs only them into `.logs/<spec>-jmh-2.json`
+     and `.logs/<spec>-jmh-3.json` and judges the median of the three (ADR-0021, Notes of
+     2026-11-11). The gate fails if the median is still worse, if a GATE check 7 target is missed,
+     or if a `bench.tsv` row has no result. A regression the median still shows goes to the owner
+     as a finding, because it can come from the host (F-36).
    - `regen --all` reads the final results too, so the verifier runs this step before
      step 4. A baseline moves only on a gain beyond the tolerance (ADR-0019).
 

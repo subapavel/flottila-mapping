@@ -4,7 +4,7 @@
 //   java scripts/ratchet.java regen --all [<bench result>...]
 //                                          spec-gate step 4: require every report, refuse a drop, write ratchet/;
 //                                          with bench results also judge them and write bench.tsv
-//   java scripts/ratchet.java bench <jmh.json> [<jmh-2.json>] [<tree.json>]
+//   java scripts/ratchet.java bench <jmh.json> [<tree.json>] [<jmh-2.json> <jmh-3.json>]
 //                                          spec-gate step 5: judge the bench results, write nothing
 //
 // Run from the repository root (or the root of a scratch copy; the working directory is the root).
@@ -21,8 +21,9 @@
 //   ui/coverage/coverage-summary.json                  summed per directory (ui/src/model, ui/src/studio/store)
 //
 //
-// Bench results (ADR-0021 "The bench ratchet", #184), in the order given; a later file's scenario replaces an
-// earlier one's, so the re-run of the regressed scenarios comes after the first run:
+// Bench results (ADR-0021 "The bench ratchet", #184, "Notes of 2026-11-11", #193), in the order given. A scenario in
+// three or more files is judged on the median of their scores (the first run and the two re-runs of a regressed or
+// missed scenario); in one or two files a later file's scenario replaces an earlier one's:
 //   a JMH JSON file (-rf json, a top-level array). The score is the median of the per-fork means of rawData
 //       (one array per fork). Names: see SCENARIOS. The large throughput benchmark carries the @Param
 //       inputBytes, the exact byte length of its input; MB/s = inputBytes / 2^20 / (seconds per op).
@@ -561,8 +562,9 @@ public final class Ratchet {
   private record Result(double score, String unit, String benchmark) {}
 
   /**
-   * Judges the bench results against bench.tsv and the targets, prints the regressed JMH benchmarks as one
-   * include regex (RERUN), and returns the new bench.tsv: a row moves only on a gain beyond its tolerance.
+   * Judges the bench results against bench.tsv and the targets, prints the JMH benchmarks that regressed or missed
+   * a target as one include regex (RERUN), and returns the new bench.tsv: a row moves only on a gain beyond its
+   * tolerance.
    */
   private static List<String> judgeBench(List<Path> files) throws IOException {
     Map<String, Result> results = readBenchResults(files);
@@ -625,6 +627,9 @@ public final class Ratchet {
         } else if (!t.met(now.score())) {
           fail("bench " + scenario + ": " + format(now.score()) + " " + now.unit() + " misses the target "
               + t.op().text + " " + format(t.value()) + " " + t.unit());
+          if (now.benchmark() != null) {
+            rerun.add(now.benchmark());
+          }
         }
       }
     }
@@ -635,26 +640,44 @@ public final class Ratchet {
     return new ArrayList<>(rows.values());
   }
 
-  /** Per scenario, in file order: a later file's result replaces an earlier one's. */
+  /**
+   * Per scenario: in three or more files the median of their scores (the first run and two re-runs); in one or two
+   * files the later file's result (a re-run replaces the first run).
+   */
   private static Map<String, Result> readBenchResults(List<Path> files) throws IOException {
-    Map<String, Result> results = new TreeMap<>();
+    Map<String, List<Result>> runs = new TreeMap<>();
     for (Path file : files) {
       Object json = new Json(Files.readString(file)).parse();
       if (json instanceof List<?> jmh) {
         for (Object r : jmh) {
-          readJmhResult(asMap(r), results);
+          readJmhResult(asMap(r), runs);
         }
       } else {
         Map<String, Object> tree = asMap(json);
-        results.put(
+        add(
+            runs,
             (String) tree.get("scenario"),
             new Result(((Number) tree.get("score")).doubleValue(), (String) tree.get("unit"), null));
       }
     }
+    Map<String, Result> results = new TreeMap<>();
+    runs.forEach(
+        (scenario, list) -> {
+          Result last = list.getLast();
+          results.put(
+              scenario,
+              list.size() < 3
+                  ? last
+                  : new Result(median(list.stream().map(Result::score).toList()), last.unit(), last.benchmark()));
+        });
     return results;
   }
 
-  private static void readJmhResult(Map<String, Object> r, Map<String, Result> results) {
+  private static void add(Map<String, List<Result>> runs, String scenario, Result result) {
+    runs.computeIfAbsent(scenario, s -> new ArrayList<>()).add(result);
+  }
+
+  private static void readJmhResult(Map<String, Object> r, Map<String, List<Result>> results) {
     String name = (String) r.get("benchmark");
     Matcher m = BENCHMARK.matcher(name);
     Naming naming = m.matches() ? SCENARIOS.get(m.group(2)) : null;
@@ -689,11 +712,12 @@ public final class Ratchet {
       }
       case SCORE -> {}
     }
-    results.put(scenario, new Result(score, unit, name));
+    add(results, scenario, new Result(score, unit, name));
     // JMH 1.37 always writes "secondaryMetrics"; gc.alloc.rate.norm is there with -prof gc
     Object gc = asMap(r.get("secondaryMetrics")).get("gc.alloc.rate.norm");
     if (naming.alloc() != null && gc != null) {
-      results.put(
+      add(
+          results,
           naming.alloc().formatted(mapping),
           new Result(medianOfForkMeans(asMap(gc).get("rawData")), (String) asMap(gc).get("scoreUnit"), name));
     }
@@ -709,9 +733,14 @@ public final class Ratchet {
       }
       means.add(sum / ((List<?>) fork).size());
     }
-    Collections.sort(means);
-    int n = means.size();
-    return n % 2 == 1 ? means.get(n / 2) : (means.get(n / 2 - 1) + means.get(n / 2)) / 2;
+    return median(means);
+  }
+
+  private static double median(List<Double> values) {
+    List<Double> sorted = new ArrayList<>(values);
+    Collections.sort(sorted);
+    int n = sorted.size();
+    return n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2;
   }
 
   /** Four significant digits, no exponent, no trailing zeros. */

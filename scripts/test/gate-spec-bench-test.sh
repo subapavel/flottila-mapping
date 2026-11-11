@@ -29,6 +29,7 @@ if [ "\$1" = -jar ]; then
   out=; prev=
   for a in "\$@"; do [ "\$prev" = -rff ] && out=\$a; prev=\$a; done
   cp "\$root/canned/jmh-\$n.json" "\$out"
+  [ -f "\$root/canned/jmh-\$n.fail" ] && exit 1
   exit 0
 fi
 exec "$real_java" "\$@"
@@ -88,32 +89,63 @@ check "pass: one JMH run" "$(calls)" 1
 check "pass: judged" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement  (.logs/1-bench.log)')" 1
 check "pass: written" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n' "compile/orders	$M	2	ms/op" "$row" "$treerow")"
 
-# the label, a regression, then a pass on the re-run of the regressed scenario only
+# the label, a regression, then two re-runs of the regressed scenario only (#193), judged on the median of the
+# three files: 130, 110, 105 gives 110, a pass; step 4 writes from the same three files
 latency 1 130
 latency 2 110
+latency 3 105
 out=$(gate $M)
-check "re-run: two JMH runs" "$(calls)" 2
+check "re-run: three JMH runs" "$(calls)" 3
 check "re-run: only the regressed" "$(sed -n 2p "$tmp/jmh-calls" | grep -cF -- "-rff .logs/1-jmh-2.json $regex")" 1
-check "re-run: fail on error" "$(sed -n 2p "$tmp/jmh-calls" | grep -c -- '-foe true')" 1
+check "re-run: and again" "$(sed -n 3p "$tmp/jmh-calls" | grep -cF -- "-rff .logs/1-jmh-3.json $regex")" 1
+check "re-run: fail on error" "$(sed -n 2,3p "$tmp/jmh-calls" | grep -c -- '-foe true')" 2
+check "re-run: both measured" "$(echo "$out" | grep -c 'VERIFIED_PASS  5 jmh re-run [23]  (.logs/1-jmh-[23].log)')" 2
 check "re-run: first judgement kept" "$(grep -c 'is worse than the baseline' "$tmp/.logs/1-bench.log")" 1
-check "re-run: judged again" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement after the re-run  (.logs/1-bench-2.log)')" 1
+check "re-run: judged on three runs" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement on three runs  (.logs/1-bench-2.log)')" 1
+check "re-run: the median" "$(grep -c 'ok   orders/small/latency 110 us/op' "$tmp/.logs/1-bench-2.log")" 1
 check "re-run: no failed judgement" "$(lines "$out" 'EXECUTED_FAIL  5 bench')" 0
 check "re-run: written" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n' "compile/orders	$M	2	ms/op" "$row" "$treerow")"
 
-# the label, a regression twice: the gate fails, step 4 writes nothing
+# the label, a regression in the median: 130, 125, 110 gives 125 (the later file alone would pass); the gate fails,
+# step 4 writes nothing
 latency 2 125
+latency 3 110
 out=$(gate $M)
-check "twice: two JMH runs" "$(calls)" 2
-check "twice: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement after the re-run  (.logs/1-bench-2.log)')" 1
-check "twice: regen refuses" "$(lines "$out" 'EXECUTED_FAIL  4 ratchet regen')" 1
-check "twice: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
+check "median regressed: three JMH runs" "$(calls)" 3
+check "median regressed: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement on three runs  (.logs/1-bench-2.log)')" 1
+check "median regressed: worse" "$(grep -c 'orders/small/latency: 125 us/op is worse' "$tmp/.logs/1-bench-2.log")" 1
+check "median regressed: regen refuses" "$(lines "$out" 'EXECUTED_FAIL  4 ratchet regen')" 1
+check "median regressed: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
 
-# the label, a missed target and no regression: no re-run, the gate fails
+# the label, a missed target and no regression (#193): re-run twice, judged on three files; 600, 450, 480 gives 480,
+# the target <= 500 is met
 row="orders/small/latency	$M	550	us/op"
 latency 1 600
+latency 2 450
+latency 3 480
 out=$(gate $M)
-check "target: one JMH run" "$(calls)" 1
-check "target: fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement  (.logs/1-bench.log)')" 1
+check "target: three JMH runs" "$(calls)" 3
+check "target: only the missed" "$(sed -n 3p "$tmp/jmh-calls" | grep -cF -- "-rff .logs/1-jmh-3.json $regex")" 1
+check "target: first judgement kept" "$(grep -c 'misses the target' "$tmp/.logs/1-bench.log")" 1
+check "target: judged on three runs" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement on three runs  (.logs/1-bench-2.log)')" 1
+
+# a JMH run that fails (a heap fork out of memory under -foe true) fails the gate in any run, whatever the judgement
+row="orders/small/latency	$M	100	us/op"
+latency 1 105
+touch "$tmp/canned/jmh-1.fail"
+out=$(gate $M)
+check "failed run: one JMH run" "$(calls)" 1
+check "failed run: fail" "$(lines "$out" 'EXECUTED_FAIL  5 jmh  (.logs/1-jmh.log)')" 1
+check "failed run: judged" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement  (.logs/1-bench.log)')" 1
+rm "$tmp/canned/jmh-1.fail"
+latency 1 130
+latency 2 110
+latency 3 105
+touch "$tmp/canned/jmh-3.fail"
+out=$(gate $M)
+check "failed re-run: fail" "$(lines "$out" 'EXECUTED_FAIL  5 jmh re-run 3  (.logs/1-jmh-3.log)')" 1
+check "failed re-run: judged" "$(lines "$out" 'VERIFIED_PASS  5 bench judgement on three runs  (.logs/1-bench-2.log)')" 1
+rm "$tmp/canned/jmh-3.fail"
 
 # the tree scenario (#188): three runs of `npm run e2e -- tree-20128`, each with its own result file in TREE_P95_FILE,
 # the median in ui/.logs/<spec>-tree-20128.json. Unlabelled it is printed; labelled it is judged with the JMH file.

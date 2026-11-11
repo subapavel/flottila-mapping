@@ -100,7 +100,9 @@ fi
 # 5: JMH (ADR-0021), before step 4. Judged (scripts/ratchet.java bench) only when the verifier names the machine:
 # MACHINE_LABEL=claude-cloud-4vcpu, cross-checked with nproc = 4. Without the label step 5 measures and prints, and
 # step 4 leaves ratchet/bench.tsv alone; the gate never writes bench/RESULTS.md. A first judgement that prints RERUN
-# re-runs those benchmarks once into .logs/<spec>-jmh-2.json and judges again; step 4 reads the final results.
+# (a regression or a missed target) re-runs those benchmarks twice, into .logs/<spec>-jmh-2.json and -jmh-3.json, and
+# judges again on all three files, a scenario in three of them on its median (#193); step 4 reads the same files. A
+# clean first judgement stays one run. Any JMH run that fails (a heap fork, -foe true) fails the gate.
 bench_results=()
 # The tree scenario (#188): three runs of ui/e2e/tree-20128.spec.ts against the fake API. TREE_P95_FILE names the
 # file the spec writes its result to; the median of the three goes to ui/.logs/<spec>-tree-20128.json, the shape
@@ -141,9 +143,11 @@ if [ -f bench/jmh/target/benchmarks.jar ]; then
     else
       rerun=$(sed -n 's/^RERUN //p' ".logs/${spec}-bench.log")
       if [ -n "$rerun" ]; then
-        step "5 jmh re-run" ".logs/${spec}-jmh-2.log" jmh ".logs/${spec}-jmh-2.json" "$rerun"
-        bench_results+=(".logs/${spec}-jmh-2.json")
-        step "5 bench judgement after the re-run" ".logs/${spec}-bench-2.log" \
+        for run in 2 3; do
+          step "5 jmh re-run $run" ".logs/${spec}-jmh-${run}.log" jmh ".logs/${spec}-jmh-${run}.json" "$rerun"
+          bench_results+=(".logs/${spec}-jmh-${run}.json")
+        done
+        step "5 bench judgement on three runs" ".logs/${spec}-bench-2.log" \
           java scripts/ratchet.java bench "${bench_results[@]}"
       else
         echo "EXECUTED_FAIL  5 bench judgement  (.logs/${spec}-bench.log)"
