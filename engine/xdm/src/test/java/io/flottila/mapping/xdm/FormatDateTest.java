@@ -117,6 +117,25 @@ class FormatDateTest {
   }
 
   /**
+   * A component is padded with zeros to its width, a sign counted in it, and a longer number is
+   * written whole, as Java's {@code %0}<i>n</i>{@code d} pads it, with which the core wrote before
+   * #194 (observed on that code): years beyond 9999 and before 1 come out of a date's offset shift.
+   */
+  @ParameterizedTest(name = "{0} {1} -> {2}")
+  @CsvSource(
+      delimiter = '|',
+      textBlock =
+          """
+          +12345-06-07T08:09:01.002+01:02 | [Y0001] [M01] [D01] [H01] [m01] [s01] [f001] [Z0000] | 12345 06 07 08 09 01 002 +0102
+          0000-01-01T00:00:00Z            | [Y0001]                                              | 0000
+          -0005-12-31T23:59:59.999-14:00  | [Y0001] [M01] [D01] [H01] [m01] [s01] [f001] [Z0000] | -005 12 31 23 59 59 999 -1400
+          2024-10-11T12:13:14.123-09:30   | [M01][D01][H01][m01][s01][f001][Z01:01t]             | 1011121314123-09:30
+          """)
+  void aComponentIsPaddedToItsWidth(String value, String picture, String written) {
+    assertThat(FormatDate.format(OffsetDateTime.parse(value), picture)).isEqualTo(written);
+  }
+
+  /**
    * A picture is analysed once and then writes and reads every date as {@link FormatDate#format}
    * and {@link FormatDate#parse} do (#194), the same picture again and again.
    */

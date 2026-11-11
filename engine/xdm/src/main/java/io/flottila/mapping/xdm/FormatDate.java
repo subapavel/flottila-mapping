@@ -95,11 +95,10 @@ public final class FormatDate {
     public String format(OffsetDateTime value) {
       StringBuilder out = new StringBuilder();
       for (Token token : tokens) {
-        out.append(
-            switch (token) {
-              case Literal literal -> literal.text();
-              case Component c -> component(value, c.field());
-            });
+        switch (token) {
+          case Literal literal -> out.append(literal.text());
+          case Component c -> component(out, value, c.field());
+        }
       }
       return out.toString();
     }
@@ -249,34 +248,53 @@ public final class FormatDate {
     return List.copyOf(tokens);
   }
 
-  /** The component {@code field} of {@code value}. */
-  private static String component(OffsetDateTime value, Field field) {
+  /** Appends the component {@code field} of {@code value} to {@code out}. */
+  private static StringBuilder component(StringBuilder out, OffsetDateTime value, Field field) {
     return switch (field) {
-      case YEAR -> "%04d".formatted(value.getYear());
-      case MONTH -> String.valueOf(value.getMonthValue());
-      case MONTH_2 -> "%02d".formatted(value.getMonthValue());
-      case DAY -> String.valueOf(value.getDayOfMonth());
-      case DAY_2 -> "%02d".formatted(value.getDayOfMonth());
-      case HOUR -> String.valueOf(value.getHour());
-      case HOUR_2 -> "%02d".formatted(value.getHour());
-      case MINUTE -> String.valueOf(value.getMinute());
-      case MINUTE_2 -> "%02d".formatted(value.getMinute());
-      case SECOND -> String.valueOf(value.getSecond());
-      case SECOND_2 -> "%02d".formatted(value.getSecond());
-      case MILLISECOND -> "%03d".formatted(value.getNano() / 1_000_000);
-      case OFFSET -> zone(value.getOffset(), "");
+      case YEAR -> pad(out, value.getYear(), 4);
+      case MONTH -> out.append(value.getMonthValue());
+      case MONTH_2 -> pad(out, value.getMonthValue(), 2);
+      case DAY -> out.append(value.getDayOfMonth());
+      case DAY_2 -> pad(out, value.getDayOfMonth(), 2);
+      case HOUR -> out.append(value.getHour());
+      case HOUR_2 -> pad(out, value.getHour(), 2);
+      case MINUTE -> out.append(value.getMinute());
+      case MINUTE_2 -> pad(out, value.getMinute(), 2);
+      case SECOND -> out.append(value.getSecond());
+      case SECOND_2 -> pad(out, value.getSecond(), 2);
+      case MILLISECOND -> pad(out, value.getNano() / 1_000_000, 3);
+      case OFFSET -> zone(out, value.getOffset(), "");
       case OFFSET_Z ->
-          value.getOffset().getTotalSeconds() == 0 ? "Z" : zone(value.getOffset(), ":");
+          value.getOffset().getTotalSeconds() == 0
+              ? out.append('Z')
+              : zone(out, value.getOffset(), ":");
     };
   }
 
-  /** {@code offset} as a sign, two digits of hours, {@code separator} and two of minutes. */
-  private static String zone(ZoneOffset offset, String separator) {
+  /**
+   * Appends {@code offset} to {@code out} as a sign, two digits of hours, {@code separator} and two
+   * of minutes.
+   */
+  private static StringBuilder zone(StringBuilder out, ZoneOffset offset, String separator) {
     int minutes = offset.getTotalSeconds() / 60;
-    return (minutes < 0 ? "-" : "+")
-        + "%02d".formatted(Math.abs(minutes) / 60)
-        + separator
-        + "%02d".formatted(Math.abs(minutes) % 60);
+    out.append(minutes < 0 ? '-' : '+');
+    pad(out, Math.abs(minutes) / 60, 2).append(separator);
+    return pad(out, Math.abs(minutes) % 60, 2);
+  }
+
+  /**
+   * Appends {@code value} to {@code out} with zeros before its digits up to {@code width}
+   * characters, its sign counted, as {@code %0}<i>width</i>{@code d} writes it; a longer number
+   * whole.
+   */
+  private static StringBuilder pad(StringBuilder out, int value, int width) {
+    int start = out.length();
+    out.append(value);
+    int digits = value < 0 ? start + 1 : start;
+    while (out.length() - start < width) {
+      out.insert(digits, '0');
+    }
+    return out;
   }
 
   private static IllegalArgumentException unknown(String picture) {
