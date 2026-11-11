@@ -260,6 +260,26 @@
               <goal>check</goal>
             </goals>
           </execution>
+          <!-- corpus/bench is outside every module's basedir (Spotless globs cannot leave it), yet its generators
+               compile into bench/jmh: check them from the root project only; children keep the default globs -->
+          <execution>
+            <id>corpus-bench-format</id>
+            <inherited>false</inherited>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <java>
+                <includes>
+                  <include>corpus/bench/**/*.java</include>
+                </includes>
+                <googleJavaFormat>
+                  <version>${google-java-format.version}</version>
+                </googleJavaFormat>
+              </java>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
 

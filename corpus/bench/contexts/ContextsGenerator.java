@@ -15,8 +15,8 @@ import java.util.regex.Pattern;
  * The seeded input generator of the {@code contexts} bench mapping (ADR-0021, #181): customers of
  * one to three orders, each of one to four items, with invented English names (ADR-0002). An
  * order's priority (1 to 9) and an item's rank (1 to 999) are the keys the mapping sorts by; equal
- * keys occur. The same seed and size give the same bytes on every JDK, because the specification
- * of {@link Random} fixes its algorithm. The input grows by whole customers until it holds at least
+ * keys occur. The same seed and size give the same bytes on every JDK, because the specification of
+ * {@link Random} fixes its algorithm. The input grows by whole customers until it holds at least
  * {@code size} bytes; it is ASCII, so a character is a byte.
  *
  * <p>The inputs for a comparison outside the benchmarks come from the bench jar, after {@code

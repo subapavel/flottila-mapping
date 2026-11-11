@@ -18,8 +18,8 @@ import java.util.regex.Pattern;
  * feed of records, each with all 300 fields of {@code wide-source.xsd} in its order, twelve
  * segments of the same 25 attributes, with invented English names (ADR-0002) and mixed types. The
  * same seed and size give the same bytes on every JDK, because the specification of {@link Random}
- * fixes its algorithm. The input grows by whole records until it holds at least {@code size}
- * bytes; it is ASCII, so a character is a byte.
+ * fixes its algorithm. The input grows by whole records until it holds at least {@code size} bytes;
+ * it is ASCII, so a character is a byte.
  *
  * <p>The inputs for a comparison outside the benchmarks come from the bench jar, after {@code
  * ./mvnw -B -Pbench -pl bench/jmh -am verify}:
@@ -28,8 +28,7 @@ import java.util.regex.Pattern;
  * java -cp bench/jmh/target/benchmarks.jar wide.WideGenerator large wide-large.xml
  * </pre>
  *
- * <p>{@code small} writes the small input. The pinned digests of both are in {@code
- * WideInputTest}.
+ * <p>{@code small} writes the small input. The pinned digests of both are in {@code WideInputTest}.
  */
 public final class WideGenerator {
 
@@ -162,9 +161,7 @@ public final class WideGenerator {
       for (Attribute attribute : ATTRIBUTES) {
         String name = segment + attribute.name();
         String value =
-            name.equals("PartyRef")
-                ? "P-%06d".formatted(number)
-                : value(attribute.kind(), random);
+            name.equals("PartyRef") ? "P-%06d".formatted(number) : value(attribute.kind(), random);
         xml.append("  <")
             .append(name)
             .append('>')
