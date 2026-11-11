@@ -131,21 +131,25 @@
       "mapping": "ctx-4",
       "input": "f4.xml",
       "case": null,
-      "po75": "NOT_RUN",
-      "po75Reason": "Deferred to evening at owner's request",
+      "po75": "observed",
+      "po75Reason": "Previously deferred to evening at owner request; completed in SAP PO on 2026-11-11.",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "Confirms the per-value candidate: Item 1 V true,true; Items 2 and 3 false; Item 4 true. Empty-string Sku counts as present."
+      "summary": "Confirms the per-value candidate: Item 1 V true,true; Items 2 and 3 false; Item 4 true. Empty-string Sku counts as present.",
+      "po75ResultReading": "confirmed",
+      "po75ResultSummary": "Item V values: true,true | false | false | true. Per-value existence, false for empty contexts, true for an existing empty element. Agrees with CPI. See po75/ctx-4.xml and ctx-4-check.txt."
     },
     {
       "mapping": "ctx-5",
       "input": "f5.xml",
       "case": null,
-      "po75": "NOT_RUN",
-      "po75Reason": "Deferred to evening at owner's request",
+      "po75": "observed",
+      "po75Reason": "Previously deferred to evening at owner request; completed in SAP PO on 2026-11-11.",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "First values 3,10,7 and empty string, all in Item 1. Items 2-4 have no V. Confirms first rather than last value and the empty-context replacement."
+      "summary": "First values 3,10,7 and empty string, all in Item 1. Items 2-4 have no V. Confirms first rather than last value and the empty-context replacement.",
+      "po75ResultReading": "confirmed",
+      "po75ResultSummary": "First values 3,10,7 and empty string are all in Item 1; Items 2-4 contain no V. Agrees with CPI. See po75/ctx-5.xml and ctx-5-check.txt."
     },
     {
       "mapping": "ctx-6a",
@@ -210,21 +214,26 @@
       "mapping": "spec2-exists",
       "input": "f4.xml",
       "case": "fn/exists/003",
-      "po75": "NOT_RUN",
-      "po75Reason": "Deferred to evening at owner's request",
+      "po75": "observed",
+      "po75Reason": "Previously deferred to evening at owner request; completed in SAP PO on 2026-11-11.",
       "cpi": "observed",
       "reading": "contradicted",
-      "summary": "All true,true,false,false,true; exists is per value for nonempty contexts, contrary to the assumed four-value per-context result."
+      "summary": "All true,true,false,false,true; exists is per value for nonempty contexts, contrary to the assumed four-value per-context result.",
+      "po75ResultReading": "contradicted",
+      "po75ResultSummary": "All true,true,false,false,true. Per-value existence in nonempty contexts contradicts the assumed four-value per-context result. Agrees with CPI. See po75/spec2-exists.xml and spec2-exists-check.txt."
     },
     {
       "mapping": "spec2-exists-create-if",
       "input": "exists-004.xml",
       "case": "fn/exists/004",
-      "po75": "NOT_RUN",
-      "po75Reason": "Deferred to evening at owner's request",
+      "po75": "observed",
+      "po75Reason": "Previously deferred to evening at owner request; completed in SAP PO on 2026-11-11.",
       "cpi": "observed",
       "reading": "contradicted",
-      "summary": "All true,true,true,false,true, not false,true,false,true. E1 output [true] [true,true] [false] [true] counts each SUPPRESS as present."
+      "summary": "All true,true,true,false,true, not false,true,false,true. E1 output [true] [true,true] [false] [true] counts each SUPPRESS as present.",
+      "po75Result": "po75/spec2-exists-create-if.xml",
+      "po75ResultReading": "contradicted",
+      "po75ResultSummary": "All true,true,true,false,true. SUPPRESS counts as present, per value; empty context gives false. Agrees with CPI. Literal queue rows retained separately."
     },
     {
       "mapping": "spec2-format-by-example",
@@ -263,11 +272,14 @@
       "input": "exists-004.xml",
       "case": "fn/mapWithDefault/002",
       "attempt": "verified rerun after completed Save",
-      "po75": "NOT_RUN",
-      "po75Reason": "Deferred to evening at owner's request",
+      "po75": "observed",
+      "po75Reason": "Previously deferred to evening at owner request; completed in SAP PO on 2026-11-11.",
       "cpi": "observed",
       "reading": "contradicted",
-      "summary": "All empty string,D,empty string. M1 preserves SUPPRESS-only contexts, contrary to the assumed extra leading D. Matches the recorded M1 queue."
+      "summary": "All empty string,D,empty string. M1 preserves SUPPRESS-only contexts, contrary to the assumed extra leading D. Matches the recorded M1 queue.",
+      "po75Result": "po75/spec2-map-with-default-create-if.xml",
+      "po75ResultReading": "contradicted",
+      "po75ResultSummary": "All empty string,D,empty string. SUPPRESS-only context stays SUPPRESS; only truly empty context receives D. Agrees with verified CPI result. Literal queue rows retained separately."
     },
     {
       "mapping": "spec2-map-with-default",
