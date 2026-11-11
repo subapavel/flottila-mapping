@@ -403,7 +403,7 @@ class EngineFacadeTraceTest {
         output(
             facade.testRun(
                 mapping,
-                utf8(orders(order(null, line("1", "q1"), line("no", "q2")))),
+                utf8(orders(order(null, line("1", "q1"), line("false", "q2")))),
                 TIMEOUT,
                 LIMIT));
     assertThat(keys(witness.trace())).containsExactly("S1", "C1", "T1", "S2", "T2");
@@ -412,7 +412,7 @@ class EngineFacadeTraceTest {
         output(
             facade.testRun(
                 mapping,
-                utf8(orders(order(null, line("0", "q1"), line("no", "q2")))),
+                utf8(orders(order(null, line("0", "q1"), line("false", "q2")))),
                 TIMEOUT,
                 LIMIT));
 
@@ -421,7 +421,7 @@ class EngineFacadeTraceTest {
         .containsExactlyEntriesOf(
             entries(
                 "S1",
-                queue(List.of(context("0", "no")), false, 2, 1),
+                queue(List.of(context("0", "false")), false, 2, 1),
                 "C1",
                 queue(List.of(context(null, null)), false, 2, 1),
                 "T1",
@@ -850,8 +850,9 @@ class EngineFacadeTraceTest {
 
   /**
    * #52's input generator: up to three Orders, each with an Id or none and up to three Lines, each
-   * with a Sku and a Qty or none; the values include createIf's true (1, TRUE, true) and false
-   * ones.
+   * with a Sku and a Qty or none; the values include createIf's true (1, TRUE, true) and false (0)
+   * ones, and ones that tell the contexts apart ({@code o1}, {@code s11}, {@code q11}), which are
+   * no boolean ({@link #castable}).
    */
   private static String generatedOrders(RandomGenerator random) {
     StringBuilder xml = new StringBuilder("<Orders>");
@@ -873,6 +874,19 @@ class EngineFacadeTraceTest {
       xml.append("</Order>");
     }
     return xml.append("</Orders>").toString();
+  }
+
+  /**
+   * {@code input} with each {@code field} value that is no boolean ({@code prefix} and digits) as
+   * {@code false}, where createIf reads the field: createIf reads false as SUPPRESS, as it read
+   * those values before #133, and raises {@code po:CREATEIF} on them since (F-37).
+   */
+  private static String castable(String input, boolean cast, String field, String prefix) {
+    return cast
+        ? input.replaceAll(
+            "<" + field + ">" + prefix + "\\d+</" + field + ">",
+            "<" + field + ">false</" + field + ">")
+        : input;
   }
 
   private static long max(RandomGenerator random, long min) {
@@ -907,7 +921,7 @@ class EngineFacadeTraceTest {
    */
   private static Generated generated(long seed) {
     RandomGenerator random = new SplittableRandom(seed);
-    String input = generatedOrders(random);
+    String drawn = generatedOrders(random);
     long grpMin = random.nextInt(2);
     boolean grpCreateIf = random.nextBoolean();
     long grpMax = max(random, grpMin);
@@ -917,6 +931,12 @@ class EngineFacadeTraceTest {
     long valMin = random.nextInt(2);
     int valChoice = random.nextInt(3);
     long valMax = max(random, valMin);
+    String input =
+        castable(
+            castable(castable(drawn, grpCreateIf, "Id", "o"), rowChoice == 1, "Sku", "s"),
+            valChoice == 2,
+            "Qty",
+            "q");
     String s1 = source("S1", "/Orders/Order/Id", "/Orders");
     String s2 =
         source("S2", "/Orders/Order/Line/Sku", rowChoice == 2 ? "/Orders" : "/Orders/Order");

@@ -2,11 +2,8 @@
 <Orders>
   <Order>
     <Id>o1</Id>
-    <Tag>TRUE</Tag>
+    <Tag>FALSE</Tag>
     <Tag>1</Tag>
-    <Tag>yes</Tag>
-    <Tag>0</Tag>
-    <Tag> true</Tag>
-    <Tag/>
+    <Tag>True</Tag>
   </Order>
 </Orders>

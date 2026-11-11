@@ -58,6 +58,8 @@ class RuntimeErrorCoverageTest {
             "po:SORTBYKEY",
             // #83: fixValues with missing = error, fn/fixValues/004
             "po:FIXVALUES",
+            // #133 (F-37): createIf over a value that is no boolean, fn/createIf/005
+            "po:CREATEIF",
             "err:FORG0001",
             "err:FOAR0001")
         .doesNotContain("flottila:TIMEOUT");
