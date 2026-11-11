@@ -1,7 +1,7 @@
 name: bench
 
 # JMH on a shared runner, for information only (ADR-0017, ADR-0021). Never a gate: shared runners are too
-# noisy for a regression threshold. The benchmarks themselves arrive with the speed spec.
+# noisy for a regression threshold. A manual smoke test at -f 1; spec-gate step 5 runs the benchmarks at -f 3.
 on:
   workflow_dispatch:
 
@@ -43,7 +43,7 @@ jobs:
             mkdir -p .logs
             java -jar bench/jmh/target/benchmarks.jar -f 1 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/bench-ci-jmh.json
           else
-            echo "No benchmarks.jar yet: the benchmarks arrive with the speed spec."
+            echo "No benchmarks.jar: the build step above did not produce it."
           fi
       - uses: actions/upload-artifact@v4
         if: always()
