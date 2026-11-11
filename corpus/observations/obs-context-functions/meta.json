@@ -538,21 +538,26 @@
       "mapping": "spec2-suppress-sort-format",
       "input": "sort-012.xml",
       "case": "fn/sort/012",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "contradicted",
-      "summary": "Two empty All, not one. R1 queue shows empty string,empty string,SUPPRESS,SUPPRESS: ascending puts SUPPRESS last. In-place graph rebuild after preceding results saved."
+      "summary": "Two empty All, not one. R1 queue shows empty string,empty string,SUPPRESS,SUPPRESS: ascending puts SUPPRESS last. In-place graph rebuild after preceding results saved.",
+      "po75Result": "po75/spec2-suppress-sort-format-012.xml",
+      "po75Reading": "contradicted",
+      "po75Summary": "Two empty All elements. Observed sort queue empty,empty,SUPPRESS,SUPPRESS: ascending places SUPPRESS last, contradicting the SUPPRESS-first assumption; agrees with CPI."
     },
     {
       "mapping": "spec2-suppress-sort-descending-format",
       "input": "sort-013.xml",
       "case": "fn/sort/013",
-      "po75": "NOT_RUN",
+      "po75": "ENVIRONMENT_BLOCKED",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "contradicted",
-      "summary": "One empty All, not two. R1 queue shows SUPPRESS,SUPPRESS,empty string,empty string: descending puts SUPPRESS first. In-place variant after preceding result saved; final Save completed, then stopped at owner's request."
+      "summary": "One empty All, not two. R1 queue shows SUPPRESS,SUPPRESS,empty string,empty string: descending puts SUPPRESS first. In-place variant after preceding result saved; final Save completed, then stopped at owner's request.",
+      "po75AttemptReason": "Editor stopped responding after Save on copied descending variant; retry of navigation did not recover. Save, Check and execution unverified. Historical deferral reason retained.",
+      "po75Evidence": "po75/spec2-suppress-sort-descending-format-013-blocker.txt"
     }
   ]
 }
