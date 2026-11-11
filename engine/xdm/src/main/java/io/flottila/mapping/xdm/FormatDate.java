@@ -95,10 +95,11 @@ public final class FormatDate {
     public String format(OffsetDateTime value) {
       StringBuilder out = new StringBuilder();
       for (Token token : tokens) {
-        switch (token) {
-          case Literal literal -> out.append(literal.text());
-          case Component c -> component(out, value, c.field());
-        }
+        out =
+            switch (token) {
+              case Literal literal -> out.append(literal.text());
+              case Component c -> component(out, value, c.field());
+            };
       }
       return out.toString();
     }
@@ -289,8 +290,11 @@ public final class FormatDate {
    */
   private static StringBuilder pad(StringBuilder out, int value, int width) {
     int start = out.length();
-    out.append(value);
-    int digits = value < 0 ? start + 1 : start;
+    if (value < 0) {
+      out.append('-');
+    }
+    int digits = out.length();
+    out.append(Math.abs(value));
     while (out.length() - start < width) {
       out.insert(digits, '0');
     }
