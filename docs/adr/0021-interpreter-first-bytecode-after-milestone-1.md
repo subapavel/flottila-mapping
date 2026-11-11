@@ -1,6 +1,6 @@
 # Milestone 1 runs a closure-compiled interpreter; the bytecode tier follows as the first engine spec after it; JMH targets and a noise-tolerant bench ratchet
 
-Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier); refined by ADR-0025 (the binding is in runtime, the algebra in xdm)
+Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier); refined by ADR-0025 (the binding is in runtime, the algebra in xdm); amended 2026-11-10 (tree target p95 < 33.3 ms, F-26; orders row and heap forks, see "Notes of 2026-11-10"); notes of 2026-11-11 (spec 6, owner-approved)
 
 FOUNDING §5 plans an interpreter (tier 0) and a Class-File API bytecode tier (tier 1), and §6
 left open whether milestone 1 ships bytecode. §7 asks for JMH proof early: latency on small
@@ -115,10 +115,42 @@ The UDF compile (javac) is not a JMH scenario. It is JDK code, and its rough num
   tolerance, so the baseline cannot slide down 20 % per spec. Lowering a baseline takes a
   finding (WORKFLOW §7).
 - The 20,128-field tree scenario (ADR-0013) is measured by Playwright on the VM as the p95
-  frame time while scrolling, in `ms`. The target is ≤ 16.7 ms (60 fps, ADR-0012), with a 20 %
-  tolerance.
+  frame time while scrolling, in `ms`. The target is p95 < 33.3 ms (no dropped frame at p95; amended
+  2026-11-10, F-26), with a 20 % tolerance.
 - Benchmarks run only in spec-gate step 5, never in a ticket gate or on CI. The full run takes
   about 5–6 minutes.
+
+## Notes of 2026-11-10 (spec 6 grilling, #181, owner)
+
+- **Tree target.** The scroll target reads p95 < 33.3 ms, no dropped frame at p95, instead of the one-vsync
+  target (F-26, #128). The 20 % tolerance stays.
+- **`orders` row.** "One single-value UDF" cannot be built: ADR-0030 removes UDFs from milestone 1
+  (F-35). The mapping uses `FormatNum` on the amounts and `DateTrans` on a date, through `Lift`,
+  in its place.
+- **Heap.** Large throughput is measured in forks with a 1 GB heap. `<mapping>/large/heap` is a
+  separate fork with `-Xmx128m`; it may need a second JMH invocation in spec-gate step 5.
+
+## Notes of 2026-11-11 (spec 6, #181, #189, #193, owner)
+
+The #189 measurement judged one commit (5a2515f) three times on `claude-cloud-4vcpu` hosts:
+`orders/large/throughput` was 34.69, 22.34 and 18.79 MB/s, so one run missed the target and two met it.
+
+1. **Median of three runs.** A target and a regression are judged on the median of three runs, not
+   on one run. A first run that regresses or misses a target is re-run twice, and the gate judges
+   the median of the three. A clean first run stays one run. This replaces the single re-run of
+   "The bench ratchet". `<mapping>/large/heap` only has to complete, so a fork that fails in any
+   run still fails the gate.
+2. **Large-message target as time.** The target is a 10 MB message in at most 500 ms, the same
+   requirement as 20 MB/s. The ratchet keeps `MB/s` as the unit.
+3. **No comparison with SAP PO.** The large-message target guards against regressions with
+   headroom. The PO editor freezes on a message of about 10 MB, so the PO comparison is
+   runtime-only and optional (#191). The observation request carries a second label,
+   `is-owner-local`, beside `po-owner-local`; both stay informative, never a gate condition.
+4. **Baselines from the spec gate only** (F-36, owner, 2026-11-11). Runs on one label differ by
+   36–71 % between hosts. A `ratchet/bench.tsv` baseline comes only from the spec gate's step 4
+   run. Every other run (ticket measurements, remote sessions, local copies) is informative only
+   and never moves or judges a baseline. A regression that the median of three still shows goes
+   to the owner as a finding, because it can come from the host.
 
 ## Considered options
 

@@ -187,3 +187,136 @@ frame: a dropped frame would push the interval to 33.3 ms, and fewer than 5 % of
 same 16.7–16.8 ms was measured before the editor tickets touched the tree (#111, #114). The target as written
 sits at the measurement's floor; finding #128 asks the owner how to read it. JMH: NOT_RUN (no
 `bench/jmh` jar until spec 6).
+
+## Spec 6 first measurement (#189)
+
+Three runs of spec-gate step 5 (build `./mvnw -B -Pbench -pl bench/jmh -am package -DskipTests`; JMH
+`-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc`; `java scripts/ratchet.java bench`), machine label `claude-cloud-4vcpu`,
+2026-11-11. Nothing is written to `ratchet/bench.tsv`; the spec gate writes the first rows.
+
+| run | commit | date (UTC) | host |
+| --- | --- | --- | --- |
+| local 1 | 5a2515f | 01:19 | **not recorded**: the container restarted before a host file was written; the CPU is not known |
+| local 2 | 5a2515f | 01:28 | Intel Xeon Processor @ 2.10 GHz (family 6, model 207), 4 CPUs, MemTotal 16,472,084 kB |
+| remote | 001da99 | 01:04 | Intel Xeon Processor @ 2.10 GHz, 4 CPUs, MemTotal 16,472,400 kB (comment on #189) |
+
+The remote run measured 001da99, the local runs 5a2515f; the engine code is the same, 5a2515f only adds
+tooling (merge of #192). Scores are the `ratchet.java bench` lines (the median of the fork means); the JMH JSON
+of the local runs was used only to check them (same order of magnitude and ranking, raw fork-mean differs
+by the median rule). The remote run did not include the tree scenario.
+
+| scenario | run 1 | run 2 | remote | median | spread | target | judged on the median |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `compile/orders` (ms/op) | 0.6397 | 1.115 | 1.114 | 1.114 | 43 % | <= 5 | met |
+| `contexts/small/latency` (us/op) | 222.9 | 412.2 | 342.7 | 342.7 | 55 % | <= 500 | met |
+| `orders/small/latency` (us/op) | 249.3 | 386.2 | 378.5 | 378.5 | 36 % | <= 500 | met |
+| `wide/small/latency` (us/op) | 104.5 | 172.9 | 159.9 | 159.9 | 43 % | <= 500 | met |
+| `contexts/large/throughput` (MB/s) | 36.7 | 22.75 | 25.2 | 25.2 | 55 % | >= 20 | met |
+| `orders/large/throughput` (MB/s) | 34.69 | 18.79 | 22.34 | 22.34 | 71 % | >= 20 | met |
+| `wide/large/throughput` (MB/s) | 135.1 | 81.82 | 85.99 | 85.99 | 62 % | >= 20 | met |
+| `contexts/large/alloc` (B/op) | 700,600,000 | 700,600,000 | 700,600,000 | 700,600,000 | 0 % | none | - |
+| `orders/large/alloc` (B/op) | 793,300,000 | 793,300,000 | 793,300,000 | 793,300,000 | 0 % | none | - |
+| `wide/large/alloc` (B/op) | 46,470,000 | 46,480,000 | 46,470,000 | 46,470,000 | 0 % | none | - |
+| `contexts/small/alloc` (B/op) | 670,300 | 670,400 | 670,300 | 670,300 | 0 % | none | - |
+| `orders/small/alloc` (B/op) | 730,600 | 735,700 | 736,700 | 735,700 | 1 % | none | - |
+| `wide/small/alloc` (B/op) | 104,800 | 104,800 | 104,800 | 104,800 | 0 % | none | - |
+| `contexts/large/heap` | completed | completed | completed | - | - | completes at 128 MB | met |
+| `orders/large/heap` | completed | completed | completed | - | - | completes at 128 MB | met |
+| `wide/large/heap` | completed | completed | completed | - | - | completes at 128 MB | met |
+| `ui/tree-20128/scroll` (ms, p95 frame) | 16.7 | 16.8 | no run | 16.75 (two runs) | 1 % | < 33.3 | met |
+
+Spread is (max - min) / median. Each local tree run repeated the scenario three times with an identical score
+(16.7 and 16.8); no remote tree run exists, so the tree median is of two runs. All 3 forks of each `large/heap`
+benchmark completed in every run (30 forks per run). The remote JMH run took 00:04:51; the local gate budget
+was not timed, so WORKFLOW section 6 is not compared.
+
+### Reading
+
+- Run 2 judged `orders/large/throughput` at 18.79 MB/s, a missed target (`RATCHET FAIL`); runs 1 and remote met
+  it. The owner decided on 2026-11-11 that a target is judged on the median of three runs (#193); on the
+  median, 22.34 MB/s, every target is met. No target is missed.
+- Allocation per 10 MB message (input about 10.49 MB): `orders` 793.3 MB, about 76 times the input;
+  `contexts` 700.6 MB, about 67 times; `wide` 46.5 MB, about 4.4 times. It is stable across hosts (spread
+  0 %), so it is an engine property, not noise. Follow-up: #194 (diagnose and reduce the orders allocation).
+- The time scores spread by 36 to 71 % across hosts on the same label, beyond the 20 % ratchet tolerance:
+  F-36.
+
+## Orders allocation (#194)
+
+Machine `claude-cloud-4vcpu`: Intel Xeon Processor @ 2.10 GHz (family 6, model 207), 4 CPUs, MemTotal
+16,472,084 kB, JDK 25.0.5, JMH 1.37, 2026-11-11. Branch `t/194-orders-allocation` on `spec/181-speed`. A ticket
+run is informative only and moves no baseline (ADR-0021, Notes of 2026-11-11, point 4).
+
+**Profile.** JFR `jdk.ObjectAllocationInNewTLAB` and `jdk.ObjectAllocationOutsideTLAB` (weight: TLAB or object
+size) over eight runs of the large input in one JVM, grouped by the first engine frame on the stack. The JMH
+`-prof jfr` default, `jdk.ObjectAllocationSample`, was biased here: it put 34 % (about 270 MB) on the StAX parse
+(`XmlProjection.walk`), while a StAX pass reading every leaf allocates 28 MB (`ThreadMXBean`).
+
+| site (first engine frame) | before | after | cause before |
+| --- | ---: | ---: | --- |
+| `XmlSerializer` | 50.1 % | 26.9 % | `OutputStreamWriter`: a `char[]` and a `HeapCharBuffer` per `write` of a name, character or text run |
+| `formatNum` (`NumberPattern`, `FormatNumber`, `JavaPattern`, `XsDecimal`) | 26.1 % | 22.4 % | the pattern compiled to a picture, and the picture's sub-pictures matched by regex, per value |
+| `dateTrans` (`FormatDate`, `DatePattern`) | 15.2 % | 6.5 % | the pattern compiled, the picture tokenised and a parse `Pattern` compiled per value; a `Formatter` per padded component |
+| `XmlProjection` | 3.7 % | 18.7 % | the values themselves (`getElementText`) |
+| `EngineFacade` (output `toByteArray`) | 1.4 % | 7.2 % | the output copied out of its `ByteArrayOutputStream` |
+
+The shares are of about 794 MB per run before and about 142 MB after. What remains after is mostly the output
+`ByteArrayOutputStream`'s growth (20.6 %, under `XmlSerializer.drain`) and copy, the parsed values, and the
+per-value `BigDecimal` work of `formatNum`.
+
+**Change.** The serializer encodes UTF-8 into one 8 KB buffer, with the writer's bytes kept (a surrogate pair
+split between writes, `?` for a lone surrogate). `FormatNumber.Picture` and `FormatDate.Picture` hold a picture
+analysed once. The binders of `formatNum` and the date family compile a `Literal` pattern once, when the call
+binds. Date components are padded into the writer's builder. The output of all six bench inputs is
+byte-identical to the base's (SHA-256 of each).
+
+**Numbers.** Full run `-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc` on f5482d0, judged by `java scripts/ratchet.java bench`
+(`RATCHET BENCH OK`, every `large/heap` completed), against the #189 medians:
+
+| scenario | #189 median | #194 | change |
+| --- | ---: | ---: | ---: |
+| `orders/large/alloc` (B/op) | 793,300,000 | 142,100,000 | ÷ 5.58 |
+| `orders/small/alloc` (B/op) | 735,700 | 152,200 | ÷ 4.83 |
+| `orders/large/throughput` (MB/s) | 22.34 | 57.2 | + 156 % |
+| `orders/small/latency` (us/op) | 378.5 | 157.5 | - 58 % |
+| `contexts/large/alloc` (B/op) | 700,600,000 | 197,300,000 | ÷ 3.55 |
+| `contexts/small/alloc` (B/op) | 670,300 | 203,000 | ÷ 3.30 |
+| `contexts/large/throughput` (MB/s) | 25.2 | 48.66 | + 93 % |
+| `contexts/small/latency` (us/op) | 342.7 | 192.3 | - 44 % |
+| `wide/large/alloc` (B/op) | 46,470,000 | 12,100,000 | ÷ 3.84 |
+| `wide/small/alloc` (B/op) | 104,800 | 77,370 | ÷ 1.35 |
+| `wide/large/throughput` (MB/s) | 85.99 | 95.56 | + 11 % |
+| `wide/small/latency` (us/op) | 159.9 | 152.8 | - 4 % |
+| `compile/orders` (ms/op) | 1.114 | 1.16 | + 4 % |
+
+The #194 targets: `orders/large/alloc` ≤ 210,000,000 B/op met; `orders/small/alloc` down by at least the same
+factor (÷ 3.78) met; `orders/large/throughput` ≥ 30 MB/s met on this host. An earlier full run on ca28817,
+whose engine differs only in how `FormatDate` pads (allocation the same), gave 62.52 MB/s and 142,100,000 B/op.
+
+## Spec 6 gate (#181)
+
+The spec gate's step 5 on commit a7b9c8b (the ratchet regenerated on 088fe30), 2026-11-11 (the result files are
+from 11:34 UTC), machine label `claude-cloud-4vcpu`; host Intel Xeon @ 2.10 GHz, 4 CPUs, MemTotal 16,472,084 kB.
+JMH `-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc`, the three heap forks (`contexts`, `orders`, `wide` `large/heap`, `-Xmx128m`)
+completed, and `java scripts/ratchet.java bench` printed `RATCHET BENCH OK` with no re-run. The tree scenario's p95
+is 16.7 ms (three runs: 16.8, 16.7, 16.7; the median is 16.7). These are the first `ratchet/bench.tsv` baselines;
+F-36: baselines are written only by the spec gate.
+
+| scenario (the `bench.tsv` row) | baseline | target |
+| --- | --- | --- |
+| `orders/small/latency` | 166.6 us/op | ≤ 500 us/op |
+| `orders/small/alloc` | 152,200 B/op | none |
+| `orders/large/throughput` | 53.56 MB/s | ≥ 20 MB/s |
+| `orders/large/alloc` | 142,500,000 B/op | none |
+| `contexts/small/latency` | 191 us/op | ≤ 500 us/op |
+| `contexts/small/alloc` | 203,000 B/op | none |
+| `contexts/large/throughput` | 45.66 MB/s | ≥ 20 MB/s |
+| `contexts/large/alloc` | 197,300,000 B/op | none |
+| `wide/small/latency` | 156.3 us/op | ≤ 500 us/op |
+| `wide/small/alloc` | 77,420 B/op | none |
+| `wide/large/throughput` | 91.35 MB/s | ≥ 20 MB/s |
+| `wide/large/alloc` | 12,100,000 B/op | none |
+| `compile/orders` | 1.228 ms/op | ≤ 5 ms/op |
+| `ui/tree-20128/scroll` | 16.7 ms | < 33.3 ms |
+
+Sources: `181-bench.log`, `181-jmh.json` and `181-tree-20128.json` of the gate run, and `ratchet/bench.tsv`.

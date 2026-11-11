@@ -37,6 +37,7 @@ jobs:
           scripts/test/gate-spec-default-test.sh
           scripts/test/gate-log-test.sh
           scripts/test/push-retry-test.sh
+          scripts/test/handover-test.sh
       - name: Commit trailers
         env:
           EVENT: ${{ github.event_name }}
@@ -86,6 +87,8 @@ jobs:
           scripts/test/function-families-refusals-test.sh
           scripts/test/ratchet-mutation-test.sh
           scripts/test/ratchet-moved-test.sh
+          scripts/test/ratchet-bench-test.sh
+          scripts/test/gate-spec-bench-test.sh
       - name: Build, test, floors, licences, bans
         run: ./mvnw -B -Pbench verify
       - name: contract/ is up to date

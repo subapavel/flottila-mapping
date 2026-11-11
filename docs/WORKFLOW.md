@@ -107,9 +107,11 @@ directories, comma-separated, e.g. `engine/xdm,engine/ir`):
 | 4 | in `ui/`: `npm run licences`, `typecheck`, `lint`, `test`, `test:browser`, `e2e`; `npm run gen:types && git diff --exit-code src/generated` | `ui/.logs/<t>-<check>.log` | `ui/` or `contract/` changed |
 | 5 | `java scripts/ratchet.java check` | `.logs/<t>-ratchet.log` | always: no listed case failing or missing, no coverage below `ratchet/` of the integration branch; unbuilt modules print `NOT_RUN` (ADR-0019) |
 
-Budget on the VM (4 vCPU), three gates in parallel: an engine ticket under 30 s for step 1 (it
-builds the whole engine because of `engine/oracle`), a service ticket under 60 s; step 2 about 15 s
-(measured by #22 in `bench/RESULTS.md`, F-5). The verifier runs at
+Budget on the VM (4 vCPU), three gates in parallel: an engine ticket about 110 s for step 1 (it
+builds the whole engine because of `engine/oracle`), a service ticket about 80 s alone; step 2 about
+24 s alone (measured on the spec-1 code, `bench/RESULTS.md`, F-13; the earlier 30 s, 60 s and 15 s
+came from #22 on a scratch reactor, F-5). Note of 2026-11-10 (owner, #181): cutting this time is a
+process spec after milestone 1, not part of speed work. The verifier runs at
 most one gate that builds `service` at a time.
 
 **Spec gate** (verifier, integration branch, one at a time):
@@ -127,14 +129,26 @@ most one gate that builds `service` at a time.
 4. `java scripts/ratchet.java regen --all`: every report must be present, a drop fails, the
    verifier alone commits `ratchet/` to the integration branch;
 5. the JMH scenarios (ADR-0021):
-   `java -jar bench/jmh/target/benchmarks.jar -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
-   (about 5–6 minutes), plus the `ui/tree-20128/scroll` Playwright scenario.
+   `java -jar bench/jmh/target/benchmarks.jar -foe true -f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff .logs/<spec>-jmh.json`
+   (about 5–6 minutes; large throughput in forks with a 1 GB heap, and `<mapping>/large/heap`
+   in its own fork with `-Xmx128m`; one invocation suffices, `-f` keeps the fork's `jvmArgsAppend` (#185); ADR-0021 note of
+   2026-11-10), plus the `ui/tree-20128/scroll` Playwright scenario.
+   - The verifier names the machine: `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh <spec>`.
+     Only with that label, and `nproc` = 4, does step 5 judge
+     (`java scripts/ratchet.java bench .logs/<spec>-jmh.json`) and step 4 write `bench.tsv`.
+     Without it, step 5 measures and prints, the judgement is `NOT_RUN`, and nothing is written to
+     `ratchet/` or `bench/RESULTS.md`.
    - Results go to `bench/RESULTS.md` with machine label `claude-cloud-4vcpu`, the date and the
-     commit. The score is the median of the three forks.
+     commit, written by the architect from the verifier's output. The score is the median of the
+     per-fork means.
    - A scenario worse than `ratchet/bench.tsv` by more than its tolerance (20 % for time and
-     throughput, 10 % for B/op) is measured once more. The gate fails if it is still worse, or
-     if a GATE check 7 target is missed.
-   - `regen --all` reads `.logs/<spec>-jmh.json` too, so the verifier runs this step before
+     throughput, 10 % for B/op), or a missed target, is measured twice more: the judgement prints
+     the benchmarks as one include regex, the gate re-runs only them into `.logs/<spec>-jmh-2.json`
+     and `.logs/<spec>-jmh-3.json` and judges the median of the three (ADR-0021, Notes of
+     2026-11-11). The gate fails if the median is still worse, if a GATE check 7 target is missed,
+     or if a `bench.tsv` row has no result. A regression the median still shows goes to the owner
+     as a finding, because it can come from the host (F-36).
+   - `regen --all` reads the final results too, so the verifier runs this step before
      step 4. A baseline moves only on a gain beyond the tolerance (ADR-0019).
 
 Run order: 1, 1b, 2, 5, 4, 3. Regen reads the reports of 1 and 1b, and step 3's `clean`
