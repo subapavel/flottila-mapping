@@ -447,31 +447,40 @@
       "mapping": "spec2-sort-case-insensitive",
       "input": "sort-001.xml",
       "case": "fn/sort/003",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All 10,9,_,a,A,B,b,e,f,Z,é. Equal a/A and B/b retain input order."
+      "summary": "All 10,9,_,a,A,B,b,e,f,Z,é. Equal a/A and B/b retain input order.",
+      "po75Result": "po75/spec2-sort-case-insensitive-003.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "All 10,9,_,a,A,B,b,e,f,Z,é. Equal a/A and B/b retain input order; agrees with CPI."
     },
     {
       "mapping": "spec2-sort-case-insensitive",
       "input": "sort-002.xml",
       "case": "fn/sort/004",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All z,ligature U+FB00,fullwidth A U+FF21,emoji U+1F600; confirms the assumed case-insensitive code-point ordering."
+      "summary": "All z,ligature U+FB00,fullwidth A U+FF21,emoji U+1F600; confirms the assumed case-insensitive code-point ordering.",
+      "po75Result": "po75/spec2-sort-case-insensitive-004.xml",
+      "po75Reading": "contradicted",
+      "po75Summary": "All z,😀,ﬀ,Ａ. Differs from CPI z,ﬀ,Ａ,😀 and contradicts assumed code-point ordering. This result alone does not establish the implementation mechanism."
     },
     {
       "mapping": "spec2-sort-case-insensitive",
       "input": "sort-011.xml",
       "case": "fn/sort/011",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All h,İ,I,i,SS,ß, as assumed. İ/I/i stay in input order and ß remains after SS."
+      "summary": "All h,İ,I,i,SS,ß, as assumed. İ/I/i stay in input order and ß remains after SS.",
+      "po75Result": "po75/spec2-sort-case-insensitive-011.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "All h,İ,I,i,SS,ß. İ/I/i retain input order; agrees with CPI."
     },
     {
       "mapping": "spec2-sort-descending",
