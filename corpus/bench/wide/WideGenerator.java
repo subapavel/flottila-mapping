@@ -179,9 +179,11 @@ public final class WideGenerator {
 
   private static String value(Kind kind, Random random) {
     return switch (kind) {
+      // two letters and three digits: KD417
       case CODE ->
-          "" + (char) ('A' + random.nextInt(26)) + (char) ('A' + random.nextInt(26))
-              + (100 + random.nextInt(900));
+          "%c%c%d"
+              .formatted(
+                  'A' + random.nextInt(26), 'A' + random.nextInt(26), 100 + random.nextInt(900));
       case WORD -> WORDS[random.nextInt(WORDS.length)];
       case REF -> "R" + (100_000 + random.nextInt(900_000));
       case NOTE -> NOTES[random.nextInt(NOTES.length)];
