@@ -2,9 +2,6 @@ package io.flottila.mapping.serializer;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,12 +16,30 @@ import java.util.List;
  *
  * <p>The serializer writes what it is told and never invents a prefix; the prefixes come from
  * lowering. It holds the state of one document and is not thread-safe.
+ *
+ * <p>It encodes UTF-8 itself, into one buffer per document, and writes the same bytes as the JDK's
+ * {@code OutputStreamWriter} did before #194, which allocated per write: a surrogate pair is one
+ * character even when two writes split it, and a lone surrogate is written {@code ?}.
  */
 public final class XmlSerializer {
 
   private static final String DECLARATION = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
-  private final Writer out;
+  /** The bytes the buffer holds before they go to the output stream. */
+  private static final int BUFFER = 8192;
+
+  private final OutputStream out;
+
+  /** The encoded bytes not yet written to {@link #out}: the first {@link #buffered}. */
+  private final byte[] buffer = new byte[BUFFER];
+
+  private int buffered;
+
+  /**
+   * The high surrogate written last, whose low surrogate may come with the next write, or {@code
+   * 0}: it is written only with the character after it.
+   */
+  private char high;
 
   /**
    * An open element: its prefix and local name, and the number of {@link #bindings} in scope at its
@@ -49,12 +64,12 @@ public final class XmlSerializer {
    * caller's.
    */
   public XmlSerializer(OutputStream out) {
-    this.out = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+    this.out = out;
   }
 
   /** Writes the XML declaration. */
   public void startDocument() throws IOException {
-    out.write(DECLARATION);
+    write(DECLARATION);
   }
 
   /**
@@ -72,7 +87,7 @@ public final class XmlSerializer {
           "the namespace " + namespace + " of " + localName + " has no prefix");
     }
     closeStartTag();
-    out.write('<');
+    write('<');
     writeName(prefix, localName);
     open.add(new Open(prefix, localName, bindings.size()));
     startTagOpen = true;
@@ -99,11 +114,11 @@ public final class XmlSerializer {
           "the attribute " + localName + " comes where no element's start tag is open");
     }
     declare(prefix, namespace);
-    out.write(' ');
+    write(' ');
     writeName(prefix, localName);
-    out.write("=\"");
+    write("=\"");
     escape(value, true);
-    out.write('"');
+    write('"');
   }
 
   /**
@@ -112,11 +127,11 @@ public final class XmlSerializer {
    */
   private void declare(String prefix, String namespace) throws IOException {
     if (!prefix.isEmpty() && !bound(prefix, namespace)) {
-      out.write(" xmlns:");
-      out.write(prefix);
-      out.write("=\"");
+      write(" xmlns:");
+      write(prefix);
+      write("=\"");
       escape(namespace, true);
-      out.write('"');
+      write('"');
       bindings.add(prefix);
       bindings.add(namespace);
     }
@@ -136,33 +151,36 @@ public final class XmlSerializer {
     Open top = open.removeLast();
     if (startTagOpen) {
       startTagOpen = false;
-      out.write("/>");
+      write("/>");
     } else {
-      out.write("</");
+      write("</");
       writeName(top.prefix(), top.localName());
-      out.write('>');
+      write('>');
     }
-    bindings.subList(top.bindings(), bindings.size()).clear();
+    while (bindings.size() > top.bindings()) {
+      bindings.removeLast();
+    }
   }
 
   /** Ends the document and flushes its bytes to the output stream. */
   public void endDocument() throws IOException {
+    drain();
     out.flush();
   }
 
   private void closeStartTag() throws IOException {
     if (startTagOpen) {
       startTagOpen = false;
-      out.write('>');
+      write('>');
     }
   }
 
   private void writeName(String prefix, String localName) throws IOException {
     if (!prefix.isEmpty()) {
-      out.write(prefix);
-      out.write(':');
+      write(prefix);
+      write(':');
     }
-    out.write(localName);
+    write(localName);
   }
 
   /**
@@ -181,13 +199,13 @@ public final class XmlSerializer {
   /**
    * Writes {@code text} with {@code &}, {@code <}, {@code >} and CR escaped, and in an attribute
    * value {@code "}, LF and TAB as well, which a parser would otherwise normalise (XML 1.0 §3.3.3).
-   * The runs between them are written as they are.
+   * Every other character is written as it is.
    */
   private void escape(String text, boolean attribute) throws IOException {
-    int run = 0;
     for (int k = 0; k < text.length(); k++) {
+      char c = text.charAt(k);
       String reference =
-          switch (text.charAt(k)) {
+          switch (c) {
             case '&' -> "&amp;";
             case '<' -> "&lt;";
             case '>' -> "&gt;";
@@ -198,11 +216,65 @@ public final class XmlSerializer {
             default -> null;
           };
       if (reference != null) {
-        out.write(text, run, k - run);
-        out.write(reference);
-        run = k + 1;
+        write(reference);
+      } else {
+        write(c);
       }
     }
-    out.write(text, run, text.length() - run);
+  }
+
+  private void write(String text) throws IOException {
+    for (int k = 0; k < text.length(); k++) {
+      write(text.charAt(k));
+    }
+  }
+
+  /**
+   * Encodes {@code c}, one UTF-16 unit, into the buffer: a high surrogate waits for the next
+   * character, with which a low surrogate makes one character of four bytes; any other surrogate is
+   * {@code ?}, as UTF-8 encodes none.
+   */
+  private void write(char c) throws IOException {
+    if (high != 0) {
+      char pending = high;
+      high = 0;
+      if (Character.isLowSurrogate(c)) {
+        int codePoint = Character.toCodePoint(pending, c);
+        put(0xF0 | (codePoint >>> 18));
+        put(0x80 | ((codePoint >>> 12) & 0x3F));
+        put(0x80 | ((codePoint >>> 6) & 0x3F));
+        put(0x80 | (codePoint & 0x3F));
+        return;
+      }
+      put('?');
+    }
+    if (c < 0x80) {
+      put(c);
+    } else if (c < 0x800) {
+      put(0xC0 | (c >>> 6));
+      put(0x80 | (c & 0x3F));
+    } else if (Character.isHighSurrogate(c)) {
+      high = c;
+    } else if (Character.isLowSurrogate(c)) {
+      put('?');
+    } else {
+      put(0xE0 | (c >>> 12));
+      put(0x80 | ((c >>> 6) & 0x3F));
+      put(0x80 | (c & 0x3F));
+    }
+  }
+
+  /** Puts the byte {@code b} into the buffer, which is drained first when it is full. */
+  private void put(int b) throws IOException {
+    if (buffered == BUFFER) {
+      drain();
+    }
+    buffer[buffered++] = (byte) b;
+  }
+
+  /** Writes the buffered bytes to the output stream. */
+  private void drain() throws IOException {
+    out.write(buffer, 0, buffered);
+    buffered = 0;
   }
 }
