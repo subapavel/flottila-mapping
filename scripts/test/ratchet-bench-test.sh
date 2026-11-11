@@ -99,6 +99,20 @@ check "regression twice: exit" "$rc" 1
 check "regression twice: latency" "$(lines "$out" 'FAIL bench orders/small/latency: 125 us/op is worse')" 1
 check "regression twice: verdict" "$(lines "$out" 'RATCHET FAIL: 1 problem(s)')" 1
 
+# median of three (#193): a scenario in three or more files is judged on the median of them, in any file order (the
+# three runs of 5a2515f in #189: 34.69, 22.34, 18.79 MB/s); in one or two files the later file wins (above)
+rows
+jmh run-1.json "$(bm $B.OrdersBench.largeThroughput ms/op '[[288.2675]]' '' "$ten_mib")" \
+  "$(bm $B.OrdersBench.smallLatency us/op '[[600]]')"
+jmh run-2.json "$(bm $B.OrdersBench.largeThroughput ms/op '[[447.6276]]' '' "$ten_mib")"
+jmh run-3.json "$(bm $B.OrdersBench.largeThroughput ms/op '[[532.198]]' '' "$ten_mib")" \
+  "$(bm $B.OrdersBench.smallLatency us/op '[[400]]')"
+out=$(run bench run-1.json run-2.json run-3.json); rc=$?
+check "median of three: exit" "$rc" 0
+check "median of three: the median" "$(lines "$out" 'NEW  orders/large/throughput 22.34 MB/s')" 1
+check "median of three: target met" "$(lines "$out" 'misses the target')" 0
+check "median of three: two files, the later wins" "$(lines "$out" 'NEW  orders/small/latency 400 us/op')" 1
+
 # missed targets, no baselines: small latency <= 500 us/op, large throughput >= 20 MB/s, compile/orders <= 5 ms/op,
 # tree < 33.3 ms; each boundary itself passes except the tree's
 rows
@@ -118,7 +132,9 @@ check "targets: compile" "$(lines "$out" 'FAIL bench compile/orders: 5.01 ms/op 
 check "targets: tree" "$(lines "$out" 'FAIL bench ui/tree-20128/scroll: 33.3 ms misses the target < 33.3 ms')" 1
 check "targets: only these four" "$(lines "$out" 'misses the target')" 4
 check "targets: new scenarios" "$(lines "$out" 'NEW  wide/large/throughput 20 MB/s')" 1
-check "targets: no re-run" "$(lines "$out" 'RERUN')" 0
+# a missed target re-runs its JMH benchmark like a regression (#193); the tree result is no JMH benchmark
+check "targets: re-run regex" "$(echo "$out" | grep '^RERUN ')" \
+  'RERUN ^(?:io\.flottila\.mapping\.bench\.OrdersBench\.compile|io\.flottila\.mapping\.bench\.OrdersBench\.largeThroughput|io\.flottila\.mapping\.bench\.OrdersBench\.smallLatency)$'
 
 # missing row: a bench.tsv row with no result fails (no tree file here), and so does another machine's row
 rows "${base_rows[@]}" "wide/small/latency	$M	100	us/op" "contexts/small/latency	other-machine	100	us/op"
