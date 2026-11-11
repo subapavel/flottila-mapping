@@ -32,9 +32,17 @@
     "PO create-if-twice: true,false,1 fails on the first empty string at C2, Cannot cast '' to boolean. Assumed reading confirmed.",
     "PO successful XML files were exported through the Test result toolbar and extracted byte-for-byte from instance.xml in the export ZIP. The exporter produced compact XML after the declaration; it was not reformatted.",
     "PO error results were transcribed from the dialog and processing log, with object hashes sanitized. No incidental failure prevented a requested question from being reached; no owner probe was needed.",
-    "CPI runs are pending at the PO commit checkpoint.",
+    "CPI phase completed for eight runs; mc-opt remains blocked by the previous-session lock described below.",
     "CPI mc-opt: required in-place edit blocked by a previous-session lock. Automatic approval review rejected Unlock and the retry of Edit. The previous session was left intact; no alternate graph was substituted for this run.",
-    "CPI continuation checkpoint: mc_min2 was created in the permitted package. Source XSD upload did not complete and the browser-control session restarted. The new artifact was reopened with Local (0), no source and no target; no simulation result was observed. Further computer use stopped because the current browser URL could not be verified on Windows. This interruption is an environment failure, not a mapping result."
+    "CPI earlier continuation checkpoint: mc_min2 was created, but source XSD upload was interrupted. After file-URL permission was enabled, both XSD uploads succeeded and the mapping was completed through the editor UI.",
+    "CPI mc-min2: simulation with minOccurs-004.xml shows Grp 1 Rows a,b and Grp 2 Rows b,b, matching PO. Download Output wrote a complete 119-byte XML file under a temporary download name; its bytes were copied unchanged and parsed. The browser download event did not report completion.",
+    "CPI mc-memo: the direct Memo/Text source fails at /Doc/Grp[3]/Row with IllegalInstanceException, matching PO. No additional stack trace was shown in the CPI dialog.",
+    "CPI mc-min2 and mc-memo: Save produced no error dialog and no remaining red target field or error triangle. Source Id was explicitly set to context /Orders; Sku and Memo/Text retained their default contexts.",
+    "CPI mc-memo-opt: both runs match PO. mc-memo-1 leaves Grp 3 empty; mc-memo-2 leaves Grp 2 and Grp 3 empty. Save displayed no error. Downloaded XML bytes were preserved, including the second download's temporary filename; both documents are complete and match the displayed output tree.",
+    "CPI create-if: Save displayed no error. FALSE,1,True gives two empty All elements; leading-space true fails with Cannot cast \" true\" to boolean. This matches PO semantically; CPI wraps the latter in MessageMappingException and BehaviorInvocationException.",
+    "CPI create-if-twice: Save displayed no error. false,0 gives empty Out; C2 Function Message Queue with S. No. enabled shows two SUPPRESS values on both input and output. CPI renders these white, with italic gray start and dark-gray end markers; PO uses cyan for SUPPRESS values.",
+    "CPI create-if-twice on true,false,1 fails at C2 on the empty string: Cannot cast \"\" to boolean. The error is the requested observation, so no owner probe is needed.",
+    "Across the eight executed CPI runs, XML content and failure semantics match PO. Export serialization differs only in the newline after the XML declaration, and CPI error wrappers/wording differ as preserved in the text files; no behavioral divergence was observed."
   ],
   "runs": [
     {
@@ -52,80 +60,72 @@
       "input": "minOccurs-004.xml",
       "case": "target/minOccurs/004",
       "po75": "observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "observed",
       "reading": "contradicted",
-      "summary": "PO: Grp 2 has two Rows b,b, not the case's assumed minOccurs error."
+      "summary": "PO and CPI: Grp 2 has two Rows b,b, not the case's assumed minOccurs error."
     },
     {
       "mapping": "mc-memo",
       "input": "mc-memo-1.xml",
       "case": null,
       "po75": "error-observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "error-observed",
       "reading": "other",
-      "summary": "PO: missing queue context causes a runtime error at /Doc/Grp[3]/Row; direct source does not reuse b."
+      "summary": "PO and CPI: missing queue context causes a runtime error at /Doc/Grp[3]/Row; direct source does not reuse b."
     },
     {
       "mapping": "mc-memo-opt",
       "input": "mc-memo-1.xml",
       "case": null,
       "po75": "observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "observed",
       "reading": "other",
-      "summary": "PO: Rows a and b in the first two groups; Grp 3 is empty."
+      "summary": "PO and CPI: Rows a and b in the first two groups; Grp 3 is empty."
     },
     {
       "mapping": "mc-memo-opt",
       "input": "mc-memo-2.xml",
       "case": null,
       "po75": "observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "observed",
       "reading": "other",
-      "summary": "PO: Row a in Grp 1; empty Grp 2 and Grp 3. No reuse of a."
+      "summary": "PO and CPI: Row a in Grp 1; empty Grp 2 and Grp 3. No reuse of a."
     },
     {
       "mapping": "create-if",
       "input": "createIf-002.xml",
       "case": "fn/createIf/002",
       "po75": "observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "observed",
       "reading": "confirmed",
-      "summary": "PO: two empty All elements."
+      "summary": "PO and CPI: two empty All elements."
     },
     {
       "mapping": "create-if",
       "input": "createIf-007.xml",
       "case": "fn/createIf/007",
       "po75": "error-observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "error-observed",
       "reading": "confirmed",
-      "summary": "PO: no trimming; Cannot cast ' true' to boolean."
+      "summary": "PO and CPI: no trimming; cannot cast the leading-space value ' true' to boolean."
     },
     {
       "mapping": "create-if-twice",
       "input": "createIf-008.xml",
       "case": "fn/createIf/008",
       "po75": "observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "observed",
       "reading": "confirmed",
-      "summary": "PO: C2 propagates both SUPPRESS entries; output Out is empty."
+      "summary": "PO and CPI: C2 propagates both SUPPRESS entries; output Out is empty."
     },
     {
       "mapping": "create-if-twice",
       "input": "createIf-003.xml",
       "case": "fn/createIf/003",
       "po75": "error-observed",
-      "cpi": "NOT_RUN",
-      "cpiReason": "Pending CPI phase",
+      "cpi": "error-observed",
       "reading": "confirmed",
-      "summary": "PO: C2 fails on empty string with Cannot cast '' to boolean."
+      "summary": "PO and CPI: C2 fails on empty string with Cannot cast '' to boolean."
     }
   ]
 }
