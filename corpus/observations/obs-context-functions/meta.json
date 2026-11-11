@@ -408,31 +408,40 @@
       "mapping": "spec2-sort",
       "input": "sort-001.xml",
       "case": "fn/sort/001",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All 10,9,A,B,_,a,b,Z,e,f,é, as assumed for case-sensitive ascending sorting."
+      "summary": "All 10,9,A,B,_,a,b,Z,e,f,é, as assumed for case-sensitive ascending sorting.",
+      "po75Result": "po75/spec2-sort-001.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Saved and Check 0/0; successful execution. All 10,9,A,B,_,a,b,Z,e,f,é. See po75/spec2-sort-001-check.txt."
     },
     {
       "mapping": "spec2-sort",
       "input": "sort-002.xml",
       "case": "fn/sort/002",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All z,emoji U+1F600,ligature U+FB00,fullwidth A U+FF21; confirms UTF-16 code-unit order rather than code-point order."
+      "summary": "All z,emoji U+1F600,ligature U+FB00,fullwidth A U+FF21; confirms UTF-16 code-unit order rather than code-point order.",
+      "po75Result": "po75/spec2-sort-002.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Successful actual test, All values z,😀,ﬀ,Ａ; see po75/spec2-sort-002-check.txt."
     },
     {
       "mapping": "spec2-sort",
       "input": "sort-008.xml",
       "case": "fn/sort/008",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All a,c,b; confirms each Order context is sorted independently and the empty first context adds no value."
+      "summary": "All a,c,b; confirms each Order context is sorted independently and the empty first context adds no value.",
+      "po75Result": "po75/spec2-sort-008.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Successful actual test, All values a,c,b; see po75/spec2-sort-008-check.txt."
     },
     {
       "mapping": "spec2-sort-case-insensitive",
