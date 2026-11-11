@@ -1,3 +1,6 @@
+bench/contexts/001
+bench/orders/001
+bench/wide/001
 fn/abs/001
 fn/add/001
 fn/add/002
