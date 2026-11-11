@@ -108,10 +108,11 @@ class TestRunResourceTest {
   }
 
   /**
-   * OrderId 4711 and the Notes 1, x, true, all in the root's one context: createIf gives "" for 1
-   * and true and SUPPRESS for x (#2 §4), so t2 creates slots 1 and 3 and suppresses slot 2. On the
-   * wire SUPPRESS is JSON null, a queue entry has kind queue and an occurrences entry kind
-   * occurrences, and t2's unbounded max is an absent member (ADR-0015, ADR-0024).
+   * OrderId 4711 and the Notes 1, false, true, all in the root's one context: createIf gives "" for
+   * 1 and true and SUPPRESS for false (#2 §4; the second Note was x before #133, on which PO's
+   * createIf ends the run, F-37), so t2 creates slots 1 and 3 and suppresses slot 2. On the wire
+   * SUPPRESS is JSON null, a queue entry has kind queue and an occurrences entry kind occurrences,
+   * and t2's unbounded max is an absent member (ADR-0015, ADR-0024).
    */
   @Test
   void aTestRunAnswersTheTraceKeyedByAuthoringId() {
@@ -119,7 +120,7 @@ class TestRunResourceTest {
     String input =
         "<src:Order xmlns:src=\""
             + NS
-            + "\"><OrderId>4711</OrderId><Note>1</Note><Note>x</Note><Note>true</Note></src:Order>";
+            + "\"><OrderId>4711</OrderId><Note>1</Note><Note>false</Note><Note>true</Note></src:Order>";
 
     Http.Reply reply = test("testing-trace/order", testRequest(createIfNotes(), input));
 
@@ -142,7 +143,7 @@ class TestRunResourceTest {
                      "t1": {"kind": "occurrences", "min": 1, "max": 1, "capped": false,
                             "parents": [{"parentSlot": 1, "created": 1,
                                          "slots": [{"slot": 1, "status": "created"}]}]},
-                     "a2": {"kind": "queue", "contexts": [["1", "x", "true"]], "capped": false,
+                     "a2": {"kind": "queue", "contexts": [["1", "false", "true"]], "capped": false,
                             "slotCount": 3, "contextCount": 1},
                      "c1": {"kind": "queue", "contexts": [["", null, ""]], "capped": false,
                             "slotCount": 3, "contextCount": 1},
