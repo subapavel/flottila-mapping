@@ -146,6 +146,11 @@ The #189 measurement judged one commit (5a2515f) three times on `claude-cloud-4v
    headroom. The PO editor freezes on a message of about 10 MB, so the PO comparison is
    runtime-only and optional (#191). The observation request carries a second label,
    `is-owner-local`, beside `po-owner-local`; both stay informative, never a gate condition.
+4. **Baselines from the spec gate only** (F-36, owner, 2026-11-11). Runs on one label differ by
+   36–71 % between hosts. A `ratchet/bench.tsv` baseline comes only from the spec gate's step 4
+   run. Every other run (ticket measurements, remote sessions, local copies) is informative only
+   and never moves or judges a baseline. A regression that the median of three still shows goes
+   to the owner as a finding, because it can come from the host.
 
 ## Considered options
 
