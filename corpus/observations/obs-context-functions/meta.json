@@ -239,21 +239,27 @@
       "mapping": "spec2-format-by-example",
       "input": "collapseContexts-003.xml",
       "case": "fn/formatByExample/004",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "Empty Orders gives empty Out, with no All and no error."
+      "summary": "Empty Orders gives empty Out, with no All and no error.",
+      "po75Result": "po75/spec2-format-by-example.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Saved and Check 0/0; executed successfully. Empty Out, no All, no error; agrees with CPI. See po75/spec2-format-by-example-check.txt."
     },
     {
       "mapping": "spec2-suppress-format-by-example",
       "input": "formatByExample-005.xml",
       "case": "fn/formatByExample/005",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "One empty All, as assumed. In-place variant of spec2_format_by_example after preceding output was saved."
+      "summary": "One empty All, as assumed. In-place variant of spec2_format_by_example after preceding output was saved.",
+      "po75Result": "po75/spec2-suppress-format-by-example.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Saved and checked without errors. Actual SAP PO test produced one empty All, agreeing with CPI; see po75/spec2-suppress-format-by-example-check.txt."
     },
     {
       "mapping": "spec2-map-with-default-create-if",
@@ -298,11 +304,14 @@
       "input": "mapWithDefault-003.xml",
       "case": "fn/mapWithDefault/003",
       "attempt": "verified rerun after completed Save",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "All empty string,Default,empty string,x. A present empty Tag is a value; only the missing Tag's empty context is filled. Matches the recorded M1 queue."
+      "summary": "All empty string,Default,empty string,x. A present empty Tag is a value; only the missing Tag's empty context is filled. Matches the recorded M1 queue.",
+      "po75Result": "po75/spec2-map-with-default.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Saved and Check 0/0; executed successfully. All empty string,Default,empty string,x; agrees with verified CPI rerun. See po75/spec2-map-with-default-check.txt."
     },
     {
       "mapping": "spec2-map-with-default-remove-contexts",
@@ -386,11 +395,14 @@
       "input": "mapWithDefault-010.xml",
       "case": "fn/mapWithDefault/010",
       "attempt": "verified rerun after re-entering D and Save",
-      "po75": "NOT_RUN",
+      "po75": "observed",
       "po75Reason": "Deferred to evening at owner's request",
       "cpi": "observed",
       "reading": "confirmed",
-      "summary": "Item 1 V D, Item 2 without V. removeContexts combines the two empty Sku contexts and mapWithDefault supplies one D, matching the recorded M1 queue."
+      "summary": "Item 1 V D, Item 2 without V. removeContexts combines the two empty Sku contexts and mapWithDefault supplies one D, matching the recorded M1 queue.",
+      "po75Result": "po75/spec3-map-with-default-remove-contexts-item.xml",
+      "po75Reading": "confirmed",
+      "po75Summary": "Saved and Check 0/0; executed successfully. Item 1 has V D; Item 2 has no V. Agrees with verified CPI rerun. See po75/spec3-map-with-default-remove-contexts-item-check.txt."
     },
     {
       "mapping": "spec2-sort",
