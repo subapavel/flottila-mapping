@@ -158,12 +158,20 @@ final class ArithmeticFamily {
   /**
    * {@code formatNum(value, pattern)}: the number formatted as the DecimalFormat {@code pattern}
    * formats it, through the XPath picture the pattern compiles to (ADR-0003). The pattern is the
-   * box's own string, which lowering has checked (ADR-0026, #74); it is compiled per value, as the
-   * single-value binding takes its params as nodes.
+   * box's own string, which lowering has checked (ADR-0026, #74) and gives as a {@code Literal}:
+   * that is compiled and analysed once, here (#194). A pattern node that is no literal is compiled
+   * per value.
+   *
+   * @throws IllegalArgumentException when the pattern is a literal that compiles to no picture,
+   *     which lowering refuses: a compiler bug
    */
   static Node.OfString formatNum(AuthoringId box, List<Node.OfString> args) {
     Node.OfString value = args.get(0);
     Node.OfString pattern = args.get(1);
+    if (pattern instanceof Node.Literal(String literal)) {
+      FormatNumber.Picture picture = FormatNumber.picture(NumberPattern.picture(literal));
+      return frame -> picture.format(number("formatNum", box, value.eval(frame)));
+    }
     return frame ->
         FormatNumber.format(
             number("formatNum", box, value.eval(frame)),

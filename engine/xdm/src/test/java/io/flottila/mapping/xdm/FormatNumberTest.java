@@ -71,5 +71,53 @@ class FormatNumberTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "the picture \"" + picture + "\" is none that a number pattern compiles to (ADR-0003)");
+    assertThatThrownBy(() -> FormatNumber.picture(picture))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "the picture \"" + picture + "\" is none that a number pattern compiles to (ADR-0003)");
+  }
+
+  /**
+   * A picture is analysed once and then formats every number as {@link FormatNumber#format} does
+   * (#194): each sign through its own sub-picture, the same picture again and again.
+   */
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      quoteCharacter = '"',
+      textBlock =
+          """
+          "#,##0.00;(#,##0.00)" | -1234.5 | (1,234.50) | 1234.5 | 1,234.50 | 0     | 0.00
+          0.#%                  | -0.5    | -50%       | 0.125  | 12.5%    | 0     | 0%
+          EUR #,##0.00          | -3      | -EUR 3.00  | 1.005  | EUR 1.00 | 1e3   | EUR 1,000.00
+          """)
+  void anAnalysedPictureFormatsEveryNumber(
+      String picture,
+      String negative,
+      String negativeFormatted,
+      String positive,
+      String positiveFormatted,
+      String other,
+      String otherFormatted) {
+    FormatNumber.Picture analysed = FormatNumber.picture(picture);
+
+    for (int round = 0; round < 2; round++) {
+      assertThat(analysed.format(new BigDecimal(negative))).isEqualTo(negativeFormatted);
+      assertThat(analysed.format(new BigDecimal(positive))).isEqualTo(positiveFormatted);
+      assertThat(analysed.format(new BigDecimal(other))).isEqualTo(otherFormatted);
+    }
+  }
+
+  /**
+   * A picture is analysed whole, so a negative sub-picture outside the translated ones is refused
+   * for a positive number too (#194), as XPath raises {@code FODF1310} for the whole picture.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {"0.00;x", "0;0.0.0"})
+  void aPictureWithANegativeSubPictureOutsideTheTranslatedOnesIsRefusedWhole(String picture) {
+    assertThatThrownBy(() -> FormatNumber.format(BigDecimal.ONE, picture))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "the picture \"" + picture + "\" is none that a number pattern compiles to (ADR-0003)");
   }
 }

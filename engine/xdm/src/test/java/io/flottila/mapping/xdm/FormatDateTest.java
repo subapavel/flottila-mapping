@@ -110,5 +110,34 @@ class FormatDateTest {
     assertThatThrownBy(() -> FormatDate.parse("2024", picture, ZoneOffset.UTC))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("is none that a date pattern compiles to");
+    assertThatThrownBy(() -> FormatDate.picture(picture))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "the picture \"" + picture + "\" is none that a date pattern compiles to (ADR-0003)");
+  }
+
+  /**
+   * A picture is analysed once and then writes and reads every date as {@link FormatDate#format}
+   * and {@link FormatDate#parse} do (#194), the same picture again and again.
+   */
+  @Test
+  void anAnalysedPictureWritesAndReadsEveryDate() {
+    FormatDate.Picture picture =
+        FormatDate.picture("[Y0001]-[M01]-[D01]T[H01]:[m01]:[s01].[f001][Z01:01t]");
+    FormatDate.Picture plain = FormatDate.picture("[D1].[M1].[Y0001] [H1]:[m1]:[s1]");
+
+    for (int round = 0; round < 2; round++) {
+      assertThat(picture.format(OffsetDateTime.parse("2024-03-05T07:08:09.045+05:30")))
+          .isEqualTo("2024-03-05T07:08:09.045+05:30");
+      assertThat(picture.format(OffsetDateTime.parse("2024-11-25T17:48:59Z")))
+          .isEqualTo("2024-11-25T17:48:59.000Z");
+      assertThat(picture.parse("2024-03-05T07:08:09.045-08:00", KOLKATA))
+          .contains(OffsetDateTime.parse("2024-03-05T07:08:09.045-08:00"));
+      assertThat(picture.parse("2024-03-05", KOLKATA)).isEmpty();
+      assertThat(plain.format(OffsetDateTime.parse("2024-03-05T07:08:09Z")))
+          .isEqualTo("5.3.2024 7:8:9");
+      assertThat(plain.parse("25.11.2024 17:48:59", KOLKATA))
+          .contains(OffsetDateTime.parse("2024-11-25T17:48:59+05:30"));
+    }
   }
 }
