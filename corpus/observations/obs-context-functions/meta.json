@@ -579,6 +579,54 @@
       "po75Result": "po75/spec2-suppress-sort-descending-format-013.xml",
       "po75Reading": "contradicted",
       "po75Summary": "Retry after owner restarted PO: saved case-sensitive descending parameter verified, Check passed, test succeeded. One empty All; sort queue SUPPRESS,SUPPRESS,empty,empty. Contradicts the assumed two empty All, agrees with CPI. Earlier environment blocker retained."
+    },
+    {
+      "mapping": "spec2-sort-by-key",
+      "input": "sortByKey-001.xml",
+      "case": "fn/sortByKey/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All 3,2,1,4,5,7,6. Default case sensitive/ascending; both sources context Order. Check 0 problems/0 warnings.",
+      "po75Result": "po75/sortByKey-001-spec2-sort-by-key.xml",
+      "po75Evidence": "po75/sortByKey-001-spec2-sort-by-key-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key",
+      "input": "sortByKey-004.xml",
+      "case": "fn/sortByKey/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All 3,2,1; equal keys retain original order. Same saved default case sensitive/ascending mapping with both sources context Order.",
+      "po75Result": "po75/sortByKey-004-spec2-sort-by-key.xml",
+      "po75Evidence": "po75/sortByKey-004-spec2-sort-by-key-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key-case-insensitive",
+      "input": "sortByKey-002.xml",
+      "case": "fn/sortByKey/002",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "PO All 2,4,1,3,6,5, not assumed 2,4,1,3,5,6. Ties stable; supplementary key before fullwidth A. Queue recorded; Check passed.",
+      "po75Result": "po75/sortByKey-002-spec2-sort-by-key-case-insensitive.xml",
+      "po75Evidence": "po75/sortByKey-002-spec2-sort-by-key-case-insensitive-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key-numeric-descending",
+      "input": "sortByKey-003.xml",
+      "case": "fn/sortByKey/003",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All a,c,b,d,x with float number / descending. Equal numeric keys 10 and 10.0 keep value order a,c; non-numeric values preserved. Check passed.",
+      "po75Result": "po75/sortByKey-003-spec2-sort-by-key-numeric-descending.xml",
+      "po75Evidence": "po75/sortByKey-003-spec2-sort-by-key-numeric-descending-check.txt"
     }
   ]
 }
