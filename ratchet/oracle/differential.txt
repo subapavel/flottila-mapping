@@ -49,6 +49,12 @@ fn/counter/004
 fn/createIf/001
 fn/createIf/002
 fn/createIf/003
+fn/createIf/004
+fn/createIf/005
+fn/createIf/006
+fn/createIf/007
+fn/createIf/008
+fn/createIf/009
 fn/currentDate/001
 fn/currentDate/002
 fn/currentDate/003
