@@ -386,6 +386,8 @@ function Drawing({ mappingId, store, session, targetField, catalogue, browserSta
     const settings = Object.entries(n.params ?? {})
       .flatMap(([name, value]) => (typeof value === 'string' ? [`${name} ${value}`] : []))
       .join(' · ');
+    // a function box the catalogue lacks (a hand-written model) has no fidelity
+    const fidelity = n.fn === undefined ? undefined : catalogue[n.fn]?.fidelity;
     return {
       id: n.id,
       type: 'mapping',
@@ -396,6 +398,7 @@ function Drawing({ mappingId, store, session, targetField, catalogue, browserSta
         fieldType: n.role ? 'variable' : n.path === undefined ? undefined : fieldTypes[n.kind === 'source' ? 'source' : 'target'].get(n.path),
         ...(hasParameters(n) && { editParameters: () => openDialog('parameters', n.id) }),
         ...(settings && { settings }),
+        ...(fidelity && { fidelity }),
         ...(orphaned.has(n.id) && { orphaned: true }),
         // drag-to-remap: a source row dropped on an orphaned box, in edit mode, remaps it as the Remap dialog does
         ...(editing && orphaned.has(n.id) && { remap: (field: FieldPath) => remap(n.id, field) }),

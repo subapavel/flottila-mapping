@@ -409,6 +409,58 @@ describe('the functions drilldown (#157)', () => {
   });
 });
 
+describe("a function's fidelity, a deviation with its catalogue text (GLOSSARY: Fidelity, ADR-0026, #207)", () => {
+  /** The deviation text of the served catalogue's `divide`, the function the ticket names. */
+  const deviation = async () => {
+    const { fidelity } = (await fakeApiClient().getCatalogue()).divide!;
+    expect(fidelity.level).toBe('deviation');
+    return fidelity.level === 'deviation' ? fidelity.text : '';
+  };
+
+  test('the Add node catalogue describes each function by its fidelity: a deviation with its text, an assumed reading plainly', async () => {
+    const text = await deviation();
+    await renderCanvas({ editing: true });
+
+    await rail('Add node').click();
+    const dialog = page.getByRole('dialog', { name: 'Add node' });
+    await dialog.getByRole('button', { name: /^Arithmetic/ }).click();
+    await expect.element(dialog.getByRole('button', { name: /^divide\b/ })).toHaveAccessibleDescription(`Deviation: ${text}`);
+    await expect.element(dialog.getByRole('button', { name: /^divide\b/ })).toHaveAttribute('title', `Deviation: ${text}`);
+    // the mark is hidden from the name, which stays the function's; the description carries its words
+    await expect.element(dialog.getByRole('button', { name: 'divide', exact: true })).toBeVisible();
+    await expect.element(dialog.getByRole('button', { name: /^abs\b/ })).toHaveAccessibleDescription('Fidelity: exact');
+    await dialog.getByRole('button', { name: /^Text/ }).click();
+    await expect.element(dialog.getByRole('button', { name: /^concat\b/ })).toHaveAccessibleDescription('Fidelity: assumed reading, until an observed case confirms it');
+  });
+
+  test('a placed function box shows its deviation with the catalogue text, and an assumed reading plainly', async () => {
+    const text = await deviation();
+    const store = await renderCanvas({ editing: true });
+    store.getState().insertBox(ORDER_ID, 'divide');
+    store.getState().insertBox(ORDER_ID, 'concat');
+    store.getState().insertBox(ORDER_ID, 'abs');
+    const hint = (name: RegExp) => node(name).element().querySelector('.map-node')!.getAttribute('data-mapping-hint');
+
+    await expect.element(node(/^Node function divide/).getByRole('img', { name: `Deviation: ${text}` })).toBeVisible();
+    await expect.element(node(/^Node function concat/).getByRole('img', { name: 'Fidelity: assumed reading, until an observed case confirms it' })).toBeVisible();
+    // an exact function has no mark; its card's hint names its fidelity, as every function card's does
+    await expect.element(node(/^Node function abs/).getByRole('img', { name: /^(Deviation|Fidelity):/ })).not.toBeInTheDocument();
+    expect(hint(/^Node function abs/)).toContain('Fidelity: exact');
+    expect(hint(/^Node function divide/)).toContain(`Deviation: ${text}`);
+    await expect.element(node(/^Source field OrderId/).getByRole('img', { name: /^(Deviation|Fidelity):/ })).not.toBeInTheDocument();
+  });
+
+  test('a function box the catalogue lacks, in a hand-written model, shows without a fidelity', async () => {
+    const { model } = await fakeApiClient().getMapping(MAPPING);
+    model.targetFieldMappings![ORDER_ID]!.boxes.f1 = { kind: 'function', fn: 'noSuchFunction' };
+    await renderCanvas({ api: fakeApiClient({ [MAPPING]: model }) });
+
+    await expect.element(node(/^Node function noSuchFunction/)).toBeVisible();
+    await expect.element(node(/^Node function noSuchFunction/).getByRole('img', { name: /^(Deviation|Fidelity):/ })).not.toBeInTheDocument();
+    expect(node(/^Node function noSuchFunction/).element().querySelector('.map-node')!.getAttribute('data-mapping-hint')).not.toMatch(/Fidelity|Deviation/);
+  });
+});
+
 describe('wires moved by hand, several deleted, and where a new node shows (#157)', () => {
   const edge = (id: string) => page.getByTestId(`rf__edge-${id}`);
   const wireEndOf = (id: string) => page.elementLocator(edge(id).element().querySelector('.react-flow__edgeupdater-target')!);

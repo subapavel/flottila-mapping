@@ -2,6 +2,7 @@ import { CogIcon, ExclamationTriangleIcon } from '@patternfly/react-icons';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
+import type { Fidelity } from '../../../generated/function-catalogue';
 import type { FieldPath } from '../../../generated/mapping-model';
 import { localPath, stepName } from '../../../model/field-path';
 import { properAncestors } from '../../../model/set-context';
@@ -9,6 +10,8 @@ import { SOURCE_FIELD_DRAG } from '../../store/drag';
 import { PreviewBadge } from '../../mock/PreviewBadge';
 import { FieldTypeIcon } from '../../shared/FieldTypeIcon';
 import { NODE_WIDTH, nodeHeight, type ExpressionNode, type NodeState, type Port } from './expression-graph';
+import { fidelityWords } from './fidelity';
+import { FidelityMark } from './FidelityMark';
 
 const ROLES = { source: 'Source field', function: 'Node function', target: 'Target field' } as const;
 
@@ -25,6 +28,8 @@ export type MappingNodeData = {
   editParameters?: () => void;
   /** The parameters a function card shows below its name, as text. */
   settings?: string;
+  /** The catalogue fidelity of a standard function box; absent for any other node. */
+  fidelity?: Fidelity;
   /** A source-field box that reads a field the source structure lacks (GLOSSARY: Orphaned reference). */
   orphaned?: boolean;
   /** Points an orphaned box at a source field dropped on it (GLOSSARY: Remap); absent for any other box and in view mode. */
@@ -63,11 +68,12 @@ function PortHandle({ node, state, port, index, count, input }: { node: Expressi
 
 /**
  * A box or the target on the canvas (the prototype's MappingNode): its symbol with the state mark, its name, a changed
- * context or the missing inputs below it, a gear for a function with parameters, and its ports. A source row dropped on
+ * context or the missing inputs below it, a standard function's fidelity mark leading the line below the name (its words
+ * in the hint), a gear for a function with parameters, and its ports. A source row dropped on
  * a box that takes a remap remaps it; any other drop, such as a catalogue function's, goes on to the canvas.
  */
 export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) {
-  const { node, state, fieldType, editParameters, settings, orphaned, remap } = data;
+  const { node, state, fieldType, editParameters, settings, fidelity, orphaned, remap } = data;
   const refresh = useUpdateNodeInternals();
   const ports = JSON.stringify(node.inputs.map((p) => p.id));
   const previousPorts = useRef(ports);
@@ -86,9 +92,20 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
   const openInputs = isFunction ? node.inputs.filter((p) => state.missing.includes(p.id)) : [];
   const portNote = openInputs.length ? `Missing: ${openInputs.map((p) => p.label).join(', ')}` : '';
   const path = node.path ? `/${localPath(node.path)}` : '';
-  const details = [node.name, nodeRole(node) + (fieldType ? ` · ${fieldType}` : ''), path, contextLabel, settings, orphaned && ORPHANED_HINT, state.description]
+  const details = [
+    node.name,
+    nodeRole(node) + (fieldType ? ` · ${fieldType}` : ''),
+    path,
+    contextLabel,
+    settings,
+    fidelity && fidelityWords(fidelity),
+    orphaned && ORPHANED_HINT,
+    state.description,
+  ]
     .filter(Boolean)
     .join('\n');
+  // an exact function has no mark, only its words in the hint
+  const mark = fidelity && fidelity.level !== 'exact' && <FidelityMark fidelity={fidelity} named />;
   return (
     <div
       className={`map-node ${node.kind}${selected ? ' is-selected' : ''}${orphaned ? ' is-orphaned' : ''}`}
@@ -121,12 +138,21 @@ export function MappingNode({ id, data, selected }: NodeProps<MappingFlowNode>) 
             </span>
           )}
           {node.preview && <PreviewBadge {...node.preview} />}
+          {/* the fidelity mark leads the line below the name, which keeps the name its width */}
           {portNote ? (
-            <div className="node-meta port-note">{portNote}</div>
+            <div className="node-meta port-note">
+              {mark}
+              {portNote}
+            </div>
           ) : (
             <>
               {changedContext && <div className="node-meta">{contextLabel}</div>}
-              {settings && <div className="node-meta">{settings}</div>}
+              {(mark || settings) && (
+                <div className="node-meta">
+                  {mark}
+                  {settings}
+                </div>
+              )}
             </>
           )}
         </div>
