@@ -12,6 +12,9 @@ public final class RuntimeErrors {
   /** Fewer created occurrences of a target field than its minimum, at its target field mapping. */
   public static final String MINOCCURS = "po:MINOCCURS";
 
+  /** {@code createIf} meets a value that is no boolean, {@code ""} included, at its box. */
+  public static final String CREATEIF = "po:CREATEIF";
+
   /** {@code formatByExample}'s inputs hold unequal numbers of values, at its box. */
   public static final String FORMATBYEXAMPLE = "po:FORMATBYEXAMPLE";
 

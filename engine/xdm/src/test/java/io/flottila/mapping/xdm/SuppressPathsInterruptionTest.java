@@ -26,7 +26,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class SuppressPathsInterruptionTest {
 
   static Stream<Arguments> interruptible() {
-    QueueBlock conditions = queue("conditions", context("1", S, "no")).block();
+    QueueBlock conditions = queue("conditions", context("1", S, "0")).block();
     QueueBlock suppressed = queue("suppressed", context(S, "a"), context(S)).block();
     return Stream.of(
         Arguments.of(
@@ -117,7 +117,7 @@ class SuppressPathsInterruptionTest {
    */
   @Test
   void onAnInterruptedThreadCreateIfStopsBeforeASlotNamingItself() {
-    QueueBlock conditions = queue("conditions", context("1", S, "no")).block();
+    QueueBlock conditions = queue("conditions", context("1", S, "0")).block();
     // witness: the same call gives a block on a thread that is not interrupted
     assertThat(ContextFunctions.createIf(conditions)).isNotNull();
 

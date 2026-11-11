@@ -24,16 +24,26 @@
                                    return if ($first instance of xs:string) then $first else '')]"/>
   </xsl:function>
 
-  <!-- createIf: per value of $queue, '' where it is 1 or true in any case, and $po:SUPPRESS for
-       anything else, '' and SUPPRESS included, as the runtime's ContextFunctions.createIf does (an
-       assumed reading); the contexts stay. lower-case maps no other character to t, r, u or e,
-       so it agrees with Java's equalsIgnoreCase here. -->
+  <!-- createIf: per value of $queue, cast as PO's Bool.toBoolean does (ADR-0006, amended with
+       #133, F-37): '' where it is 1 or true in any case, $po:SUPPRESS where it is 0 or false in any
+       case, and $po:SUPPRESS where the slot is SUPPRESS; the contexts stay. The first value, in
+       order, that is none of those, '' included, raises po:CREATEIF at $box, "Cannot cast '<value>'
+       to boolean", as the runtime's ContextFunctions.createIf does. lower-case, like the
+       runtime's toLowerCase(Locale.ROOT), maps no character but an ASCII capital to a letter of
+       true or false. -->
   <xsl:function name="po:createIf" as="array(item()*)">
     <xsl:param name="queue" as="array(item()*)"/>
-    <xsl:sequence select="array:join(for $c in 1 to array:size($queue)
-        return [$queue($c) ! (if (not(. instance of xs:string)) then $po:SUPPRESS
-                              else if (. eq '1' or lower-case(.) eq 'true') then ''
-                              else $po:SUPPRESS)])"/>
+    <xsl:param name="box" as="xs:string"/>
+    <xsl:variable name="wrong" as="xs:string?"
+        select="($queue?*[. instance of xs:string]
+                 [not(. = ('1', '0') or lower-case(.) = ('true', 'false'))])[1]"/>
+    <xsl:sequence select="if (exists($wrong))
+        then po:data-error(xs:QName('po:CREATEIF'), $box,
+                           'Cannot cast ''' || $wrong || ''' to boolean')
+        else array:join(for $c in 1 to array:size($queue)
+             return [$queue($c) ! (if (not(. instance of xs:string)) then $po:SUPPRESS
+                                   else if (. eq '1' or lower-case(.) eq 'true') then ''
+                                   else $po:SUPPRESS)])"/>
   </xsl:function>
 
   <!-- exists: per context of $queue, one context holding 'true' if it holds a value, '' included,

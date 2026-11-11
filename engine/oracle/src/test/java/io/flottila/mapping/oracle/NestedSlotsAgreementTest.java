@@ -50,6 +50,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class NestedSlotsAgreementTest {
 
   private static final String MINOCCURS = "po:MINOCCURS";
+  private static final String CREATEIF = "po:CREATEIF";
   private static final long UNBOUNDED = Long.MAX_VALUE;
   private static final QueueType QUEUE = new QueueType();
   private static final FunctionRef CREATE_IF = new FunctionRef("createIf", List.of(QUEUE), QUEUE);
@@ -79,7 +80,9 @@ class NestedSlotsAgreementTest {
 
   /**
    * Up to three Orders, each with an Id or none and up to three Lines, each with a Sku and a Qty or
-   * none; the values include createIf's true (1, TRUE, true) and false ones.
+   * none; the values include createIf's true (1, TRUE, true) and false (0) ones, and ones that tell
+   * the contexts apart ({@code o1}, {@code s11}, {@code q11}), which are no boolean ({@link
+   * #castable}).
    */
   private static String orders(RandomGenerator random) {
     StringBuilder xml = new StringBuilder("<Orders>");
@@ -101,6 +104,19 @@ class NestedSlotsAgreementTest {
       xml.append("</Order>");
     }
     return xml.append("</Orders>").toString();
+  }
+
+  /**
+   * {@code input} with each {@code field} value that is no boolean ({@code prefix} and digits) as
+   * {@code false}, where createIf reads the field: createIf reads false as SUPPRESS, as it read
+   * those values before #133, and raises {@code po:CREATEIF} on them since (F-37).
+   */
+  private static String castable(String input, boolean cast, String field, String prefix) {
+    return cast
+        ? input.replaceAll(
+            "<" + field + ">" + prefix + "\\d+</" + field + ">",
+            "<" + field + ">false</" + field + ">")
+        : input;
   }
 
   private static long max(RandomGenerator random, long min) {
@@ -142,10 +158,11 @@ class NestedSlotsAgreementTest {
 
   private static Generated generated(long seed) {
     RandomGenerator random = new SplittableRandom(seed);
-    String input = orders(random);
+    String drawn = orders(random);
     // Grp: Id in the root's context, or createIf over it
     long grpMin = random.nextInt(2);
-    Expr grpQueue = queue(random.nextBoolean(), "1", 1, ORDERS, ORDER, ID);
+    boolean grpCreateIf = random.nextBoolean();
+    Expr grpQueue = queue(grpCreateIf, "1", 1, ORDERS, ORDER, ID);
     long grpMax = max(random, grpMin);
     // Row: Sku in Order's context, createIf over it, or Sku in the root's context
     long rowMin = random.nextInt(3);
@@ -157,6 +174,12 @@ class NestedSlotsAgreementTest {
     int valChoice = random.nextInt(3);
     Expr valQueue = queue(valChoice == 2, "3", valChoice == 1 ? 2 : 3, ORDERS, ORDER, LINE, QTY);
     long valMax = max(random, valMin);
+    String input =
+        castable(
+            castable(castable(drawn, grpCreateIf, "Id", "o"), rowChoice == 1, "Sku", "s"),
+            valChoice == 2,
+            "Qty",
+            "q");
 
     AuthoringId t3 = id("t3");
     TargetSlots val =
@@ -258,5 +281,67 @@ class NestedSlotsAgreementTest {
 
     assertThat(withVal).as("seeds whose document has a Val").isGreaterThanOrEqualTo(20);
     assertThat(shortfalls).as("mappings that fall short of min").hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  /**
+   * The seed's target over its input as drawn, before {@link #castable}: a createIf may read a
+   * value that is no boolean ({@code o1}, {@code s11}, {@code q11}).
+   */
+  private static Generated drawn(long seed) {
+    return new Generated(orders(new SplittableRandom(seed)), generated(seed).document());
+  }
+
+  /**
+   * F-37 (ADR-0006 as amended with #133): over the inputs as drawn, both back ends stop with the
+   * same error at the same place, {@code po:CREATEIF} at a createIf box or {@code po:MINOCCURS} at
+   * a target field mapping, or write the same document. A queue is read on first use (ADR-0006), so
+   * a createIf under a parent that is never created raises on neither.
+   */
+  @ParameterizedTest(name = "seed {0}")
+  @MethodSource("seeds")
+  void generatedNestedTargetsAgreeOnTheCastError(long seed) throws Exception {
+    Generated generated = drawn(seed);
+    String what = "seed " + seed + ", input " + generated.input();
+    String stylesheet = XsltExporter.export(generated.document());
+    byte[] input = generated.input().getBytes(UTF_8);
+    Throwable thrown = catchThrowable(() -> ours(generated));
+
+    if (thrown != null) {
+      assertThat(thrown).as(what).isInstanceOf(MappingRunException.class);
+      MappingRunException ours = (MappingRunException) thrown;
+      assertThat(ours.code()).as(what).isIn(CREATEIF, MINOCCURS);
+      SaxonApiException saxon =
+          SaxonRunner.raised(stylesheet, XsltExporter.helperModule(), input, dir, what);
+      SaxonRunner.assertSameError(saxon, ours.code(), what);
+      String place = ours.authoringId().value();
+      SaxonRunner.assertNamesItsPlace(ours.getMessage(), ours.code(), place, what);
+      SaxonRunner.assertNamesItsPlace(saxon.getMessage(), ours.code(), place, what);
+    } else {
+      byte[] saxon = SaxonRunner.run(stylesheet, XsltExporter.helperModule(), input, dir);
+      SaxonRunner.assertAgree(saxon, ours(generated), what);
+    }
+  }
+
+  /**
+   * Witness for the cast agreement: over the seeds, our runtime raises po:CREATEIF at more than one
+   * createIf box, and some seed whose createIf reads a value that is no boolean still writes its
+   * document, as that queue is never read.
+   */
+  @Test
+  void theDrawnSeedsRaiseTheCastErrorAtSeveralBoxes() throws Exception {
+    Set<String> boxes = new TreeSet<>();
+    int unread = 0;
+    for (long seed : seeds().toArray()) {
+      Generated generated = drawn(seed);
+      Throwable thrown = catchThrowable(() -> ours(generated));
+      if (thrown instanceof MappingRunException e && e.code().equals(CREATEIF)) {
+        boxes.add(e.authoringId().value());
+      } else if (thrown == null && !generated.input().equals(generated(seed).input())) {
+        unread++;
+      }
+    }
+
+    assertThat(boxes).as("createIf boxes that raise po:CREATEIF").hasSizeGreaterThanOrEqualTo(2);
+    assertThat(unread).as("seeds whose unread createIf meets no boolean").isPositive();
   }
 }
