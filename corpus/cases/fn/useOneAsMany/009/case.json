@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/suppress-use-one-as-many-occurrences.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): useOneAsMany repeats and counts SUPPRESS like a value, a SUPPRESS slot of its second input is an occurrence like any other; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): useOneAsMany repeats and counts SUPPRESS like a value, a SUPPRESS slot of its second input is an occurrence like any other; the SUPPRESS comes from createIf, true for 1 or true and SUPPRESS for 0 or false, in any case, and anything else ends the run with po:CREATEIF (ADR-0006 amended, F-37; fn/createIf/002); observation #61",
   "expect": "output",
   "note": "SUPPRESS in the second input, which fn/useOneAsMany/005 has in the first. Id in context Orders is A, B; createIf over Sku in context Order gives \"\", SUPPRESS | \"\"; Sku in context Orders has three slots in one context. The SUPPRESS slot counts as an occurrence, so A is repeated twice and B once: All A, A, B. SUPPRESS not counted gives two occurrences for three slots, po:USEONEASMANY at U1; SUPPRESS carried into the result gives All A, B."
 }

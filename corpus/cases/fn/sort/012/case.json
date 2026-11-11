@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/suppress-sort-format.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): sort orders a SUPPRESS value as the smallest, first ascending; the SUPPRESS comes from createIf, true for 1 or true in any case and SUPPRESS for anything else (fn/createIf/002); observation #61",
+  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): sort orders a SUPPRESS value as the smallest, first ascending; the SUPPRESS comes from createIf, true for 1 or true and SUPPRESS for 0 or false, in any case, and anything else ends the run with po:CREATEIF (ADR-0006 amended, F-37; fn/createIf/002); observation #61",
   "expect": "output",
   "note": "createIf over Tag in context Orders gives \"\", SUPPRESS, \"\", SUPPRESS. Ascending puts SUPPRESS first: SUPPRESS, SUPPRESS, \"\", \"\". formatByExample cuts after three slots, as Sku in context Order does, so the first context holds one \"\": one empty All. Unsorted or SUPPRESS last gives two."
 }

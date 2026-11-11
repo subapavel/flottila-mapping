@@ -97,7 +97,7 @@ Target wire: C1 -> `Out/All`. Nothing else is mapped.
 
 | Case | Input | Question it decides and the assumed reading |
 | --- | --- | --- |
-| `fn/createIf/002` | `createIf-002.xml` | Tags FALSE, 1, True in one context. Assumed: `false` in any case is false and `true` in any case true, so SUPPRESS, "", "": two empty All. An error on FALSE or True: record its text. |
+| `fn/createIf/009` | `createIf-009.xml` | Tags FALSE, 1, True in one context. Assumed: `false` in any case is false and `true` in any case true, so SUPPRESS, "", "": two empty All. An error on FALSE or True: record its text. |
 | `fn/createIf/007` | `createIf-007.xml` | Tag " true" (leading space). Assumed: no trimming, so the run ends with "Cannot cast ' true' to boolean" (`po:CREATEIF` at `C1`). Trimmed: one empty All. |
 
 ## Mapping create-if-twice (target `tgt-list.xsd`, root `Out`)
