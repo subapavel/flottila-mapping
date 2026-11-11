@@ -10,8 +10,12 @@ You are the architect. The gate is a `class:G` ticket; its body links `docs/GATE
    that commit; a later commit is a new gate run.
 2. For each check in `docs/GATE.md`, have the verifier run its command on that commit (output to
    `.logs/gate-<n>.log`), or point at the CI run id of that commit for CI-measured numbers.
+   Run `java scripts/ratchet.java check` before the spec gate's step 3 `clean`, and run check 9
+   on a fresh worktree of the gate commit into `.logs/gate-9.log` (F-41).
    Numbers go to `bench/RESULTS.md` with machine, date, configuration and commit.
 3. Write `HANDOVER.md` as `docs/GATE.md` asks, from evidence only, on a branch `gate/<milestone>`.
+   The gate run's `bench/RESULTS.md` section goes on that branch too, because a commit that adds
+   it is a later commit (F-40).
 4. Run the `gate-reviewer` agent in the foreground with the gate commit, the ticket, and the paths
    of the logs, `bench/RESULTS.md` and `HANDOVER.md`.
 5. `gate: MET` — PR the branch to `main` (CI green, merge commit), comment the verdict on the

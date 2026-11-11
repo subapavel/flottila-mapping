@@ -14,7 +14,7 @@ the command and the evidence it needs. A change to a check after this point is a
    refuses gives an error with file, line and column. The schemas are read from the service's
    workspace through `POST /api/structures`, and a load error is a diagnostic with a
    `{file, line, column}` location (ADR-0014, ADR-0015).
-2. **Edit.** In the editor (ADR-0012: structure overview on top, function editor below) a
+2. **Edit.** In the editor (ADR-0028, F-42) a
    person maps fields by drag and drop, inserts standard functions and constants, and saves;
    the mapping model passes its schema (ADR-0011) and round-trips byte-identical in canonical
    form (ADR-0010). Save writes `<id>.mapping.json` in the workspace and returns the canonical
@@ -79,7 +79,8 @@ the command and the evidence it needs. A change to a check after this point is a
    - open findings, ADRs to revisit and the next three specs ("After milestone 1" below, updated
      if a finding moved them).
 
-   The gate-reviewer follows the start instructions on a fresh worktree and records the result.
+   The verifier follows the start instructions on a fresh worktree of the gate commit, both
+   development and `-Pui`, into `.logs/gate-9.log`; the gate-reviewer judges that log (F-41).
 
 ## Specs in build order
 
