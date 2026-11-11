@@ -156,7 +156,7 @@ if [ -f bench/jmh/target/benchmarks.jar ]; then
     fi
   fi
 else
-  skipped "5 jmh" "bench/jmh/target/benchmarks.jar does not exist yet (speed spec)"
+  skipped "5 jmh" "bench/jmh/target/benchmarks.jar is not built (./mvnw -B -Pbench -pl bench/jmh -am package -DskipTests)"
 fi
 
 # 4: ratchet regeneration, before step 3. Needs every report; refuses a drop. The verifier commits ratchet/.

@@ -117,6 +117,19 @@ check "median regressed: worse" "$(grep -c 'orders/small/latency: 125 us/op is w
 check "median regressed: regen refuses" "$(lines "$out" 'EXECUTED_FAIL  4 ratchet regen')" 1
 check "median regressed: bench.tsv untouched" "$(cat "$tmp/ratchet/bench.tsv")" "$(printf '%s\n%s' "$row" "$treerow")"
 
+# the median in the first file (130, 140, 105 gives 130) and in the last file (140, 125, 130 gives 130): the gate
+# judges the median wherever it sits, so a judgement on one fixed file (the second, the first re-run) fails here
+for order in "130 140 105" "140 125 130"; do
+  set -- $order
+  latency 1 "$1"
+  latency 2 "$2"
+  latency 3 "$3"
+  out=$(gate $M)
+  check "median at an end ($order): three JMH runs" "$(calls)" 3
+  check "median at an end ($order): fail" "$(lines "$out" 'EXECUTED_FAIL  5 bench judgement on three runs  (.logs/1-bench-2.log)')" 1
+  check "median at an end ($order): the median" "$(grep -c 'orders/small/latency: 130 us/op is worse' "$tmp/.logs/1-bench-2.log")" 1
+done
+
 # the label, a missed target and no regression (#193): re-run twice, judged on three files; 600, 450, 480 gives 480,
 # the target <= 500 is met
 row="orders/small/latency	$M	550	us/op"

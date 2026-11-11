@@ -24,7 +24,7 @@ has "benchmarks.jar on Windows" 'bench\jmh\target\benchmarks.jar'
 has "New mapping" "New mapping"
 has "Signature" "Signature"
 has "Definition" "Definition"
-has "Test tab" "Test"
+has "Test tab" "**Test**"
 has "Display Queue" "Display Queue"
 # gates and benchmarks
 has "ticket gate" "scripts/gate-ticket.sh"

@@ -1,6 +1,6 @@
 # Milestone 1 runs a closure-compiled interpreter; the bytecode tier follows as the first engine spec after it; JMH targets and a noise-tolerant bench ratchet
 
-Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier); refined by ADR-0025 (the binding is in runtime, the algebra in xdm); amended 2026-11-10 (tree target p95 < 33.3 ms, F-26; orders row and heap forks, see "Notes of 2026-11-10")
+Status: accepted (2026-10-31, grilling #17); order after milestone 1 refined by grilling #19 (JSON output first, then this tier); refined by ADR-0025 (the binding is in runtime, the algebra in xdm); amended 2026-11-10 (tree target p95 < 33.3 ms, F-26; orders row and heap forks, see "Notes of 2026-11-10"); notes of 2026-11-11 (spec 6, owner-approved)
 
 FOUNDING §5 plans an interpreter (tier 0) and a Class-File API bytecode tier (tier 1), and §6
 left open whether milestone 1 ships bytecode. §7 asks for JMH proof early: latency on small
