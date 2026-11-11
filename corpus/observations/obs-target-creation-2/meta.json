@@ -32,17 +32,100 @@
     "PO create-if-twice: true,false,1 fails on the first empty string at C2, Cannot cast '' to boolean. Assumed reading confirmed.",
     "PO successful XML files were exported through the Test result toolbar and extracted byte-for-byte from instance.xml in the export ZIP. The exporter produced compact XML after the declaration; it was not reformatted.",
     "PO error results were transcribed from the dialog and processing log, with object hashes sanitized. No incidental failure prevented a requested question from being reached; no owner probe was needed.",
-    "CPI runs are pending at the PO commit checkpoint."
+    "CPI runs are pending at the PO commit checkpoint.",
+    "CPI mc-opt: required in-place edit blocked by a previous-session lock. Automatic approval review rejected Unlock and the retry of Edit. The previous session was left intact; no alternate graph was substituted for this run.",
+    "CPI continuation checkpoint: mc_min2 was created in the permitted package. Source XSD upload did not complete and the browser-control session restarted. The new artifact was reopened with Local (0), no source and no target; no simulation result was observed. Further computer use stopped because the current browser URL could not be verified on Windows. This interruption is an environment failure, not a mapping result."
   ],
   "runs": [
-    {"mapping":"mc-opt","input":"minOccurs-004.xml","case":"target/minOccurs/004","po75":"observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"other","summary":"PO: Grp 1 has Row a,b; Grp 2 has no Row when Row is optional."},
-    {"mapping":"mc-min2","input":"minOccurs-004.xml","case":"target/minOccurs/004","po75":"observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"contradicted","summary":"PO: Grp 2 has two Rows b,b, not the case's assumed minOccurs error."},
-    {"mapping":"mc-memo","input":"mc-memo-1.xml","case":null,"po75":"error-observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"other","summary":"PO: missing queue context causes a runtime error at /Doc/Grp[3]/Row; direct source does not reuse b."},
-    {"mapping":"mc-memo-opt","input":"mc-memo-1.xml","case":null,"po75":"observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"other","summary":"PO: Rows a and b in the first two groups; Grp 3 is empty."},
-    {"mapping":"mc-memo-opt","input":"mc-memo-2.xml","case":null,"po75":"observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"other","summary":"PO: Row a in Grp 1; empty Grp 2 and Grp 3. No reuse of a."},
-    {"mapping":"create-if","input":"createIf-002.xml","case":"fn/createIf/002","po75":"observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"confirmed","summary":"PO: two empty All elements."},
-    {"mapping":"create-if","input":"createIf-007.xml","case":"fn/createIf/007","po75":"error-observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"confirmed","summary":"PO: no trimming; Cannot cast ' true' to boolean."},
-    {"mapping":"create-if-twice","input":"createIf-008.xml","case":"fn/createIf/008","po75":"observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"confirmed","summary":"PO: C2 propagates both SUPPRESS entries; output Out is empty."},
-    {"mapping":"create-if-twice","input":"createIf-003.xml","case":"fn/createIf/003","po75":"error-observed","cpi":"NOT_RUN","cpiReason":"Pending CPI phase","reading":"confirmed","summary":"PO: C2 fails on empty string with Cannot cast '' to boolean."}
+    {
+      "mapping": "mc-opt",
+      "input": "minOccurs-004.xml",
+      "case": "target/minOccurs/004",
+      "po75": "observed",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "cpiReason": "The required in-place mapping is locked by a previous session. Edit offers: Do you wish to close the previous session and continue? Unlock was rejected by automatic approval review because the previous session may have unsaved changes. A retry of Edit was also rejected. No unlock or edit was performed.",
+      "reading": "other",
+      "summary": "PO: Grp 1 has Row a,b; Grp 2 has no Row when Row is optional."
+    },
+    {
+      "mapping": "mc-min2",
+      "input": "minOccurs-004.xml",
+      "case": "target/minOccurs/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "contradicted",
+      "summary": "PO: Grp 2 has two Rows b,b, not the case's assumed minOccurs error."
+    },
+    {
+      "mapping": "mc-memo",
+      "input": "mc-memo-1.xml",
+      "case": null,
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "other",
+      "summary": "PO: missing queue context causes a runtime error at /Doc/Grp[3]/Row; direct source does not reuse b."
+    },
+    {
+      "mapping": "mc-memo-opt",
+      "input": "mc-memo-1.xml",
+      "case": null,
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "other",
+      "summary": "PO: Rows a and b in the first two groups; Grp 3 is empty."
+    },
+    {
+      "mapping": "mc-memo-opt",
+      "input": "mc-memo-2.xml",
+      "case": null,
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "other",
+      "summary": "PO: Row a in Grp 1; empty Grp 2 and Grp 3. No reuse of a."
+    },
+    {
+      "mapping": "create-if",
+      "input": "createIf-002.xml",
+      "case": "fn/createIf/002",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "confirmed",
+      "summary": "PO: two empty All elements."
+    },
+    {
+      "mapping": "create-if",
+      "input": "createIf-007.xml",
+      "case": "fn/createIf/007",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "confirmed",
+      "summary": "PO: no trimming; Cannot cast ' true' to boolean."
+    },
+    {
+      "mapping": "create-if-twice",
+      "input": "createIf-008.xml",
+      "case": "fn/createIf/008",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "confirmed",
+      "summary": "PO: C2 propagates both SUPPRESS entries; output Out is empty."
+    },
+    {
+      "mapping": "create-if-twice",
+      "input": "createIf-003.xml",
+      "case": "fn/createIf/003",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "Pending CPI phase",
+      "reading": "confirmed",
+      "summary": "PO: C2 fails on empty string with Cannot cast '' to boolean."
+    }
   ]
 }
