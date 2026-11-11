@@ -24,7 +24,7 @@ import orders.OrdersGenerator;
 /**
  * A bench mapping of {@code corpus/bench/<name>/} (ADR-0021), read from the class path, where the
  * bench module packs that directory: the model {@code <name>.mapping.json}, the schema files beside
- * it, and the seeded generator with the seed and the sizes of {@code bench.json}.
+ * it, and the seeded generator with the seed and the two sizes of {@code bench.json}.
  */
 final class BenchMapping {
 
@@ -38,16 +38,19 @@ final class BenchMapping {
   private final Generator generator;
   private final long seed;
   private final int smallBytes;
+  private final int largeBytes;
   private final byte[] model;
 
   /** The schema files read so far: after the first compile, a compile reads only memory. */
   private final Map<String, byte[]> files = new ConcurrentHashMap<>();
 
-  private BenchMapping(String name, Generator generator, long seed, int smallBytes, byte[] model) {
+  private BenchMapping(
+      String name, Generator generator, long seed, int smallBytes, int largeBytes, byte[] model) {
     this.name = name;
     this.generator = generator;
     this.seed = seed;
     this.smallBytes = smallBytes;
+    this.largeBytes = largeBytes;
     this.model = model;
   }
 
@@ -68,6 +71,7 @@ final class BenchMapping {
         generator,
         number(bench, "seed"),
         Math.toIntExact(number(bench, "smallBytes")),
+        Math.toIntExact(number(bench, "largeBytes")),
         required(name, name + ".mapping.json"));
   }
 
@@ -92,6 +96,11 @@ final class BenchMapping {
   /** The small input (8-10 kB), from the seed. */
   byte[] small() {
     return generator.generate(seed, smallBytes);
+  }
+
+  /** The large input (at least 10,485,760 bytes), from the seed; generated, never committed. */
+  byte[] large() {
+    return generator.generate(seed, largeBytes);
   }
 
   /**

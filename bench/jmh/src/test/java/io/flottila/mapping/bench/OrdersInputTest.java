@@ -20,6 +20,10 @@ class OrdersInputTest {
   private static final String SMALL_SHA256 =
       "67ed8560c684e9078f7c52a2ebe88416c2795946c9f829526dd2f7f53ef3a8ed";
 
+  /** The SHA-256 of the large input, hex. */
+  private static final String LARGE_SHA256 =
+      "467cb060fa1ac81b46b459f4b6e82d970ec18f33bdc00785df5be1a58032d593";
+
   @Test
   void theSmallInputIsPinned() throws Exception {
     byte[] small = BenchMapping.orders().small();
@@ -29,6 +33,20 @@ class OrdersInputTest {
     assertThat(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(small)))
         .as("the small input's SHA-256")
         .isEqualTo(SMALL_SHA256);
+  }
+
+  @Test
+  void theLargeInputIsPinned() throws Exception {
+    byte[] large = BenchMapping.orders().large();
+
+    // at least 10,485,760 B (10 MiB), so at least 10 MB under either reading of a MB (#181)
+    assertThat(large.length)
+        .as("the large input's size, the param inputBytes of the large benchmarks")
+        .isEqualTo(Integer.parseInt(OrdersBench.LARGE_BYTES))
+        .isGreaterThanOrEqualTo(10_485_760);
+    assertThat(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(large)))
+        .as("the large input's SHA-256")
+        .isEqualTo(LARGE_SHA256);
   }
 
   @Test
