@@ -88,24 +88,35 @@ Numbers from a PC judge nothing and write nothing (spec #181).
 
 ## Draw and run a mapping in the studio
 
-ADR-0028 describes the studio. The corpus example is `order-id-copy`: it copies the order id of
-`corpus/structures/skeleton/order.xsd` to the same field of the same schema.
+ADR-0028 describes the studio. The tabs are Overview, Definition, Test, Signature and Functions.
+Definition and Test show only a link to Signature until the mapping has both a source and a
+target message, so you choose the messages first. The corpus example is `order-id-copy`: it
+copies a field of `corpus/structures/skeleton/order.xsd` to the same field of the same schema.
 
 1. Open the start page. It is a table of the mappings with the columns Name, Package, Source,
    Target and Description.
-2. Choose **New mapping**. Enter Name, Package and Description, then create. The studio opens in
-   edit mode on the **Signature** tab.
-3. On the Signature tab, choose the source message and the target message (the "Choose message"
-   button of each row). For the example, choose `corpus/structures/skeleton/order.xsd` for both.
+2. Choose **New mapping**. Enter a Name and, if you like, a Description. The Package is empty, or
+   the path of a folder that already exists in the workspace. The service does not create
+   folders: a Package that does not exist gives "no such mapping or directory in the workspace"
+   (a 404). Create. The studio opens in edit mode on the **Signature** tab.
+3. On the Signature tab, the source side says "No source message yet." Choose **Add source
+   message**. The "Choose source message" dialog opens. In **Bundle**, write one schema path per
+   line, relative to the mapping's package (the workspace root when the Package is empty). For the
+   example: `structures/skeleton/order.xsd`. Leave **Root** as "XML element" and fill **Root
+   element** (`Q{urn:flottila:corpus:skeleton}Order`). Choose **Apply**. Do the same with **Add
+   target message**.
 4. Open the **Definition** tab. Drag a source field onto a target field for a direct connection.
-   For the example, drag the order id field onto the order id field. In the expression of a
-   target field, drag from an output to an input to connect boxes.
+   In the expression of a target field, drag from an output to an input to connect boxes. To add
+   a box, choose **Add node** in the canvas toolbar and pick a function.
 5. Choose **Save**. It writes the mapping file to the workspace.
 6. Open the **Test** tab. Paste a source message into the Source pane, for example
    `corpus/cases/link/direct-copy/001/input.xml`. Choose **Run simulation**. The Result pane shows
-   the output. The processing log shows the run.
-7. To see a queue, right-click a box in the Definition tab and choose **Display Queue**. It shows
-   the queue of the last test run.
+   the output. The **Processing log** shows the run.
+7. To see a queue, go back to the Definition tab. Right-click a node of the expression (a function
+   box or the target field's node), then choose **Display Queue**. Or select the node and choose
+   the **Display Queue** button of the canvas toolbar. The dialog shows the queues of the last
+   test run. Without a run it says "No test data yet" and, in edit mode, offers **Load test
+   file**.
 
 To compare with the finished example, choose **Open in studio** on `order-id-copy` in the list.
 
