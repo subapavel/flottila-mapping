@@ -3,7 +3,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Orders in code points, as XPath does; SAP PO orders UTF-16 units, so a character outside the BMP can sort differently."
+      "text": "Compares text by Unicode character (code point). SAP PO compares UTF-16 units, so text with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
     },
     "inputs": [
       {
@@ -64,7 +64,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Counts positions in Unicode characters (code points). SAP PO counts UTF-16 units, so positions after an emoji or another character beyond the Basic Multilingual Plane differ."
     },
     "inputs": [
       {
@@ -80,7 +80,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Counts positions in Unicode characters (code points). SAP PO counts UTF-16 units, so positions after an emoji or another character beyond the Basic Multilingual Plane differ."
     },
     "inputs": [
       {
@@ -96,7 +96,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Counts Unicode characters (code points). SAP PO counts UTF-16 units, so an emoji or another character beyond the Basic Multilingual Plane counts as two there."
     },
     "inputs": [
       {
@@ -148,7 +148,7 @@
     "executionKind": "single",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Start and length count Unicode characters (code points). SAP PO counts UTF-16 units, so the cut differs after an emoji or another character beyond the Basic Multilingual Plane."
     },
     "inputs": [
       {

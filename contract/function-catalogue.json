@@ -88,7 +88,7 @@
     "family": "text",
     "fidelity": {
       "level": "deviation",
-      "text": "Orders in code points, as XPath does; SAP PO orders UTF-16 units, so a character outside the BMP can sort differently."
+      "text": "Compares text by Unicode character (code point). SAP PO compares UTF-16 units, so text with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
     },
     "inputs": [
       {
@@ -340,7 +340,7 @@
     "family": "arithmetic",
     "fidelity": {
       "level": "deviation",
-      "text": "Quotient scale follows Saxon-HE (ADR-0005); PO divides in float or BigDecimal mode."
+      "text": "Divides with decimal precision (scale as in XPath). SAP PO divides in float or BigDecimal mode."
     },
     "inputs": [
       {
@@ -615,7 +615,7 @@
     "family": "text",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Counts positions in Unicode characters (code points). SAP PO counts UTF-16 units, so positions after an emoji or another character beyond the Basic Multilingual Plane differ."
     },
     "inputs": [
       {
@@ -658,7 +658,7 @@
     "family": "text",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Counts positions in Unicode characters (code points). SAP PO counts UTF-16 units, so positions after an emoji or another character beyond the Basic Multilingual Plane differ."
     },
     "inputs": [
       {
@@ -675,7 +675,7 @@
     "family": "text",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Counts Unicode characters (code points). SAP PO counts UTF-16 units, so an emoji or another character beyond the Basic Multilingual Plane counts as two there."
     },
     "inputs": [
       {
@@ -831,7 +831,7 @@
     "family": "arithmetic",
     "fidelity": {
       "level": "deviation",
-      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in xs:double (ADR-0005)."
+      "text": "Exact for a whole exponent from 0 to 1000; any other exponent is computed in double precision. SAP PO computes in float or BigDecimal mode."
     },
     "inputs": [
       {
@@ -1041,7 +1041,7 @@
     "family": "arithmetic",
     "fidelity": {
       "level": "deviation",
-      "text": "Computed in xs:double and cast back to xs:decimal (ADR-0005)."
+      "text": "Computed in double precision and returned as a decimal. SAP PO computes in float or BigDecimal mode."
     },
     "inputs": [
       {
@@ -1071,7 +1071,7 @@
     "family": "text",
     "fidelity": {
       "level": "deviation",
-      "text": "Counts, indexes and orders in code points, as XPath does; SAP PO counts UTF-16 units, so a character outside the BMP differs."
+      "text": "Start and length count Unicode characters (code points). SAP PO counts UTF-16 units, so the cut differs after an emoji or another character beyond the Basic Multilingual Plane."
     },
     "inputs": [
       {

@@ -36,8 +36,10 @@ test('wire, parameters and a drag survive Save and opening the mapping again', a
   const catalogue = page.getByRole('region', { name: 'Function catalogue' });
   await catalogue.getByRole('button', { name: /^Text/ }).click();
   await page.screenshot({ path: '.logs/157-drilldown.png' });
-  // the deviation of the served catalogue, with its text (#207)
-  await expect(catalogue.getByRole('button', { name: /^substring\b/ })).toHaveAccessibleDescription(/^Deviation: Counts, indexes and orders in code points/);
+  // the deviation note of the served catalogue, its only trace in the studio (#207)
+  await expect(catalogue.getByRole('button', { name: /^substring\b/ })).toHaveAccessibleDescription(
+    'Start and length count Unicode characters (code points). SAP PO counts UTF-16 units, so the cut differs after an emoji or another character beyond the Basic Multilingual Plane.',
+  );
   await catalogue.getByRole('button', { name: /^substring\b/ }).click();
   await node(page, /^Source field OrderId/).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Connect to', exact: true }).click();

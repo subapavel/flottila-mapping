@@ -1,8 +1,7 @@
 import { AngleRightIcon, CogIcon, SearchIcon } from '@patternfly/react-icons';
 import { useMemo, useState } from 'react';
 import type { FunctionCatalogue as Catalogue } from '../../../api/client';
-import { fidelityWords } from './fidelity';
-import { FidelityMark } from './FidelityMark';
+import { deviationNote } from './fidelity';
 import { drilldown, type DrilldownFunction } from './function-groups';
 
 /** The drag type of a function dragged from the drilldown onto the canvas; its data is the catalogue name. */
@@ -15,7 +14,7 @@ const unavailable = (fn: DrilldownFunction) =>
 /**
  * The functions drilldown (the prototype's FunctionCatalogue) over the catalogue (spec #152): its groups open one by one,
  * or all that match while a search is typed; a function is added by a click or dragged onto the canvas. A catalogue
- * function is described by its fidelity (GLOSSARY), and one that is not exact has its mark (`FidelityMark`). A function the
+ * function with a deviation (GLOSSARY: Fidelity) has its note as its tooltip and description, and no mark. A function the
  * catalogue lacks is a preview function (ADR-0028), added by a click through `addPreview` when given, or else is shown
  * disabled with "Not available yet" and its follow-up issue.
  */
@@ -76,9 +75,8 @@ export function FunctionCatalogue({
                     const preview = fn.preview !== undefined && addPreview !== undefined;
                     const lacking = fn.fn === undefined && !preview;
                     const off = disabled || lacking;
-                    const entry = fn.fn === undefined ? undefined : catalogue[fn.fn]!;
-                    // a catalogue function is described by its fidelity, one the catalogue lacks by why it is not there
-                    const description = entry === undefined ? unavailable(fn) : fidelityWords(entry.fidelity);
+                    // a catalogue function is described by its deviation note, if any; one the catalogue lacks by why it is not there
+                    const description = fn.fn === undefined ? unavailable(fn) : deviationNote(catalogue[fn.fn]!.fidelity);
                     return (
                       <li key={fn.key}>
                         <button
@@ -101,7 +99,6 @@ export function FunctionCatalogue({
                         >
                           <i aria-hidden="true">ƒ</i>
                           <span>{fn.name}</span>
-                          {entry && entry.fidelity.level !== 'exact' && <FidelityMark fidelity={entry.fidelity} />}
                           {fn.overload !== undefined && <small>{fn.overload} inputs</small>}
                           {(fn.configurable || preview) && <CogIcon aria-label="Configurable" />}
                           {preview && <span className="catalogue-preview">Preview</span>}

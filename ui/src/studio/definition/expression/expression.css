@@ -1,7 +1,7 @@
 /*
  * The mapping expression (#157), ported from the prototype's functionCatalogue.css and the Definition and canvas parts of
  * studio.css, values unchanged. Added: `.expression-panel` holds the header toolbar above the canvas, and
- * `.catalogue-function[aria-disabled]` dims a function the catalogue lacks. Added for #207: a function's `.fidelity-mark`.
+ * `.catalogue-function[aria-disabled]` dims a function the catalogue lacks.
  */
 
 /* the definition bar */
@@ -361,16 +361,6 @@
 .node-caption strong {
   color: #1c2a38;
   font: 600 13px/1.35 var(--mono);
-}
-/* a function's fidelity mark: after the name in the drilldown, leading the line below the name on a box */
-.fidelity-mark {
-  flex: none;
-  display: inline-flex;
-  vertical-align: middle;
-  line-height: 1;
-}
-.node-meta .fidelity-mark {
-  margin-inline-end: 4px;
 }
 .node-meta {
   font-size: 11px;

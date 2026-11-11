@@ -409,55 +409,62 @@ describe('the functions drilldown (#157)', () => {
   });
 });
 
-describe("a function's fidelity, a deviation with its catalogue text (GLOSSARY: Fidelity, ADR-0026, #207)", () => {
-  /** The deviation text of the served catalogue's `divide`, the function the ticket names. */
-  const deviation = async () => {
-    const { fidelity } = (await fakeApiClient().getCatalogue()).divide!;
-    expect(fidelity.level).toBe('deviation');
-    return fidelity.level === 'deviation' ? fidelity.text : '';
-  };
+describe("a function's deviation as a neutral note, its fidelity level otherwise internal (GLOSSARY: Fidelity, ADR-0026, #207)", () => {
+  /** The deviation note of `divide`, the function the ticket names: plain behaviour first, the SAP PO difference last. */
+  const DIVIDE = 'Divides with decimal precision (scale as in XPath). SAP PO divides in float or BigDecimal mode.';
 
-  test('the Add node catalogue describes each function by its fidelity: a deviation with its text, an assumed reading plainly', async () => {
-    const text = await deviation();
+  test('the served catalogue carries the reworded note of divide', async () => {
+    expect((await fakeApiClient().getCatalogue()).divide!.fidelity).toEqual({ level: 'deviation', text: DIVIDE });
+  });
+
+  test('in the Add node catalogue a deviation is only a tooltip and a description; every function looks the same', async () => {
     await renderCanvas({ editing: true });
 
     await rail('Add node').click();
     const dialog = page.getByRole('dialog', { name: 'Add node' });
     await dialog.getByRole('button', { name: /^Arithmetic/ }).click();
-    await expect.element(dialog.getByRole('button', { name: /^divide\b/ })).toHaveAccessibleDescription(`Deviation: ${text}`);
-    await expect.element(dialog.getByRole('button', { name: /^divide\b/ })).toHaveAttribute('title', `Deviation: ${text}`);
-    // the mark is hidden from the name, which stays the function's; the description carries its words
-    await expect.element(dialog.getByRole('button', { name: 'divide', exact: true })).toBeVisible();
-    await expect.element(dialog.getByRole('button', { name: /^abs\b/ })).toHaveAccessibleDescription('Fidelity: exact');
     await dialog.getByRole('button', { name: /^Text/ }).click();
-    await expect.element(dialog.getByRole('button', { name: /^concat\b/ })).toHaveAccessibleDescription('Fidelity: assumed reading, until an observed case confirms it');
+    const entry = (fn: string) => dialog.getByRole('button', { name: fn, exact: true });
+    await expect.element(entry('divide')).toHaveAccessibleDescription(DIVIDE);
+    await expect.element(entry('divide')).toHaveAttribute('title', DIVIDE);
+    // an exact function and an assumed one (concat) say nothing of their fidelity
+    for (const fn of ['abs', 'concat']) {
+      await expect.element(entry(fn)).toHaveAccessibleDescription('');
+      await expect.element(entry(fn)).not.toHaveAttribute('title');
+    }
+    // no mark: an entry shows its symbol and its name only
+    for (const fn of ['divide', 'abs', 'concat']) expect(entry(fn).element().textContent).toBe(`ƒ${fn}`);
   });
 
-  test('a placed function box shows its deviation with the catalogue text, and an assumed reading plainly', async () => {
-    const text = await deviation();
+  // a node's description is React Flow's keyboard help, so the note ends the node's accessible name
+  test('a placed box with a deviation has the note in its hover hint and at the end of its name, and no mark', async () => {
     const store = await renderCanvas({ editing: true });
     store.getState().insertBox(ORDER_ID, 'divide');
     store.getState().insertBox(ORDER_ID, 'concat');
     store.getState().insertBox(ORDER_ID, 'abs');
     const hint = (name: RegExp) => node(name).element().querySelector('.map-node')!.getAttribute('data-mapping-hint');
+    const label = (name: RegExp) => node(name).element().getAttribute('aria-label');
 
-    await expect.element(node(/^Node function divide/).getByRole('img', { name: `Deviation: ${text}` })).toBeVisible();
-    await expect.element(node(/^Node function concat/).getByRole('img', { name: 'Fidelity: assumed reading, until an observed case confirms it' })).toBeVisible();
-    // an exact function has no mark; its card's hint names its fidelity, as every function card's does
-    await expect.element(node(/^Node function abs/).getByRole('img', { name: /^(Deviation|Fidelity):/ })).not.toBeInTheDocument();
-    expect(hint(/^Node function abs/)).toContain('Fidelity: exact');
-    expect(hint(/^Node function divide/)).toContain(`Deviation: ${text}`);
-    await expect.element(node(/^Source field OrderId/).getByRole('img', { name: /^(Deviation|Fidelity):/ })).not.toBeInTheDocument();
+    await expect.element(node(/^Node function divide/)).toBeVisible();
+    expect(label(/^Node function divide/)).toBe(`Node function divide. Detached: this object has no connections. ${DIVIDE}`);
+    expect(hint(/^Node function divide/)).toContain(DIVIDE);
+    for (const name of [/^Node function abs/, /^Node function concat/]) {
+      expect(label(name)).toMatch(/^Node function \w+\. Detached: this object has no connections\.$/);
+      expect(hint(name)).not.toMatch(/fidelity|assumed|exact|deviation/i);
+    }
+    for (const name of [/^Node function divide/, /^Node function abs/, /^Node function concat/]) {
+      expect(node(name).element().querySelector('.pf-v6-c-label')).toBeNull();
+      expect(node(name).element().textContent).not.toMatch(/[≠?]/);
+    }
   });
 
-  test('a function box the catalogue lacks, in a hand-written model, shows without a fidelity', async () => {
+  test('a function box the catalogue lacks, in a hand-written model, shows without a note', async () => {
     const { model } = await fakeApiClient().getMapping(MAPPING);
     model.targetFieldMappings![ORDER_ID]!.boxes.f1 = { kind: 'function', fn: 'noSuchFunction' };
     await renderCanvas({ api: fakeApiClient({ [MAPPING]: model }) });
 
     await expect.element(node(/^Node function noSuchFunction/)).toBeVisible();
-    await expect.element(node(/^Node function noSuchFunction/).getByRole('img', { name: /^(Deviation|Fidelity):/ })).not.toBeInTheDocument();
-    expect(node(/^Node function noSuchFunction/).element().querySelector('.map-node')!.getAttribute('data-mapping-hint')).not.toMatch(/Fidelity|Deviation/);
+    expect(node(/^Node function noSuchFunction/).element().getAttribute('aria-label')).toBe('Node function noSuchFunction. Detached: this object has no connections.');
   });
 });
 
@@ -483,13 +490,15 @@ describe('wires moved by hand, several deleted, and where a new node shows (#157
     const shown = arrange(expressionGraph(ORDER_ID, mappingOf(store), {}));
 
     store.getState().insertBox(ORDER_ID, 'concat', { x: 4000, y: 3000 }, layoutOf(shown));
+    // React Flow keeps a new node hidden until it is measured, which under load can take longer than a poll's 1 s
+    await expect.element(node(/^Node function concat/)).toBeVisible();
 
     const within = () => {
       const card = node(/^Node function concat/).element().getBoundingClientRect();
       const view = canvas().element().getBoundingClientRect();
       return card.left >= view.left && card.right <= view.right && card.top >= view.top && card.bottom <= view.bottom;
     };
-    await expect.poll(within).toBe(true);
+    await expect.poll(within, { timeout: 5000 }).toBe(true);
   });
 
   test('the end of a wire dragged onto another input moves the wire there (rewire)', async () => {
