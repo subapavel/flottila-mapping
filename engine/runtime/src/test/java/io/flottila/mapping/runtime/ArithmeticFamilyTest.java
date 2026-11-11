@@ -119,4 +119,53 @@ class ArithmeticFamilyTest {
     assertThat(call("formatNum", "-0.5", "0.#%")).isEqualTo("-50%");
     assertThat(call("formatNum", "0.5", "#.##")).isEqualTo("0.5");
   }
+
+  /** A formatNum call whose pattern is the {@code Literal} lowering gives, its value per slot. */
+  private static Node.OfString formatNumOverLiteral(String[] value, String pattern) {
+    return SingleValueLibrary.bind(
+        "formatNum", BOX, List.of(f -> value[0], new Node.Literal(pattern)));
+  }
+
+  /**
+   * A literal pattern, as lowering gives every param, is compiled once, when the call binds (#194),
+   * and formats each value of the call as a pattern compiled per value does.
+   */
+  @Test
+  void formatNumOverALiteralPatternFormatsEveryValue() {
+    String[] value = new String[1];
+    Node.OfString call = formatNumOverLiteral(value, "#,##0.00;(#,##0.00)");
+
+    for (String[] slot :
+        List.of(
+            new String[] {" 1234.5 ", "1,234.50"},
+            new String[] {"-1234.5", "(1,234.50)"},
+            new String[] {"0", "0.00"},
+            new String[] {"7", "7.00"})) {
+      value[0] = slot[0];
+      assertThat(call.eval(null)).isEqualTo(slot[1]);
+    }
+    value[0] = "abc";
+    assertThatThrownBy(() -> call.eval(null))
+        .isInstanceOfSatisfying(
+            MappingRunException.class, e -> assertThat(e.code()).isEqualTo(RuntimeErrors.FORG0001));
+  }
+
+  /**
+   * A literal pattern that compiles to no picture, which lowering refuses (ADR-0003, ADR-0026), is
+   * refused when the call binds, as {@code fixValues} refuses its table there: the call is never
+   * built.
+   */
+  @Test
+  void formatNumOverALiteralPatternWithoutAPictureIsRefusedWhenItBinds() {
+    // witness: the same pattern over a node that is no literal binds, and is refused per value
+    Node.OfString perValue =
+        SingleValueLibrary.bind("formatNum", BOX, List.of(f -> "1", f -> "0x0"));
+    assertThatThrownBy(() -> perValue.eval(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("the number pattern \"0x0\" has no XPath picture: ");
+
+    assertThatThrownBy(() -> formatNumOverLiteral(new String[] {"1"}, "0x0"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("the number pattern \"0x0\" has no XPath picture: ");
+  }
 }

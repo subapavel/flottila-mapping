@@ -7,17 +7,20 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 /**
  * The function family {@code date} (ADR-0025 "Families", F-15) of #80, over the formatting core
  * (ADR-0003). All are single-value functions whose date patterns are SimpleDateFormat patterns, box
- * params that lowering has checked (ADR-0026) and that are compiled to an XPath picture per value.
- * A date is read strictly in its pattern ({@link FormatDate#parse}), in the run's offset when the
- * pattern has none; a date the pattern does not read is {@code err:FORG0001} at the function box. A
- * date is written in the run's offset, as a SimpleDateFormat writes in its zone, and dates are
- * compared as instants. {@code currentDate} writes the run's time, fixed once per mapping run. The
- * binders are methods, not lambdas of the maps, so that PIT mutates them.
+ * params that lowering has checked (ADR-0026) and gives as {@code Literal}s, each compiled to an
+ * XPath picture and analysed once, when its call binds (#194); a pattern node that is no literal is
+ * compiled per value, and a literal that compiles to no picture, which lowering refuses, is refused
+ * when the call binds. A date is read strictly in its pattern ({@link FormatDate#parse}), in the
+ * run's offset when the pattern has none; a date the pattern does not read is {@code err:FORG0001}
+ * at the function box. A date is written in the run's offset, as a SimpleDateFormat writes in its
+ * zone, and dates are compared as instants. {@code currentDate} writes the run's time, fixed once
+ * per mapping run. The binders are methods, not lambdas of the maps, so that PIT mutates them.
  */
 final class DateFamily {
 
@@ -42,7 +45,8 @@ final class DateFamily {
    */
   static Node.OfString currentDate(AuthoringId box, List<Node.OfString> args) {
     Node.OfString target = args.getFirst();
-    return frame -> FormatDate.format(frame.now, DatePattern.picture(target.eval(frame)));
+    Function<String, FormatDate.Picture> written = picture(target);
+    return frame -> written.apply(target.eval(frame)).format(frame.now);
   }
 
   /**
@@ -53,11 +57,13 @@ final class DateFamily {
     Node.OfString date = args.get(0);
     Node.OfString source = args.get(1);
     Node.OfString target = args.get(2);
+    Function<String, FormatDate.Picture> read = picture(source);
+    Function<String, FormatDate.Picture> written = picture(target);
     return frame -> {
       ZoneOffset zone = frame.now.getOffset();
-      OffsetDateTime read = date("dateTrans", box, date.eval(frame), source.eval(frame), zone);
-      return FormatDate.format(
-          read.withOffsetSameInstant(zone), DatePattern.picture(target.eval(frame)));
+      OffsetDateTime value =
+          date("dateTrans", box, date.eval(frame), source.eval(frame), read, zone);
+      return written.apply(target.eval(frame)).format(value.withOffsetSameInstant(zone));
     };
   }
 
@@ -89,21 +95,48 @@ final class DateFamily {
     Node.OfString second = args.get(1);
     Node.OfString firstFormat = args.get(2);
     Node.OfString secondFormat = args.get(3);
+    Function<String, FormatDate.Picture> firstPicture = picture(firstFormat);
+    Function<String, FormatDate.Picture> secondPicture = picture(secondFormat);
     return frame -> {
       ZoneOffset zone = frame.now.getOffset();
-      OffsetDateTime a = date(function, box, first.eval(frame), firstFormat.eval(frame), zone);
-      OffsetDateTime b = date(function, box, second.eval(frame), secondFormat.eval(frame), zone);
+      OffsetDateTime a =
+          date(function, box, first.eval(frame), firstFormat.eval(frame), firstPicture, zone);
+      OffsetDateTime b =
+          date(function, box, second.eval(frame), secondFormat.eval(frame), secondPicture, zone);
       return result.apply(a.toInstant().compareTo(b.toInstant()));
     };
   }
 
   /**
-   * The date {@code text} writes in {@code pattern}, in {@code zone} when the pattern has no
-   * offset, or {@code err:FORG0001} at {@code box} when it writes none.
+   * The analysed picture of a date pattern param's value: for a {@code Literal}, the one picture of
+   * its pattern, compiled once, here; for any other node, the picture of each value it gives.
+   *
+   * @throws IllegalArgumentException when {@code pattern} is a literal that compiles to no picture,
+   *     which lowering refuses: a compiler bug
+   */
+  private static Function<String, FormatDate.Picture> picture(Node.OfString pattern) {
+    if (pattern instanceof Node.Literal(String literal)) {
+      FormatDate.Picture picture = FormatDate.picture(DatePattern.picture(literal));
+      return value -> picture;
+    }
+    return value -> FormatDate.picture(DatePattern.picture(value));
+  }
+
+  /**
+   * The date {@code text} writes in {@code pattern}, whose analysed picture {@code picture} gives,
+   * in {@code zone} when the pattern has no offset, or {@code err:FORG0001} at {@code box} when it
+   * writes none.
    */
   private static OffsetDateTime date(
-      String function, AuthoringId box, String text, String pattern, ZoneOffset zone) {
-    return FormatDate.parse(text, DatePattern.picture(pattern), zone)
+      String function,
+      AuthoringId box,
+      String text,
+      String pattern,
+      Function<String, FormatDate.Picture> picture,
+      ZoneOffset zone) {
+    return picture
+        .apply(pattern)
+        .parse(text, zone)
         .orElseThrow(
             () ->
                 MappingRunException.dataError(

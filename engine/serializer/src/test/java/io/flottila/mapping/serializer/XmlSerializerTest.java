@@ -5,8 +5,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -313,5 +316,133 @@ class XmlSerializerTest {
     expected.writeBytes(text);
     expected.writeBytes("</v>".getBytes(US_ASCII));
     assertThat(bytes).isEqualTo(expected.toByteArray());
+  }
+
+  /** The bytes of a document {@code <v>…</v>} whose text is {@code hex}, encoded by hand. */
+  private static byte[] textDocument(String hex) {
+    ByteArrayOutputStream expected = new ByteArrayOutputStream();
+    expected.writeBytes((DECLARATION + "<v>").getBytes(US_ASCII));
+    expected.writeBytes(HexFormat.of().parseHex(hex));
+    expected.writeBytes("</v>".getBytes(US_ASCII));
+    return expected.toByteArray();
+  }
+
+  /** The first and last character of each UTF-8 length are encoded in that length (RFC 3629). */
+  @Test
+  void writesTheEdgesOfEachUtf8Length() throws Exception {
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("", "", "v");
+              s.text("\u007F\u0080߿ࠀ￿𐀀􏿿");
+              s.endElement();
+            });
+
+    // U+007F, U+0080, U+07FF, U+0800, U+FFFF, U+10000, U+10FFFF, encoded by hand
+    assertThat(bytes)
+        .isEqualTo(textDocument("7f" + "c280dfbf" + "e0a080efbfbf" + "f0908080f48fbfbf"));
+  }
+
+  /**
+   * A surrogate pair split between two texts of one element is one character, as the JDK's
+   * OutputStreamWriter, which the serializer wrote through before #194, joins it (observed).
+   */
+  @Test
+  void aSurrogatePairSplitBetweenTwoTextsIsOneCharacter() throws Exception {
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("", "", "v");
+              s.text("a\uD834");
+              s.text("\uDD1Eb");
+              s.endElement();
+            });
+
+    // a, U+1D11E, b
+    assertThat(bytes).isEqualTo(textDocument("61f09d849e62"));
+  }
+
+  /**
+   * A lone surrogate, which no UTF-8 encodes, is written {@code ?}, as the JDK's OutputStreamWriter
+   * replaces it (observed before #194): a high one before a character that is no low surrogate,
+   * that character then written as it is, a high one before markup, and a low one alone.
+   */
+  @Test
+  void aLoneSurrogateIsWrittenAsAQuestionMark() throws Exception {
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("", "", "v");
+              s.attribute("", "", "a", "\uDD1E\uD834");
+              s.text("a\uD834ü\uDD1Eb\uD834");
+              s.endElement();
+            });
+
+    ByteArrayOutputStream expected = new ByteArrayOutputStream();
+    expected.writeBytes((DECLARATION + "<v a=\"??\">a?").getBytes(US_ASCII));
+    expected.writeBytes(HexFormat.of().parseHex("c3bc"));
+    expected.writeBytes("?b?</v>".getBytes(US_ASCII));
+    assertThat(bytes).isEqualTo(expected.toByteArray());
+  }
+
+  /**
+   * A document longer than any buffer is written whole, its multi-byte characters across every
+   * buffer boundary included; the expected bytes are the JDK's own UTF-8 encoding of the text.
+   */
+  @Test
+  void aLongDocumentIsWrittenWhole() throws Exception {
+    String text = "aé€𝄞".repeat(20_000);
+    byte[] bytes =
+        document(
+            s -> {
+              s.startElement("", "", "v");
+              s.text(text);
+              s.endElement();
+            });
+
+    assertThat(bytes).isEqualTo((DECLARATION + "<v>" + text + "</v>").getBytes(UTF_8));
+  }
+
+  /**
+   * The serializer buffers its bytes (#194): a document shorter than its buffer reaches the output
+   * stream in one write, at {@code endDocument}, not one write per name or character.
+   */
+  @Test
+  void aShortDocumentReachesTheStreamInOneWrite() throws Exception {
+    List<Integer> writes = new ArrayList<>();
+    ByteArrayOutputStream bytes =
+        new ByteArrayOutputStream() {
+          @Override
+          public void write(byte[] b, int off, int len) {
+            writes.add(len);
+            super.write(b, off, len);
+          }
+        };
+    XmlSerializer serializer = new XmlSerializer(bytes);
+    serializer.startDocument();
+    serializer.startElement("ns0", "urn:a", "Order");
+    serializer.text("Grüße");
+    serializer.endElement();
+    assertThat(writes).isEmpty();
+
+    serializer.endDocument();
+
+    assertThat(writes).containsExactly(bytes.size());
+    assertThat(bytes.toString(UTF_8))
+        .isEqualTo(DECLARATION + "<ns0:Order xmlns:ns0=\"urn:a\">Grüße</ns0:Order>");
+  }
+
+  /** {@code endDocument} flushes the output stream, so a buffering stream holds nothing back. */
+  @Test
+  void endDocumentFlushesTheOutputStream() throws Exception {
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    XmlSerializer serializer = new XmlSerializer(new BufferedOutputStream(bytes, 1 << 16));
+    serializer.startDocument();
+    serializer.startElement("", "", "v");
+    serializer.endElement();
+
+    serializer.endDocument();
+
+    assertAscii(DECLARATION + "<v/>", bytes.toByteArray());
   }
 }

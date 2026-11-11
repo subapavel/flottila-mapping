@@ -52,7 +52,45 @@ public final class FormatNumber {
     }
   }
 
+  /**
+   * A picture analysed once (#194), which formats any number of values: a binder analyses a box's
+   * picture when it binds, not per value. It holds no state of a format and may be shared.
+   */
+  public static final class Picture {
+    private final SubPicture positive;
+
+    /** The negative sub-picture, or {@code null}: then a minus sign and the positive one. */
+    private final SubPicture negative;
+
+    private Picture(SubPicture positive, SubPicture negative) {
+      this.positive = positive;
+      this.negative = negative;
+    }
+
+    /** {@code value} formatted with this picture. */
+    public String format(BigDecimal value) {
+      if (value.signum() < 0) {
+        return negative != null
+            ? negative.format(value.negate())
+            : "-" + positive.format(value.negate());
+      }
+      return positive.format(value);
+    }
+  }
+
   private FormatNumber() {}
+
+  /**
+   * {@code picture} analysed, both of its sub-pictures.
+   *
+   * @throws IllegalArgumentException when {@code picture} is none that a number pattern compiles to
+   */
+  public static Picture picture(String picture) {
+    String[] pictures = picture.split(";");
+    return new Picture(
+        subPicture(picture, pictures[0]),
+        pictures.length > 1 ? subPicture(picture, pictures[1]) : null);
+  }
 
   /**
    * {@code value} formatted with {@code picture}.
@@ -60,13 +98,7 @@ public final class FormatNumber {
    * @throws IllegalArgumentException when {@code picture} is none that a number pattern compiles to
    */
   public static String format(BigDecimal value, String picture) {
-    String[] pictures = picture.split(";");
-    if (value.signum() < 0) {
-      return pictures.length > 1
-          ? subPicture(picture, pictures[1]).format(value.negate())
-          : "-" + subPicture(picture, pictures[0]).format(value.negate());
-    }
-    return subPicture(picture, pictures[0]).format(value);
+    return picture(picture).format(value);
   }
 
   /** {@code text}, a sub-picture of {@code picture}, analysed. */

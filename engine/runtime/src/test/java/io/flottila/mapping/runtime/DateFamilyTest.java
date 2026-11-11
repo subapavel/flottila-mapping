@@ -153,4 +153,89 @@ class DateFamilyTest {
     assertThat(call(UTC, "dateBefore", "2026-11-04 09:30", "2026-11-04 09:00Z", plain, zoned))
         .isEqualTo("false");
   }
+
+  /** A run's frame at {@code now}. */
+  private static Frame frame(OffsetDateTime now) {
+    return new Frame(new QueueBlock[0], null, null, 0, 0, 0, now);
+  }
+
+  /**
+   * Literal patterns, as lowering gives every param, are compiled once, when the call binds (#194),
+   * and read and write each date of the call as patterns compiled per value do.
+   */
+  @Test
+  void literalPatternsReadAndWriteEveryDate() {
+    String[] dates = new String[2];
+    Node.OfString trans =
+        SingleValueLibrary.bind(
+            "dateTrans",
+            BOX,
+            List.of(f -> dates[0], new Node.Literal("yyyyMMdd"), new Node.Literal("dd.MM.yyyy")));
+    Node.OfString compare =
+        SingleValueLibrary.bind(
+            "compareDates",
+            BOX,
+            List.of(
+                f -> dates[0],
+                f -> dates[1],
+                new Node.Literal("yyyyMMdd"),
+                new Node.Literal("yyyy-MM-dd HH:mmXXX")));
+    Node.OfString current =
+        SingleValueLibrary.bind("currentDate", BOX, List.of(new Node.Literal("HH:mm XXX")));
+
+    for (String[] slot :
+        List.of(
+            new String[] {"20261104", "2026-11-04 01:00+02:00", "04.11.2026", "1"},
+            new String[] {"20260229", "2026-01-01 00:00Z", "error", ""},
+            new String[] {"19991231", "1999-12-31 00:00Z", "31.12.1999", "0"})) {
+      dates[0] = slot[0];
+      dates[1] = slot[1];
+      if (slot[2].equals("error")) {
+        assertThatThrownBy(() -> trans.eval(frame(UTC)))
+            .isInstanceOfSatisfying(
+                MappingRunException.class,
+                e ->
+                    assertThat(e.getMessage())
+                        .isEqualTo(
+                            "the function box D1: dateTrans: '20260229' is no date in the pattern"
+                                + " yyyyMMdd"));
+      } else {
+        assertThat(trans.eval(frame(UTC))).isEqualTo(slot[2]);
+        assertThat(compare.eval(frame(UTC))).isEqualTo(slot[3]);
+      }
+    }
+    assertThat(current.eval(frame(PLUS_ONE))).isEqualTo("13:00 +01:00");
+    assertThat(current.eval(frame(UTC))).isEqualTo("12:00 Z");
+  }
+
+  /**
+   * A literal pattern that compiles to no picture, which lowering refuses (ADR-0003, ADR-0026,
+   * corpus {@code fn/dateTrans/009}), is refused when its call binds: the call is never built.
+   */
+  @Test
+  void aLiteralPatternWithoutAPictureIsRefusedWhenItsCallBinds() {
+    // witness: the same pattern over a node that is no literal binds, and is refused per value
+    Node.OfString perValue =
+        SingleValueLibrary.bind("dateTrans", BOX, List.of(f -> "1", f -> "dd.MM.yy", f -> "yyyy"));
+    assertThatThrownBy(() -> perValue.eval(frame(UTC)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("the date pattern \"dd.MM.yy\" has no XPath picture: ");
+
+    assertThatThrownBy(
+            () ->
+                SingleValueLibrary.bind(
+                    "dateTrans",
+                    BOX,
+                    List.of(f -> "1", new Node.Literal("dd.MM.yy"), new Node.Literal("yyyy"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("the date pattern \"dd.MM.yy\" has no XPath picture: ");
+    assertThatThrownBy(
+            () ->
+                SingleValueLibrary.bind(
+                    "dateTrans",
+                    BOX,
+                    List.of(f -> "1", new Node.Literal("yyyy"), new Node.Literal("dd.MM.yy"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("the date pattern \"dd.MM.yy\" has no XPath picture: ");
+  }
 }
