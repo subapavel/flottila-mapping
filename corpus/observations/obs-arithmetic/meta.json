@@ -36,6 +36,19 @@
       "summary": "Pattern 0, decimal separator dot. All values: 7, 2, 4, -0, -2. Tie-to-even examples and negative zero confirmed.",
       "po75Result": "po75/formatNum-001-fmt-001.xml",
       "po75Evidence": "po75/formatNum-001-fmt-001-check.txt"
+    },
+    {
+      "mapping": "fmt-002",
+      "input": "formatNum-002.xml",
+      "case": "fn/formatNum/002",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Pattern 000, decimal separator dot. All values: 007, 042, 1234.",
+      "po75Result": "po75/formatNum-002-fmt-002.xml",
+      "po75Evidence": "po75/formatNum-002-fmt-002-check.txt"
     }
   ]
 }
