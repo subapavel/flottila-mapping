@@ -99,6 +99,19 @@
       "summary": "All values: a b, x, empty string, empty string, a, NBSP+a+NBSP. Ordinary boundary whitespace removed; interior space and NBSP retained.",
       "po75Result": "po75/trim-001-text-trim.xml",
       "po75Evidence": "po75/trim-001-text-trim-check.txt"
+    },
+    {
+      "mapping": "text-replaceString-dollar",
+      "input": "replaceString-002.xml",
+      "case": "fn/replaceString/002",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All value: a\\$1b\\$1. Dollar search and backslash-dollar replacement are literal.",
+      "po75Result": "po75/replaceString-002-text-replaceString-dollar.xml",
+      "po75Evidence": "po75/replaceString-002-text-replaceString-dollar-check.txt"
     }
   ]
 }
