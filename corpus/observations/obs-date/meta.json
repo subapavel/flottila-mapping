@@ -49,6 +49,18 @@
       "summary": "Instants preserved and written at +0100: 09:00, 11:00, 00:30 on the respective input dates. Required UTC JVM precondition not met; case remains pending for UTC environment. Named JVM zone unknown.",
       "po75Result": "po75/dateTrans-003-date-trans-003.xml",
       "po75Evidence": "po75/dateTrans-003-date-trans-003-check.txt"
+    },
+    {
+      "mapping": "date-trans-004",
+      "input": "dateTrans-004.xml",
+      "case": "fn/dateTrans/004",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "Winter +01:00 scenario: 2026-11-04 09:00 +0100, 2026-11-04 11:00 +0100, 2026-01-01 00:30 +0100. Named JVM timezone unknown.",
+      "po75Result": "po75/dateTrans-004-date-trans-004.xml",
+      "po75Evidence": "po75/dateTrans-004-date-trans-004-check.txt"
     }
   ]
 }
