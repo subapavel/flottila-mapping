@@ -207,6 +207,28 @@
       "reading": "confirmed",
       "cpiEvidence": "cpi/count-003-stat-count-suppress-check.txt",
       "cpiOutput": "cpi/count-003-stat-count-suppress.xml"
+    },
+    {
+      "mapping": "stat-index-default",
+      "input": "index-003.xml",
+      "case": "fn/index/003",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_stat_index_default",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/index-003-stat-index-default-check.txt",
+      "cpiOutput": "cpi/index-003-stat-index-default.xml"
+    },
+    {
+      "mapping": "stat-index-suppress",
+      "input": "index-004.xml",
+      "case": "fn/index/004",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-13",
+      "artifact": "api_stat_index_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/index-004-stat-index-suppress-check.txt",
+      "cpiOutput": "cpi/index-004-stat-index-suppress.xml"
     }
   ]
 }
