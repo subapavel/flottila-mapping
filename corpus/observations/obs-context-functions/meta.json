@@ -57,7 +57,8 @@
     "PO spec2-remove-contexts completed both original inputs: f1 gives All a, empty string, b; empty Orders gives empty Out. Both agree semantically with CPI.",
     "PO spec2-map-with-default-remove-contexts completed: empty Orders gives one All D, agreeing with the verified CPI rerun. Initial CPI attempt remains historical only.",
     "PO spec2-map-with-default-line completed: empty Orders gives one All D without removeContexts, agreeing with CPI.",
-    "PO spec2-collapse-contexts completed all three inputs. Cases 001 and 002 confirm first values and preserved empty positions; empty Orders in 003 produces no All, contradicting the assumption and agreeing with CPI. Literal queue markers recorded separately."
+    "PO spec2-collapse-contexts completed all three inputs. Cases 001 and 002 confirm first values and preserved empty positions; empty Orders in 003 produces no All, contradicting the assumption and agreeing with CPI. Literal queue markers recorded separately.",
+    "2026-11-12 CPI tab-only simulation resumed. Previous initialization blocker corrected: hidden progress text was misread as visible; Enter on file input fixes upload activation. See cpi/simulation-session-2026-11-12-blocked.txt. No settings changed."
   ],
   "runs": [
     {
@@ -843,6 +844,28 @@
       "summary": "PO five Items; empty V only in Items 1 and 3, none in Items 2,4,5. Check passed.",
       "po75Result": "po75/splitByValue-022-spec3-suppress-split-each-item.xml",
       "po75Evidence": "po75/splitByValue-022-spec3-suppress-split-each-item-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key",
+      "input": "sortByKey-001.xml",
+      "case": "fn/sortByKey/001",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_sort_by_key",
+      "reading": "confirmed",
+      "cpiResult": "cpi/sortByKey-001-spec2-sort-by-key.xml",
+      "cpiEvidence": "cpi/sortByKey-001-spec2-sort-by-key-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key",
+      "input": "sortByKey-004.xml",
+      "case": "fn/sortByKey/004",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_sort_by_key",
+      "reading": "confirmed",
+      "cpiResult": "cpi/sortByKey-004-spec2-sort-by-key.xml",
+      "cpiEvidence": "cpi/sortByKey-004-spec2-sort-by-key-check.txt"
     }
   ]
 }
