@@ -831,6 +831,18 @@
       "summary": "PO one empty All, not three. Queue shows empty context and two suppressed contexts collapsed to empty,SUPPRESS,SUPPRESS. Check passed.",
       "po75Result": "po75/splitByValue-021-spec2-suppress-split-empty-collapse.xml",
       "po75Evidence": "po75/splitByValue-021-spec2-suppress-split-empty-collapse-check.txt"
+    },
+    {
+      "mapping": "spec3-suppress-split-each-item",
+      "input": "splitByValue-019.xml",
+      "case": "fn/splitByValue/022",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO five Items; empty V only in Items 1 and 3, none in Items 2,4,5. Check passed.",
+      "po75Result": "po75/splitByValue-022-spec3-suppress-split-each-item.xml",
+      "po75Evidence": "po75/splitByValue-022-spec3-suppress-split-each-item-check.txt"
     }
   ]
 }
