@@ -24,6 +24,19 @@
       "summary": "yyyyMMdd -> dd.MM.yyyy: 04.11.2026, 29.02.2024, 31.12.1999, 01.01.0001. Calendar Is Lenient checked by default; JVM timezone unknown.",
       "po75Result": "po75/dateTrans-001-date-trans-001.xml",
       "po75Evidence": "po75/dateTrans-001-date-trans-001-check.txt"
+    },
+    {
+      "mapping": "date-trans-002",
+      "input": "dateTrans-002.xml",
+      "case": "fn/dateTrans/002",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Padded and unpadded dates both produce 2026-01-04T07:05:00.000; third value 1999-12-31T23:59:00.000.",
+      "po75Result": "po75/dateTrans-002-date-trans-002.xml",
+      "po75Evidence": "po75/dateTrans-002-date-trans-002-check.txt"
     }
   ]
 }
