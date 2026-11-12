@@ -14,6 +14,30 @@
   ],
   "runs": [
     {
+      "mapping": "boolean-ifWithoutElse-suppress-condition",
+      "input": "ifWithoutElse-007.xml",
+      "case": "fn/ifWithoutElse/007",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Two Items with V true,true. X1 queue true,SUPPRESS,false,true; X2 queue true,SUPPRESS,SUPPRESS,true. Both required queues recorded.",
+      "po75Result": "po75/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition.xml",
+      "po75Evidence": "po75/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition-check.txt"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-suppress",
+      "input": "ifWithoutElse-005.xml",
+      "case": "fn/ifWithoutElse/005",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Default unchecked Keep SUPPRESS Values produces two Items with V 1 and true (Lines 1 and 4), rather than assumed 1,TRUE or alternative 1,0.",
+      "po75Result": "po75/ifWithoutElse-005-boolean-ifWithoutElse-suppress.xml",
+      "po75Evidence": "po75/ifWithoutElse-005-boolean-ifWithoutElse-suppress-check.txt"
+    },
+    {
       "mapping": "boolean-ifWithoutElse-tags",
       "input": "ifWithoutElse-004.xml",
       "case": "fn/ifWithoutElse/004",
