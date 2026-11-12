@@ -125,6 +125,19 @@
       "summary": "All values: abc, empty string. Empty search leaves input unchanged.",
       "po75Result": "po75/replaceString-003-text-replaceString-empty.xml",
       "po75Evidence": "po75/replaceString-003-text-replaceString-empty-check.txt"
+    },
+    {
+      "mapping": "text-replaceString-overlap",
+      "input": "replaceString-004.xml",
+      "case": "fn/replaceString/004",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: ba, bb. Non-overlapping aa occurrences replaced from the left.",
+      "po75Result": "po75/replaceString-004-text-replaceString-overlap.xml",
+      "po75Evidence": "po75/replaceString-004-text-replaceString-overlap-check.txt"
     }
   ]
 }
