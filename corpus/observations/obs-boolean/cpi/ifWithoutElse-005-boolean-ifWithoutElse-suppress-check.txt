@@ -1,0 +1,10 @@
+CPI observation: fn/ifWithoutElse/005
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_suppress
+Input: ifWithoutElse-005.xml (original corpus file)
+Verified editor expressions: Sku in /Orders context and createIf(Qty in /Orders context) -> ifWithoutElse -> Item. Qty in /Orders/Order/Line context -> V.
+Simulation completed. Two Items with V values 1 and true.
+Exact downloaded output copied byte-for-byte to ifWithoutElse-005-boolean-ifWithoutElse-suppress.xml.
+Contradicts both proposed outputs in the request (1, TRUE or 1, 0). No intermediate queue inferred.
+Keep SUPPRESS setting was not independently inspected in the live editor; artifact is the API-prepared default variant.
+No mapping changed or deployed. No queue requested. Screenshots not retained.

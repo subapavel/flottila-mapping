@@ -313,6 +313,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/ifWithoutElse-004-boolean-ifWithoutElse-tags-check.txt",
       "cpiOutput": "cpi/ifWithoutElse-004-boolean-ifWithoutElse-tags.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-suppress",
+      "input": "ifWithoutElse-005.xml",
+      "case": "fn/ifWithoutElse/005",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_suppress",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-005-boolean-ifWithoutElse-suppress-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-005-boolean-ifWithoutElse-suppress.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-suppress-condition",
+      "input": "ifWithoutElse-007.xml",
+      "case": "fn/ifWithoutElse/007",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_suppress_condition",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition.xml"
     }
   ]
 }
