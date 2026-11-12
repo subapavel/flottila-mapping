@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "fix-values-suppress",
+      "input": "copyValue-004.xml",
+      "case": "fn/fixValues/007",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "SUPPRESS passes through Throw Exception without error; empty values map to E. Item outputs E,E | E | no V. Literal C1 and F1 queues recorded.",
+      "po75Result": "po75/fixValues-007-fix-values-suppress.xml",
+      "po75Evidence": "po75/fixValues-007-fix-values-suppress-check.txt"
+    },
+    {
       "mapping": "fix-values-exact",
       "input": "fixValues-008.xml",
       "case": "fn/fixValues/008",
