@@ -205,6 +205,19 @@
       "summary": "Pattern 0.0 m, decimal separator dot. All values: 1.0 m; -2.2 m.",
       "po75Result": "po75/formatNum-014-fmt-014.xml",
       "po75Evidence": "po75/formatNum-014-fmt-014-check.txt"
+    },
+    {
+      "mapping": "fmt-015",
+      "input": "formatNum-015.xml",
+      "case": "fn/formatNum/015",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Pattern 0 'o''clock', decimal separator dot. All value: 5 o'clock; apostrophe serialized as &apos;.",
+      "po75Result": "po75/formatNum-015-fmt-015.xml",
+      "po75Evidence": "po75/formatNum-015-fmt-015-check.txt"
     }
   ]
 }
