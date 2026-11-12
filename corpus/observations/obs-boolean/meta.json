@@ -248,6 +248,27 @@
       "artifact": "api_boolean_notEquals",
       "reading": "contradicted",
       "cpiEvidence": "cpi/notEquals-001-boolean-notEquals-error.txt"
+    },
+    {
+      "mapping": "boolean-if",
+      "input": "if-001.xml",
+      "case": "fn/if/001",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_if",
+      "reading": "pending",
+      "cpiEvidence": "cpi/if-001-boolean-if-blocked-2026-11-12.txt"
+    },
+    {
+      "mapping": "boolean-isNil",
+      "input": "isNil-001.xml",
+      "case": "fn/isNil/001",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_isNil",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/isNil-001-boolean-isNil-check.txt",
+      "cpiOutput": "cpi/isNil-001-boolean-isNil.xml"
     }
   ]
 }
