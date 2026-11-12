@@ -85,6 +85,18 @@
       "summary": "Fresh DateTrans defaults yyyy/MM/dd for input and output, left unchanged. Results 2026/11/04 and 1999/12/31.",
       "po75Result": "po75/dateTrans-006-date-trans-006.xml",
       "po75Evidence": "po75/dateTrans-006-date-trans-006-check.txt"
+    },
+    {
+      "mapping": "date-trans-012",
+      "input": "dateTrans-012.xml",
+      "case": "fn/dateTrans/012",
+      "po75": "partial",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed-output-environment-mismatch",
+      "summary": "Input offsets preserved as instants, output +01:00: 04.11.2026 09:00, 00:30, 16:30. Required UTC JVM precondition not met; pending UTC environment. Named JVM zone unknown.",
+      "po75Result": "po75/dateTrans-012-date-trans-012.xml",
+      "po75Evidence": "po75/dateTrans-012-date-trans-012-check.txt"
     }
   ]
 }
