@@ -291,6 +291,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/ifWithoutElse-002-boolean-ifWithoutElse-item-keep-check.txt",
       "cpiOutput": "cpi/ifWithoutElse-002-boolean-ifWithoutElse-item-keep.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-orders",
+      "input": "ifWithoutElse-003.xml",
+      "case": "fn/ifWithoutElse/003",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_orders",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-003-boolean-ifWithoutElse-orders-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-003-boolean-ifWithoutElse-orders.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-tags",
+      "input": "ifWithoutElse-004.xml",
+      "case": "fn/ifWithoutElse/004",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_tags",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/ifWithoutElse-004-boolean-ifWithoutElse-tags-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-004-boolean-ifWithoutElse-tags.xml"
     }
   ]
 }

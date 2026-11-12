@@ -1,0 +1,10 @@
+CPI observation: fn/ifWithoutElse/003
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_orders
+Input: ifWithoutElse-003.xml (original corpus file)
+Verified editor expressions: Order with context /Orders -> Item. V and W each have a separate ifWithoutElse with Qty and Sku in context /Orders/Order.
+Simulation completed. Items: V=a W=a; V=d W=d; V=e W=e.
+Exact downloaded output copied byte-for-byte to ifWithoutElse-003-boolean-ifWithoutElse-orders.xml.
+Contradicts the assumed empty second Item: the uppercase TRUE condition passes the value d in both branches.
+Keep SUPPRESS settings were not independently inspected in the live editor for this run; V/W are the API-prepared default/keep variants. No intermediate queue inferred from output.
+No mapping changed or deployed. No queue requested. Screenshots not retained.

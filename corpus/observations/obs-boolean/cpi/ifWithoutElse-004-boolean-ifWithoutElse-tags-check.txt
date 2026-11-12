@@ -1,0 +1,9 @@
+CPI observation: fn/ifWithoutElse/004
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_tags
+Input: ifWithoutElse-004.xml (original corpus file)
+Verified editor expressions: Order with context /Orders -> Item. V and W each have a separate ifWithoutElse with Qty and Tag in context /Orders/Order.
+Simulation completed. Four Items: V=[x,y] W=[x,y]; empty; V=[p,q,r] W=[p,q,r]; empty.
+Exact downloaded output copied byte-for-byte to ifWithoutElse-004-boolean-ifWithoutElse-tags.xml.
+Output agrees with the assumed reading. Keep SUPPRESS settings were not independently inspected in the live editor for this run; V/W are the API-prepared default/keep variants.
+No mapping changed or deployed. No queue requested. Screenshots not retained.
