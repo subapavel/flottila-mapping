@@ -1054,6 +1054,50 @@
       "reading": "confirmed",
       "cpiResult": "cpi/splitByValue-016-spec2-split-by-value-empty-flat.xml",
       "cpiEvidence": "cpi/split-by-value-empty-flat-check.txt"
+    },
+    {
+      "mapping": "spec2-suppress-split-each-collapse",
+      "input": "splitByValue-019.xml",
+      "case": "fn/splitByValue/019",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_suppress_split_each_collapse",
+      "reading": "contradicted",
+      "cpiResult": "cpi/splitByValue-019-spec2-suppress-split-each-collapse.xml",
+      "cpiEvidence": "cpi/splitByValue-019-spec2-suppress-split-each-collapse-check.txt"
+    },
+    {
+      "mapping": "spec3-suppress-split-each-item",
+      "input": "splitByValue-019.xml",
+      "case": "fn/splitByValue/022",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec3_suppress_split_each_item",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-019-spec3-suppress-split-each-item.xml",
+      "cpiEvidence": "cpi/splitByValue-019-spec3-suppress-split-each-item-check.txt"
+    },
+    {
+      "mapping": "spec2-suppress-split-change-collapse",
+      "input": "splitByValue-020.xml",
+      "case": "fn/splitByValue/020",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_suppress_split_change_collapse",
+      "reading": "contradicted",
+      "cpiResult": "cpi/splitByValue-020-spec2-suppress-split-change-collapse.xml",
+      "cpiEvidence": "cpi/splitByValue-020-spec2-suppress-split-change-collapse-check.txt"
+    },
+    {
+      "mapping": "spec2-suppress-split-empty-collapse",
+      "input": "splitByValue-019.xml",
+      "case": "fn/splitByValue/021",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_suppress_split_empty_collapse",
+      "reading": "contradicted",
+      "cpiResult": "cpi/splitByValue-019-spec2-suppress-split-empty-collapse.xml",
+      "cpiEvidence": "cpi/splitByValue-021-spec2-suppress-split-empty-collapse-check.txt"
     }
   ]
 }
