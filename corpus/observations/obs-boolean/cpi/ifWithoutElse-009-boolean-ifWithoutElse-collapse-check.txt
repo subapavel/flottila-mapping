@@ -1,0 +1,9 @@
+CPI observation: fn/ifWithoutElse/009
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_collapse
+Input: ifWithoutElse-009.xml (original corpus file)
+Verified editor expression: Qty in /Orders/Order context and Sku in /Orders/Order/Line context -> ifWithoutElse -> collapseContexts -> All.
+Simulation completed. All values: a, empty string. Matches the assumed output.
+Exact downloaded output copied byte-for-byte to ifWithoutElse-009-boolean-ifWithoutElse-collapse.xml.
+Keep SUPPRESS setting was not independently inspected in the live editor; artifact is the API-prepared default variant.
+No mapping changed or deployed. No queue requested. Screenshots not retained.

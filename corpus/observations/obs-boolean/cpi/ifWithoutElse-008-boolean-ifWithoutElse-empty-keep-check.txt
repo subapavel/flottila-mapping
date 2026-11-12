@@ -1,0 +1,11 @@
+CPI observation: fn/ifWithoutElse/008
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_empty_keep
+Input: ifWithoutElse-008.xml (original corpus file)
+Verified editor expression: Qty and Tag in /Orders/Order context -> ifWithoutElse -> removeContexts -> Item; Sku in /Orders/Order/Line context -> V.
+Simulation completed. One Item with V=c.
+Exact downloaded output copied byte-for-byte to ifWithoutElse-008-boolean-ifWithoutElse-empty-keep.xml.
+Contradicts the assumed V=a; matches the alternative V=c. No intermediate queue inferred from final XML.
+Requested X1 queue not captured: Enter on the file input and retry through the Display Queue upload button both timed out after 10000 ms waiting for a file chooser.
+Keep SUPPRESS setting was not independently inspected in the live editor; artifact is the API-prepared keep variant.
+No mapping changed or deployed. Screenshots not retained.

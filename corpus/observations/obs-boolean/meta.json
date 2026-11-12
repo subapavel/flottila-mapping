@@ -335,6 +335,39 @@
       "reading": "contradicted",
       "cpiEvidence": "cpi/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition-check.txt",
       "cpiOutput": "cpi/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-empty-keep",
+      "input": "ifWithoutElse-008.xml",
+      "case": "fn/ifWithoutElse/008",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_empty_keep",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-008-boolean-ifWithoutElse-empty-keep-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-008-boolean-ifWithoutElse-empty-keep.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-collapse",
+      "input": "ifWithoutElse-009.xml",
+      "case": "fn/ifWithoutElse/009",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_collapse",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/ifWithoutElse-009-boolean-ifWithoutElse-collapse-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-009-boolean-ifWithoutElse-collapse.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-collapse-tags",
+      "input": "ifWithoutElse-010.xml",
+      "case": "fn/ifWithoutElse/010",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_collapse_tags",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-010-boolean-ifWithoutElse-collapse-tags-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-010-boolean-ifWithoutElse-collapse-tags.xml"
     }
   ]
 }
