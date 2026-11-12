@@ -322,6 +322,28 @@
       "artifact": "api_constant_empty",
       "reading": "pending",
       "cpiEvidence": "cpi/constant-008-constant-empty-blocked-2026-11-12.txt"
+    },
+    {
+      "mapping": "fix-values-key",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/002",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_key",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-002-fix-values-key-check.txt",
+      "cpiOutput": "cpi/fixValues-002-fix-values-key.xml"
+    },
+    {
+      "mapping": "fix-values-default",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/003",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_default",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-003-fix-values-default-check.txt",
+      "cpiOutput": "cpi/fixValues-003-fix-values-default.xml"
     }
   ]
 }
