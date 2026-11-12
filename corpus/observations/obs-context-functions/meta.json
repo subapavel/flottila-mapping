@@ -771,6 +771,30 @@
       "summary": "PO empty Out for initial empty value followed by a. Same checked mapping as case 011.",
       "po75Result": "po75/splitByValue-014-spec2-split-by-value-empty.xml",
       "po75Evidence": "po75/splitByValue-014-spec2-split-by-value-empty-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-empty-flat",
+      "input": "f3.xml",
+      "case": "fn/splitByValue/015",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All a,a,b after flattening; both empty values dropped. Check passed.",
+      "po75Result": "po75/splitByValue-015-spec2-split-by-value-empty-flat.xml",
+      "po75Evidence": "po75/splitByValue-015-spec2-split-by-value-empty-flat-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-empty-flat",
+      "input": "splitByValue-016.xml",
+      "case": "fn/splitByValue/016",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All a,b after flattening; four empty values dropped. Same checked mapping as case 015.",
+      "po75Result": "po75/splitByValue-016-spec2-split-by-value-empty-flat.xml",
+      "po75Evidence": "po75/splitByValue-016-spec2-split-by-value-empty-flat-check.txt"
     }
   ]
 }
