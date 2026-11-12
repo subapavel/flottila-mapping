@@ -169,6 +169,18 @@
       "summary": "Fresh editor default yyyy/MM/dd retained; one All 2026/11/12. Log start 20:20:54, timezone not displayed; named JVM zone unknown.",
       "po75Result": "po75/currentDate-001-current-date.xml",
       "po75Evidence": "po75/currentDate-001-current-date-check.txt"
+    },
+    {
+      "mapping": "current-date-time",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/002",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "2026-11-12T20:25:08.777+01:00; nonzero milliseconds. Log start 20:25:09 has no timezone or milliseconds; exact start equality not established.",
+      "po75Result": "po75/currentDate-002-current-date-time.xml",
+      "po75Evidence": "po75/currentDate-002-current-date-time-check.txt"
     }
   ]
 }
