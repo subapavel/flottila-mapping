@@ -1,0 +1,11 @@
+CPI observation: fn/ifWithoutElse/001
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_item
+Input: ifWithoutElse-001.xml
+Verified editor expressions: Qty and Sku with context /Orders -> ifWithoutElse -> /Out/Item; Sku with context /Orders/Order/Line -> /Out/Item/V.
+Simulation completed: three Items with V values a, c, d.
+Exact downloaded output: ifWithoutElse-001-boolean-ifWithoutElse-item.xml.
+After simulation, entered Edit solely to inspect the existing function: checkbox label "Keep SUPPRESS", unchecked. No parameter changed.
+Contradicts the request's assumed a, b, c output with the parameter unset/off.
+The requested X1 display queue was not captured: both Enter on the queue file input and a retry via its upload button timed out waiting for a file chooser. This is a tooling limitation, not a mapping error. Do not infer the intermediate queue from the XML output.
+The default of a freshly inserted function was not independently verified.

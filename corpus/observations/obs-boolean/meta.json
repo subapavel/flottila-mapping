@@ -269,6 +269,17 @@
       "reading": "contradicted",
       "cpiEvidence": "cpi/isNil-001-boolean-isNil-check.txt",
       "cpiOutput": "cpi/isNil-001-boolean-isNil.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-item",
+      "input": "ifWithoutElse-001.xml",
+      "case": "fn/ifWithoutElse/001",
+      "cpi": "observed-output-queue-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_item",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-001-boolean-ifWithoutElse-item-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-001-boolean-ifWithoutElse-item.xml"
     }
   ]
 }
