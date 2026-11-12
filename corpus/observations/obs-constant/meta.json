@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "constant-concat-constants",
+      "input": "constant-001.xml",
+      "case": "fn/constant/005",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Concat of two constants generates one V ab in each of three Items and one root All ab. Literal F1 display queue recorded.",
+      "po75Result": "po75/constant-005-constant-concat-constants.xml",
+      "po75Evidence": "po75/constant-005-constant-concat-constants-check.txt"
+    },
+    {
       "mapping": "constant-concat",
       "input": "constant-001.xml",
       "case": "fn/constant/004",
