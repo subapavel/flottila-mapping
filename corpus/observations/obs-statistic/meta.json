@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "stat-sum",
+      "input": "sum-002.xml",
+      "case": "fn/sum/002",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "sum produces 0, 0, 4: both empty Qty contexts yield zero.",
+      "po75Result": "po75/sum-002-stat-sum.xml",
+      "po75Evidence": "po75/sum-002-stat-sum-check.txt"
+    },
+    {
       "mapping": "stat-count",
       "input": "count-002.xml",
       "case": "fn/count/002",
