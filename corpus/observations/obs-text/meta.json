@@ -192,6 +192,28 @@
       "artifact": "api_text_endsWith",
       "reading": "pending",
       "cpiEvidence": "cpi/endsWith-001-text-endsWith-blocked-2026-11-13.txt"
+    },
+    {
+      "mapping": "text-replaceString-a-bb",
+      "input": "replaceString-001.xml",
+      "case": "fn/replaceString/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_replaceString_a_bb",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/replaceString-001-text-replaceString-a-bb-check.txt",
+      "cpiOutput": "cpi/replaceString-001-text-replaceString-a-bb.xml"
+    },
+    {
+      "mapping": "text-replaceString-dollar",
+      "input": "replaceString-002.xml",
+      "case": "fn/replaceString/002",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_replaceString_dollar",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/replaceString-002-text-replaceString-dollar-check.txt",
+      "cpiOutput": "cpi/replaceString-002-text-replaceString-dollar.xml"
     }
   ]
 }
