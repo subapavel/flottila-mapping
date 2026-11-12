@@ -365,6 +365,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/fixValues-005-fix-values-default-empty-check.txt",
       "cpiOutput": "cpi/fixValues-005-fix-values-default-empty.xml"
+    },
+    {
+      "mapping": "fix-values-empty-table",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/006",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_empty_table",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-006-fix-values-empty-table-check.txt",
+      "cpiOutput": "cpi/fixValues-006-fix-values-empty-table.xml"
+    },
+    {
+      "mapping": "fix-values-suppress",
+      "input": "copyValue-004.xml",
+      "case": "fn/fixValues/007",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-007-fix-values-suppress-check.txt",
+      "cpiOutput": "cpi/fixValues-007-fix-values-suppress.xml"
     }
   ]
 }

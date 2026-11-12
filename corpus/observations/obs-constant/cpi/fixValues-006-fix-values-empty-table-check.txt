@@ -1,0 +1,6 @@
+CPI observation 2026-11-12: fn/fixValues/006
+Artifact: api_fix_values_empty_table
+Input: original copyValue-001.xml uploaded through simulator.
+Visible graph verified: Order context /Orders -> Item; Sku context /Orders/Order -> fixValues -> V.
+Simulation returned three Item elements with V values [-, -, -] | [-] | [-, -]. Original downloaded XML preserved unchanged.
+Live function table/default dialog and editor acceptance of an empty table were not independently inspected. Output observed; parameter verification pending.
