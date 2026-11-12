@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "fix-values-default",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/003",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Use Default Value with ? produces A, ?, ? | D | ?, ? for the configured table a=A, d=D.",
+      "po75Result": "po75/fixValues-003-fix-values-default.xml",
+      "po75Evidence": "po75/fixValues-003-fix-values-default-check.txt"
+    },
+    {
       "mapping": "fix-values-exception",
       "input": "copyValue-001.xml",
       "case": "fn/fixValues/004",
