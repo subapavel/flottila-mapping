@@ -152,6 +152,38 @@
       "cpi": "observed",
       "reading": "contradicted",
       "summary": "Qualified-prefix variant (#100): actual root and attributes use ns1, not assumed ns0. xmlns:ns1 is declared on Flagged, code precedes empty flag, and V is unqualified. Expanded names and values match; exact downloaded bytes preserved. PO: ns0 on root and both attributes; declaration on Flagged; flag precedes code; V unqualified. PO confirms the literal assumed prefix; expanded names and values agree with CPI, serialization differs."
+    },
+    {
+      "mapping": "str-attr",
+      "input": "attr2.xml",
+      "case": "target/attribute/001",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_str_attr",
+      "reading": "confirmed",
+      "cpiResult": "cpi/attr2-str-attr.xml",
+      "cpiEvidence": "cpi/str-attr-retry-check.txt"
+    },
+    {
+      "mapping": "str-attr",
+      "input": "attr3.xml",
+      "case": "target/attribute/002",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_str_attr",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/attr3-str-attr-error.txt"
+    },
+    {
+      "mapping": "str-attr",
+      "input": "attr4.xml",
+      "case": "target/attribute/003",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_str_attr",
+      "reading": "confirmed",
+      "cpiResult": "cpi/attr4-str-attr.xml",
+      "cpiEvidence": "cpi/str-attr-retry-check.txt"
     }
   ]
 }

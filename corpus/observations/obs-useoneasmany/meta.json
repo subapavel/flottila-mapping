@@ -185,6 +185,17 @@
       "cpi": "observed",
       "reading": "confirmed",
       "summary": "Only the first Order (Id=A, Sku=true,false) remains. CPI returns All=A,A: the SUPPRESS slot on the second input counts as an occurrence and is not carried into the repeated result. Original two-Order error remains the result of the original case. PO agrees: All=A,A; exact ESR export saved."
+    },
+    {
+      "mapping": "spec2-use-one-as-many-root-value",
+      "input": "u1.xml",
+      "case": "fn/useOneAsMany/003",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_use_one_as_many_root_value",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/useOneAsMany-003-root-value-error.txt",
+      "summary": "CPI fails at useOneAsMany /Out/All: Too few values in first queue; it must have the same number of contexts as second queue. Matches PO; no output XML."
     }
   ]
 }
