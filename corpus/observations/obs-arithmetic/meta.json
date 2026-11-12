@@ -23,6 +23,19 @@
       "summary": "Reciprocal confirmed. All values: 0.25, 0.33333333333333333, -0.5, 2.",
       "po75Result": "po75/inv-001-arith-inv.xml",
       "po75Evidence": "po75/inv-001-arith-inv-check.txt"
+    },
+    {
+      "mapping": "fmt-001",
+      "input": "formatNum-001.xml",
+      "case": "fn/formatNum/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Pattern 0, decimal separator dot. All values: 7, 2, 4, -0, -2. Tie-to-even examples and negative zero confirmed.",
+      "po75Result": "po75/formatNum-001-fmt-001.xml",
+      "po75Evidence": "po75/formatNum-001-fmt-001-check.txt"
     }
   ]
 }
