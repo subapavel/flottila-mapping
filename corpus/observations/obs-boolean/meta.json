@@ -14,6 +14,30 @@
   ],
   "runs": [
     {
+      "mapping": "boolean-ifWithoutElse-item-keep",
+      "input": "ifWithoutElse-002.xml",
+      "case": "fn/ifWithoutElse/002",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Keep SUPPRESS Values checked: three Items with V a, c, d, matching the request and case 001 output.",
+      "po75Result": "po75/ifWithoutElse-002-boolean-ifWithoutElse-item-keep.xml",
+      "po75Evidence": "po75/ifWithoutElse-002-boolean-ifWithoutElse-item-keep-check.txt"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-item",
+      "input": "ifWithoutElse-001.xml",
+      "case": "fn/ifWithoutElse/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Default unchecked Keep SUPPRESS Values: X1 queue a, SUPPRESS, c, d; Items V a, c, d rather than assumed a, b, c.",
+      "po75Result": "po75/ifWithoutElse-001-boolean-ifWithoutElse-item.xml",
+      "po75Evidence": "po75/ifWithoutElse-001-boolean-ifWithoutElse-item-check.txt"
+    },
+    {
       "mapping": "boolean-and",
       "input": "and-001.xml",
       "case": "fn/and/001",
