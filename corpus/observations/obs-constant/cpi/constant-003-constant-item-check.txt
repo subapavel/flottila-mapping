@@ -1,0 +1,9 @@
+CPI observation: fn/constant/003
+Date: 2026-11-12
+Artifact: api_constant_item
+Input: constant-001.xml (original corpus file)
+Verified editor expressions: Order in /Orders context -> Item; constant x with no input -> V.
+Simulation completed. Each of three Items has one V=x, including the order with no Lines. Matches the assumed output.
+Exact downloaded output copied byte-for-byte to constant-003-constant-item.xml.
+Requested C1 display queue remains pending; no intermediate queue inferred from final XML. Display Queue controls were not retried after the repeated upload/menu failures recorded earlier in this session.
+No mapping changed or deployed. Screenshots not retained.
