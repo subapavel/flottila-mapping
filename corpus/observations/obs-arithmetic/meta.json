@@ -62,6 +62,19 @@
       "summary": "Pattern #, decimal separator dot. All values: 0, 0, 123.",
       "po75Result": "po75/formatNum-003-fmt-003.xml",
       "po75Evidence": "po75/formatNum-003-fmt-003-check.txt"
+    },
+    {
+      "mapping": "fmt-004",
+      "input": "formatNum-004.xml",
+      "case": "fn/formatNum/004",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Pattern 0.00, decimal separator dot. All values: 1.50, 0.12, 0.38, 2.68. Input 2.675 yielded 2.68.",
+      "po75Result": "po75/formatNum-004-fmt-004.xml",
+      "po75Evidence": "po75/formatNum-004-fmt-004-check.txt"
     }
   ]
 }
