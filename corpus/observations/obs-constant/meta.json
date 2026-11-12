@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "copy-value-default",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/002",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Default Index 0 produces a in all three Items rather than a, d, e. Empty Index is rejected by parameter validation.",
+      "po75Result": "po75/copyValue-002-copy-value-default.xml",
+      "po75Evidence": "po75/copyValue-002-copy-value-default-check.txt"
+    },
+    {
       "mapping": "copy-value",
       "input": "copyValue-001.xml",
       "case": "fn/copyValue/001",
