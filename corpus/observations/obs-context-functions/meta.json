@@ -988,6 +988,50 @@
       "reading": "confirmed",
       "cpiResult": "cpi/splitByValue-010-spec2-split-by-value-change.xml",
       "cpiEvidence": "cpi/split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-empty",
+      "input": "f3.xml",
+      "case": "fn/splitByValue/011",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_empty",
+      "reading": "confirmed",
+      "cpiResult": "cpi/f3-spec2-split-by-value-empty.xml",
+      "cpiEvidence": "cpi/split-by-value-empty-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-empty",
+      "input": "splitByValue-007.xml",
+      "case": "fn/splitByValue/012",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_empty",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-007-spec2-split-by-value-empty.xml",
+      "cpiEvidence": "cpi/split-by-value-empty-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-empty",
+      "input": "splitByValue-013.xml",
+      "case": "fn/splitByValue/013",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_empty",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-013-spec2-split-by-value-empty.xml",
+      "cpiEvidence": "cpi/split-by-value-empty-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-empty",
+      "input": "splitByValue-004.xml",
+      "case": "fn/splitByValue/014",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_empty",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-004-spec2-split-by-value-empty.xml",
+      "cpiEvidence": "cpi/split-by-value-empty-check.txt"
     }
   ]
 }
