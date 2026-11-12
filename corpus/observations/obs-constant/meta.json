@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "constant-empty",
+      "input": "constant-001.xml",
+      "case": "fn/constant/008",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "The editor accepts and saves an empty Constant Value; the result contains one empty All element.",
+      "po75Result": "po75/constant-008-constant-empty.xml",
+      "po75Evidence": "po75/constant-008-constant-empty-check.txt"
+    },
+    {
       "mapping": "constant-gen-numbering",
       "input": "constant-007.xml",
       "case": "fn/constant/007",
