@@ -193,6 +193,18 @@
       "summary": "Three Item elements each contain V=20261112, including the empty middle Order; yyyyMMdd generator with Order -> Item.",
       "po75Result": "po75/currentDate-003-current-date-item.xml",
       "po75Evidence": "po75/currentDate-003-current-date-item-check.txt"
+    },
+    {
+      "mapping": "current-date-concat",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/004",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "Item values [a@20:43:10.237,b@20:43:10.237] | [] | [c@20:43:10.237]; identical nonzero milliseconds across values and Order contexts.",
+      "po75Result": "po75/currentDate-004-current-date-concat.xml",
+      "po75Evidence": "po75/currentDate-004-current-date-concat-check.txt"
     }
   ]
 }
