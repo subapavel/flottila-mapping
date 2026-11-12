@@ -36,6 +36,30 @@
       "summary": "All values: true, false, true, false; case-sensitive and empty string comparisons.",
       "po75Result": "po75/equalsS-001-text-equalsS.xml",
       "po75Evidence": "po75/equalsS-001-text-equalsS-check.txt"
+    },
+    {
+      "mapping": "text-startsWith",
+      "input": "startsWith-001.xml",
+      "case": "fn/startsWith/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: true, false, true, false, false; empty prefix accepted, interior and longer prefix rejected.",
+      "po75Result": "po75/startsWith-001-text-startsWith.xml",
+      "po75Evidence": "po75/startsWith-001-text-startsWith-check.txt"
+    },
+    {
+      "mapping": "text-endsWith",
+      "input": "endsWith-001.xml",
+      "case": "fn/endsWith/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: true, false, true, false, false; empty suffix accepted, interior and longer suffix rejected.",
+      "po75Result": "po75/endsWith-001-text-endsWith.xml",
+      "po75Evidence": "po75/endsWith-001-text-endsWith-check.txt"
     }
   ]
 }
