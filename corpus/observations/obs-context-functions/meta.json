@@ -911,6 +911,28 @@
       "summary": "All s1,s3,s2,s4 matches SUPPRESS-last alternative. Native source contexts verified; comparator cs/asc=true from API readback, parameter panel not exposed due overlapping boxes.",
       "cpiResult": "cpi/sortByKey-006-spec2-suppress-sort-by-key.xml",
       "cpiEvidence": "cpi/sortByKey-006-spec2-suppress-sort-by-key-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-each",
+      "input": "splitByValue-004.xml",
+      "case": "fn/splitByValue/004",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_each",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-004-spec2-split-by-value-each.xml",
+      "cpiEvidence": "cpi/splitByValue-004-spec2-split-by-value-each-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-each",
+      "input": "collapseContexts-003.xml",
+      "case": "fn/splitByValue/005",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_each",
+      "reading": "confirmed",
+      "cpiResult": "cpi/collapseContexts-003-spec2-split-by-value-each.xml",
+      "cpiEvidence": "cpi/collapseContexts-003-spec2-split-by-value-each-check.txt"
     }
   ]
 }
