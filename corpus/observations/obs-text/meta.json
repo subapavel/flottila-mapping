@@ -151,6 +151,27 @@
       "summary": "All values: bbbnbbnbb, xyz, empty string, bbbbbb. User removed the session lock; successful execution supersedes the earlier blocker.",
       "po75Result": "po75/replaceString-001-text-replaceString-a-bb.xml",
       "po75Evidence": "po75/replaceString-001-text-replaceString-a-bb-check.txt"
+    },
+    {
+      "mapping": "text-concat",
+      "input": "concat-001.xml",
+      "case": "fn/concat/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_concat",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/concat-001-text-concat-check.txt",
+      "cpiOutput": "cpi/concat-001-text-concat.xml"
+    },
+    {
+      "mapping": "text-equalsS",
+      "input": "equalsS-001.xml",
+      "case": "fn/equalsS/001",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "date": "2026-11-13",
+      "artifact": "api_text_equalsS",
+      "reading": "pending",
+      "cpiEvidence": "cpi/equalsS-001-text-equalsS-blocked-2026-11-13.txt"
     }
   ]
 }
