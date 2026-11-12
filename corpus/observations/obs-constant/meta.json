@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "constant-item",
+      "input": "constant-001.xml",
+      "case": "fn/constant/003",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Constant x produces V x in all three Items, including the Order without Lines. Literal C1 display queue recorded.",
+      "po75Result": "po75/constant-003-constant-item.xml",
+      "po75Evidence": "po75/constant-003-constant-item-check.txt"
+    },
+    {
       "mapping": "copy-value-suppress",
       "input": "copyValue-004.xml",
       "case": "fn/copyValue/004",
