@@ -145,6 +145,18 @@
       "summary": "Both formats yyyy-MM-dd HH:mmXXX; explicit offsets compared as instants: 0, -1.",
       "po75Result": "po75/compareDates-002-compare-dates-002.xml",
       "po75Evidence": "po75/compareDates-002-compare-dates-002-check.txt"
+    },
+    {
+      "mapping": "compare-dates-004",
+      "input": "compareDates-004.xml",
+      "case": "fn/compareDates/004",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "Local yyyy-MM-dd HH:mm against explicit yyyy-MM-dd HH:mmXXX produces -1, 0, consistent with winter +01:00 default. Named JVM zone unknown.",
+      "po75Result": "po75/compareDates-004-compare-dates-004.xml",
+      "po75Evidence": "po75/compareDates-004-compare-dates-004-check.txt"
     }
   ]
 }
