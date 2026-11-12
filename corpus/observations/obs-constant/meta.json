@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "copy-value-suppress",
+      "input": "copyValue-004.xml",
+      "case": "fn/copyValue/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Index 1 copies SUPPRESS and all three Items have no V, including Item 2. Literal C1 and F1 display queues recorded; no exception.",
+      "po75Result": "po75/copyValue-004-copy-value-suppress.xml",
+      "po75Evidence": "po75/copyValue-004-copy-value-suppress-check.txt"
+    },
+    {
       "mapping": "copy-value-beyond",
       "input": "copyValue-001.xml",
       "case": "fn/copyValue/003",
