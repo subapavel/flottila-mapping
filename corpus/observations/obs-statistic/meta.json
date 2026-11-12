@@ -185,6 +185,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/average-004-stat-average-suppress-check.txt",
       "cpiOutput": "cpi/average-004-stat-average-suppress.xml"
+    },
+    {
+      "mapping": "stat-count",
+      "input": "count-002.xml",
+      "case": "fn/count/002",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_count",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/count-002-stat-count-check.txt",
+      "cpiOutput": "cpi/count-002-stat-count.xml"
+    },
+    {
+      "mapping": "stat-count-suppress",
+      "input": "count-003.xml",
+      "case": "fn/count/003",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_count_suppress",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/count-003-stat-count-suppress-check.txt",
+      "cpiOutput": "cpi/count-003-stat-count-suppress.xml"
     }
   ]
 }
