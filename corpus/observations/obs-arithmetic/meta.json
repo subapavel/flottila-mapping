@@ -1,0 +1,28 @@
+{
+  "obsId": "obs-arithmetic",
+  "po75": {
+    "release": "7.50",
+    "supportPackage": null,
+    "patch": null,
+    "date": "2026-11-12",
+    "tool": "ESR message mapping",
+    "releaseVerification": "ESR About read during obs-target-creation-2 in this observation session."
+  },
+  "divergence": [],
+  "notes": ["CPI API preparation is not a simulation; CPI observations pending."],
+  "runs": [
+    {
+      "mapping": "arith-inv",
+      "input": "i1.xml",
+      "case": "fn/inv/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Reciprocal confirmed. All values: 0.25, 0.33333333333333333, -0.5, 2.",
+      "po75Result": "po75/inv-001-arith-inv.xml",
+      "po75Evidence": "po75/inv-001-arith-inv-check.txt"
+    }
+  ]
+}
