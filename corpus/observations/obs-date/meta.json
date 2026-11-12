@@ -157,6 +157,18 @@
       "summary": "Local yyyy-MM-dd HH:mm against explicit yyyy-MM-dd HH:mmXXX produces -1, 0, consistent with winter +01:00 default. Named JVM zone unknown.",
       "po75Result": "po75/compareDates-004-compare-dates-004.xml",
       "po75Evidence": "po75/compareDates-004-compare-dates-004-check.txt"
+    },
+    {
+      "mapping": "current-date",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "Fresh editor default yyyy/MM/dd retained; one All 2026/11/12. Log start 20:20:54, timezone not displayed; named JVM zone unknown.",
+      "po75Result": "po75/currentDate-001-current-date.xml",
+      "po75Evidence": "po75/currentDate-001-current-date-check.txt"
     }
   ]
 }
