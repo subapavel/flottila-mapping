@@ -12,6 +12,17 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "stat-average",
+      "input": "average-003.xml",
+      "case": "fn/average/003",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "average on empty contexts throws ArithmeticException: Division undefined at /Out/Item/V; no result XML.",
+      "po75Evidence": "po75/average-003-stat-average-error.txt"
+    },
+    {
       "mapping": "stat-sum",
       "input": "sum-002.xml",
       "case": "fn/sum/002",
