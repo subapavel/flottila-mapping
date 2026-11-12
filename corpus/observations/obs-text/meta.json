@@ -86,6 +86,19 @@
       "summary": "All values: abc, hello world, empty string, é1; Unicode lowercase and unchanged digit.",
       "po75Result": "po75/toLowerCase-001-text-toLowerCase.xml",
       "po75Evidence": "po75/toLowerCase-001-text-toLowerCase-check.txt"
+    },
+    {
+      "mapping": "text-trim",
+      "input": "trim-001.xml",
+      "case": "fn/trim/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: a b, x, empty string, empty string, a, NBSP+a+NBSP. Ordinary boundary whitespace removed; interior space and NBSP retained.",
+      "po75Result": "po75/trim-001-text-trim.xml",
+      "po75Evidence": "po75/trim-001-text-trim-check.txt"
     }
   ]
 }
