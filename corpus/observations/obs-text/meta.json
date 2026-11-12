@@ -1,0 +1,41 @@
+{
+  "obsId": "obs-text",
+  "po75": {
+    "release": "7.50",
+    "supportPackage": null,
+    "patch": null,
+    "date": "2026-11-12",
+    "tool": "ESR message mapping",
+    "releaseVerification": "ESR About read during obs-target-creation-2 in this observation session."
+  },
+  "divergence": [],
+  "notes": [
+    "CPI API preparation is not a simulation; CPI observations pending."
+  ],
+  "runs": [
+    {
+      "mapping": "text-concat",
+      "input": "concat-001.xml",
+      "case": "fn/concat/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: abcd, x, x, empty string.",
+      "po75Result": "po75/concat-001-text-concat.xml",
+      "po75Evidence": "po75/concat-001-text-concat-check.txt"
+    },
+    {
+      "mapping": "text-equalsS",
+      "input": "equalsS-001.xml",
+      "case": "fn/equalsS/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: true, false, true, false; case-sensitive and empty string comparisons.",
+      "po75Result": "po75/equalsS-001-text-equalsS.xml",
+      "po75Evidence": "po75/equalsS-001-text-equalsS-check.txt"
+    }
+  ]
+}
