@@ -172,6 +172,26 @@
       "artifact": "api_text_equalsS",
       "reading": "pending",
       "cpiEvidence": "cpi/equalsS-001-text-equalsS-blocked-2026-11-13.txt"
+    },
+    {
+      "mapping": "text-startsWith",
+      "input": "startsWith-001.xml",
+      "case": "fn/startsWith/001",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "date": "2026-11-13",
+      "artifact": "api_text_startsWith",
+      "reading": "pending",
+      "cpiEvidence": "cpi/startsWith-001-text-startsWith-blocked-2026-11-13.txt"
+    },
+    {
+      "mapping": "text-endsWith",
+      "input": "endsWith-001.xml",
+      "case": "fn/endsWith/001",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "date": "2026-11-13",
+      "artifact": "api_text_endsWith",
+      "reading": "pending",
+      "cpiEvidence": "cpi/endsWith-001-text-endsWith-blocked-2026-11-13.txt"
     }
   ]
 }
