@@ -109,6 +109,18 @@
       "summary": "First format yyyyMMdd, second dd.MM.yyyy; earlier/equal/later pairs produce true, false, false. Calendar Is Lenient checked by default.",
       "po75Result": "po75/dateBefore-001-date-before-001.xml",
       "po75Evidence": "po75/dateBefore-001-date-before-001-check.txt"
+    },
+    {
+      "mapping": "date-after-001",
+      "input": "dateAfter-001.xml",
+      "case": "fn/dateAfter/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "First format yyyyMMdd, second dd.MM.yyyy; earlier/equal/later pairs produce false, false, true. Calendar Is Lenient checked by default.",
+      "po75Result": "po75/dateAfter-001-date-after-001.xml",
+      "po75Evidence": "po75/dateAfter-001-date-after-001-check.txt"
     }
   ]
 }
