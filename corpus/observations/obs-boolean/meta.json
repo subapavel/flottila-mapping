@@ -9,7 +9,9 @@
     "releaseVerification": "ESR About read during obs-target-creation-2 in this observation session."
   },
   "divergence": [],
-  "notes": ["PO first per owner instruction; CPI has not been run for this family."],
+  "notes": [
+    "PO first per owner instruction; CPI has not been run for this family."
+  ],
   "runs": [
     {
       "mapping": "boolean-and",
@@ -54,6 +56,40 @@
       "reading": "contradicted",
       "summary": "Boolean Equals rejects the first keep/keep pair: Cannot cast 'keep' to boolean (equalsBoolean). No output XML; individual results are not inferred.",
       "po75Evidence": "po75/equals-001-boolean-equals-error.txt"
+    },
+    {
+      "mapping": "boolean-notEquals",
+      "input": "notEquals-001.xml",
+      "case": "fn/notEquals/001",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Boolean notEquals rejects the first keep/keep pair: Cannot cast 'keep' to boolean. No output XML; individual results are not inferred.",
+      "po75Evidence": "po75/notEquals-001-boolean-notEquals-error.txt"
+    },
+    {
+      "mapping": "boolean-if",
+      "input": "if-001.xml",
+      "case": "fn/if/001",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "if rejects the fourth Line empty condition: Cannot cast empty string to boolean. No output XML; individual results are not inferred.",
+      "po75Evidence": "po75/if-001-boolean-if-error.txt"
+    },
+    {
+      "mapping": "boolean-isNil",
+      "input": "isNil-001.xml",
+      "case": "fn/isNil/001",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "All false, true, false, false. Explicit xsi:nil is recognized; empty string is not nil.",
+      "po75Result": "po75/isNil-001-boolean-isNil.xml",
+      "po75Evidence": "po75/isNil-001-boolean-isNil-check.txt"
     }
   ]
 }
