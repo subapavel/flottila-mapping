@@ -9,7 +9,11 @@ $graph = $map.SelectSingleNode('//transformation')
 $graph.InnerXml = '<brick gid="0" path="/Out/All" type="Dst"><viewData x="600" y="80"/><arg><brick fname="removeContexts" fns="dflt" type="Func"><viewData x="420" y="80"/><arg><brick fname="sortByKey" fns="dflt" type="Func"><viewData x="240" y="80"/><arg><brick context="/Orders/Order" gid="0" path="/Orders/Order/Line/Sku" type="Src"><viewData x="20" y="40"/></brick></arg><arg pin="1"><brick context="/Orders/Order" gid="0" path="/Orders/Order/Line/Qty" type="Src"><viewData x="20" y="160"/></brick></arg><bindings><param name="comparator"><value><sort_comp type="cs"/></value></param><param name="order"><value><sort_order asc="true"/></value></param></bindings></brick></arg></brick></arg><group/></brick>'
 # Remove historical administrative identifiers from the prepared copy.
 $map.SelectSingleNode('//admInf').InnerXml = '<modifBy/><modifAt/><owner/>'
-$map.SelectSingleNode('//textInfo').RemoveAll()
+# Preserve required editor metadata structure with synthetic identifiers.
+# Historical archives are not regenerated; the active pilot is api_spec2_sort_by_key.
+$textInfo=$map.SelectSingleNode('//textInfo')
+$textInfo.SetAttribute('loadedL','EN')
+$textInfo.InnerXml='<textObj id="00000000000000000000000000000001" masterL="EN" type="0"><texts lang="EN"><text label=""/><text label="00000000000000000000000000000002"/></texts></textObj>'
 $map.Save($old)
 Rename-Item -LiteralPath $old -NewName 'spec2_sort_by_key_001_api.mmap'
 foreach ($relative in @('.project','META-INF/MANIFEST.MF')) {

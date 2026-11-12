@@ -67,6 +67,60 @@ Add 'obs-lift-reuse' 'lift-1' ($parent+(D '/Out/Item/V' (F 'concat' @($tagO,$sku
 Add 'obs-useoneasmany' 'spec2-use-one-as-many-root-value' (D '/Out/All' (F 'removeContexts' @((F 'useOneAsMany' @((S '/Orders/Order/Id' '/Orders'),$skuO,$skuL))))) @('fn/useOneAsMany/003')
 Add 'obs-structures' 'str-attr' ((D '/Flagged/@flag' (F 'createIf' @($tagO)))+(D '/Flagged/@code' (S '/Orders/Order/Id' '/Orders/Order'))+(D '/Flagged/V' (S '/Orders/Order/Id' '/Orders'))) @('target/attribute/001','target/attribute/002','target/attribute/003') 'tgt-attr.xsd' 'Flagged'
 
+# Parameter encodings below come from native CPI editor Save/API exports.
+foreach($row in @(@('each','0'),@('change','2'))){
+ $split=F 'SplitByValue' @((F 'removeContexts' @($tagO))) (B 'type' $row[1])
+ $cases=if($row[0] -eq 'each'){@('fn/splitByValue/004','fn/splitByValue/005')}else{@('fn/splitByValue/006','fn/splitByValue/007','fn/splitByValue/008','fn/splitByValue/009','fn/splitByValue/010')}
+ Add 'obs-context-functions' ('spec2-split-by-value-'+$row[0]) (D '/Out/All' $split) $cases
+ $split=F 'SplitByValue' @((F 'createIf' @($tag))) (B 'type' $row[1])
+ $case=if($row[0] -eq 'each'){'019'}else{'020'}
+ Add 'obs-context-functions' ('spec2-suppress-split-'+$row[0]+'-collapse') (D '/Out/All' (F 'collapseContexts' @($split))) @('fn/splitByValue/'+$case)
+}
+Add 'obs-context-functions' 'spec3-suppress-split-each-item' ((D '/Out/Item' $tag)+(D '/Out/Item/V' (F 'SplitByValue' @((F 'createIf' @($tag))) (B 'type' '0')))) @('fn/splitByValue/022')
+Add 'obs-context-functions' 'spec2-sort-by-key' (D '/Out/All' (F 'removeContexts' @((F 'sortByKey' @($skuO,$qtyO) '<bindings><param name="comparator"><value><sort_comp type="cs"/></value></param><param name="order"><value><sort_order asc="true"/></value></param></bindings>')))) @('fn/sortByKey/001','fn/sortByKey/004')
+foreach($row in @(@('case-insensitive','cis','true','002'),@('numeric-descending','fn','false','003'))){
+ $bindings='<bindings><param name="comparator"><value><sort_comp type="'+$row[1]+'"/></value></param><param name="order"><value><sort_order asc="'+$row[2]+'"/></value></param></bindings>'
+ Add 'obs-context-functions' ('spec2-sort-by-key-'+$row[0]) (D '/Out/All' (F 'removeContexts' @((F 'sortByKey' @($skuO,$qtyO) $bindings)))) @('fn/sortByKey/'+$row[3])
+}
+function FixBinding([string]$strategy,[string]$defaultValue,[string]$table){'<bindings><param name="vmdefault"><value>'+(Esc $defaultValue)+'</value></param><param name="vmstrategy"><value>'+$strategy+'</value></param><param name="table"><value><properties>'+$table+'</properties></value></param></bindings>'}
+$ad='<property name="a">A</property><property name="d">D</property>'
+foreach($row in @(@('fix-values-key','2','',$ad,'002'),@('fix-values-exception','0','',$ad,'004'),@('fix-values-default','1','?',$ad,'003'),@('fix-values-default-empty','1','','<property name="a">A</property>','005'),@('fix-values-empty-table','1','-','','006'),@('fix-values-exact','1','?','<property name="a">A</property><property name=" b">B</property>','008'),@('fix-values-suppress','0','','<property name="">E</property>','007'))){
+ $src=if($row[0] -eq 'fix-values-suppress'){F 'createIf' @($tagO)}else{$skuO}
+ Add 'obs-constant' $row[0] ($parent+(D '/Out/Item/V' (F 'FixValues' @($src) (FixBinding $row[1] $row[2] $row[3])))) @('fn/fixValues/'+$row[4])
+}
+$indexBinding='<bindings><param name="start"><value>1</value></param><param name="inc"><value>1</value></param><param name="type"><value>0</value></param></bindings>'
+foreach($row in @(@('a-bb','a','bb','001'),@('dollar','$','\$1','002'),@('empty-search','','-','003'),@('aa-b','aa','b','004'))){
+ Add 'obs-text' ('text-replaceString-'+$row[0]) (D '/Out/All' (F 'replaceString' @($sku,(K $row[1]),(K $row[2])))) @('fn/replaceString/'+$row[3])
+}
+Add 'obs-statistic' 'stat-index-default' ($parent+(D '/Out/Item/V' (F 'index' @($skuO) $indexBinding))) @('fn/index/003')
+Add 'obs-statistic' 'stat-index-suppress' ($parent+(D '/Out/Item/V' (F 'index' @((F 'createIf' @($tagO))) $indexBinding))) @('fn/index/004')
+foreach($pair in @(@('copy-value','1','001'),@('copy-value-default','0','002'),@('copy-value-beyond','3','003'),@('copy-value-suppress','1','004'))){
+ $src=if($pair[0] -eq 'copy-value-suppress'){F 'createIf' @($tagO)}else{$skuO}
+ Add 'obs-constant' $pair[0] ($parent+(D '/Out/Item/V' (F 'CopyValue' @($src) (B 'nnumber' $pair[1])))) @('fn/copyValue/'+$pair[2])
+}
+$arith=Get-Content -Raw (Join-Path $repo 'corpus/observations/obs-arithmetic/request.md')
+foreach($row in [regex]::Matches($arith,'\| `fn/formatNum/(\d+)` \| `[^`]+` \| `([^`]+)`')){
+ $binding=('<bindings><param name="nformat"><value>'+(Esc $row.Groups[2].Value)+'</value></param><param name="separator"><value>.</value></param></bindings>')
+ Add 'obs-arithmetic' ('fmt-'+$row.Groups[1].Value) (D '/Out/All' (F 'formatNumber' @($qty) $binding)) @('fn/formatNum/'+$row.Groups[1].Value)
+}
+function DateBinding([string]$inputFormat,[string]$outputFormat){'<bindings><param name="iform"><value>'+(Esc $inputFormat)+'</value></param><param name="oform"><value>'+(Esc $outputFormat)+'</value></param><param name="calend"><value><calend_props><fd>1</fd><md>1</md><le>true</le></calend_props></value></param></bindings>'}
+function Current([string]$format){F 'currentDate' @() ('<bindings><param name="oform"><value>'+(Esc $format)+'</value></param><param name="calend"><value><calend_props><fd>1</fd><md>1</md><le>true</le></calend_props></value></param></bindings>')}
+Add 'obs-date' 'current-date' (D '/Out/All' (Current 'yyyy/MM/dd')) @('fn/currentDate/001')
+Add 'obs-date' 'current-date-time' (D '/Out/All' (Current "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")) @('fn/currentDate/002')
+Add 'obs-date' 'current-date-item' ($parent+(D '/Out/Item/V' (Current 'yyyyMMdd'))) @('fn/currentDate/003')
+Add 'obs-date' 'current-date-concat' ($parent+(D '/Out/Item/V' (F 'concat' @($skuO,(Current "'@'HH:mm:ss.SSS"))))) @('fn/currentDate/004')
+$dates=Get-Content -Raw (Join-Path $repo 'corpus/observations/obs-date/request.md')
+foreach($row in [regex]::Matches($dates,'\| `fn/dateTrans/(\d+)` \| `[^`]+` \| `([^`]+)` to `([^`]+)`')){
+ Add 'obs-date' ('date-trans-'+$row.Groups[1].Value) (D '/Out/All' (F 'TransformDate' @($sku) (DateBinding $row.Groups[2].Value $row.Groups[3].Value))) @('fn/dateTrans/'+$row.Groups[1].Value)
+}
+Add 'obs-date' 'date-trans-006' (D '/Out/All' (F 'TransformDate' @($sku) (DateBinding 'yyyy/MM/dd' 'yyyy/MM/dd'))) @('fn/dateTrans/006')
+Add 'obs-date' 'date-after-001' (D '/Out/All' (F 'DateAfter' @($sku,$qty) (DateBinding 'yyyyMMdd' 'dd.MM.yyyy'))) @('fn/dateAfter/001')
+Add 'obs-date' 'date-before-001' (D '/Out/All' (F 'DateBefore' @($sku,$qty) (DateBinding 'yyyyMMdd' 'dd.MM.yyyy'))) @('fn/dateBefore/001')
+foreach($row in [regex]::Matches($dates,'\| `fn/compareDates/(\d+)` \| `[^`]+` \| `([^`]+)`(?:, `([^`]+)`| both)')){
+ $second=if($row.Groups[3].Success){$row.Groups[3].Value}else{$row.Groups[2].Value}
+ Add 'obs-date' ('compare-dates-'+$row.Groups[1].Value) (D '/Out/All' (F 'CompareDates' @($sku,$qty) (DateBinding $row.Groups[2].Value $second))) @('fn/compareDates/'+$row.Groups[1].Value)
+}
+
 if($Upload){
  $key=(Get-Content -Raw -LiteralPath 'C:/Users/pavol/.codex/secrets/flottila-observations-key.json'|ConvertFrom-Json).oauth
  foreach($url in @($key.url,$key.tokenurl)){if(([uri]$url).Scheme -ne 'https' -or ([uri]$url).Host -notmatch '\.hana\.ondemand\.com$'){throw 'Unexpected service host'}}
@@ -111,6 +165,7 @@ foreach($def in $defs){
  $zip=Join-Path $dir 'upload.zip'
  Compress-Archive -Path (Join-Path $work '*') -DestinationPath $zip -Force
  $record=[ordered]@{artifactId=$def.id;logicalMapping=$def.name;cases=$def.cases;status='PREPARED_LOCALLY';simulation='NOT_RUN';editorValidation='NOT_RUN';notes='No observation output. New independent artifact; historical mappings untouched.'}
+ if($def.name -like 'text-replaceString-*'){$record.nativeRepresentation='CPI replaceString has three input ports: source, pattern, replacement. Fixed search/replacement from request are supplied by const boxes; this differs from the request parameter notation and must remain explicit when interpreting future observations.'}
  if($Upload){
   try {
    $found=$existing|Where-Object Id -eq $def.id

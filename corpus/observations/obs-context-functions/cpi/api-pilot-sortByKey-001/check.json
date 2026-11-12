@@ -1,7 +1,9 @@
 {
   "case": "sortByKey/001",
   "date": "2026-11-12",
-  "status": "PREPARED_NOT_SIMULATED",
+  "status": "SUPERSEDED_IMPORT_METADATA_DEFECT",
+  "supersededBy": "api_spec2_sort_by_key",
+  "supersessionReason": "Initial pilot stripped required textInfo children. Historical API transfer checks below remain valid but do not establish editor usability. Use ../api-preparation/spec2-sort-by-key/preparation.json and batch.ps1 instead; historical pilot archive is retained for audit.",
   "artifactId": "spec2_sort_by_key_001_api",
   "packageId": "flottilaobservations",
   "version": "1.0.0",
