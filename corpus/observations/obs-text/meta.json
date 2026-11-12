@@ -235,6 +235,28 @@
       "reading": "confirmed",
       "cpiEvidence": "cpi/replaceString-004-text-replaceString-aa-b-check.txt",
       "cpiOutput": "cpi/replaceString-004-text-replaceString-aa-b.xml"
+    },
+    {
+      "mapping": "text-toUpperCase",
+      "input": "toUpperCase-001.xml",
+      "case": "fn/toUpperCase/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_toUpperCase",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/toUpperCase-001-text-toUpperCase-check.txt",
+      "cpiOutput": "cpi/toUpperCase-001-text-toUpperCase.xml"
+    },
+    {
+      "mapping": "text-toLowerCase",
+      "input": "toLowerCase-001.xml",
+      "case": "fn/toLowerCase/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_toLowerCase",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/toLowerCase-001-text-toLowerCase-check.txt",
+      "cpiOutput": "cpi/toLowerCase-001-text-toLowerCase.xml"
     }
   ]
 }
