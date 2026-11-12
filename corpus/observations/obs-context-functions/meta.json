@@ -639,6 +639,30 @@
       "summary": "PO All s1,s3,s2,s4: SUPPRESS keys sort after empty keys, ties stable. Literal sortByKey queue confirms the result; Check passed.",
       "po75Result": "po75/sortByKey-006-spec2-suppress-sort-by-key.xml",
       "po75Evidence": "po75/sortByKey-006-spec2-suppress-sort-by-key-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-each",
+      "input": "splitByValue-004.xml",
+      "case": "fn/splitByValue/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO one empty All. Each Value preserves the empty first value as the first context. Check passed.",
+      "po75Result": "po75/splitByValue-004-spec2-split-by-value-each.xml",
+      "po75Evidence": "po75/splitByValue-004-spec2-split-by-value-each-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-each",
+      "input": "collapseContexts-003.xml",
+      "case": "fn/splitByValue/005",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO Out without All for empty Orders. Same checked mapping as case 004.",
+      "po75Result": "po75/splitByValue-005-spec2-split-by-value-each.xml",
+      "po75Evidence": "po75/splitByValue-005-spec2-split-by-value-each-check.txt"
     }
   ]
 }
