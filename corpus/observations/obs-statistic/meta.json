@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "stat-average-suppress",
+      "input": "average-004.xml",
+      "case": "fn/average/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "The requested createIf -> replaceValue(5) -> average chain produces V 5 in all three Items, including the false-Tag order; intermediate SUPPRESS handling is not isolated by this result.",
+      "po75Result": "po75/average-004-stat-average-suppress.xml",
+      "po75Evidence": "po75/average-004-stat-average-suppress-check.txt"
+    },
+    {
       "mapping": "stat-average",
       "input": "average-003.xml",
       "case": "fn/average/003",
