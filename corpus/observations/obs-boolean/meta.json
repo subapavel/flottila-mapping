@@ -218,6 +218,36 @@
       "artifact": "api_boolean_or",
       "reading": "contradicted",
       "cpiEvidence": "cpi/or-001-boolean-or-error.txt"
+    },
+    {
+      "mapping": "boolean-not",
+      "input": "not-001.xml",
+      "case": "fn/not/001",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_not",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/not-001-boolean-not-error.txt"
+    },
+    {
+      "mapping": "boolean-equals",
+      "input": "equals-001.xml",
+      "case": "fn/equals/001",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_equals",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/equals-001-boolean-equals-error.txt"
+    },
+    {
+      "mapping": "boolean-notEquals",
+      "input": "notEquals-001.xml",
+      "case": "fn/notEquals/001",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_notEquals",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/notEquals-001-boolean-notEquals-error.txt"
     }
   ]
 }
