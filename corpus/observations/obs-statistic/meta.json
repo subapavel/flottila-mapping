@@ -1,0 +1,27 @@
+{
+  "obsId": "obs-statistic",
+  "po75": {
+    "release": "7.50",
+    "supportPackage": null,
+    "patch": null,
+    "date": "2026-11-12",
+    "tool": "ESR message mapping",
+    "releaseVerification": "ESR About read during obs-target-creation-2 in this observation session."
+  },
+  "divergence": [],
+  "notes": ["PO first per owner instruction; CPI has not been run for this family."],
+  "runs": [
+    {
+      "mapping": "stat-count-suppress",
+      "input": "count-003.xml",
+      "case": "fn/count/003",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "count excludes SUPPRESS and produces 2, 0, 0 across the three contexts, including zero for an empty context.",
+      "po75Result": "po75/count-003-stat-count-suppress.xml",
+      "po75Evidence": "po75/count-003-stat-count-suppress-check.txt"
+    }
+  ]
+}
