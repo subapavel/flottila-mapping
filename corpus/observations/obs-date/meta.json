@@ -97,6 +97,18 @@
       "summary": "Input offsets preserved as instants, output +01:00: 04.11.2026 09:00, 00:30, 16:30. Required UTC JVM precondition not met; pending UTC environment. Named JVM zone unknown.",
       "po75Result": "po75/dateTrans-012-date-trans-012.xml",
       "po75Evidence": "po75/dateTrans-012-date-trans-012-check.txt"
+    },
+    {
+      "mapping": "date-before-001",
+      "input": "dateBefore-001.xml",
+      "case": "fn/dateBefore/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "First format yyyyMMdd, second dd.MM.yyyy; earlier/equal/later pairs produce true, false, false. Calendar Is Lenient checked by default.",
+      "po75Result": "po75/dateBefore-001-date-before-001.xml",
+      "po75Evidence": "po75/dateBefore-001-date-before-001-check.txt"
     }
   ]
 }
