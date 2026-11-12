@@ -60,6 +60,19 @@
       "summary": "All values: true, false, true, false, false; empty suffix accepted, interior and longer suffix rejected.",
       "po75Result": "po75/endsWith-001-text-endsWith.xml",
       "po75Evidence": "po75/endsWith-001-text-endsWith-check.txt"
+    },
+    {
+      "mapping": "text-toUpperCase",
+      "input": "toUpperCase-001.xml",
+      "case": "fn/toUpperCase/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: ABC, HELLO WORLD, empty string, STRASSE, ÉA; full Unicode uppercase mapping.",
+      "po75Result": "po75/toUpperCase-001-text-toUpperCase.xml",
+      "po75Evidence": "po75/toUpperCase-001-text-toUpperCase-check.txt"
     }
   ]
 }
