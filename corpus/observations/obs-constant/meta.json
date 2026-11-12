@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "constant-gen-numbering",
+      "input": "constant-007.xml",
+      "case": "fn/constant/007",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Constant g creates two Gen elements per Grp; Qty values are 1, 2 in the first Grp and 3, 4 in the second Grp.",
+      "po75Result": "po75/constant-007-constant-gen-numbering.xml",
+      "po75Evidence": "po75/constant-007-constant-gen-numbering-check.txt"
+    },
+    {
       "mapping": "constant-count",
       "input": "constant-001.xml",
       "case": "fn/constant/006",
