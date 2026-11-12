@@ -213,6 +213,28 @@
       "summary": "Index 1 produces V b in all three Items, rather than b, no V, f. Literal F1 display queue recorded.",
       "po75Result": "po75/copyValue-001-copy-value.xml",
       "po75Evidence": "po75/copyValue-001-copy-value-check.txt"
+    },
+    {
+      "mapping": "copy-value",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/001",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-001-copy-value-check.txt",
+      "cpiOutput": "cpi/copyValue-001-copy-value.xml"
+    },
+    {
+      "mapping": "copy-value-default",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/002",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value_default",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-002-copy-value-default-check.txt",
+      "cpiOutput": "cpi/copyValue-002-copy-value-default.xml"
     }
   ]
 }
