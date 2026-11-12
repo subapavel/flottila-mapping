@@ -14,6 +14,18 @@
   ],
   "runs": [
     {
+      "mapping": "boolean-ifWithoutElse-collapse-tags",
+      "input": "ifWithoutElse-010.xml",
+      "case": "fn/ifWithoutElse/010",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Only All x is produced; the assumed second empty All is absent.",
+      "po75Result": "po75/ifWithoutElse-010-boolean-ifWithoutElse-collapse-tags.xml",
+      "po75Evidence": "po75/ifWithoutElse-010-boolean-ifWithoutElse-collapse-tags-check.txt"
+    },
+    {
       "mapping": "boolean-ifWithoutElse-collapse",
       "input": "ifWithoutElse-009.xml",
       "case": "fn/ifWithoutElse/009",
