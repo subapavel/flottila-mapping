@@ -73,6 +73,19 @@
       "summary": "All values: ABC, HELLO WORLD, empty string, STRASSE, ÉA; full Unicode uppercase mapping.",
       "po75Result": "po75/toUpperCase-001-text-toUpperCase.xml",
       "po75Evidence": "po75/toUpperCase-001-text-toUpperCase-check.txt"
+    },
+    {
+      "mapping": "text-toLowerCase",
+      "input": "toLowerCase-001.xml",
+      "case": "fn/toLowerCase/001",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: abc, hello world, empty string, é1; Unicode lowercase and unchanged digit.",
+      "po75Result": "po75/toLowerCase-001-text-toLowerCase.xml",
+      "po75Evidence": "po75/toLowerCase-001-text-toLowerCase-check.txt"
     }
   ]
 }
