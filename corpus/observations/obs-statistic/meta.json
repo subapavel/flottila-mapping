@@ -12,6 +12,19 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "stat-sum-suppress",
+      "input": "sum-003.xml",
+      "case": "fn/sum/003",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "contradicted",
+      "summary": "V values 15, 5, 0, 5. Numbered R1 queue shows replaceValue(5) changes SUPPRESS to 5; the requested chain therefore does not isolate sum's SUPPRESS behavior.",
+      "po75Result": "po75/sum-003-stat-sum-suppress.xml",
+      "po75Evidence": "po75/sum-003-stat-sum-suppress-check.txt",
+      "po75Queue": "po75/sum-003-stat-sum-suppress-queue.txt"
+    },
+    {
       "mapping": "stat-average-suppress",
       "input": "average-004.xml",
       "case": "fn/average/004",
