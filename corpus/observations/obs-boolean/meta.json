@@ -198,6 +198,16 @@
       "summary": "All false, true, false, false. Explicit xsi:nil is recognized; empty string is not nil.",
       "po75Result": "po75/isNil-001-boolean-isNil.xml",
       "po75Evidence": "po75/isNil-001-boolean-isNil-check.txt"
+    },
+    {
+      "mapping": "boolean-and",
+      "input": "and-001.xml",
+      "case": "fn/and/001",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_and",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/and-001-boolean-and-error.txt"
     }
   ]
 }
