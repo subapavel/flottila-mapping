@@ -120,6 +120,17 @@
       "summary": "PO and CPI write two All values, each O'Brien & <Co>: empty Sku is a value, absent Sku contributes no slot. PO object check reports no errors or warnings. See po75/spec2-replace-value-check.txt.",
       "po75Reading": "confirmed",
       "po75Output": "po75/replaceValue-004-spec2-replace-value.xml"
+    },
+    {
+      "mapping": "lift-1",
+      "input": "l1.xml",
+      "case": "lift-1/l1.xml",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_lift_1",
+      "reading": "confirmed",
+      "cpiResult": "cpi/l1-lift-1.xml",
+      "cpiEvidence": "cpi/lift-1-retry-check.txt"
     }
   ]
 }

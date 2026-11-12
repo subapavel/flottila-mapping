@@ -1098,6 +1098,17 @@
       "reading": "contradicted",
       "cpiResult": "cpi/splitByValue-019-spec2-suppress-split-empty-collapse.xml",
       "cpiEvidence": "cpi/splitByValue-021-spec2-suppress-split-empty-collapse-check.txt"
+    },
+    {
+      "mapping": "ctx-1",
+      "input": "f1.xml",
+      "case": "ctx-1/f1.xml",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_ctx_1",
+      "reading": "confirmed",
+      "cpiResult": "cpi/ctx-1.xml",
+      "cpiEvidence": "cpi/ctx-1-retry-check.txt"
     }
   ]
 }
