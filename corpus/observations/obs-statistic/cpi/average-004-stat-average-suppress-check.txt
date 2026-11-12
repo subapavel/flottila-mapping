@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/average/004
+Artifact: api_stat_average_suppress
+Input: original average-004.xml uploaded through simulator.
+Visible graph verified: Order context /Orders -> Item; Tag context /Orders/Order -> createIf -> replaceValue -> average -> V.
+Simulation completed. Three Item elements each contain V 5. This differs from the assumed absence of V for the second Item. Downloaded XML preserved unchanged.
+Live replaceValue parameter dialog not independently inspected. No intermediate queue captured; final output does not establish where the difference originates. Output observed; parameter verification pending.
