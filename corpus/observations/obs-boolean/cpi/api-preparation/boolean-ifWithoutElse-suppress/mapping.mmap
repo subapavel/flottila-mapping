@@ -35,7 +35,13 @@
         </lnk>
       </lnkRole>
     </lnks>
-    <textInfo>
+    <textInfo loadedL="EN">
+      <textObj id="00000000000000000000000000000001" masterL="EN" type="0">
+        <texts lang="EN">
+          <text label="" />
+          <text label="00000000000000000000000000000002" />
+        </texts>
+      </textObj>
     </textInfo>
   </generic>
   <AdditionalProperties xmlns="">

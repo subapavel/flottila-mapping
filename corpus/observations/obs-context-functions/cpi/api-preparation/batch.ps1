@@ -1,4 +1,4 @@
-param([switch]$Upload)
+param([switch]$Upload,[string]$Only='*',[string]$Revision='',[switch]$Repair)
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '../../../../..')).Path
 $template=Join-Path $repo 'corpus/observations/obs-context-functions/cpi/api-pilot-sortByKey-001/spec2_sort_by_key_001_api.zip'
@@ -78,13 +78,24 @@ if($Upload){
  $existing=(Invoke-RestMethod -Uri ($base+"/IntegrationPackages('flottilaobservations')/MessageMappingDesigntimeArtifacts") -Headers $headers -WebSession $session -TimeoutSec 30).d.results
 }
 foreach($def in $defs){
+ if($def.name -notlike $Only){continue}
  $dir=Join-Path $repo ('corpus/observations/'+$def.set+'/cpi/api-preparation/'+$def.name)
+ if($Revision){$def.id+='_'+$Revision;$dir=Join-Path $dir $Revision}
  $null=New-Item -ItemType Directory -Force -Path $dir
+ if($Repair -and (Test-Path (Join-Path $dir 'readback.zip')) -and !(Test-Path (Join-Path $dir 'initial-import'))){
+  $audit=Join-Path $dir 'initial-import';$null=New-Item -ItemType Directory $audit
+  foreach($file in @('upload.zip','readback.zip','mapping.mmap','preparation.json')){Copy-Item (Join-Path $dir $file) $audit}
+ }
  $work=Join-Path ([IO.Path]::GetTempPath()) ('flottila-'+[guid]::NewGuid())
  Expand-Archive -LiteralPath $template -DestinationPath $work
  $old=Join-Path $work 'src/main/resources/mapping/spec2_sort_by_key_001_api.mmap'
  [xml]$map=Get-Content -Raw -LiteralPath $old
  $map.SelectSingleNode('//transformation').InnerXml=$def.graph
+ {
+  $textInfo=$map.SelectSingleNode('//textInfo')
+  $textInfo.SetAttribute('loadedL','EN')
+  $textInfo.InnerXml='<textObj id="00000000000000000000000000000001" masterL="EN" type="0"><texts lang="EN"><text label=""/><text label="00000000000000000000000000000002"/></texts></textObj>'
+ }.Invoke()
  $link=$map.SelectSingleNode('//lnkRole[@role="TARGET_IFR_MESS"]/lnk/key')
  $link.SelectNodes('elem')[0].InnerText=$def.target
  $link.SelectNodes('elem')[2].InnerText=$def.root
@@ -103,6 +114,19 @@ foreach($def in $defs){
  if($Upload){
   try {
    $found=$existing|Where-Object Id -eq $def.id
+   if($found -and $Repair){
+    $before=Join-Path $work 'before-repair.zip'
+    Invoke-WebRequest -Uri ($base+"/MessageMappingDesigntimeArtifacts(Id='"+$def.id+"',Version='"+$found.Version+"')/"+'$value') -Headers $headers -WebSession $session -OutFile $before -TimeoutSec 30
+    $za=[IO.Compression.ZipFile]::OpenRead((Join-Path $dir 'readback.zip'));$zb=[IO.Compression.ZipFile]::OpenRead($before)
+    foreach($entry in $za.Entries|Where-Object {$_.FullName -match '\.(mmap|xsd)$'}){
+     $other=$zb.GetEntry($entry.FullName);if(!$other){throw 'Remote artifact was modified; refusing replacement'}
+     $s=[IO.StreamReader]::new($entry.Open());$a=$s.ReadToEnd();$s.Dispose();$s=[IO.StreamReader]::new($other.Open());$b=$s.ReadToEnd();$s.Dispose()
+     if($a -cne $b){throw 'Remote artifact was modified; refusing replacement'}
+    };$za.Dispose();$zb.Dispose()
+    $deleted=Invoke-WebRequest -Method Delete -Uri ($base+"/MessageMappingDesigntimeArtifacts(Id='"+$def.id+"',Version='"+$found.Version+"')") -Headers $headers -WebSession $session -TimeoutSec 30
+    $record.repair='Recreated own API import after exact remote resource guard; restored required textInfo structure with synthetic identifiers. Initial import preserved locally.'
+    $found=$null
+   }
    if(!$found){
     $body=@{Id=$def.id;Name=$def.id;PackageId='flottilaobservations';ArtifactContent=[Convert]::ToBase64String([IO.File]::ReadAllBytes($zip))}|ConvertTo-Json -Compress
     $response=Invoke-WebRequest -Method Post -Uri ($base+'/MessageMappingDesigntimeArtifacts') -Headers $headers -WebSession $session -ContentType 'application/json' -Body $body -TimeoutSec 30
