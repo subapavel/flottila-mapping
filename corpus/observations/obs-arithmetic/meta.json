@@ -166,6 +166,19 @@
       "summary": "Pattern 0‰, decimal separator dot. All values: 125‰, 2‰.",
       "po75Result": "po75/formatNum-011-fmt-011.xml",
       "po75Evidence": "po75/formatNum-011-fmt-011-check.txt"
+    },
+    {
+      "mapping": "fmt-012",
+      "input": "formatNum-012.xml",
+      "case": "fn/formatNum/012",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Pattern #,##0.00;(0), decimal separator dot. All values: (1,234.50; 1,234.50; (0.00. Closing parentheses absent in exported XML.",
+      "po75Result": "po75/formatNum-012-fmt-012.xml",
+      "po75Evidence": "po75/formatNum-012-fmt-012-check.txt"
     }
   ]
 }
