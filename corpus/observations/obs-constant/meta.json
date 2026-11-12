@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "constant-count",
+      "input": "constant-001.xml",
+      "case": "fn/constant/006",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Count of Constant x produces V 1 only in the first Item; Constant w produces W w in all three Items. Literal C1 and N1 display queues recorded.",
+      "po75Result": "po75/constant-006-constant-count.xml",
+      "po75Evidence": "po75/constant-006-constant-count-check.txt"
+    },
+    {
       "mapping": "constant-concat-constants",
       "input": "constant-001.xml",
       "case": "fn/constant/005",
