@@ -1,0 +1,7 @@
+CPI observation 2026-11-12: fn/fixValues/005
+Artifact: api_fix_values_default_empty
+Input: original copyValue-001.xml uploaded through simulator.
+Visible graph verified: Order context /Orders -> Item; Sku context /Orders/Order -> fixValues -> V.
+Mapping test completed. Downloaded output preserved unchanged.
+Output: three Item elements, V values [A, empty, empty] | [empty] | [empty, empty]. Empty elements are present, not suppressed.
+Live function parameter dialog was not inspected; table and default configuration are not independently confirmed by this run. Output observed; parameter verification pending.
