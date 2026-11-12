@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/fixValues/008
+Artifact: api_fix_values_exact
+Input: original fixValues-008.xml uploaded without modifying whitespace.
+Visible graph verified: Order context /Orders -> Item; Sku context /Orders/Order -> fixValues -> V.
+Simulation completed. Output V values [?, ?, ?, A] | [?, B, ?]. Original downloaded XML preserved unchanged. For these inputs, matching distinguishes case and leading/trailing spaces.
+Live table/default parameter dialog not independently inspected. Output observed; parameter verification pending.

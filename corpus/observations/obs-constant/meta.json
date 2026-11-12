@@ -387,6 +387,17 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/fixValues-007-fix-values-suppress-check.txt",
       "cpiOutput": "cpi/fixValues-007-fix-values-suppress.xml"
+    },
+    {
+      "mapping": "fix-values-exact",
+      "input": "fixValues-008.xml",
+      "case": "fn/fixValues/008",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_fix_values_exact",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-008-fix-values-exact-check.txt",
+      "cpiOutput": "cpi/fixValues-008-fix-values-exact.xml"
     }
   ]
 }
