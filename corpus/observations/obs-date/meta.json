@@ -37,6 +37,18 @@
       "summary": "Padded and unpadded dates both produce 2026-01-04T07:05:00.000; third value 1999-12-31T23:59:00.000.",
       "po75Result": "po75/dateTrans-002-date-trans-002.xml",
       "po75Evidence": "po75/dateTrans-002-date-trans-002-check.txt"
+    },
+    {
+      "mapping": "date-trans-003",
+      "input": "dateTrans-003.xml",
+      "case": "fn/dateTrans/003",
+      "po75": "partial",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed-output-environment-mismatch",
+      "summary": "Instants preserved and written at +0100: 09:00, 11:00, 00:30 on the respective input dates. Required UTC JVM precondition not met; case remains pending for UTC environment. Named JVM zone unknown.",
+      "po75Result": "po75/dateTrans-003-date-trans-003.xml",
+      "po75Evidence": "po75/dateTrans-003-date-trans-003-check.txt"
     }
   ]
 }
