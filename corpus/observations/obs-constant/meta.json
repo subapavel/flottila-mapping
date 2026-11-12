@@ -12,6 +12,17 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "fix-values-exception",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/004",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Throw Exception aborts at /Out/Item/V with IllegalArgumentException: No value found for 'b'. This is the exception run requested by fn/fixValues/002.",
+      "po75Evidence": "po75/fixValues-004-fix-values-exception-error.txt"
+    },
+    {
       "mapping": "fix-values-key",
       "input": "copyValue-001.xml",
       "case": "fn/fixValues/002",
