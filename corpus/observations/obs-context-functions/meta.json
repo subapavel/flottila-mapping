@@ -866,6 +866,39 @@
       "reading": "confirmed",
       "cpiResult": "cpi/sortByKey-004-spec2-sort-by-key.xml",
       "cpiEvidence": "cpi/sortByKey-004-spec2-sort-by-key-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key-case-insensitive",
+      "input": "sortByKey-002.xml",
+      "case": "fn/sortByKey/002",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_sort_by_key_case_insensitive",
+      "reason": "Actual post-Test modal stayed at 10% on initial attempt and one retry; cancelled without output. Native parameter panel not verified.",
+      "cpiEvidence": "cpi/sortByKey-002-spec2-sort-by-key-case-insensitive-blocked.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key-numeric-descending",
+      "input": "sortByKey-003.xml",
+      "case": "fn/sortByKey/003",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_sort_by_key_numeric_descending",
+      "reading": "confirmed",
+      "cpiResult": "cpi/sortByKey-003-spec2-sort-by-key-numeric-descending.xml",
+      "cpiEvidence": "cpi/sortByKey-003-spec2-sort-by-key-numeric-descending-check.txt"
+    },
+    {
+      "mapping": "spec2-sort-by-key-case-insensitive",
+      "input": "sortByKey-002.xml",
+      "case": "fn/sortByKey/002",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_sort_by_key_numeric_descending",
+      "reading": "confirmed",
+      "cpiResult": "cpi/sortByKey-002-spec2-sort-by-key-case-insensitive.xml",
+      "cpiEvidence": "cpi/sortByKey-002-spec2-sort-by-key-case-insensitive-check.txt",
+      "summary": "Resolved earlier blocker by setting case insensitive and asc using native UI on the working numeric artifact after saving its original case 003 result. Output 2,4,1,3,5,6. Physical artifact now has case-insensitive ascending settings."
     }
   ]
 }
