@@ -21,6 +21,39 @@
       "reading": "contradicted",
       "summary": "And fails on the fourth Line's empty Sku: Cannot cast '' to boolean. No output XML; individual results are not inferred.",
       "po75Evidence": "po75/and-001-boolean-and-error.txt"
+    },
+    {
+      "mapping": "boolean-or",
+      "input": "or-001.xml",
+      "case": "fn/or/001",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Or fails on the fifth Line's empty Sku despite Qty true: Cannot cast '' to boolean. No output XML; individual results are not inferred.",
+      "po75Evidence": "po75/or-001-boolean-or-error.txt"
+    },
+    {
+      "mapping": "boolean-not",
+      "input": "not-001.xml",
+      "case": "fn/not/001",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Not fails on the fifth Line's empty Sku: Cannot cast '' to boolean. No output XML; individual results are not inferred.",
+      "po75Evidence": "po75/not-001-boolean-not-error.txt"
+    },
+    {
+      "mapping": "boolean-equals",
+      "input": "equals-001.xml",
+      "case": "fn/equals/001",
+      "po75": "error-observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "Boolean Equals rejects the first keep/keep pair: Cannot cast 'keep' to boolean (equalsBoolean). No output XML; individual results are not inferred.",
+      "po75Evidence": "po75/equals-001-boolean-equals-error.txt"
     }
   ]
 }
