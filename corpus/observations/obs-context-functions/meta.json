@@ -933,6 +933,61 @@
       "reading": "confirmed",
       "cpiResult": "cpi/collapseContexts-003-spec2-split-by-value-each.xml",
       "cpiEvidence": "cpi/collapseContexts-003-spec2-split-by-value-each-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "f3.xml",
+      "case": "fn/splitByValue/006",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_change",
+      "reading": "confirmed",
+      "cpiResult": "cpi/f3-spec2-split-by-value-change.xml",
+      "cpiEvidence": "cpi/split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-007.xml",
+      "case": "fn/splitByValue/007",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_change",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-007-spec2-split-by-value-change.xml",
+      "cpiEvidence": "cpi/split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-008.xml",
+      "case": "fn/splitByValue/008",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_change",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-008-spec2-split-by-value-change.xml",
+      "cpiEvidence": "cpi/split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-009.xml",
+      "case": "fn/splitByValue/009",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_change",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-009-spec2-split-by-value-change.xml",
+      "cpiEvidence": "cpi/split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-010.xml",
+      "case": "fn/splitByValue/010",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_spec2_split_by_value_change",
+      "reading": "confirmed",
+      "cpiResult": "cpi/splitByValue-010-spec2-split-by-value-change.xml",
+      "cpiEvidence": "cpi/split-by-value-change-check.txt"
     }
   ]
 }
