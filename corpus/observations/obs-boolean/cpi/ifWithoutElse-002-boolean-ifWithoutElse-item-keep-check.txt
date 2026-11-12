@@ -1,0 +1,11 @@
+CPI observation: fn/ifWithoutElse/002
+Date: 2026-11-12
+Artifact: api_boolean_ifWithoutElse_item_keep
+Input: ifWithoutElse-002.xml (original corpus input uploaded successfully)
+Verified editor expressions: Qty and Sku with context /Orders -> ifWithoutElse -> /Out/Item; Sku with context /Orders/Order/Line -> /Out/Item/V.
+Simulation output: three Items with V values a, c, d.
+Exact downloaded output copied byte-for-byte to ifWithoutElse-002-boolean-ifWithoutElse-item-keep.xml.
+Output agrees with the assumed result. The Keep SUPPRESS parameter was not independently visible during post-run editor inspection; the artifact was prepared as the keep variant. Do not treat this output alone as verification of the parameter setting.
+Editor inspection was cancelled and unsaved changes discarded. No mapping change saved or deployed.
+No display queue requested for this case. Screenshots inspected but not retained.
+Tooling note: the text snapshot included an inactive nested Mapping test is in progress dialog before execution. Screenshot and successful upload showed the simulator was ready; this was not evidence of a hung test.

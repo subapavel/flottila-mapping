@@ -280,6 +280,17 @@
       "reading": "contradicted",
       "cpiEvidence": "cpi/ifWithoutElse-001-boolean-ifWithoutElse-item-check.txt",
       "cpiOutput": "cpi/ifWithoutElse-001-boolean-ifWithoutElse-item.xml"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-item-keep",
+      "input": "ifWithoutElse-002.xml",
+      "case": "fn/ifWithoutElse/002",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_item_keep",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/ifWithoutElse-002-boolean-ifWithoutElse-item-keep-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-002-boolean-ifWithoutElse-item-keep.xml"
     }
   ]
 }
