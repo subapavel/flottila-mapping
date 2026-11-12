@@ -112,6 +112,19 @@
       "summary": "All value: a\\$1b\\$1. Dollar search and backslash-dollar replacement are literal.",
       "po75Result": "po75/replaceString-002-text-replaceString-dollar.xml",
       "po75Evidence": "po75/replaceString-002-text-replaceString-dollar-check.txt"
+    },
+    {
+      "mapping": "text-replaceString-empty",
+      "input": "replaceString-003.xml",
+      "case": "fn/replaceString/003",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "All values: abc, empty string. Empty search leaves input unchanged.",
+      "po75Result": "po75/replaceString-003-text-replaceString-empty.xml",
+      "po75Evidence": "po75/replaceString-003-text-replaceString-empty-check.txt"
     }
   ]
 }
