@@ -279,6 +279,28 @@
       "reading": "confirmed",
       "cpiEvidence": "cpi/constant-004-constant-concat-check.txt",
       "cpiOutput": "cpi/constant-004-constant-concat.xml"
+    },
+    {
+      "mapping": "constant-concat-constants",
+      "input": "constant-001.xml",
+      "case": "fn/constant/005",
+      "cpi": "observed-output-queue-pending",
+      "date": "2026-11-12",
+      "artifact": "api_constant_concat_constants",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-005-constant-concat-constants-check.txt",
+      "cpiOutput": "cpi/constant-005-constant-concat-constants.xml"
+    },
+    {
+      "mapping": "constant-count",
+      "input": "constant-001.xml",
+      "case": "fn/constant/006",
+      "cpi": "observed-output-queue-pending",
+      "date": "2026-11-12",
+      "artifact": "api_constant_count",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-006-constant-count-check.txt",
+      "cpiOutput": "cpi/constant-006-constant-count.xml"
     }
   ]
 }
