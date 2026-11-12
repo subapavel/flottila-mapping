@@ -142,6 +142,28 @@
       "reading": "n/a",
       "summary": "Exact requested graph is not drawable; no substitute simulation or runtime conclusion.",
       "po75Evidence": "po75/counter-not-run.txt"
+    },
+    {
+      "mapping": "stat-sum",
+      "input": "sum-002.xml",
+      "case": "fn/sum/002",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_sum",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/sum-002-stat-sum-check.txt",
+      "cpiOutput": "cpi/sum-002-stat-sum.xml"
+    },
+    {
+      "mapping": "stat-sum-suppress",
+      "input": "sum-003.xml",
+      "case": "fn/sum/003",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-13",
+      "artifact": "api_stat_sum_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/sum-003-stat-sum-suppress-check.txt",
+      "cpiOutput": "cpi/sum-003-stat-sum-suppress.xml"
     }
   ]
 }
