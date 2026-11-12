@@ -9,8 +9,35 @@
     "releaseVerification": "ESR About read during obs-target-creation-2 in this observation session."
   },
   "divergence": [],
-  "notes": ["PO first per owner instruction; CPI has not been run for this family."],
+  "notes": [
+    "PO first per owner instruction; CPI has not been run for this family."
+  ],
   "runs": [
+    {
+      "mapping": "stat-index-suppress",
+      "input": "index-004.xml",
+      "case": "fn/index/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "contradicted",
+      "summary": "index numbers SUPPRESS too and replaces it with a numeric value: V 1,2,3 | 1,2 | none.",
+      "po75Result": "po75/index-004-stat-index-suppress.xml",
+      "po75Evidence": "po75/index-004-stat-index-suppress-check.txt",
+      "po75Queue": "po75/index-004-stat-index-suppress-queue.txt"
+    },
+    {
+      "mapping": "stat-index-default",
+      "input": "index-003.xml",
+      "case": "fn/index/003",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Default Initial Value 1, Increment 1, reset with each new context; V values 1, 2 | none | 1.",
+      "po75Result": "po75/index-003-stat-index-default.xml",
+      "po75Evidence": "po75/index-003-stat-index-default-check.txt"
+    },
     {
       "mapping": "stat-sum-suppress",
       "input": "sum-003.xml",
@@ -82,6 +109,39 @@
       "summary": "count excludes SUPPRESS and produces 2, 0, 0 across the three contexts, including zero for an empty context.",
       "po75Result": "po75/count-003-stat-count-suppress.xml",
       "po75Evidence": "po75/count-003-stat-count-suppress-check.txt"
+    },
+    {
+      "mapping": "stat-counter-two-fields",
+      "input": "counter-001.xml",
+      "case": "fn/counter/001",
+      "po75": "NOT_RUN",
+      "po75Reason": "Native PO counter has no input connector; the requested incoming wire cannot be drawn. Reuses recorded native editor inspection from obs-shared-box.",
+      "cpi": "NOT_RUN",
+      "reading": "n/a",
+      "summary": "Exact requested graph is not drawable; no substitute simulation or runtime conclusion.",
+      "po75Evidence": "po75/counter-not-run.txt"
+    },
+    {
+      "mapping": "stat-counter",
+      "input": "counter-002.xml",
+      "case": "fn/counter/002",
+      "po75": "NOT_RUN",
+      "po75Reason": "Native PO counter has no input connector; the requested incoming wire cannot be drawn. Reuses recorded native editor inspection from obs-shared-box.",
+      "cpi": "NOT_RUN",
+      "reading": "n/a",
+      "summary": "Exact requested graph is not drawable; no substitute simulation or runtime conclusion.",
+      "po75Evidence": "po75/counter-not-run.txt"
+    },
+    {
+      "mapping": "stat-counter-suppress",
+      "input": "counter-003.xml",
+      "case": "fn/counter/003",
+      "po75": "NOT_RUN",
+      "po75Reason": "Native PO counter has no input connector; the requested incoming wire cannot be drawn. Reuses recorded native editor inspection from obs-shared-box.",
+      "cpi": "NOT_RUN",
+      "reading": "n/a",
+      "summary": "Exact requested graph is not drawable; no substitute simulation or runtime conclusion.",
+      "po75Evidence": "po75/counter-not-run.txt"
     }
   ]
 }
