@@ -181,6 +181,18 @@
       "summary": "2026-11-12T20:25:08.777+01:00; nonzero milliseconds. Log start 20:25:09 has no timezone or milliseconds; exact start equality not established.",
       "po75Result": "po75/currentDate-002-current-date-time.xml",
       "po75Evidence": "po75/currentDate-002-current-date-time-check.txt"
+    },
+    {
+      "mapping": "current-date-item",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/003",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "reading": "confirmed",
+      "summary": "Three Item elements each contain V=20261112, including the empty middle Order; yyyyMMdd generator with Order -> Item.",
+      "po75Result": "po75/currentDate-003-current-date-item.xml",
+      "po75Evidence": "po75/currentDate-003-current-date-item-check.txt"
     }
   ]
 }
