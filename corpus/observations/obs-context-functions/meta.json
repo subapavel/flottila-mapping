@@ -663,6 +663,66 @@
       "summary": "PO Out without All for empty Orders. Same checked mapping as case 004.",
       "po75Result": "po75/splitByValue-005-spec2-split-by-value-each.xml",
       "po75Evidence": "po75/splitByValue-005-spec2-split-by-value-each-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "f3.xml",
+      "case": "fn/splitByValue/006",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All a,a. Equal initial values stay together before first empty value. Check passed.",
+      "po75Result": "po75/splitByValue-006-spec2-split-by-value-change.xml",
+      "po75Evidence": "po75/splitByValue-006-spec2-split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-007.xml",
+      "case": "fn/splitByValue/007",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO one All a for one input value. Same checked mapping as case 006.",
+      "po75Result": "po75/splitByValue-007-spec2-split-by-value-change.xml",
+      "po75Evidence": "po75/splitByValue-007-spec2-split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-008.xml",
+      "case": "fn/splitByValue/008",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO All a,a,a across two Orders after removeContexts. Same checked mapping as case 006.",
+      "po75Result": "po75/splitByValue-008-spec2-split-by-value-change.xml",
+      "po75Evidence": "po75/splitByValue-008-spec2-split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-009.xml",
+      "case": "fn/splitByValue/009",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO two empty All for two initial empty values before a. Same checked mapping as case 006.",
+      "po75Result": "po75/splitByValue-009-spec2-split-by-value-change.xml",
+      "po75Evidence": "po75/splitByValue-009-spec2-split-by-value-change-check.txt"
+    },
+    {
+      "mapping": "spec2-split-by-value-change",
+      "input": "splitByValue-010.xml",
+      "case": "fn/splitByValue/010",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "PO one All a for a,A. Value Change distinguishes letter case. Same checked mapping as case 006.",
+      "po75Result": "po75/splitByValue-010-spec2-split-by-value-change.xml",
+      "po75Evidence": "po75/splitByValue-010-spec2-split-by-value-change-check.txt"
     }
   ]
 }
