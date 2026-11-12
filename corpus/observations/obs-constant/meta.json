@@ -235,6 +235,28 @@
       "reading": "contradicted",
       "cpiEvidence": "cpi/copyValue-002-copy-value-default-check.txt",
       "cpiOutput": "cpi/copyValue-002-copy-value-default.xml"
+    },
+    {
+      "mapping": "copy-value-beyond",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/003",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value_beyond",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-003-copy-value-beyond-check.txt",
+      "cpiOutput": "cpi/copyValue-003-copy-value-beyond.xml"
+    },
+    {
+      "mapping": "copy-value-suppress",
+      "input": "copyValue-004.xml",
+      "case": "fn/copyValue/004",
+      "cpi": "observed-output-queue-and-parameter-pending",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value_suppress",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-004-copy-value-suppress-check.txt",
+      "cpiOutput": "cpi/copyValue-004-copy-value-suppress.xml"
     }
   ]
 }
