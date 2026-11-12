@@ -127,6 +127,19 @@
       "summary": "Pattern #,##0.00, decimal separator dot. All values: 1,234,567.89; -1,234.50; 1,000.00; 0.00.",
       "po75Result": "po75/formatNum-008-fmt-008.xml",
       "po75Evidence": "po75/formatNum-008-fmt-008-check.txt"
+    },
+    {
+      "mapping": "fmt-009",
+      "input": "formatNum-009.xml",
+      "case": "fn/formatNum/009",
+      "po75": "observed",
+      "date": "2026-11-12",
+      "cpi": "NOT_RUN",
+      "cpiReason": "API preparation exists; simulation pending",
+      "reading": "confirmed",
+      "summary": "Pattern #,##,##0, decimal separator dot. All values: 1,234,567; 12. Grouping by three digits observed.",
+      "po75Result": "po75/formatNum-009-fmt-009.xml",
+      "po75Evidence": "po75/formatNum-009-fmt-009-check.txt"
     }
   ]
 }
