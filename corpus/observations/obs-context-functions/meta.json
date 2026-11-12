@@ -795,6 +795,18 @@
       "summary": "PO All a,b after flattening; four empty values dropped. Same checked mapping as case 015.",
       "po75Result": "po75/splitByValue-016-spec2-split-by-value-empty-flat.xml",
       "po75Evidence": "po75/splitByValue-016-spec2-split-by-value-empty-flat-check.txt"
+    },
+    {
+      "mapping": "spec2-suppress-split-each-collapse",
+      "input": "splitByValue-019.xml",
+      "case": "fn/splitByValue/019",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "PO two empty All, not five. Queue shows collapseContexts preserving three SUPPRESS tokens from singleton contexts. Check passed.",
+      "po75Result": "po75/splitByValue-019-spec2-suppress-split-each-collapse.xml",
+      "po75Evidence": "po75/splitByValue-019-spec2-suppress-split-each-collapse-check.txt"
     }
   ]
 }
