@@ -208,6 +208,16 @@
       "artifact": "api_boolean_and",
       "reading": "contradicted",
       "cpiEvidence": "cpi/and-001-boolean-and-error.txt"
+    },
+    {
+      "mapping": "boolean-or",
+      "input": "or-001.xml",
+      "case": "fn/or/001",
+      "cpi": "error-observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_or",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/or-001-boolean-or-error.txt"
     }
   ]
 }
