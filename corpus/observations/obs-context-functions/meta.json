@@ -807,6 +807,18 @@
       "summary": "PO two empty All, not five. Queue shows collapseContexts preserving three SUPPRESS tokens from singleton contexts. Check passed.",
       "po75Result": "po75/splitByValue-019-spec2-suppress-split-each-collapse.xml",
       "po75Evidence": "po75/splitByValue-019-spec2-suppress-split-each-collapse-check.txt"
+    },
+    {
+      "mapping": "spec2-suppress-split-change-collapse",
+      "input": "splitByValue-020.xml",
+      "case": "fn/splitByValue/020",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "PO two empty All, not three. Queue shows three groups collapsed to empty,SUPPRESS,empty. Check passed.",
+      "po75Result": "po75/splitByValue-020-spec2-suppress-split-change-collapse.xml",
+      "po75Evidence": "po75/splitByValue-020-spec2-suppress-split-change-collapse-check.txt"
     }
   ]
 }
