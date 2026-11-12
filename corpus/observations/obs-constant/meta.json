@@ -12,6 +12,18 @@
   "notes": ["PO first per owner instruction; CPI has not been run for this family."],
   "runs": [
     {
+      "mapping": "constant-concat",
+      "input": "constant-001.xml",
+      "case": "fn/constant/004",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "confirmed",
+      "summary": "Both concat argument orders repeat the constant for each Sku value and preserve the empty middle context. Literal F1 and F2 display queues recorded.",
+      "po75Result": "po75/constant-004-constant-concat.xml",
+      "po75Evidence": "po75/constant-004-constant-concat-check.txt"
+    },
+    {
       "mapping": "constant-item",
       "input": "constant-001.xml",
       "case": "fn/constant/003",
