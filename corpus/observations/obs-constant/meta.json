@@ -301,6 +301,27 @@
       "reading": "confirmed",
       "cpiEvidence": "cpi/constant-006-constant-count-check.txt",
       "cpiOutput": "cpi/constant-006-constant-count.xml"
+    },
+    {
+      "mapping": "constant-gen-numbering",
+      "input": "constant-007.xml",
+      "case": "fn/constant/007",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_constant_gen_numbering",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-007-constant-gen-numbering-check.txt",
+      "cpiOutput": "cpi/constant-007-constant-gen-numbering.xml"
+    },
+    {
+      "mapping": "constant-empty",
+      "input": "constant-001.xml",
+      "case": "fn/constant/008",
+      "cpi": "ENVIRONMENT_BLOCKED",
+      "date": "2026-11-12",
+      "artifact": "api_constant_empty",
+      "reading": "pending",
+      "cpiEvidence": "cpi/constant-008-constant-empty-blocked-2026-11-12.txt"
     }
   ]
 }
