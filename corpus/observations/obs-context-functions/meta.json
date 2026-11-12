@@ -627,6 +627,18 @@
       "summary": "PO All a,c,b,d,x with float number / descending. Equal numeric keys 10 and 10.0 keep value order a,c; non-numeric values preserved. Check passed.",
       "po75Result": "po75/sortByKey-003-spec2-sort-by-key-numeric-descending.xml",
       "po75Evidence": "po75/sortByKey-003-spec2-sort-by-key-numeric-descending-check.txt"
+    },
+    {
+      "mapping": "spec2-suppress-sort-by-key",
+      "input": "sortByKey-006.xml",
+      "case": "fn/sortByKey/006",
+      "po75": "observed",
+      "cpi": "NOT_RUN",
+      "cpiReason": "PO first per owner instruction",
+      "reading": "contradicted",
+      "summary": "PO All s1,s3,s2,s4: SUPPRESS keys sort after empty keys, ties stable. Literal sortByKey queue confirms the result; Check passed.",
+      "po75Result": "po75/sortByKey-006-spec2-suppress-sort-by-key.xml",
+      "po75Evidence": "po75/sortByKey-006-spec2-suppress-sort-by-key-check.txt"
     }
   ]
 }
