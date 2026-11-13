@@ -2,7 +2,7 @@
   "average": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -50,7 +50,7 @@
   "index": {
     "executionKind": "queue",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -83,7 +83,7 @@
   "sum": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
