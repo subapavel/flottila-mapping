@@ -1,0 +1,7 @@
+CPI partial observation 2026-11-13: fn/dateTrans/004
+Artifact: api_date_trans_004
+Input: original dateTrans-004.xml uploaded through simulator.
+Visible graph verified: Sku context /Orders -> dateTrans -> /Out/All.
+Simulation completed. All values: 2026-11-04 08:00 +0000; 2026-11-04 10:00 +0000; 2025-12-31 23:30 +0000. Downloaded XML preserved unchanged.
+Requested +01:00 environment precondition is not met: observed output offset is +0000. This is evidence for the current environment only, not completion of the requested +01:00 variant. No environment settings changed.
+Live format dialog and exact JVM zone ID not independently verified. Status: partial current-environment output; requested timezone condition and parameter verification remain unmet.

@@ -227,6 +227,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/dateTrans-002-date-trans-002-check.txt",
       "cpiOutput": "cpi/dateTrans-002-date-trans-002.xml"
+    },
+    {
+      "mapping": "date-trans-003",
+      "input": "dateTrans-003.xml",
+      "case": "fn/dateTrans/003",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_date_trans_003",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/dateTrans-003-date-trans-003-check.txt",
+      "cpiOutput": "cpi/dateTrans-003-date-trans-003.xml"
+    },
+    {
+      "mapping": "date-trans-004",
+      "input": "dateTrans-004.xml",
+      "case": "fn/dateTrans/004",
+      "cpi": "partial-environment-timezone",
+      "date": "2026-11-13",
+      "artifact": "api_date_trans_004",
+      "reading": "current-environment-output-confirmed-requested-zone-unmet",
+      "cpiEvidence": "cpi/dateTrans-004-date-trans-004-check.txt",
+      "cpiOutput": "cpi/dateTrans-004-date-trans-004.xml"
     }
   ]
 }
