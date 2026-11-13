@@ -372,6 +372,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/formatNum-013-fmt-013-check.txt",
       "cpiOutput": "cpi/formatNum-013-fmt-013.xml"
+    },
+    {
+      "mapping": "fmt-014",
+      "input": "formatNum-014.xml",
+      "case": "fn/formatNum/014",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_fmt_014",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/formatNum-014-fmt-014-check.txt",
+      "cpiOutput": "cpi/formatNum-014-fmt-014.xml"
+    },
+    {
+      "mapping": "fmt-015",
+      "input": "formatNum-015.xml",
+      "case": "fn/formatNum/015",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_fmt_015",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/formatNum-015-fmt-015-check.txt",
+      "cpiOutput": "cpi/formatNum-015-fmt-015.xml"
     }
   ]
 }
