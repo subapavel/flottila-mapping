@@ -64,36 +64,32 @@ public final class ContextFunctions {
   }
 
   /**
-   * {@code exists}: per context of {@code queue}, one context holding {@code true} if the context
-   * holds a value and {@code false} if it holds none (#2 §4, one value per context assumed, #2
-   * §7.7). SUPPRESS is no value, so a context of SUPPRESS only gives {@code false}, as {@link
-   * #mapWithDefault} takes it for empty (assumed, #57); {@code ""} is a value. A queue with no
-   * context at all gives none.
+   * {@code exists}: per context of {@code queue}, one context holding {@code true} for each of its
+   * slots, SUPPRESS and {@code ""} included, or {@code false} once if it is empty (observed on PO
+   * 7.50 and CPI, F-48: fn/exists/003, 004). A queue with no context at all gives none.
    *
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock exists(QueueBlock queue) {
-    String[] values = new String[queue.contexts()];
-    int[] starts = new int[values.length + 1];
-    for (int c = 0; c < values.length; c++) {
-      // one check per context: holdsValue reads its slots, bounded by their count
+    // a context keeps its slot count or gets one slot, so the result has at most one slot more per
+    // context
+    String[] values = new String[queue.slots() + queue.contexts()];
+    int[] starts = new int[queue.contexts() + 1];
+    int slots = 0;
+    for (int c = 0; c < queue.contexts(); c++) {
+      // one check per context: its slots are filled in one call, without a loop of this class
       Interrupts.check("exists");
-      values[c] = String.valueOf(holdsValue(queue, c));
-      starts[c + 1] = c + 1;
-    }
-    return QueueBlock.ofSlots(values, starts);
-  }
-
-  /**
-   * Whether the context at index {@code context} of {@code queue} holds a slot that is no SUPPRESS.
-   */
-  private static boolean holdsValue(QueueBlock queue, int context) {
-    for (int i = queue.start(context); i < queue.end(context); i++) {
-      if (!queue.suppressed(i)) {
-        return true;
+      starts[c] = slots;
+      int size = queue.end(c) - queue.start(c);
+      if (size == 0) {
+        values[slots++] = "false";
+      } else {
+        Arrays.fill(values, slots, slots + size, "true");
+        slots += size;
       }
     }
-    return false;
+    starts[queue.contexts()] = slots;
+    return QueueBlock.ofSlots(Arrays.copyOf(values, slots), starts);
   }
 
   /**
@@ -124,11 +120,12 @@ public final class ContextFunctions {
   }
 
   /**
-   * {@code mapWithDefault(queue, defaultValue)}: every context of {@code queue} that holds no value
-   * replaced by one context holding {@code defaultValue}, every other context kept with its slots,
-   * SUPPRESS included (#2 §4). A context of SUPPRESS only holds no value, so it is replaced too (an
-   * assumed reading, #2 §7.6, obs ctx-2); {@code ""} is a value. A queue with no context at all
-   * gives none, so only a context that is there is filled. It copies references only (ADR-0004).
+   * {@code mapWithDefault(queue, defaultValue)}: every empty context of {@code queue} replaced by
+   * one context holding {@code defaultValue}, every other context kept with its slots (#2 §4). A
+   * context of SUPPRESS only is not empty, so it is kept (observed on PO 7.50 and CPI, F-48:
+   * fn/mapWithDefault/002, obs-context-functions ctx-2); {@code ""} is a value. A queue with no
+   * context at all gives none, so only a context that is there is filled. It copies references only
+   * (ADR-0004).
    *
    * @throws CancellationException when the thread is interrupted
    */
@@ -141,7 +138,7 @@ public final class ContextFunctions {
       // one check per context: its slots are read below, bounded by their count
       Interrupts.check("mapWithDefault");
       starts[c] = slots;
-      if (holdsValue(queue, c)) {
+      if (queue.end(c) > queue.start(c)) {
         for (int i = queue.start(c); i < queue.end(c); i++) {
           values[slots++] = queue.value(i);
         }
@@ -402,29 +399,44 @@ public final class ContextFunctions {
   }
 
   /**
-   * {@code useOneAsMany(value, occurrences, contexts)}: the value at slot index k of {@code value}
+   * {@code useOneAsMany(value, occurrences, contexts)}: the one value of context k of {@code value}
    * once per slot of context k of {@code occurrences}, in order, split at the context starts of
-   * {@code contexts}, which it shares (#2 §4). It copies references only (ADR-0004). The contexts
-   * of {@code value} play no part: its values meet the contexts of {@code occurrences} in order. A
-   * SUPPRESS value is repeated as SUPPRESS, a SUPPRESS slot of {@code occurrences} is an occurrence
-   * like any other, and the slots of {@code contexts} give only their boundaries (assumed readings
-   * since #51).
+   * {@code contexts}, which it shares (#2 §4). It copies references only (ADR-0004). A SUPPRESS
+   * value is repeated as SUPPRESS and a SUPPRESS slot of {@code occurrences} is an occurrence like
+   * any other (observed on PO 7.50 and CPI, F-48: the probes of obs-useoneasmany); the slots of
+   * {@code contexts} give only their boundaries (assumed since #51).
    *
-   * @throws QueueDataException unless {@code value} has one slot per context of {@code occurrences}
-   *     and {@code contexts} as many slots as {@code occurrences}: the assumed reading of the error
-   *     conditions (#2 §7.10)
+   * @throws QueueDataException unless {@code value} has as many contexts as {@code occurrences},
+   *     each holding one value, SUPPRESS included, and {@code contexts} as many slots as {@code
+   *     occurrences}, checked in this order (observed on PO 7.50 and CPI, F-48: fn/useOneAsMany/003
+   *     to 009)
    * @throws CancellationException when the thread is interrupted
    */
   public static QueueBlock useOneAsMany(
       QueueBlock value, QueueBlock occurrences, QueueBlock contexts) {
-    if (value.slots() != occurrences.contexts()) {
+    if (value.contexts() != occurrences.contexts()) {
       throw new QueueDataException(
-          "useOneAsMany needs one value of its first input per context of its second: the first"
-              + " has "
-              + value.slots()
-              + " values, the second "
-              + occurrences.contexts()
-              + " contexts");
+          "useOneAsMany needs as many contexts in its first input as in its second: the first has "
+              + value.contexts()
+              + " contexts, the second "
+              + occurrences.contexts());
+    }
+    // the slots of occurrences, counted across its contexts, are the slots of the result; a
+    // SUPPRESS value is a null, repeated as one
+    String[] repeated = new String[occurrences.slots()];
+    for (int k = 0; k < value.contexts(); k++) {
+      // one check per context: its slots are filled in one call, without a loop of this class
+      Interrupts.check("useOneAsMany");
+      int values = value.end(k) - value.start(k);
+      if (values != 1) {
+        throw new QueueDataException(
+            "useOneAsMany needs one value in each context of its first input: its context "
+                + (k + 1)
+                + " has "
+                + values
+                + " values");
+      }
+      Arrays.fill(repeated, occurrences.start(k), occurrences.end(k), value.value(value.start(k)));
     }
     if (contexts.slots() != occurrences.slots()) {
       throw new QueueDataException(
@@ -432,14 +444,6 @@ public final class ContextFunctions {
               + contexts.slots()
               + " slots, the second "
               + occurrences.slots());
-    }
-    // the slots of occurrences, counted across its contexts, are the slots of the result; a
-    // SUPPRESS value is a null, repeated as one
-    String[] repeated = new String[occurrences.slots()];
-    for (int k = 0; k < occurrences.contexts(); k++) {
-      // one check per context: its slots are filled in one call, without a loop of this class
-      Interrupts.check("useOneAsMany");
-      Arrays.fill(repeated, occurrences.start(k), occurrences.end(k), value.value(k));
     }
     return contexts.withValues(repeated);
   }

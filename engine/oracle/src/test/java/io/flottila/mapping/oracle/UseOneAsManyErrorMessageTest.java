@@ -19,10 +19,10 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * po:USEONEASMANY says which count failed (ADR-0025), on both back ends and in the same words: the
- * corpus's three useOneAsMany error cases, each its counts from its note, after the box its
- * expected-error.json names, U1 (ADR-0026, F-19). The QName is the differential oracle's; this
- * class is no corpus or differential class, so the ratchet does not read its tests as case ids
- * (scripts/ratchet.java).
+ * corpus's six useOneAsMany error cases, each its counts from its note, after the box its
+ * expected-error.json names, U1 (ADR-0026, F-19); the conditions are PO 7.50's and CPI's (F-48).
+ * The QName is the differential oracle's; this class is no corpus or differential class, so the
+ * ratchet does not read its tests as case ids (scripts/ratchet.java).
  */
 class UseOneAsManyErrorMessageTest {
 
@@ -36,8 +36,14 @@ class UseOneAsManyErrorMessageTest {
             + " input as in its second: the third has 2 slots, the second 3",
         "fn/useOneAsMany/007 | the function box U1: useOneAsMany needs as many slots in its third"
             + " input as in its second: the third has 3 slots, the second 2",
-        "fn/useOneAsMany/008 | the function box U1: useOneAsMany needs one value of its first input"
-            + " per context of its second: the first has 3 values, the second 4 contexts"
+        "fn/useOneAsMany/008 | the function box U1: useOneAsMany needs one value in each context of"
+            + " its first input: its context 3 has 0 values",
+        "fn/useOneAsMany/003 | the function box U1: useOneAsMany needs as many contexts in its first"
+            + " input as in its second: the first has 1 contexts, the second 2",
+        "fn/useOneAsMany/005 | the function box U1: useOneAsMany needs as many contexts in its first"
+            + " input as in its second: the first has 1 contexts, the second 2",
+        "fn/useOneAsMany/009 | the function box U1: useOneAsMany needs as many contexts in its first"
+            + " input as in its second: the first has 1 contexts, the second 2"
       })
   void bothBackEndsSayWhichCountFailed(String id, String message) throws Exception {
     CorpusCase c = CaseFiles.read(CaseFiles.cases(), CaseFiles.cases().resolve(id));
