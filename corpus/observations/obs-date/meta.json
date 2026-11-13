@@ -293,6 +293,28 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/dateBefore-001-date-before-check.txt",
       "cpiOutput": "cpi/dateBefore-001-date-before.xml"
+    },
+    {
+      "mapping": "date-after",
+      "input": "dateAfter-001.xml",
+      "case": "fn/dateAfter/001",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_date_after_001",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/dateAfter-001-date-after-check.txt",
+      "cpiOutput": "cpi/dateAfter-001-date-after.xml"
+    },
+    {
+      "mapping": "compare-dates-001",
+      "input": "compareDates-001.xml",
+      "case": "fn/compareDates/001",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_compare_dates_001",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/compareDates-001-compare-dates-001-check.txt",
+      "cpiOutput": "cpi/compareDates-001-compare-dates-001.xml"
     }
   ]
 }

@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/dateAfter/001
+Artifact: api_date_after_001
+Input: original dateAfter-001.xml uploaded through simulator.
+Visible graph: Sku and Qty context /Orders -> dateAfter -> /Out/All.
+VERIFIED_PASS: simulation completed; All values false, false, true. Original downloaded XML preserved.
+Live format parameters not independently inspected; parameter verification pending. No environment settings changed.

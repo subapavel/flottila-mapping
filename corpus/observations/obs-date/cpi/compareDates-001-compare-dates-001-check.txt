@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/compareDates/001
+Artifact: api_compare_dates_001
+Input: original compareDates-001.xml uploaded through simulator.
+Visible graph: Sku and Qty context /Orders -> compareDates -> /Out/All.
+VERIFIED_PASS: simulation completed; All values -1, 0, 1. Original downloaded XML preserved.
+Live format parameters not independently inspected; parameter verification pending. No environment settings changed.
