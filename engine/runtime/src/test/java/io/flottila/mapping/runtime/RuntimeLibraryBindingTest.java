@@ -151,12 +151,12 @@ class RuntimeLibraryBindingTest {
     return new SourceQueue(names, depth, new AuthoringId(box));
   }
 
-  /** Two Ids in the root's context, and Name in Item's: x1, x2 | y. */
+  /** Two Ids in the root's context, Code in Item's: A | B, and Name in Item's: x1, x2 | y. */
   private static final String ITEMS =
       "<s:Order xmlns:s=\""
           + NS
-          + "\"><Id>A</Id><Id>B</Id><Item><Name>x1</Name><Name>x2</Name></Item>"
-          + "<Item><Name>y</Name></Item></s:Order>";
+          + "\"><Id>A</Id><Id>B</Id><Item><Code>A</Code><Name>x1</Name><Name>x2</Name></Item>"
+          + "<Item><Code>B</Code><Name>y</Name></Item></s:Order>";
 
   /** The output of {@link #notes} over {@code queue} for the input {@link #ITEMS}. */
   private static String runOverItems(FunCall queue) throws Exception {
@@ -210,14 +210,17 @@ class RuntimeLibraryBindingTest {
     assertThat(runOverItems(formatByExample)).isEqualTo(notesOf("x1", "x2"));
   }
 
-  /** The args bind in catalogue order: value, occurrences, contexts. */
+  /**
+   * The args bind in catalogue order: value, occurrences, contexts. Code in Item's context has one
+   * value per context of Name in Item's, as useOneAsMany needs (F-48).
+   */
   @Test
   void useOneAsManyIsBoundByNameWithItsArgsInOrder() throws Exception {
     FunCall useOneAsMany =
         new FunCall(
             new FunctionRef("useOneAsMany", List.of(QUEUE, QUEUE, QUEUE), QUEUE),
             List.of(
-                source(1, "a1", "Id"),
+                source(2, "a1", "Item", "Code"),
                 source(2, "a2", "Item", "Name"),
                 source(1, "a3", "Item", "Name")),
             new AuthoringId("f1"));
@@ -228,8 +231,8 @@ class RuntimeLibraryBindingTest {
 
   /**
    * ADR-0026 (F-19): a data error names the box that raised it, its message starting with {@code
-   * the function box <id>: }, as the export's does. Name in the root's context, x1, x2, y, is three
-   * values for the two contexts of Name in Item's: po:USEONEASMANY at u7. Inside removeContexts at
+   * the function box <id>: }, as the export's does. Name in the root's context, x1, x2, y, is one
+   * context for the two of Name in Item's: po:USEONEASMANY at u7 (F-48). Inside removeContexts at
    * r1 the error is still u7's, and named once.
    */
   @Test
@@ -248,8 +251,8 @@ class RuntimeLibraryBindingTest {
             List.of(useOneAsMany),
             new AuthoringId("r1"));
     String message =
-        "the function box u7: useOneAsMany needs one value of its first input per context of its"
-            + " second: the first has 3 values, the second 2 contexts";
+        "the function box u7: useOneAsMany needs as many contexts in its first input as in its"
+            + " second: the first has 1 contexts, the second 2";
 
     for (FunCall call : List.of(useOneAsMany, around)) {
       assertThatThrownBy(() -> runOverItems(call))
@@ -418,6 +421,7 @@ class RuntimeLibraryBindingTest {
         new AuthoringId("r1"));
   }
 
+  /** One true per Name and one false for the empty Item's context (F-48). */
   @Test
   void existsIsBoundByName() throws Exception {
     FunCall exists =
@@ -426,7 +430,8 @@ class RuntimeLibraryBindingTest {
             List.of(source(2, "a1", "Item", "Name")),
             new AuthoringId("f1"));
 
-    assertThat(run(removeContexts(exists), NAMES)).isEqualTo(notesOf("true", "false", "true"));
+    assertThat(run(removeContexts(exists), NAMES))
+        .isEqualTo(notesOf("true", "true", "false", "true"));
   }
 
   /** The param binds as the default: the empty Item's context gets it. */
@@ -441,5 +446,21 @@ class RuntimeLibraryBindingTest {
 
     assertThat(run(removeContexts(mapWithDefault), NAMES))
         .isEqualTo(notesOf("x1", "x2", "none", "y"));
+  }
+
+  /**
+   * replaceValue is a queue function since #216 (F-45): its param binds as the replacement at every
+   * slot, and the empty Item's context stays empty, so it adds no Note.
+   */
+  @Test
+  void replaceValueIsBoundByNameWithItsReplacement() throws Exception {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall replaceValue =
+        new FunCall(
+            new FunctionRef("replaceValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(source(2, "a1", "Item", "Name"), new Literal("r", box)),
+            box);
+
+    assertThat(run(removeContexts(replaceValue), NAMES)).isEqualTo(notesOf("r", "r", "r"));
   }
 }

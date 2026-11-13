@@ -18,7 +18,7 @@
   "concat": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -33,7 +33,7 @@
   "endsWith": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -48,7 +48,7 @@
   "equalsS": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -108,7 +108,7 @@
   "replaceString": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -132,7 +132,7 @@
   "startsWith": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -172,7 +172,7 @@
   "toLowerCase": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -184,7 +184,7 @@
   "toUpperCase": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -196,7 +196,7 @@
   "trim": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {

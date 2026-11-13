@@ -294,13 +294,15 @@ _Avoid_: sandbox, security manager
 
 **Execution kind**:
 What one call of a standard function or UDF sees: _single value_ (one value at a time),
-_context_ (all values of one context) or _queue_ (all values of the queue).
+_context_ (all values of one context) or _queue_ (all values of the queue). A single-value
+function never sees SUPPRESS: its `Lift` passes a SUPPRESS slot on without a call (F-45).
 _Avoid_: function type, UDF type, cache (SAP PO's UI word)
 
 **Context function**:
-A standard function of execution kind _context_ or _queue_: it sees whole contexts and may change
-their boundaries or the number of values (removeContexts, splitByValue, sort, sum …). SAP PO
-files most of them under "Node functions".
+A standard function of execution kind _context_ or _queue_: one that sees whole contexts and may
+change their boundaries or the number of values (removeContexts, splitByValue, sort, sum …), or
+one that reads or produces SUPPRESS (createIf, replaceValue, F-45). SAP PO files most of them
+under "Node functions".
 _Avoid_: node function
 
 **Function catalogue**:
@@ -396,11 +398,21 @@ block; tickets, tests and diagnostics use the slot number.
 _Avoid_: index alone
 
 **Generating function**:
-A function graph with no source field whose result is a single value, such as a constant or
-`concat` of two constants (one that yields a queue, such as `count` of a constant, is a queue, F-21). On a
-target field it gives `max(1, minOccurs)` occurrences per parent occurrence and computes its value
-once per occurrence; on a structure field that value is traced, never written.
+A function graph whose result is one value for every occurrence of its target field: a graph with
+no source field whose result is a single value, such as a constant or `concat` of two constants
+(one that yields a queue, such as `count` of a constant, is a queue, F-21), or a graph whose result
+is a generating block (F-46). On a target field it gives `max(1, minOccurs)` occurrences per parent
+occurrence. A single value is computed once per occurrence; on a structure field it is traced,
+never written. A generating block is read once per run, and when its value is SUPPRESS or missing
+no occurrence is written.
 _Avoid_: constant (for the general case)
+
+**Generating block**:
+The result of a queue function the function catalogue marks `generating`, today `copyValue`: a
+queue of one context whose first slot is the value every occurrence of the target field takes,
+under every parent occurrence, as a constant's value. At a context or queue function's input it is
+that queue; a single-value function's input cannot take it (F-46, ADR-0006).
+_Avoid_: generating value, constant queue
 
 **Test run**:
 Running a mapping's working copy on one input message in the editor. It returns the target

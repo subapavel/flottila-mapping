@@ -259,7 +259,14 @@ class FunctionCatalogueTest {
   /**
    * The packed catalogue of main at 9c6fd1a, before the split, re-pinned once by #71 (ADR-0026
    * Consequences): each of the eleven entries gains {@code fidelity: {level: assumed}}, every other
-   * byte is main's. The assertions below are #69's, unchanged.
+   * byte is main's. #218 re-pins the fidelity of collapseContexts and splitByValue, to {@code
+   * exact}, and of sort and sortByKey, to the deviation of F-43 as F-47 corrects its text, alone:
+   * their last assumed cases are observed (F-47), and ADR-0026 sets the level of such a function.
+   * The replaceValue entry is re-pinned by #216 (F-45): an observed rule changes replaceValue's
+   * execution kind, to {@code context}, and its fidelity follows its cases, now {@code exact}. #219
+   * re-pins the fidelity of exists, mapWithDefault and useOneAsMany, to {@code exact}, alone: their
+   * last assumed cases are observed (F-48). #214 re-pins formatByExample and removeContexts, and
+   * #221 re-pins createIf, to {@code exact}, alone each. The assertions below are #69's, unchanged.
    */
   static final String MAIN_CATALOGUE =
       "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";
@@ -381,5 +388,67 @@ class FunctionCatalogueTest {
 
     Fixtures.assertBytes(
         Fixtures.strictUtf8(main), Fixtures.utf8(stringify(new Obj(context), "") + "\n"));
+  }
+
+  // --- generating functions (#217, F-46): a queue function whose result is one value that goes
+  // into every parent occurrence, as a constant's does
+
+  /**
+   * What is wrong with each function's {@code generating}: anything but {@code true}, or {@code
+   * true} on a function whose execution kind is not {@code queue}.
+   */
+  static List<String> generatingProblems(JsonTree catalogue) {
+    List<String> problems = new ArrayList<>();
+    functions(catalogue, "the catalogue")
+        .forEach(
+            (name, entry) -> {
+              Map<String, JsonTree> members = members(entry, name);
+              JsonTree generating = members.get("generating");
+              if (generating == null) {
+                return;
+              }
+              if (!generating.equals(new Bool(true))) {
+                problems.add(name + ": generating is not true");
+              }
+              if (!new Str("queue").equals(members.get("executionKind"))) {
+                problems.add(name + ": generating, but no queue function");
+              }
+            });
+    return problems;
+  }
+
+  @Test
+  void onlyAQueueFunctionIsGenerating() throws Exception {
+    // witness: the check reports each defect in a catalogue that has them
+    JsonTree broken =
+        JsonTree.parse(
+            """
+            {"f": {"executionKind": "context", "generating": true},
+             "g": {"executionKind": "queue", "generating": false},
+             "h": {"executionKind": "queue", "generating": true},
+             "k": {"executionKind": "queue"}}
+            """);
+    assertThat(generatingProblems(broken))
+        .containsExactlyInAnyOrder(
+            "f: generating, but no queue function", "g: generating is not true");
+
+    Map<String, JsonTree> packed =
+        functions(JsonTree.parse(Fixtures.strictUtf8(catalogue())), "the packed catalogue");
+    assertThat(generatingProblems(new Obj(packed))).isEmpty();
+    // copyValue's result is generating (F-46)
+    assertThat(members(packed.get("copyValue"), "copyValue"))
+        .containsEntry("executionKind", new Str("queue"))
+        .containsEntry("generating", new Bool(true));
+
+    // lowering reads it as the catalogue holds it; constant's single value is no generating block
+    for (Map.Entry<String, JsonTree> function : packed.entrySet()) {
+      boolean generating =
+          new Bool(true).equals(members(function.getValue(), function.getKey()).get("generating"));
+      assertThat(FunctionCatalogue.entry(function.getKey()).orElseThrow().generating())
+          .as(function.getKey())
+          .isEqualTo(generating);
+    }
+    assertThat(FunctionCatalogue.entry("copyValue").orElseThrow().generating()).isTrue();
+    assertThat(FunctionCatalogue.entry("constant").orElseThrow().generating()).isFalse();
   }
 }

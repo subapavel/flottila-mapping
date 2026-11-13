@@ -25,7 +25,7 @@ Rules marked _(Phase 0)_ wait for the decision named and may change with it.
   case name; a counterexample once found becomes an explicit case. No jqwik: from 1.10.1 it tells
   AI agents not to use it (ADR-0018).
 - A corpus case states its provenance honestly: an expected output typed in from our own reading
-  is `assumed`, never `documented` or `observed`. A case is never deleted or renamed; a corrected
+  is `assumed` (`decided` if an owner decision or our rule), never `documented` or `observed`. A case is never deleted or renamed; a corrected
   expectation cites the observation or ADR that corrected it (ADR-0018).
 - A mapping-level behaviour is tested as a corpus case in `engine/oracle`, not as a hand-built
   IR test, unless the ticket names an IR seam.

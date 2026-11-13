@@ -175,7 +175,8 @@ class TargetRepeatInterpreterTest {
     assertThat(tracer.reports())
         .filteredOn(Tracer.Repeat.class::isInstance)
         .containsExactly(
-            new Tracer.Repeat(TWIN_ORIGIN, 1, 2), new Tracer.Repeat(TWIN_ORIGIN, 2, 2));
+            new Tracer.Repeat(TWIN_ORIGIN, 1, 2, false),
+            new Tracer.Repeat(TWIN_ORIGIN, 2, 2, false));
     assertThat(tracer.reports())
         .filteredOn(Tracer.FieldReport.class::isInstance)
         .map(Tracer.FieldReport.class::cast)

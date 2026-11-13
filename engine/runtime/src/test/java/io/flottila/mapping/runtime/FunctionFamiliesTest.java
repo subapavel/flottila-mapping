@@ -115,9 +115,12 @@ class FunctionFamiliesTest {
         frame -> {
           throw new AssertionError("binding runs nothing");
         };
-    // witness: a name of each merged map binds
+    // witness: a name of each merged map binds; replaceValue is a context function since #216,
+    // because it reads SUPPRESS (F-45), so replaceString is the single-value name
     assertThat(QueueLibrary.bind("removeContexts", box, List.of(queue), List.of())).isNotNull();
-    assertThat(SingleValueLibrary.bind("replaceValue", box, List.of(value, value))).isNotNull();
+    assertThat(QueueLibrary.bind("replaceValue", box, List.of(queue), List.of(""))).isNotNull();
+    assertThat(SingleValueLibrary.bind("replaceString", box, List.of(value, value, value)))
+        .isNotNull();
 
     assertThatThrownBy(() -> QueueLibrary.bind("noSuchFunction", box, List.of(queue), List.of()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -125,9 +128,13 @@ class FunctionFamiliesTest {
     assertThatThrownBy(() -> SingleValueLibrary.bind("noSuchFunction", box, List.of(value)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("noSuchFunction");
-    assertThatThrownBy(() -> QueueLibrary.bind("replaceValue", box, List.of(queue), List.of("")))
+    assertThatThrownBy(() -> SingleValueLibrary.bind("replaceValue", box, List.of(value, value)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("replaceValue");
+    assertThatThrownBy(
+            () -> QueueLibrary.bind("replaceString", box, List.of(queue), List.of("", "")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("replaceString");
     assertThatThrownBy(() -> SingleValueLibrary.bind("removeContexts", box, List.of(value)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("removeContexts");

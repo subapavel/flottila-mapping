@@ -1,6 +1,7 @@
 package io.flottila.mapping.runtime;
 
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.xdm.QueueBlock;
 import io.flottila.mapping.xdm.StatisticFunctions;
 import io.flottila.mapping.xdm.XsDecimal;
 import java.math.BigDecimal;
@@ -11,10 +12,12 @@ import java.util.Optional;
 /**
  * The function family {@code statistic} (ADR-0025 "Families", F-15), #75: each catalogue name to
  * its binder over the algebra in {@link StatisticFunctions}. A value or a numeric param that is no
- * {@code xs:decimal} stops the run with {@code err:FORG0001} at the function box (ADR-0025, F-19).
- * {@code counter} is {@code index} without a reset: it numbers the values of its whole queue, so a
- * counter of each target field mapping starts at its initial value (an assumed reading of #37). The
- * binders are methods, not lambdas of the maps, so that PIT mutates them.
+ * {@code xs:decimal} stops the run with {@code err:FORG0001} at the function box (ADR-0025, F-19),
+ * and {@code average} of a context without a value with {@code err:FOAR0001} (F-45). {@code
+ * counter} numbers the values of its whole queue, so a counter of each target field mapping starts
+ * at its initial value (an assumed reading of #37); unlike {@code index}, which numbers SUPPRESS
+ * too (F-45), it keeps SUPPRESS without a number (decided, F-43). The binders are methods, not
+ * lambdas of the maps, so that PIT mutates them.
  */
 final class StatisticFamily {
 
@@ -32,10 +35,24 @@ final class StatisticFamily {
 
   private StatisticFamily() {}
 
+  /**
+   * {@code average(values)}: a context without a value is ADR-0005's division error, {@code
+   * err:FOAR0001} at the box, as PO's "Division undefined" (F-45).
+   */
   static Node.OfQueue average(AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
     Node.OfQueue values = inputs.getFirst();
     return QueueLibrary.raising(
-        RuntimeErrors.FORG0001, box, frame -> StatisticFunctions.average(values.eval(frame)));
+        RuntimeErrors.FORG0001,
+        box,
+        frame -> {
+          QueueBlock block = values.eval(frame);
+          try {
+            return StatisticFunctions.average(block);
+          } catch (ArithmeticException undefined) {
+            throw MappingRunException.dataError(
+                RuntimeErrors.FOAR0001, box, undefined.getMessage(), undefined);
+          }
+        });
   }
 
   static Node.OfQueue count(AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
@@ -43,9 +60,18 @@ final class StatisticFamily {
     return frame -> StatisticFunctions.count(values.eval(frame));
   }
 
-  /** {@code counter(values; initial, increment)}: {@code index} across the whole queue. */
+  /**
+   * {@code counter(values; initial, increment)}: the values of the whole queue numbered, SUPPRESS
+   * kept.
+   */
   static Node.OfQueue counter(AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
-    return numbering("counter", box, inputs.getFirst(), params.get(0), params.get(1), false);
+    return numbering(
+        "counter",
+        box,
+        inputs.getFirst(),
+        params.get(0),
+        params.get(1),
+        StatisticFunctions::counter);
   }
 
   /** {@code index(values; initial, increment, reset)}, its reset parsed once. */
@@ -56,7 +82,19 @@ final class StatisticFamily {
           case "never" -> false;
           default -> throw new IllegalArgumentException("index has no reset " + params.get(2));
         };
-    return numbering("index", box, inputs.getFirst(), params.get(0), params.get(1), reset);
+    return numbering(
+        "index",
+        box,
+        inputs.getFirst(),
+        params.get(0),
+        params.get(1),
+        (values, start, by) -> StatisticFunctions.index(values, start, by, reset));
+  }
+
+  /** A numbering of a queue from an initial value by an increment, {@code index} or counter. */
+  @FunctionalInterface
+  private interface Numbering {
+    QueueBlock apply(QueueBlock values, BigDecimal initial, BigDecimal increment);
   }
 
   static Node.OfQueue sum(AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
@@ -76,7 +114,7 @@ final class StatisticFamily {
       Node.OfQueue values,
       String initial,
       String increment,
-      boolean reset) {
+      Numbering numbering) {
     Optional<BigDecimal> first = XsDecimal.parse(initial);
     Optional<BigDecimal> step = XsDecimal.parse(increment);
     if (first.isEmpty() || step.isEmpty()) {
@@ -93,6 +131,6 @@ final class StatisticFamily {
     }
     BigDecimal start = first.get();
     BigDecimal by = step.get();
-    return frame -> StatisticFunctions.index(values.eval(frame), start, by, reset);
+    return frame -> numbering.apply(values.eval(frame), start, by);
   }
 }

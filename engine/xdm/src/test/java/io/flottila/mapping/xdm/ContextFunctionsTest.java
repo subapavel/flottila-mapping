@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SplittableRandom;
 import java.util.concurrent.CancellationException;
@@ -20,7 +21,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * The context functions of the runtime library over queue blocks (ADR-0025, ADR-0004), at {@code
  * ContextFunctions}. Property tests (ADR-0018): each runs over hand-picked edge queues and over 200
  * seeded random queues, the seed in the case name, against a list-of-contexts reference written
- * here. No SUPPRESS yet (#51).
+ * here. No SUPPRESS yet (#51), except for {@code replaceValue} (#216, F-45), which reads SUPPRESS
+ * and so is a context function; its tests use the SUPPRESS queues of {@link SuppressQueues}.
  *
  * <p>{@code splitByValue} (#55, owner decision Q3 of #48) splits each context of its input on its
  * own and keeps the existing context boundaries; an empty context stays one empty context. Its
@@ -356,9 +358,15 @@ class ContextFunctionsTest {
 
   // --- collapseContexts (#56): the first value of each context, "" for an empty one
 
-  /** The reference: one context, holding each context's first value, or "" when it has none. */
+  /**
+   * The reference: one context, holding each context's first value, or "" when it has none; none at
+   * all when the queue holds no value and at most one context (F-47).
+   */
   private static List<String> firstOfEach(Queue queue) {
     List<String> firsts = new ArrayList<>();
+    if (queue.flat().isEmpty() && queue.contexts().size() <= 1) {
+      return firsts;
+    }
     for (List<String> context : queue.contexts()) {
       firsts.add(context.isEmpty() ? "" : context.getFirst());
     }
@@ -367,7 +375,9 @@ class ContextFunctionsTest {
 
   /**
    * One context with one slot per input context: its first value, and {@code ""} for an empty
-   * context. A queue with no context at all gives one empty context, as removeContexts does.
+   * context. A queue whose one context is empty, or that has no context at all, gives one empty
+   * context: PO holds such a queue as nothing, and its collapseContexts writes no value for it
+   * (fn/collapseContexts/003, observed, F-47).
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
@@ -396,16 +406,19 @@ class ContextFunctionsTest {
     }
   }
 
-  // --- useOneAsMany (#56): value k of the first queue, once per slot of context k of the second,
-  // in the contexts of the third
+  // --- useOneAsMany (#56): the one value of context k of the first queue, once per slot of context
+  // k of the second, in the contexts of the third (F-48)
 
   /**
-   * Three queues useOneAsMany pairs: {@code value}'s slots, as many as {@code occurrences} has
-   * contexts, and {@code contexts} with as many slots as {@code occurrences}.
+   * Three queues useOneAsMany pairs: {@code value} with as many contexts as {@code occurrences},
+   * one value in each, and {@code contexts} with as many slots as {@code occurrences}.
    */
   record Triple(String name, Queue value, Queue occurrences, Queue contexts) {
 
-    /** The reference: value k repeated once per slot of context k of occurrences, in order. */
+    /**
+     * The reference: the value of context k repeated once per slot of context k of occurrences, in
+     * order.
+     */
     List<String> repeated() {
       List<String> values = value.flat();
       List<String> all = new ArrayList<>();
@@ -462,18 +475,12 @@ class ContextFunctionsTest {
             queue("", List.of(List.of("a"), List.of("b"))),
             queue("", List.of(List.of(), List.of("x"))),
             queue("", List.of(List.of("y")))),
-        // fn/useOneAsMany/003: the first queue's values in one context meet the second's contexts
+        // obs-useoneasmany uoam-1 on u1.xml: A | B over s1, s2, s3 | s4 in t1, t2, t3 | t4
         new Triple(
-            "the values in one context",
-            queue("", List.of(List.of("A", "B"))),
+            "uoam-1 on u1",
+            queue("", List.of(List.of("A"), List.of("B"))),
             queue("", List.of(List.of("s1", "s2", "s3"), List.of("s4"))),
-            queue("", List.of(List.of("t"), List.of("t"), List.of("t"), List.of("t")))),
-        // empty contexts of the first queue hold no value, so they meet no context of the second
-        new Triple(
-            "empty contexts in the first",
-            queue("", List.of(List.of(), List.of("a"), List.of())),
-            queue("", List.of(List.of("x", "y"))),
-            queue("", List.of(List.of(), List.of("y", "y"), List.of()))));
+            queue("", List.of(List.of("t1", "t2", "t3"), List.of("t4")))));
   }
 
   /** A random partition of {@code values} into contexts, empty contexts included. */
@@ -494,19 +501,19 @@ class ContextFunctionsTest {
   }
 
   /**
-   * A seeded random triple: the second queue is a seeded queue, the first holds one random value
-   * per context of it in a random partition, and the third re-partitions its slots.
+   * A seeded random triple: the second queue is a seeded queue, the first holds one random value in
+   * a context of its own per context of it, and the third re-partitions its slots.
    */
   private static Triple seededTriple(long seed) {
     RandomGenerator random = new SplittableRandom(seed);
     Queue occurrences = seeded(seed);
-    List<String> values = new ArrayList<>();
+    List<List<String>> values = new ArrayList<>();
     for (int k = 0; k < occurrences.contexts().size(); k++) {
-      values.add(SAMPLE[random.nextInt(SAMPLE.length)]);
+      values.add(List.of(SAMPLE[random.nextInt(SAMPLE.length)]));
     }
     return new Triple(
         "seed " + seed,
-        queue("", partition(random, values)),
+        queue("", values),
         occurrences,
         queue("", partition(random, occurrences.flat())));
   }
@@ -554,37 +561,66 @@ class ContextFunctionsTest {
 
   static Stream<Arguments> mismatches() {
     List<List<String>> two = List.of(List.of("x"), List.of("y", "z"));
+    List<List<String>> fitted = List.of(List.of("a"), List.of("b"));
+    List<List<String>> three = List.of(List.of("1", "2", "3"));
     return Stream.of(
-        // the assumed reading of the error conditions (#2 §7.10, #34)
+        // the error conditions PO 7.50 and CPI share (F-48)
         Arguments.of(
-            "fewer values than contexts of the second",
-            queue("", List.of(List.of("a"))),
+            "fewer contexts in the first than in the second (fn/useOneAsMany/003)",
+            queue("", List.of(List.of("a", "b"))),
             queue("", two),
-            queue("", List.of(List.of("1", "2", "3"))),
-            "1 value"),
+            queue("", three),
+            "the first has 1 contexts, the second 2"),
         Arguments.of(
-            "more values than contexts of the second",
-            queue("", List.of(List.of("a", "b"), List.of("c"))),
+            "more contexts in the first than in the second",
+            queue("", List.of(List.of("a"), List.of("b"), List.of("c"))),
             queue("", two),
-            queue("", List.of(List.of("1", "2", "3"))),
-            "3 values"),
+            queue("", three),
+            "the first has 3 contexts, the second 2"),
+        Arguments.of(
+            "two values in a context of the first",
+            queue("", List.of(List.of("a"), List.of("b", "c"))),
+            queue("", two),
+            queue("", three),
+            "its context 2 has 2 values"),
+        Arguments.of(
+            "an empty context in the first (fn/useOneAsMany/008)",
+            queue("", List.of(List.of("a"), List.of())),
+            queue("", two),
+            queue("", three),
+            "its context 2 has 0 values"),
+        Arguments.of(
+            "an empty first context before a second of two values",
+            queue("", List.of(List.of(), List.of("b", "c"))),
+            queue("", two),
+            queue("", three),
+            "its context 1 has 0 values"),
         Arguments.of(
             "fewer slots in the third than in the second",
-            queue("", List.of(List.of("a", "b"))),
+            queue("", fitted),
             queue("", two),
             queue("", List.of(List.of("1", "2"))),
             "2 slots"),
         Arguments.of(
             "more slots in the third than in the second",
-            queue("", List.of(List.of("a", "b"))),
+            queue("", fitted),
             queue("", two),
             queue("", List.of(List.of("1", "2"), List.of("3", "4"))),
-            "4 slots"));
+            "4 slots"),
+        // the first input is checked before the third, as PO's message on the probe without
+        // u4.xml's Order A names the first queue while the third is off too
+        Arguments.of(
+            "an empty context in the first and fewer slots in the third",
+            queue("", List.of(List.of("a"), List.of())),
+            queue("", two),
+            queue("", List.of(List.of("1"))),
+            "its context 2 has 0 values"));
   }
 
   /**
-   * The assumed error conditions (#2 §7.10, #34): the first queue needs one value per context of
-   * the second, and the third as many slots as the second. The message names the count that is off.
+   * The error conditions PO 7.50 and CPI share (F-48): the first queue needs as many contexts as
+   * the second and one value in each, and the third as many slots as the second, checked in this
+   * order. The message names the count that is off.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("mismatches")
@@ -594,7 +630,7 @@ class ContextFunctionsTest {
     Triple fitted =
         new Triple(
             why,
-            queue("", List.of(List.of("a", "b"))),
+            queue("", List.of(List.of("a"), List.of("b"))),
             occurrences,
             queue("", List.of(occurrences.flat())));
     assertThat(
@@ -611,12 +647,76 @@ class ContextFunctionsTest {
         .hasMessageContaining(count);
   }
 
+  // --- replaceValue (#216, F-45): the replacement at every slot, SUPPRESS included
+
+  /**
+   * The observed example: the display queue of R1, replaceValue with 5 over createIf(Tag), in
+   * obs-statistic sum-003 (po75/sum-003-stat-sum-suppress-queue.txt, PO 7.50 and CPI agree) shows
+   * {@code ["", SUPPRESS, ""] [SUPPRESS] [] [""]} become {@code [5, 5, 5] [5] [] [5]}: each slot
+   * the replacement, a SUPPRESS slot without its bit, and the contexts as they were, the empty one
+   * empty. A queue with no context at all, {@code {0}}, stays one.
+   */
+  @Test
+  void replaceValueReplacesEverySlotSuppressIncluded() {
+    SuppressQueues.Queue observed =
+        SuppressQueues.queue(
+            "sum-003 R1",
+            SuppressQueues.context("", SuppressQueues.S, ""),
+            SuppressQueues.context(SuppressQueues.S),
+            SuppressQueues.context(),
+            SuppressQueues.context(""));
+    QueueBlock input = observed.block();
+
+    QueueBlock result = ContextFunctions.replaceValue(input, "5");
+
+    assertThat(SuppressQueues.read(result))
+        .containsExactly(List.of("5", "5", "5"), List.of("5"), List.of(), List.of("5"));
+    assertThat(SuppressQueues.suppressedSlots(result))
+        .containsExactly(false, false, false, false, false);
+    // a block is immutable: the call leaves its input as it was
+    assertThat(SuppressQueues.read(input)).isEqualTo(observed.contexts());
+
+    QueueBlock none =
+        ContextFunctions.replaceValue(SuppressQueues.queue("no context").block(), "5");
+
+    assertThat(none.contexts()).isZero();
+    assertThat(none.slots()).isZero();
+  }
+
+  static Stream<Arguments> suppressQueues() {
+    return SuppressQueues.queues().map(q -> Arguments.of(q.name(), q));
+  }
+
+  /**
+   * Over the SUPPRESS edges, SUPPRESS on both sides of a word of the bitset among them, and 200
+   * seeded queues: as many contexts as the input, each with as many slots, each slot the
+   * replacement and none SUPPRESS; the input reads as before.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("suppressQueues")
+  void replaceValueKeepsEveryContextAndReplacesEachOfItsSlots(
+      String name, SuppressQueues.Queue queue) {
+    String replacement = "O'Brien & <Co>";
+    QueueBlock input = queue.block();
+
+    QueueBlock result = ContextFunctions.replaceValue(input, replacement);
+
+    List<List<String>> replaced = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      replaced.add(Collections.nCopies(context.size(), replacement));
+    }
+    assertThat(SuppressQueues.read(result)).isEqualTo(replaced);
+    assertThat(SuppressQueues.suppressedSlots(result)).doesNotContain(true);
+    assertThat(SuppressQueues.read(input)).isEqualTo(queue.contexts());
+  }
+
   // --- interruption (ADR-0021): every loop over contexts or slots checks for it
 
   /**
-   * Calls whose own loop is the only one that runs: building a block from starts other than {@code
-   * {0}} loops over them and checks too, so useOneAsMany's third input has no context, and the
-   * second one empty context its loop crosses.
+   * Calls whose own loop checks first, so the exception names the function: building a block from
+   * starts other than {@code {0}} loops over them and checks too, so useOneAsMany's third input has
+   * no context, and the second one empty context its loop crosses; collapseContexts builds its
+   * result from its values, which checks too, after its own loop.
    */
   static Stream<Arguments> interruptible() {
     QueueBlock queue = new Queue("", List.of(List.of("a"), List.of())).block();
@@ -641,7 +741,9 @@ class ContextFunctionsTest {
 
     Thread.currentThread().interrupt();
     try {
-      assertThatThrownBy(call::get).isInstanceOf(CancellationException.class);
+      assertThatThrownBy(call::get)
+          .isInstanceOf(CancellationException.class)
+          .hasMessageContaining(function + " was running");
     } finally {
       Thread.interrupted();
     }

@@ -31,6 +31,10 @@ export interface CatalogueEntry {
   family: Id;
   executionKind: "single" | "context" | "queue";
   /**
+   * Present on a queue function whose result is a generating block, one value that every occurrence of the target field under every parent occurrence takes, as a constant's (ADR-0006, F-46); absent on every other function.
+   */
+  generating?: true;
+  /**
    * @minItems 1
    */
   inputs?: [CatalogueInput, ...CatalogueInput[]];

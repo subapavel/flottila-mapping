@@ -2,7 +2,7 @@
   "and": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -17,7 +17,7 @@
   "equals": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -32,7 +32,7 @@
   "if": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -50,7 +50,7 @@
   "ifWithoutElse": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -76,7 +76,8 @@
   "isNil": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Treats an empty element as nil. SAP PO treats only an element marked xsi:nil as nil."
     },
     "inputs": [
       {
@@ -88,7 +89,7 @@
   "not": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -100,7 +101,7 @@
   "notEquals": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -115,7 +116,7 @@
   "or": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {

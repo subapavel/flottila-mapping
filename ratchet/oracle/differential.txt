@@ -205,6 +205,7 @@ fn/sortByKey/004
 fn/sortByKey/006
 fn/sortByKey/007
 fn/sortByKey/008
+fn/sortByKey/009
 fn/splitByValue/001
 fn/splitByValue/002
 fn/splitByValue/003

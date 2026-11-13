@@ -47,9 +47,13 @@ class LiftLoweringTest {
   private static final String NOTE = ORDER + "/Note";
   private static final QueueType QUEUE = new QueueType();
   private static final FunctionRef CREATE_IF = new FunctionRef("createIf", List.of(QUEUE), QUEUE);
-  private static final FunctionRef REPLACE_VALUE =
+  // the sample single-value function with a param; replaceValue was it until #216 made it a
+  // context function (F-45)
+  private static final FunctionRef REPLACE_STRING =
       new FunctionRef(
-          "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);
+          "replaceString",
+          List.of(AtomicType.STRING, AtomicType.STRING, AtomicType.STRING),
+          AtomicType.STRING);
   private static final SourceQueue NOTES =
       new SourceQueue(List.of(new Name(SKELETON, "Order"), new Name("", "Note")), 1, id("a1"));
 
@@ -77,28 +81,42 @@ class LiftLoweringTest {
     return ((TargetSlots) lowered(result).content().getLast()).queue();
   }
 
-  /** The body lowering writes for replaceValue's box {@code box}: in1, then the param. */
-  private static FunCall replaceValueBody(String box, String replacement) {
+  /**
+   * The body lowering writes for replaceString's box {@code box}: in1, then the params in the
+   * catalogue's order, search and replacement.
+   */
+  private static FunCall replaceStringBody(String box, String search, String replacement) {
     return new FunCall(
-        REPLACE_VALUE,
-        List.of(new VarRef("in1", AtomicType.STRING, id(box)), new Literal(replacement, id(box))),
+        REPLACE_STRING,
+        List.of(
+            new VarRef("in1", AtomicType.STRING, id(box)),
+            new Literal(search, id(box)),
+            new Literal(replacement, id(box))),
         id(box));
   }
 
   @Test
   void singleLowersToLiftOverAtomicFunCall() {
+    // the box gives replacement before search; the body takes the catalogue's order
     assertThat(
             loweredQueue(
                 "f1",
-                function("replaceValue", inputs("a1"), params("replacement", text("X"))),
+                function(
+                    "replaceString",
+                    inputs("a1"),
+                    params("replacement", text("X"), "search", text("a"))),
                 "a1",
                 source(NOTE)))
-        .isEqualTo(new Lift(List.of(NOTES), List.of("in1"), replaceValueBody("f1", "X"), id("f1")));
+        .isEqualTo(
+            new Lift(List.of(NOTES), List.of("in1"), replaceStringBody("f1", "a", "X"), id("f1")));
     // over a context function's queue: the Lift's input is the call, one Lift per box
     assertThat(
             loweredQueue(
                 "f1",
-                function("replaceValue", inputs("c1"), params("replacement", text("yes"))),
+                function(
+                    "replaceString",
+                    inputs("c1"),
+                    params("search", text("x"), "replacement", text("yes"))),
                 "c1",
                 function("createIf", inputs("a1"), noParams()),
                 "a1",
@@ -107,7 +125,7 @@ class LiftLoweringTest {
             new Lift(
                 List.of(new FunCall(CREATE_IF, List.of(NOTES), id("c1"))),
                 List.of("in1"),
-                replaceValueBody("f1", "yes"),
+                replaceStringBody("f1", "x", "yes"),
                 id("f1")));
   }
 
@@ -122,7 +140,10 @@ class LiftLoweringTest {
                 "f1",
                 function("createIf", inputs("v1"), noParams()),
                 "v1",
-                function("replaceValue", inputs("a1"), params("replacement", text("1"))),
+                function(
+                    "replaceString",
+                    inputs("a1"),
+                    params("search", text("a"), "replacement", text("1"))),
                 "a1",
                 source(NOTE)))
         .isEqualTo(
@@ -130,7 +151,10 @@ class LiftLoweringTest {
                 CREATE_IF,
                 List.of(
                     new Lift(
-                        List.of(NOTES), List.of("in1"), replaceValueBody("v1", "1"), id("v1"))),
+                        List.of(NOTES),
+                        List.of("in1"),
+                        replaceStringBody("v1", "a", "1"),
+                        id("v1"))),
                 id("f1")));
   }
 }

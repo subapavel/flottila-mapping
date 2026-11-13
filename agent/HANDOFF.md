@@ -1,28 +1,68 @@
 # Handoff
 
-state: SPEC_DONE — spec #205 "Gate fixes" (milestone 1 gate #198 NOT_MET → fixes a–d, owner 2026-11-11). Integration branch `spec/205-gate-fixes` from main 7b4fadd; PR to main open, the owner merges.
-origin: gate #198 verdict NOT_MET (check 4 NOT_MET, check 9 NOT_VERIFIED, check 7 record-only); the owner approved fixes a) to d) on #198.
-done: #208 76b3769 · #206 ba0ee15 · #207 3c19d3a · review fix #209 287f1d9 · spec gate + ratchet regen 26d7faa · #211 (owner-approved: ADR-0028 "Fidelity in the studio", GLOSSARY Inspector, Palette, Fidelity; docs only, after the spec gate).
-gate: `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh 205` VERIFIED_PASS on 287f1d9 (Xeon 2.10 GHz, 4 CPUs, 16,472,084 kB); oracle corpus 626, differential 322; every bench scenario ok, `RATCHET BENCH OK`, no re-run; bench.tsv unchanged; corpus and differential +6 (fn/createIf/004..009), mutation engine/xdm 495 → 501.
-review: two-axis `/code-review` of 7b4fadd...3c19d3a: Spec PASS; Standards FAIL (#206 reused corpus case fn/createIf/002, ADR-0018) → #209 restored 002 (now po:CREATEIF at C1) and moved FALSE/1/True to fn/createIf/009.
-owner decisions (2026-11-11, #198, #207): a) integrate #31 spec-2 answers and fix #133 (#206), trailer exception for eight imported commits 020419d, 31d5a4e, ad8bdfa, a9d91bd, 073d0f9, e706a0c, 2b58a23, 36af7e1, `agent/prompts/fix-findings-F23-F24.md` deleted; b) no visual fidelity mark: exact and assumed show nothing, a deviation shows its note in the tooltip only (Add node and a placed box), eight notes reworded for readers who do not know SAP PO (#207); c) the gate run's `bench/RESULTS.md` section goes on `gate/<milestone>` (F-40); d) the verifier runs check 9 into `.logs/gate-9.log` and `ratchet check` before the clean (F-41); GATE check 2 cites ADR-0028 (F-42).
-open: #191 (optional, ready-for-human); #129 (ADR wording, owner); observation requests #32–#38, #134, #199–#204 (owner, answers promised for 2026-11-12).
-carried to the next spec (from the reviews):
-- `target/max/002` is `observed` from PO only (CPI skipped in `obs-target-creation/meta.json`); ADR-0018 asks PO 7.5 and CPI: observe it on CPI in #134 or say so in the case.
-- `ContextFunctions.truth` calls `toLowerCase(Locale.ROOT)` per slot in the runtime loop: an ASCII compare that allocates nothing, or a JMH number.
-- `castable(String, boolean, String, String)` is copied in `EngineFacadeTraceTest`, `NestedSlotsAgreementTest` and `TargetSlotsInterpreterTest`; the name reads like a predicate. `ContextFunctionsSuppressTest.cast` recomputes `truth`.
-- `TargetSlotsInterpreterTest:489` hand-builds IR for behaviour corpus 005/006 cover and runs the same input twice.
-- `gate-reviewer.md` does not name `gate/<milestone>` for `bench/RESULTS.md` (step 4 of `/gate` passes the path).
-- the #209 ticket named engine/mapping for the corpus red; the corpus tests live in engine/oracle.
-- `Canvas.browser.test.tsx` asserts a class name (`.pf-v6-c-label`); "Node function" in `MappingNode.tsx` is a term GLOSSARY says to avoid; other Canvas polls may need the visibility wait #207 added.
-- `EngineFacadeTraceTest.aTimeoutTraceIsAPrefixOfTheFullTrace` was flaky under load once (#207 ticket gate).
-- `[Fatal Error] Invalid byte 2 of 2-byte UTF-8 sequence` on stderr: the JDK default error reporter behind `XmlProjection`; the service may print it for every malformed message.
-- pin the heap of `smallLatency` and `compile` forks too (changes baselines, so it is a spec-gate change).
-- `gate-ticket.sh` cannot build `bench/jmh` (no `-Pbench`; the root-only `corpus-bench-format` Spotless check does not run there).
-- the small `wide` differential input has one record; the large output is checked at its ends only.
-- bench classes, states and tests are near-copies; `wide()`/`contexts()` live outside `BenchMapping`.
-- step 5 could write the host line (CPU, MemTotal) into its log.
-- smaller: two-file later-wins in `ratchet.java` is unused; `FormatDate` per-value component lookup; glossary drift ("segment", "attribute") in the wide corpus; ADR-0021's 2026-11-10 note on a second heap invocation is stale; no test for #188's `rm -f`; the `orders/small/alloc` factor reading in #194.
-- F-38 open, waits for #134; `target/minOccurs/004` marked contradicted. That PO's case folding is `Locale.ROOT` lower-case is assumed (#133).
+state: SPEC_DONE — spec #212 "Integrate the observation run of 2026-11-11 into the corpus and catalogue". Integration branch `spec/212-observations` from main 211c3ae. The PR to main is open; the owner merges it.
+origin: the owner's observation run of 2026-11-11 (PO 7.50 SP33, CPI 6.84.77) answered #33 and #134 and the requests #32–#38 and #199–#204. Owner decisions are on #212 (2026-11-13: first and second set).
+done:
+- #213 evidence 68273dc
+- #214 provenance 9c40729
+- #215 boolean 050f9fe
+- #221 decided cases and F-49..F-52 67d6f0b8
+- #220 F-38 evidence only (deferred) 86ccb7f7
+- #217 copyValue, class C, 9721b112
+- #218 context SUPPRESS 89afc880
+- #216 statistic and replaceValue, class C, 60d22eae
+- #219 exists, mapWithDefault and useOneAsMany 746c259e
+- spec gate and ratchet regen 54411ef9
+- #223 F-53 gate decisions 2798e6d9
+- #224 Standards-review fixes ae2f1c11
+gate: `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh 212` VERIFIED_PASS on 746c259e.
+- Oracles: corpus 618, differential 323, 0 failed.
+- PIT, survivors/floor: api 0/1 (floor → 0), ir 0/0, mapping 11/11, runtime 5/5, serializer 0/0, xdm 0/0, xslt-export 0/0.
+- `RATCHET BENCH OK`. orders/large/throughput 53.56 → 65.88 MB/s; wide/large/throughput 91.35 → 113.2 MB/s.
+review: two-axis `/code-review` of origin/main...746c259e.
+- Spec: PASS.
+- Standards: FAIL on two points, both fixed by #224:
+  - the pinned-71 javadoc missed the #214 and #221 re-pins;
+  - `decided` was wider than ADR-0018 l.44; the owner widened it (F-53 point 5).
+corpus: of the 158 cases that were assumed, 136 are observed and 21 decided. Only `target/minOccurs/004` stays `assumed`; the owner deferred it (#220, F-38). No check-4 function is `assumed`.
+owner decisions (2026-11-13, F-43, F-53):
+- Where PO and CPI disagree, follow CPI and make the PO difference a catalogue deviation. A CPI simulator artefact is not a disagreement (trim/001).
+- Time zone, counter, jsonNull and currentDate are decided.
+- The isNil, inv, formatNum, fixValues, copyValue, sort and sortByKey deviations stand.
+- replaceValue was fixed in class C (now a context function).
+- F-38 is deferred.
+- #222 holds every new assumed reading and is deferred past milestone 1. GATE check 4 now says so.
+- The ADR-0026 `generating` amendment is approved.
+- collapseContexts/004 and sortByKey/008 are decided.
+- The re-pin rule is codified in ADR-0026 after the gate.
+open:
+- #222: observation request after milestone 1 (owner).
+- #191: optional.
+- #129: ADR wording (owner).
+- #33 and #134: their remaining partial items are now listed in #222. Close them once the owner agrees.
+carried (cleanup ticket after the gate):
+- ADR-0026 re-pin rule (F-53 point 4).
+- SingleValueBindingTest:99 name.
+- LiftVerifierTest:41 and StatisticFunctionsTest:148: stale comments.
+- statistic.xsl counter header says "assumed" (F-43 says decided).
+- F-45:173 "node (context) functions".
+- averageDividesTheTotalByTheCount needs a value-only generator.
+- No export test for average raising on a SUPPRESS-only context.
+- conversions.json fixValues note: plain behaviour first (ADR-0028).
+- ADR-0006 Status line (15 amendments) → a dated Amendments list.
+- Node.Repeat uses a null block as a kind flag → a sealed pair (JMH decides).
+- FidelityAgreesWithTheCasesTest: the accepted half of its witness never runs now.
+- BooleanFunctionsTest:199 has a hard-coded skip(10).
+- The FunctionCatalogue.Entry 3-arg constructor is used by tests only.
+- F-44:59 "queue functions".
+- engine/mapping PIT sits at its floor, and ModelCheck:79 flips between runs.
+- Plus the earlier carried list of #205, still open.
 rule (owner, 2026-11-10): every grilling round goes through the `grilling-adviser` (Fable 5.2) before the owner (`AGENTS.md`).
-next action: owner — merge the spec #205 PR; answer the observation requests. Then architect — `oracle:corpus` tickets turn the answered cases and catalogue fidelity to observed (findings and fixes for divergences); then `/gate` milestone 1 again on the new main commit with the F-40/F-41 procedure (`gate/m1` for RESULTS, verifier's `.logs/gate-9.log`); retro for spec 5, #135, #145, #152, #181, #205 (deferred); after the gate, the next spec from GATE "After milestone 1" (JSON output, ADR-0008) via grilling.
+next action:
+1. Owner: merge the spec #212 PR.
+2. Architect: run `/gate` milestone 1 on the new main commit with the F-40/F-41 procedure (`gate/m1` for RESULTS; the verifier's `.logs/gate-9.log`).
+3. Then the cleanup ticket above.
+4. Then the next spec from GATE "After milestone 1" (JSON output, ADR-0008), via grilling.
+Owner notes for after the gate:
+- The rename to Rail8 (R8, rail8.dev): docs only first; packages at embedding (ADR).
+- jq becomes part of Rail8. Shared layers with jqj are to be grilled: limits/host SPI, the Class-File tier, the JSON tokenizer, tooling; and where XPath 3.1 lives.

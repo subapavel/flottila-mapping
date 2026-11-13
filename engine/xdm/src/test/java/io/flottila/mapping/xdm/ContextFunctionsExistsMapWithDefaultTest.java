@@ -9,8 +9,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.flottila.mapping.xdm.SuppressQueues.Queue;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -20,12 +20,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * {@code exists} and {@code mapWithDefault} (#57) at {@code ContextFunctions}. Both ask per context
- * whether it holds a value. SUPPRESS is no value: a context of SUPPRESS only counts as empty, for
- * mapWithDefault an assumed reading (#33, #2 §7.6), for exists the reading the mapWithDefault
- * equivalence {@code If([]field, exists([]field), Constant)} (#2 §4) gives with it. {@code ""} is a
- * value. Worked examples first, then property tests (ADR-0018) over the edges and 200 seeded queues
- * of {@link SuppressQueues}, against list references written here.
+ * {@code exists} and {@code mapWithDefault} (#57) at {@code ContextFunctions}, as PO 7.50 and CPI
+ * run them (F-48). Both tell an empty context from one with slots: a SUPPRESS slot counts like a
+ * value, so a context of SUPPRESS only is not empty, and {@code ""} is a value. exists gives one
+ * {@code true} per slot and one {@code false} per empty context; mapWithDefault fills only an empty
+ * context. Worked examples first, then property tests (ADR-0018) over the edges and 200 seeded
+ * queues of {@link SuppressQueues}, against list references written here.
  */
 class ContextFunctionsExistsMapWithDefaultTest {
 
@@ -33,25 +33,24 @@ class ContextFunctionsExistsMapWithDefaultTest {
     return SuppressQueues.queues().map(q -> Arguments.of(q.name(), q));
   }
 
-  /** Whether {@code context} holds a slot that is not SUPPRESS. */
-  private static boolean holdsValue(List<String> context) {
-    return context.stream().anyMatch(Objects::nonNull);
-  }
-
   // --- exists
 
   /**
-   * One value per context, in a context of its own: a context with a value, {@code ""} included, is
-   * true; an empty context and a context of SUPPRESS only are false.
+   * One true per slot, SUPPRESS and {@code ""} included, and one false per empty context, each
+   * context kept (fn/exists/003, 004: ctx-4 shows {@code true,true | false | false | true}).
    */
   @Test
-  void existsGivesOneValuePerContextAndTakesSuppressForNoValue() {
+  void existsGivesTruePerSlotAndFalsePerEmptyContext() {
     Queue queue =
         queue("worked", context("a", "b"), context(), context(S), context(S, ""), context(""));
 
     assertThat(read(ContextFunctions.exists(queue.block())))
         .containsExactly(
-            context("true"), context("false"), context("false"), context("true"), context("true"));
+            context("true", "true"),
+            context("false"),
+            context("true"),
+            context("true", "true"),
+            context("true"));
   }
 
   /** A queue with no context, as under an absent parent, gives no context (ADR-0004). */
@@ -62,10 +61,11 @@ class ContextFunctionsExistsMapWithDefaultTest {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void existsTellsPerContextWhetherItHoldsAValue(String name, Queue queue) {
+  void existsGivesTruePerSlotOrFalseForAnEmptyContext(String name, Queue queue) {
     List<List<String>> expected = new ArrayList<>();
     for (List<String> context : queue.contexts()) {
-      expected.add(context(String.valueOf(holdsValue(context))));
+      expected.add(
+          context.isEmpty() ? context("false") : Collections.nCopies(context.size(), "true"));
     }
 
     assertThat(read(ContextFunctions.exists(queue.block()))).isEqualTo(expected);
@@ -97,15 +97,17 @@ class ContextFunctionsExistsMapWithDefaultTest {
   }
 
   /**
-   * A context of SUPPRESS only counts as empty and gets one default; SUPPRESS next to a value stays
-   * at its slot, and {@code ""} is a value.
+   * A context of SUPPRESS only is not empty and is kept, as SUPPRESS next to a value is, and {@code
+   * ""} is a value (fn/mapWithDefault/002, obs-context-functions ctx-2); only the empty context
+   * gets the default.
    */
   @Test
-  void mapWithDefaultTakesASuppressOnlyContextForEmpty() {
-    Queue queue = queue("worked", context(S), context(S, S), context(S, "a", S), context(""));
+  void mapWithDefaultKeepsASuppressOnlyContext() {
+    Queue queue =
+        queue("worked", context(S), context(S, S), context(), context(S, "a", S), context(""));
 
     assertThat(read(ContextFunctions.mapWithDefault(queue.block(), "D")))
-        .containsExactly(context("D"), context("D"), context(S, "a", S), context(""));
+        .containsExactly(context(S), context(S, S), context("D"), context(S, "a", S), context(""));
   }
 
   /**
@@ -132,10 +134,10 @@ class ContextFunctionsExistsMapWithDefaultTest {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void mapWithDefaultReplacesEveryContextWithoutAValueAndKeepsTheOthers(String name, Queue queue) {
+  void mapWithDefaultReplacesEveryEmptyContextAndKeepsTheOthers(String name, Queue queue) {
     List<List<String>> expected = new ArrayList<>();
     for (List<String> context : queue.contexts()) {
-      expected.add(holdsValue(context) ? context : context("dflt"));
+      expected.add(context.isEmpty() ? context("dflt") : context);
     }
 
     assertThat(read(ContextFunctions.mapWithDefault(queue.block(), "dflt"))).isEqualTo(expected);

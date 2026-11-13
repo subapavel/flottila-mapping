@@ -24,10 +24,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The queue algebra of the function family statistic (#75, ADR-0025 "Families"): {@code sum},
- * {@code average} and {@code count} give one value per context (#2 §5), {@code index} numbers the
- * values per context or across the queue. Numbers are {@code xs:decimal}s (ADR-0005), SUPPRESS is
- * no value (an assumed reading of #75). The property tests (ADR-0018) are seeded loops, without
- * jqwik: each runs the edges and 200 seeded numeric queues against a reference written here.
+ * {@code average} and {@code count} give one value per context (#2 §5), and {@code average} of a
+ * context without a value is division undefined (observed, F-45); {@code index} numbers every slot
+ * per context or across the queue, SUPPRESS included (observed, F-45), and {@code counter} only the
+ * values across the queue (decided, F-43). Numbers are {@code xs:decimal}s (ADR-0005); {@code sum},
+ * {@code average} and {@code count} read no SUPPRESS (observed for count, F-45). The property tests
+ * (ADR-0018) are seeded loops, without jqwik: each runs the edges and 200 seeded numeric queues
+ * against a reference written here.
  */
 class StatisticFunctionsTest {
 
@@ -144,20 +147,26 @@ class StatisticFunctionsTest {
    * average: one context per context, holding one canonical number within half a unit of the 18th
    * fractional digit of total / count (ADR-0005), checked against the total, not recomputed; a
    * context without a value gives an empty context. The exact digits and their rounding are the
-   * literal examples of {@link #averageFollowsTheDivisionRuleOfAdr0005}.
+   * literal examples of {@link #averageFollowsTheDivisionRuleOfAdr0005}. A queue with a context
+   * without a value raises division undefined instead, naming the first such context.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
   void averageDividesTheTotalByTheCount(String name, Queue queue) {
+    for (int c = 0; c < queue.contexts().size(); c++) {
+      if (numbers(queue.contexts().get(c)).isEmpty()) {
+        int context = c + 1;
+        assertThatThrownBy(() -> StatisticFunctions.average(queue.block()))
+            .isInstanceOf(ArithmeticException.class)
+            .hasMessage("average: context " + context + " holds no value, division undefined");
+        return;
+      }
+    }
     List<List<String>> result = read(StatisticFunctions.average(queue.block()));
 
     assertThat(result).hasSameSizeAs(queue.contexts());
     for (int c = 0; c < result.size(); c++) {
       List<BigDecimal> numbers = numbers(queue.contexts().get(c));
-      if (numbers.isEmpty()) {
-        assertThat(result.get(c)).as("context %d", c).isEmpty();
-        continue;
-      }
       assertThat(result.get(c)).as("context %d", c).hasSize(1);
       String text = result.get(c).getFirst();
       BigDecimal average = new BigDecimal(text);
@@ -170,14 +179,14 @@ class StatisticFunctionsTest {
   }
 
   /**
-   * index from 0 by 1: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of a
-   * context, or of the queue without a reset, is k itself, counted here, not computed. The decimal
+   * index from 0 by 1: the contexts of its input; the k-th slot (from 0) of a context, or of the
+   * queue without a reset, SUPPRESS included, is k itself, counted here, not computed. The decimal
    * and canonical forms of {@code initial + k * increment} are the literal examples of {@link
    * #indexWritesItsNumbersCanonically}.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void indexNumbersTheValues(String name, Queue queue) {
+  void indexNumbersEverySlot(String name, Queue queue) {
     for (boolean reset : new boolean[] {true, false}) {
       QueueBlock result =
           StatisticFunctions.index(queue.block(), BigDecimal.ZERO, BigDecimal.ONE, reset);
@@ -187,13 +196,34 @@ class StatisticFunctionsTest {
       for (List<String> context : queue.contexts()) {
         k = reset ? 0 : k;
         List<String> slots = new ArrayList<>();
-        for (String slot : context) {
-          slots.add(slot == S ? S : Long.toString(k++));
+        for (int j = 0; j < context.size(); j++) {
+          slots.add(Long.toString(k++));
         }
         expected.add(slots);
       }
       assertThat(read(result)).as("reset %s", reset).isEqualTo(expected);
     }
+  }
+
+  /**
+   * counter from 0 by 1: the contexts and SUPPRESS slots of its input; the k-th value (from 0) of
+   * the queue is k itself, counted here, not computed.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("queues")
+  void counterNumbersTheValuesAcrossTheQueue(String name, Queue queue) {
+    QueueBlock result = StatisticFunctions.counter(queue.block(), BigDecimal.ZERO, BigDecimal.ONE);
+
+    List<List<String>> expected = new ArrayList<>();
+    long k = 0;
+    for (List<String> context : queue.contexts()) {
+      List<String> slots = new ArrayList<>();
+      for (String slot : context) {
+        slots.add(slot == S ? S : Long.toString(k++));
+      }
+      expected.add(slots);
+    }
+    assertThat(read(result)).isEqualTo(expected);
   }
 
   // --- examples ---
@@ -223,7 +253,7 @@ class StatisticFunctionsTest {
                 context("0.01", "0", "0"),
                 context("100", "0", "0"),
                 context("1", "2"),
-                context())
+                context("4", S))
             .block();
 
     assertThat(read(StatisticFunctions.average(values)))
@@ -234,7 +264,27 @@ class StatisticFunctionsTest {
             // 100 has no fractional digit, so a scale below 0 counts as 0: 18 digits
             context("33.333333333333333333"),
             context("1.5"),
-            context());
+            // SUPPRESS is no value: 4 / 1
+            context("4"));
+  }
+
+  /**
+   * An empty context, or one of SUPPRESS only, has no value to divide by: the call stops there, as
+   * PO's {@code Stat.average} does with "Division undefined" (fn/average/003, F-45).
+   */
+  @Test
+  void averageOfAContextWithoutAValueIsDivisionUndefined() {
+    assertThatThrownBy(
+            () ->
+                StatisticFunctions.average(queue("q", context("1"), context(), context()).block()))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("average: context 2 holds no value, division undefined");
+    assertThatThrownBy(
+            () -> StatisticFunctions.average(queue("q", context(S, S), context("2")).block()))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("average: context 1 holds no value, division undefined");
+    // a queue without a context divides nothing
+    assertThat(read(StatisticFunctions.average(queue("q").block()))).isEmpty();
   }
 
   @Test
@@ -244,16 +294,19 @@ class StatisticFunctionsTest {
     assertThat(read(StatisticFunctions.count(values))).containsExactly(context("3"), context("0"));
   }
 
+  /** index numbers SUPPRESS as a value (fn/index/004, F-45); counter keeps it without a number. */
   @Test
-  void indexKeepsSuppressAndTheContexts() {
+  void indexNumbersSuppressAndKeepsTheContexts() {
     QueueBlock values = queue("q", context("a", S, "b"), context(), context(S, "c")).block();
 
     assertThat(read(StatisticFunctions.index(values, ONE, ONE, true)))
-        .containsExactly(context("1", S, "2"), context(), context(S, "1"));
+        .containsExactly(context("1", "2", "3"), context(), context("1", "2"));
     assertThat(
             read(
                 StatisticFunctions.index(
                     values, new BigDecimal("10"), new BigDecimal("-3"), false)))
+        .containsExactly(context("10", "7", "4"), context(), context("1", "-2"));
+    assertThat(read(StatisticFunctions.counter(values, new BigDecimal("10"), new BigDecimal("-3"))))
         .containsExactly(context("10", S, "7"), context(), context(S, "4"));
   }
 
@@ -265,12 +318,15 @@ class StatisticFunctionsTest {
             read(
                 StatisticFunctions.index(
                     values, new BigDecimal("1.5"), new BigDecimal("-0.5"), false)))
-        .containsExactly(context("1.5", "1", "0.5"), context(S, "0", "-0.5", "-1"));
+        .containsExactly(context("1.5", "1", "0.5"), context("0", "-0.5", "-1", "-1.5"));
     assertThat(
             read(
                 StatisticFunctions.index(
                     values, new BigDecimal("0.10"), new BigDecimal("0.10"), true)))
-        .containsExactly(context("0.1", "0.2", "0.3"), context(S, "0.1", "0.2", "0.3"));
+        .containsExactly(context("0.1", "0.2", "0.3"), context("0.1", "0.2", "0.3", "0.4"));
+    assertThat(
+            read(StatisticFunctions.counter(values, new BigDecimal("1.5"), new BigDecimal("-0.5"))))
+        .containsExactly(context("1.5", "1", "0.5"), context(S, "0", "-0.5", "-1"));
   }
 
   static Stream<Arguments> malformed() {
@@ -319,8 +375,9 @@ class StatisticFunctionsTest {
         Arguments.of("average", (Supplier<QueueBlock>) () -> StatisticFunctions.average(values)),
         Arguments.of("count", (Supplier<QueueBlock>) () -> StatisticFunctions.count(values)),
         Arguments.of(
-            "index",
-            (Supplier<QueueBlock>) () -> StatisticFunctions.index(values, ONE, ONE, true)));
+            "index", (Supplier<QueueBlock>) () -> StatisticFunctions.index(values, ONE, ONE, true)),
+        Arguments.of(
+            "counter", (Supplier<QueueBlock>) () -> StatisticFunctions.counter(values, ONE, ONE)));
   }
 
   /**

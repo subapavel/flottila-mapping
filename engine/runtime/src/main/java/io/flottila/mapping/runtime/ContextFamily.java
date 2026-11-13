@@ -24,14 +24,16 @@ final class ContextFamily {
           Map.entry("formatByExample", ContextFamily::formatByExample),
           Map.entry("mapWithDefault", ContextFamily::mapWithDefault),
           Map.entry("removeContexts", ContextFamily::removeContexts),
+          Map.entry("replaceValue", ContextFamily::replaceValue),
           Map.entry("sort", ContextFamily::sort),
           Map.entry("sortByKey", ContextFamily::sortByKey),
           Map.entry("splitByValue", ContextFamily::splitByValue),
           Map.entry("useOneAsMany", ContextFamily::useOneAsMany));
 
-  /** The family's single-value functions. */
-  static final Map<String, SingleValueLibrary.Binder> VALUE =
-      Map.of("replaceValue", ContextFamily::replaceValue);
+  /**
+   * The family's single-value functions: none since #216, as replaceValue reads SUPPRESS (F-45).
+   */
+  static final Map<String, SingleValueLibrary.Binder> VALUE = Map.of();
 
   private ContextFamily() {}
 
@@ -125,17 +127,14 @@ final class ContextFamily {
   }
 
   /**
-   * {@code replaceValue(value, replacement)}: the replacement, whatever the value. The value is
-   * evaluated first, as every input of a single-value call is (F-22, ADR-0006), so a data error in
-   * it is raised at its box.
+   * {@code replaceValue(value, replacement)}: the replacement at every slot of its input, SUPPRESS
+   * included (F-45). The input is evaluated first, so a data error in it is raised at its box.
    */
-  static Node.OfString replaceValue(AuthoringId box, List<Node.OfString> args) {
-    Node.OfString value = args.get(0);
-    Node.OfString replacement = args.get(1);
-    return frame -> {
-      value.eval(frame);
-      return replacement.eval(frame);
-    };
+  static Node.OfQueue replaceValue(
+      AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
+    Node.OfQueue value = inputs.getFirst();
+    String replacement = params.getFirst();
+    return frame -> ContextFunctions.replaceValue(value.eval(frame), replacement);
   }
 
   /** The {@code comparison} param of {@code function}, a sort. */
