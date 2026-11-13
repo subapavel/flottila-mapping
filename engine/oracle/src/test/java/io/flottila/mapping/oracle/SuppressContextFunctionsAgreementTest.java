@@ -200,6 +200,11 @@ class SuppressContextFunctionsAgreementTest {
     Expr flatLines = call("removeContexts", "r11", List.of(perLine));
     leaves.add(leaf("P", call("mapWithDefault", "w3", List.of(flatLines, param("D", "w3")))));
     leaves.add(leaf("Q", call("mapWithDefault", "w4", List.of(perLine, param("D", "w4")))));
+    // replaceValue (#216, F-45, observed): every slot the replacement, a SUPPRESS slot included,
+    // and an Order without a Tag an empty context still; removeContexts shows each Order's slots.
+    // It reads only queues already built here, so no seed draws more than before.
+    Expr replaced = call("replaceValue", "v1", List.of(perOrder, param("O'Brien & <Co>", "v1")));
+    leaves.add(leaf("R", call("removeContexts", "r12", List.of(replaced))));
     return new TargetDocument("", local("Out"), "root", Collections.unmodifiableList(leaves));
   }
 

@@ -1802,8 +1802,10 @@ class EngineFacadeTest {
   }
 
   /**
-   * sortByKey of Tag by {@code replaceValue(createIf(Tag), "5")}, with {@code params}, on {@code
-   * Out/All}: a key is 5 where the Tag is true and SUPPRESS where it is not.
+   * sortByKey of Tag by {@code concat(createIf(Tag), 5)}, with {@code params}, on {@code Out/All}:
+   * a key is 5 where the Tag is true and SUPPRESS where it is not, as concat passes a SUPPRESS on
+   * (obs-lift-reuse lift-2). The key was {@code replaceValue(createIf(Tag), "5")} until #216; PO
+   * and CPI replace a SUPPRESS there (F-45).
    */
   private static byte[] sortByCreatedKeys(String params) {
     return overTheKit(
@@ -1816,8 +1818,8 @@ class EngineFacadeTest {
          "targetFieldMappings": {"/Out/All": {"id": "t1", "result": "k1",
            "boxes": {"k1": {"kind": "function", "fn": "sortByKey", "inputs": ["r1", "a1"],
                             "params": %2$s},
-                     "r1": {"kind": "function", "fn": "replaceValue", "inputs": ["c1"],
-                            "params": {"replacement": "5"}},
+                     "r1": {"kind": "function", "fn": "concat", "inputs": ["c1", "n1"]},
+                     "n1": {"kind": "function", "fn": "constant", "params": {"value": "5"}},
                      "c1": {"kind": "function", "fn": "createIf", "inputs": ["a1"]},
                      "a1": {"kind": "source", "field": "/Orders/Order/Tag"}}}}}
         """

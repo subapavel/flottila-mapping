@@ -38,9 +38,13 @@ class LiftExportTest {
   private static final String ORDER_IDS =
       "po:source-queue(array:join(/s0:Order ! [OrderId ! string()]))";
   private static final String NOTES = "po:source-queue(array:join(/s0:Order ! [Note ! string()]))";
-  private static final FunctionRef REPLACE_VALUE =
+  // the sample single-value function with params; replaceValue was it until #216 made it a
+  // context function (F-45)
+  private static final FunctionRef REPLACE_STRING =
       new FunctionRef(
-          "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);
+          "replaceString",
+          List.of(AtomicType.STRING, AtomicType.STRING, AtomicType.STRING),
+          AtomicType.STRING);
 
   private static SourceQueue underRoot(Name field, String box) {
     return new SourceQueue(List.of(ORDER, field), 1, new AuthoringId(box));
@@ -82,7 +86,10 @@ class LiftExportTest {
         new Lift(
             List.of(underRoot(ORDER_ID, "a1")),
             List.of("in1"),
-            new FunCall(REPLACE_VALUE, List.of(slotVar("in1"), new Literal("X", L1)), L1),
+            new FunCall(
+                REPLACE_STRING,
+                List.of(slotVar("in1"), new Literal("a", L1), new Literal("X", L1)),
+                L1),
             L1);
     Lift two =
         new Lift(
@@ -102,7 +109,7 @@ class LiftExportTest {
                 "po:lift(("
                     + ORDER_IDS
                     + "), function($in as xs:string*) as xs:string"
-                    + " { let $in1 := $in[1] return po:replaceValue($in1, 'X') })"));
+                    + " { let $in1 := $in[1] return po:replaceString($in1, 'a', 'X') })"));
     assertThat(XsltExporter.export(overTwo))
         .contains(
             forEach(

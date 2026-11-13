@@ -144,4 +144,128 @@ class UntakenBranchDataErrorTest {
     SaxonRunner.assertSameError(raised, "err:FOAR0001", what);
     SaxonRunner.assertNamesItsPlace(raised.getMessage(), "err:FOAR0001", "D1", what);
   }
+
+  /**
+   * All from F1, {@code replaceValue} of the box {@code input} with the replacement x, beside the
+   * {@code boxes} that build its input.
+   */
+  private static byte[] replaced(String input, String boxes) {
+    return """
+        {"formatVersion": 1,
+         "source": {"bundle": ["src-orders.xsd"], "fingerprint": "%1$s",
+                    "root": {"element": "Orders"}},
+         "target": {"bundle": ["tgt-list.xsd"], "fingerprint": "%2$s",
+                    "root": {"element": "Out"}},
+         "targetFieldMappings": {
+           "/Out/All": {"id": "T1", "result": "F1", "boxes": {
+             "F1": {"kind": "function", "fn": "replaceValue", "inputs": ["%3$s"],
+                    "params": {"replacement": "x"}},
+             %4$s}}}}
+        """
+        .formatted(SOURCE_FINGERPRINT, TARGET_FINGERPRINT, input, boxes)
+        .getBytes(UTF_8);
+  }
+
+  /** {@code createIf(Sku)}: C1 over S1, Sku in the context Orders. */
+  private static final String CREATE_IF =
+      """
+      "C1": {"kind": "function", "fn": "createIf", "inputs": ["S1"]},
+      "S1": {"kind": "source", "field": "/Orders/Order/Line/Sku", "context": "/Orders"}""";
+
+  /** {@code divide(1, divisor)}: D1 over the constants C1 and C2. */
+  private static String divide(String divisor) {
+    return """
+        "D1": {"kind": "function", "fn": "divide", "inputs": ["C1", "C2"]},
+        "C1": {"kind": "function", "fn": "constant", "params": {"value": "1"}},
+        "C2": {"kind": "function", "fn": "constant", "params": {"value": "%s"}}"""
+        .formatted(divisor);
+  }
+
+  /**
+   * Per input of replaceValue: the model and input that run, the All they write, and the model and
+   * input whose input box raises, with the code and the box. createIf(Sku) is a queue, and over
+   * Skus true, false it gives "", SUPPRESS, which replaceValue replaces both (F-45, as
+   * fn/replaceValue/002 observes); no is no boolean (F-37). divide(1, 0) is a single value, which
+   * enters replaceValue as AtomicToQueue (ADR-0006 since #83).
+   */
+  static Stream<Arguments> replaceValueInputs() {
+    return Stream.of(
+        Arguments.of(
+            "createIf(Sku), a queue",
+            replaced("C1", CREATE_IF),
+            input("true", "false"),
+            "<All>x</All><All>x</All>",
+            replaced("C1", CREATE_IF),
+            input("true", "no"),
+            "po:CREATEIF",
+            "C1"),
+        Arguments.of(
+            "divide(1, 0), a single value",
+            replaced("D1", divide("1")),
+            input("true", "false"),
+            "<All>x</All>",
+            replaced("D1", divide("0")),
+            input("true", "false"),
+            "err:FOAR0001",
+            "D1"));
+  }
+
+  /**
+   * replaceValue is a context function since #216 (F-45): its result needs none of its input's
+   * values, yet the input is computed before the box runs, as PO computes every input queue of a
+   * box (F-22, ADR-0006). A data error of the input is raised at the input's box, in the runtime
+   * and in Saxon-HE. Witness: on an input that meets no error both back ends write the replacement
+   * at every slot and agree.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("replaceValueInputs")
+  void replaceValueStillRaisesItsInputsErrorAtThatBox(
+      String what,
+      byte[] runs,
+      byte[] fine,
+      String all,
+      byte[] fails,
+      byte[] failing,
+      String code,
+      String box)
+      throws Exception {
+    String witness = "replaceValue of " + what + " on All";
+    ExportResult.Exported runsExported =
+        SaxonRunner.exported(facade.export(runs, structures()), witness);
+    for (CompileOptions options :
+        new CompileOptions[] {CompileOptions.DEPLOY, CompileOptions.TEST_RUN}) {
+      byte[] ours = facade.run(compiled(runs, options, witness), fine);
+      assertThat(new String(ours, UTF_8))
+          .as("%s: ours, %s", witness, options)
+          .contains("<Out>" + all + "</Out>");
+      byte[] saxon =
+          SaxonRunner.run(
+              runsExported.stylesheet(), runsExported.helperModule(), fine, dir.resolve("runs"));
+      SaxonRunner.assertAgree(saxon, ours, witness + ", " + options);
+    }
+
+    String raising = witness + ", its input raising " + code;
+    ExportResult.Exported exported =
+        SaxonRunner.exported(facade.export(fails, structures()), raising);
+    for (CompileOptions options :
+        new CompileOptions[] {CompileOptions.DEPLOY, CompileOptions.TEST_RUN}) {
+      Throwable error =
+          catchThrowable(() -> facade.run(compiled(fails, options, raising), failing));
+      assertThat(error)
+          .as("%s: ours, %s", raising, options)
+          .isInstanceOf(MappingRunException.class);
+      MappingRunException run = (MappingRunException) error;
+      assertThat(run.code()).as("%s: ours", raising).isEqualTo(code);
+      assertThat(run.authoringId().value()).as("%s: ours", raising).isEqualTo(box);
+    }
+    SaxonApiException raised =
+        SaxonRunner.raised(
+            exported.stylesheet(),
+            exported.helperModule(),
+            failing,
+            dir.resolve("raises"),
+            raising);
+    SaxonRunner.assertSameError(raised, code, raising);
+    SaxonRunner.assertNamesItsPlace(raised.getMessage(), code, box, raising);
+  }
 }
