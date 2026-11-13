@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/average.mapping.json",
-  "provenance": "assumed",
-  "ref": "#2 §5 Statistics: sum, average and count work per context (\"Sum of values X1 to Xi of a context\") [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm] [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; assumed reading of #75: a context without a value gives an empty context, as XPath's avg(()) gives (); obs-statistic decides it",
-  "expect": "output",
-  "note": "Empty contexts: o1 has no Line and o2's one Line has no Qty, so Qty in context Order is (empty) | (empty) | 4. average has no value to divide: the first two Items get no V, the third V 4. PO might give 0, NaN or an error instead."
+  "provenance": "observed",
+  "ref": "obs-statistic (#212, #216, F-45), run 2026-11-12 to 2026-11-13: PO 7.50 and CPI both end the run at /Out/Item/V with \"Division undefined\" in flib7.Stat.average: corpus/observations/obs-statistic/po75/average-003-stat-average-error.txt (java.lang.ArithmeticException) and corpus/observations/obs-statistic/cpi/average-003-stat-average-error.txt (BehaviorInvocationException; its meta.json reading label says confirmed, the output file shows the error); the code err:FOAR0001 is ADR-0005's division error (F-45); before #216: assumed reading of #75: a context without a value gives an empty context, as XPath's avg(()) gives () (contradicted)",
+  "expect": "error",
+  "note": "Empty contexts: o1 has no Line and o2's one Line has no Qty, so Qty in context Order is (empty) | (empty) | 4. average has no value to divide in the first context: the run stops with err:FOAR0001 at its box F1, and no output is written. The assumed reading gave two empty Items and V 4."
 }
