@@ -35,7 +35,8 @@ Add 'obs-context-functions' 'spec2-split-by-value-empty-flat' (D '/Out/All' (F '
 Add 'obs-context-functions' 'spec2-suppress-split-empty-collapse' (D '/Out/All' (F 'collapseContexts' @((F 'SplitByValue' @((F 'createIf' @($tag))) (B 'type' '1'))))) @('fn/splitByValue/021')
 foreach($fn in @('and','or','equals','notEquals')){Add 'obs-boolean' ('boolean-'+$fn) (D '/Out/All' (F $fn @($sku,$qty))) @('fn/'+$fn+'/001')}
 foreach($fn in @('not','isNil')){Add 'obs-boolean' ('boolean-'+$fn) (D '/Out/All' (F $fn @($sku))) @('fn/'+$fn+'/001')}
-Add 'obs-boolean' 'boolean-if' (D '/Out/All' (F 'if' @($sku,$qty,$tag))) @('fn/if/001')
+# Native CPI if: value, condition, else (palette description and native Save).
+Add 'obs-boolean' 'boolean-if' (D '/Out/All' (F 'iF' @($qty,$sku,$tag))) @('fn/if/001')
 Add 'obs-boolean' 'boolean-ifWithoutElse-item' ((D '/Out/Item' (I $qty $sku))+(D '/Out/Item/V' $skuL)) @('fn/ifWithoutElse/001')
 Add 'obs-boolean' 'boolean-ifWithoutElse-item-keep' ((D '/Out/Item' (I $qty $sku $true))+(D '/Out/Item/V' $skuL)) @('fn/ifWithoutElse/002')
 Add 'obs-boolean' 'boolean-ifWithoutElse-orders' ($parent+(D '/Out/Item/V' (I $qtyO $skuO))+(D '/Out/Item/W' (I $qtyO $skuO $true))) @('fn/ifWithoutElse/003')
@@ -61,7 +62,7 @@ foreach($fn in @('sum','average','count')){
  Add 'obs-statistic' ('stat-'+$fn+'-suppress') ($parent+(D '/Out/Item/V' (F $fn @($src)))) @('fn/'+$fn+'/'+$case)
 }
 foreach($fn in @('concat','equalsS','startsWith','endsWith')){
- $native=if($fn -eq 'equalsS'){'stringEquals'}else{$fn}
+ $native=switch($fn){'equalsS' {'stringEquals'} 'startsWith' {'startWith2'} 'endsWith' {'endWith'} default {$fn}}
  Add 'obs-text' ('text-'+$fn) (D '/Out/All' (F $native @($sku,$qty))) @('fn/'+$fn+'/001')
 }
 foreach($fn in @('toUpperCase','toLowerCase','trim')){Add 'obs-text' ('text-'+$fn) (D '/Out/All' (F $fn @($sku))) @('fn/'+$fn+'/001')}

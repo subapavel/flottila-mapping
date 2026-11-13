@@ -279,6 +279,28 @@
       "reading": "confirmed-after-native-function-identifier-repair",
       "cpiEvidence": "cpi/equalsS-001-text-equalsS-native-check.txt",
       "cpiOutput": "cpi/equalsS-001-text-equalsS-native.xml"
+    },
+    {
+      "mapping": "text-startsWith",
+      "input": "startsWith-001.xml",
+      "case": "fn/startsWith/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_startsWith_native",
+      "reading": "confirmed-after-native-function-identifier-repair",
+      "cpiEvidence": "cpi/startsWith-001-text-startsWith-native-check.txt",
+      "cpiOutput": "cpi/startsWith-001-text-startsWith-native.xml"
+    },
+    {
+      "mapping": "text-endsWith",
+      "input": "endsWith-001.xml",
+      "case": "fn/endsWith/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_endsWith_native",
+      "reading": "confirmed-after-native-function-identifier-repair",
+      "cpiEvidence": "cpi/endsWith-001-text-endsWith-native-check.txt",
+      "cpiOutput": "cpi/endsWith-001-text-endsWith-native.xml"
     }
   ]
 }
