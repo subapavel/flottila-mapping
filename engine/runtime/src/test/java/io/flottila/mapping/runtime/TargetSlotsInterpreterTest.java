@@ -612,9 +612,8 @@ class TargetSlotsInterpreterTest {
   private static final FunctionRef SORT_BY_KEY =
       new FunctionRef(
           "sortByKey", List.of(QUEUE, QUEUE, AtomicType.STRING, AtomicType.STRING), QUEUE);
-  private static final FunctionRef REPLACE_VALUE =
-      new FunctionRef(
-          "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);
+  private static final FunctionRef CONCAT =
+      new FunctionRef("concat", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);
 
   /** {@code Out/All} per slot of {@code queue}'s context 1, mapping t1. */
   private static TargetDocument all(Expr queue) {
@@ -640,13 +639,14 @@ class TargetSlotsInterpreterTest {
     SourceQueue skuInOrder = source("a2", 2, ORDERS, ORDER, LINE, SKU);
     SourceQueue tagInOrder = source("a3", 2, ORDERS, ORDER, TAG);
     SourceQueue qtyInOrder = source("a4", 2, ORDERS, ORDER, LINE, QTY);
-    // a key 5 where the Tag is true and SUPPRESS where it is not
+    // a key 5 where the Tag is true and SUPPRESS where it is not: concat passes a SUPPRESS on
+    // (obs-lift-reuse lift-2); replaceValue built it until #216, but it replaces a SUPPRESS (F-45)
     Lift keys =
         new Lift(
             List.of(createIf("c1", tagInOrder)),
             List.of("in1"),
             new FunCall(
-                REPLACE_VALUE,
+                CONCAT,
                 List.of(new VarRef("in1", AtomicType.STRING, id("r1")), param("5", "r1")),
                 id("r1")),
             id("r1"));

@@ -1473,7 +1473,9 @@ class XsltExporterTest {
    * F-37): it casts as PO does and gains {@code box}. #218 re-pins po:collapseContexts,
    * po:sort-contexts and po:sortByKey-context alone (ADR-0006 as amended, F-47): collapseContexts
    * keeps a SUPPRESS first slot and gives no value for an empty queue, and a SUPPRESS key is the
-   * greatest, as PO 7.50 and CPI do. The assertions below are #69's, unchanged.
+   * greatest, as PO 7.50 and CPI do. #216 re-pins po:replaceValue alone (F-45): an observed rule
+   * changes replaceValue's execution kind, so it takes and gives a queue. The assertions below are
+   * #69's, unchanged.
    */
   private static final String MAIN_HELPER_MODULE =
       "engine/xslt-export/src/test/resources/pinned-71/po-runtime.xsl";

@@ -162,6 +162,21 @@ public final class ContextFunctions {
     return queue.withContextStarts(new int[] {0, queue.slots()});
   }
 
+  /**
+   * {@code replaceValue(queue, replacement)}: {@code replacement} at every slot of {@code queue},
+   * SUPPRESS included, so the result holds no SUPPRESS (observed, PO 7.50 and CPI, F-45). It shares
+   * the context starts (ADR-0004), so an empty context stays empty and a queue with no context at
+   * all gives none.
+   *
+   * @throws CancellationException when the thread is interrupted while the result is read
+   */
+  public static QueueBlock replaceValue(QueueBlock queue, String replacement) {
+    String[] values = new String[queue.slots()];
+    Arrays.fill(values, replacement);
+    // the block reads the values for their bitset, checking for interruption per slot (ADR-0021)
+    return queue.withValues(values);
+  }
+
   // sort and sortByKey (#59, owner decision Q4 of #48): each context on its own, a stable sort
   // (#2 §4), so equal keys keep their input order in either direction. The runtime binds the
   // comparison and the direction once per call site. A SUPPRESS key is the greatest key in every

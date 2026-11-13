@@ -48,7 +48,7 @@
     "executionKind": "context",
     "family": "statistic",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -584,7 +584,7 @@
     "executionKind": "queue",
     "family": "statistic",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -888,10 +888,10 @@
     "portable": true
   },
   "replaceValue": {
-    "executionKind": "single",
+    "executionKind": "context",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -1120,7 +1120,7 @@
     "executionKind": "context",
     "family": "statistic",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
