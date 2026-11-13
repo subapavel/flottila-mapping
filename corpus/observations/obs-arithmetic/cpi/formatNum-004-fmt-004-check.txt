@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/formatNum/004
+Artifact: api_fmt_004
+Input: original formatNum-004.xml uploaded through simulator.
+Visible graph verified: Qty context /Orders -> formatNumber -> /Out/All.
+Simulation completed. All values: 1.50, 0.12, 0.38, 2.68. Decimal separator dot. Downloaded XML preserved unchanged. The 2.675 input gives 2.68 in this run.
+Live pattern dialog not independently inspected. JVM locale and arithmetic mode not exposed/verified; matching decimal output alone does not prove the internal numeric type. Output observed; parameter verification pending.
