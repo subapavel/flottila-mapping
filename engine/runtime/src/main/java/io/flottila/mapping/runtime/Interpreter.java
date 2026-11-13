@@ -50,7 +50,10 @@ public final class Interpreter {
   /** The number of {@code STRING} frame slots allocated so far. */
   private int stringSlotCount;
 
-  /** The number of {@code TargetSlots} so far, each with a frame slot for its queue's block. */
+  /**
+   * The number of {@code TargetSlots} and generating blocks so far, each with a frame slot for its
+   * block.
+   */
   private int targetQueueCount;
 
   private Interpreter(boolean traced) {
@@ -274,21 +277,42 @@ public final class Interpreter {
   /**
    * A {@code TargetRepeat} (ADR-0006; #63): its parent slot in {@code scope}, and its body in
    * {@code scope} with its slot-number variable, an {@code INTEGER} frame slot of its own. A traced
-   * compile reports its copies per parent slot (#83). A generating structure field's value, in
-   * {@code scope}, is evaluated by each copy before its body and dropped, in every compile, so its
-   * boxes are traced and its data error is raised (ADR-0006 as amended by #83); without a value the
-   * copy is its body alone.
+   * compile reports its copies per parent slot (#83). A generating block, its value when it has a
+   * value variable, is a queue in {@code scope} with a frame slot for its block, and its value
+   * variable a {@code STRING} frame slot of its own in the body's scope (#217). A generating
+   * structure field's single value, in {@code scope}, is evaluated by each copy before its body and
+   * dropped, in every compile, so its boxes are traced and its data error is raised (ADR-0006 as
+   * amended by #83); without a value the copy is its body alone.
    */
   private Node.OfContent repeat(TargetRepeat r, Map<String, Integer> scope) {
     Node.OfInteger parentSlot = (Node.OfInteger) compile(r.parentSlot(), scope);
     int slotNumberIndex = integerSlotCount++;
     Map<String, Integer> bodyScope = new HashMap<>(scope);
     bodyScope.put(r.slotVar(), slotNumberIndex);
-    Node.OfContent body = (Node.OfContent) compile(r.body(), bodyScope);
-    if (r.value().isPresent()) {
-      body = evaluated((Node.OfString) compile(r.value().get(), scope), body);
+    Node.Repeat repeat;
+    if (r.valueVar().isPresent()) {
+      Node.OfQueue block = (Node.OfQueue) compile(r.value().orElseThrow(), scope);
+      int queueIndex = targetQueueCount++;
+      int valueIndex = stringSlotCount++;
+      bodyScope.put(r.valueVar().get(), valueIndex);
+      Node.OfContent body = (Node.OfContent) compile(r.body(), bodyScope);
+      repeat =
+          new Node.Repeat(
+              r.copies(),
+              parentSlot,
+              slotNumberIndex,
+              block,
+              queueIndex,
+              valueIndex,
+              body,
+              r.origin());
+    } else {
+      Node.OfContent body = (Node.OfContent) compile(r.body(), bodyScope);
+      if (r.value().isPresent()) {
+        body = evaluated((Node.OfString) compile(r.value().get(), scope), body);
+      }
+      repeat = new Node.Repeat(r.copies(), parentSlot, slotNumberIndex, body, r.origin());
     }
-    Node.Repeat repeat = new Node.Repeat(r.copies(), parentSlot, slotNumberIndex, body, r.origin());
     return traced ? repeat.traced() : repeat;
   }
 

@@ -76,7 +76,8 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
    * The occurrences a target field mapping created, per parent slot in the order run (ADR-0006): at
    * most the trace limit's parent records and slot records, always keeping the last parent. The
    * field's queue is the entry of its {@code result} box; a generating function's field has no
-   * queue, and its occurrences are its copies, all created (ADR-0006 as amended by #83).
+   * queue, and its occurrences are its copies, all created (ADR-0006 as amended by #83), or all
+   * suppressed when its generating block's first slot is SUPPRESS or missing (#217, F-46).
    *
    * @param min the field's effective minimum occurrence
    * @param max the field's effective maximum occurrence; {@link Long#MAX_VALUE} is unbounded
@@ -94,8 +95,11 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
 
   /**
    * The slots of context {@code parentSlot} of the field's queue, or a generating function's copies
-   * under that parent slot (#83). {@code created < min} marks the parent slot that raised {@code
-   * po:MINOCCURS}.
+   * under that parent slot (#83). For a field's queue, {@code created < min} marks the parent slot
+   * that raised {@code po:MINOCCURS}. A generating function's copies have no min check: when its
+   * generating block's first slot is SUPPRESS or missing, every copy is suppressed and {@code
+   * created} is 0, below a {@code minOccurs > 0} too, and no {@code po:MINOCCURS} is raised (#217,
+   * F-46; assumed, ADR-0006).
    *
    * @param parentSlot the slot number of the parent occurrence
    * @param created how many occurrences the slots create, at most max
@@ -120,7 +124,10 @@ public record Trace(SequencedMap<AuthoringId, Entry> entries) {
   public enum SlotStatus {
     /** An occurrence. */
     CREATED,
-    /** Nothing: the slot is SUPPRESS. */
+    /**
+     * Nothing: the slot is SUPPRESS, or it is a copy of a generating block whose first slot is
+     * SUPPRESS or missing (#217).
+     */
     SUPPRESSED,
     /** Nothing: {@code max} occurrences were created before it in its context. */
     TRUNCATED
