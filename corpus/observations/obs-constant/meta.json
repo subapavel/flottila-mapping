@@ -506,6 +506,64 @@
       "queueEvidence": "cpi/constant-003-C1-queue.json",
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "constant-concat",
+      "input": "constant-001.xml",
+      "case": "fn/constant/004",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_constant_concat",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-004-constant-concat-check.txt",
+      "cpiOutput": "cpi/constant-004-constant-concat.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_constant_concat.json",
+      "additionalEvidence": [
+        "cpi/constant-004-F1-queue.json",
+        "cpi/constant-004-F2-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Both concat queues captured with context/end marker classes. Empty middle context preserved. Moved constant nodes in both branches and saved visual layout only to expose overlapping concat nodes; no wiring or values intentionally changed."
+    },
+    {
+      "mapping": "copy-value",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/001",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-001-copy-value-check.txt",
+      "cpiOutput": "cpi/copyValue-001-copy-value.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_copy_value.json",
+      "additionalEvidence": [
+        "cpi/copyValue-001-F1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Display Queue shows input a,b,c | d | e,f but output generator b followed by end marker. Stored index 1. Existing simulation b in all three Items contradicts per-context selection."
+    },
+    {
+      "mapping": "copy-value-beyond",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/003",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value_beyond",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-003-copy-value-beyond-check.txt",
+      "cpiOutput": "cpi/copyValue-003-copy-value-beyond.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_copy_value_beyond.json",
+      "additionalEvidence": [
+        "cpi/copyValue-003-F1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Index 3 selects d across the entire input queue, ignoring context boundaries. Output queue is generator d, matching prior d in every Item."
     }
   ]
 }

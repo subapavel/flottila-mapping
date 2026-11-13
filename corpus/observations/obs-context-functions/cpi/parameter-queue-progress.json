@@ -42,7 +42,7 @@
       "set": "obs-constant",
       "artifact": "api_constant_concat",
       "parameterEvidence": "cpi/parameter-audit/api_constant_concat.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/constant/005",
@@ -63,7 +63,7 @@
       "set": "obs-constant",
       "artifact": "api_copy_value",
       "parameterEvidence": "cpi/parameter-audit/api_copy_value.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/copyValue/002",
@@ -77,7 +77,7 @@
       "set": "obs-constant",
       "artifact": "api_copy_value_beyond",
       "parameterEvidence": "cpi/parameter-audit/api_copy_value_beyond.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/copyValue/004",
