@@ -218,6 +218,28 @@
       "summary": "Pattern 0 'o''clock', decimal separator dot. All value: 5 o'clock; apostrophe serialized as &apos;.",
       "po75Result": "po75/formatNum-015-fmt-015.xml",
       "po75Evidence": "po75/formatNum-015-fmt-015-check.txt"
+    },
+    {
+      "mapping": "arith-inv",
+      "input": "i1.xml",
+      "case": "fn/inv/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_arith_inv",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/inv-001-arith-inv-check.txt",
+      "cpiOutput": "cpi/inv-001-arith-inv.xml"
+    },
+    {
+      "mapping": "fmt-001",
+      "input": "formatNum-001.xml",
+      "case": "fn/formatNum/001",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_fmt_001",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/formatNum-001-fmt-001-check.txt",
+      "cpiOutput": "cpi/formatNum-001-fmt-001.xml"
     }
   ]
 }
