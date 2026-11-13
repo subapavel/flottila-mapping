@@ -104,7 +104,7 @@
     "executionKind": "single",
     "family": "date",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -134,7 +134,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -150,7 +150,7 @@
     "executionKind": "single",
     "family": "constant",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "params": [
       {
@@ -185,7 +185,7 @@
     "executionKind": "context",
     "family": "statistic",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -198,7 +198,7 @@
     "executionKind": "queue",
     "family": "statistic",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -252,7 +252,7 @@
     "executionKind": "single",
     "family": "date",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -282,7 +282,7 @@
     "executionKind": "single",
     "family": "date",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -312,7 +312,7 @@
     "executionKind": "single",
     "family": "date",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -356,7 +356,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -404,7 +404,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -433,7 +433,8 @@
     "executionKind": "single",
     "family": "conversions",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "A fresh FixValues box in SAP PO gives an empty value for a key the table lacks (\"Use default value\"). Flottila gives the key itself, as SAP Cloud Integration does."
     },
     "inputs": [
       {
@@ -481,7 +482,7 @@
     "executionKind": "queue",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -553,7 +554,7 @@
     "executionKind": "context",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -847,7 +848,7 @@
     "executionKind": "queue",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -860,7 +861,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -1054,7 +1055,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -1125,7 +1126,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -1138,7 +1139,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
