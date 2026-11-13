@@ -48,7 +48,10 @@ import java.util.stream.IntStream;
  * parent's element: the root's, created once, or a structure field's (ADR-0006 since #52). One
  * whose {@code result} gives a single value, a generating function, becomes {@code TargetRepeat} of
  * {@code max(1, minOccurs)} copies at the target field mapping, the value in a leaf's text or, on a
- * structure field, the {@code TargetRepeat}'s value (ADR-0006 since #83). An unmapped structure
+ * structure field, the {@code TargetRepeat}'s value (ADR-0006 since #83). One whose {@code result}
+ * gives a generating block, the queue of a function the catalogue marks generating, such as {@code
+ * copyValue}, becomes that {@code TargetRepeat} with the block as its value and its value variable
+ * {@code value<d>} in a leaf's text or an attribute's value (#217, F-46). An unmapped structure
  * field whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code TargetRepeat}
  * of n copies with no value, whatever is mapped below it, an unmapped optional field is left out
  * with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
@@ -68,9 +71,10 @@ import java.util.stream.IntStream;
  * function. For a single-value function it gives the atomic {@code FunCall} over its inputs and
  * then the params when every input is a single value, as for {@code constant}, which has none;
  * otherwise a {@code Lift} over its queue inputs whose body is that {@code FunCall} over their slot
- * variables and the single values (ADR-0006, ADR-0025). A param the box leaves out is its catalogue
- * default, and a table param's {@code Literal} is its {@code TableText} (ADR-0026, #83). A box that
- * feeds several inputs is lowered once per use.
+ * variables and the single values (ADR-0006, ADR-0025). A generating block is the queue it is at a
+ * context or queue function's input (#217). A param the box leaves out is its catalogue default,
+ * and a table param's {@code Literal} is its {@code TableText} (ADR-0026, #83). A box that feeds
+ * several inputs is lowered once per use.
  *
  * <p>Stage 3 reports, each at its authoring id:
  *
@@ -101,7 +105,9 @@ import java.util.stream.IntStream;
  *       unconnected-input}; a param key the entry lacks, {@code unknown-parameter}; a table for a
  *       string param or a string for a table param, {@code wrong-parameter-type}; a string outside
  *       the values of a param that lists them, or a pattern the formatting core cannot translate
- *       for a param with a syntax (ADR-0026, #74), {@code invalid-parameter-value}.
+ *       for a param with a syntax (ADR-0026, #74), {@code invalid-parameter-value};
+ *   <li>a single-value function box, once its inputs lower, per input that a generating block
+ *       feeds: {@code unsupported-generating-input} (#217, F-46).
  * </ul>
  *
  * <p>Only the boxes {@code result} reaches are checked: a box it does not reach is not, and the
@@ -585,9 +591,10 @@ public final class Lowering {
   /**
    * The call of {@code box}'s function over its inputs' values and then its params, or empty once
    * its refusals are reported. Every defect of the box against its catalogue entry is reported at
-   * the box before any input is lowered. Each param is a {@code Literal} at the box: the string the
-   * box gives, or a table's {@code TableText} (ADR-0026, #83), or the entry's default when the box
-   * leaves the param out (ADR-0025).
+   * the box before any input is lowered; a generating block at a single-value function's input,
+   * once they are (#217). Each param is a {@code Literal} at the box: the string the box gives, or
+   * a table's {@code TableText} (ADR-0026, #83), or the entry's default when the box leaves the
+   * param out (ADR-0025).
    */
   private Optional<Expr> call(TargetFieldMapping mapping, AuthoringId id, StandardFunctionBox box) {
     Optional<FunctionCatalogue.Entry> catalogued = FunctionCatalogue.entry(box.fn());
@@ -643,11 +650,44 @@ public final class Lowering {
       }
       values.add(arg.get());
     }
-    return Optional.of(
-        switch (entry.executionKind()) {
-          case SINGLE -> singleValueCall(box.fn(), values, params, id);
-          case CONTEXT, QUEUE -> contextCall(box.fn(), values, params, id);
-        });
+    return switch (entry.executionKind()) {
+      case SINGLE ->
+          takesNoGeneratingBlock(id, box.fn(), inputs, values)
+              ? Optional.of(singleValueCall(box.fn(), values, params, id))
+              : Optional.empty();
+      case CONTEXT, QUEUE -> Optional.of(contextCall(box.fn(), values, params, id));
+    };
+  }
+
+  /**
+   * Whether no input of the single-value function box {@code id} is a generating block; else each
+   * such input is reported at the box as {@code unsupported-generating-input}: the block is one
+   * value for every parent occurrence, which an input that takes one value per slot cannot read
+   * (ADR-0006, F-46). SAP PO accepts that graph, so it is the deviation the catalogue records.
+   *
+   * @param inputs the names of {@code fn}'s inputs, in order
+   * @param values the lowered values of its inputs, in the same order
+   */
+  private boolean takesNoGeneratingBlock(
+      AuthoringId id, String fn, List<String> inputs, List<Expr> values) {
+    boolean none = true;
+    for (int i = 0; i < values.size(); i++) {
+      if (generatingBlock(values.get(i))) {
+        none = false;
+        report(
+            MappingDiagnostics.UNSUPPORTED_GENERATING_INPUT,
+            id,
+            "the input "
+                + inputs.get(i)
+                + " of "
+                + fn
+                + " reads the result of the function box "
+                + values.get(i).origin().value()
+                + ", one value for every parent occurrence, which a function of single values"
+                + " cannot take");
+      }
+    }
+    return none;
   }
 
   /**
@@ -656,6 +696,16 @@ public final class Lowering {
    */
   private static boolean single(Expr value) {
     return value instanceof FunCall c && c.function().resultType() instanceof AtomicType;
+  }
+
+  /**
+   * Whether {@code value}, a box's lowered value, is a generating block: a {@code FunCall} whose
+   * catalogue entry is generating, which only a queue function's is (ADR-0006, F-46), such as
+   * {@code copyValue}'s. Every {@code FunCall} lowering writes is of a catalogue function.
+   */
+  private static boolean generatingBlock(Expr value) {
+    return value instanceof FunCall c
+        && FunctionCatalogue.entry(c.function().name()).orElseThrow().generating();
   }
 
   /**
@@ -849,7 +899,7 @@ public final class Lowering {
         }
       } else if (link != null) {
         content.add(
-            single(link.value())
+            single(link.value()) || generatingBlock(link.value())
                 ? generated(child, below, link, links)
                 : slots(child, below, link, links));
       } else if (mapped.contains(child)) {
@@ -968,26 +1018,39 @@ public final class Lowering {
 
   /**
    * The {@code TargetRepeat} of the mapped field at {@code path}, whose target field mapping is a
-   * generating function, a single value (ADR-0006 "generating function" since #83): {@code max(1,
-   * minOccurs)} copies of its element or attribute per parent occurrence, whatever its {@code
-   * maxOccurs}, so one copy of an attribute, its slot-number variable by its depth, and the target
-   * field mapping as the origin. The value is computed once per copy: a leaf's element holds it as
-   * its text, an attribute as its value, and a structure field, which has none, keeps it as the
-   * {@code TargetRepeat}'s value, its element holding its children only (ADR-0006 as amended by #83
-   * and #102).
+   * generating function, a single value or a generating block (ADR-0006 "generating function" since
+   * #83, F-46): {@code max(1, minOccurs)} copies of its element or attribute per parent occurrence,
+   * whatever its {@code maxOccurs}, so one copy of an attribute, its slot-number variable by its
+   * depth, and the target field mapping as the origin. A single value is computed once per copy: a
+   * leaf's element holds it as its text, an attribute as its value, and a structure field, which
+   * has none, keeps it as the {@code TargetRepeat}'s value, its element holding its children only
+   * (ADR-0006 as amended by #83 and #102). A generating block is the {@code TargetRepeat}'s value
+   * on every field, with its value variable {@code value<d>} by its depth, which a leaf's text and
+   * an attribute's value read; a structure field's element holds its children only (#217).
    */
   private TargetRepeat generated(
       FieldPath path, List<Field> chain, Link link, Map<FieldPath, Link> links) {
     int depth = path.steps().size();
     AuthoringId origin = link.mapping();
-    Optional<Expr> value =
-        link.field().valueType().isPresent() ? Optional.empty() : Optional.of(link.value());
+    Optional<Expr> value;
+    Optional<String> valueVar;
+    Expr leafValue;
+    if (generatingBlock(link.value())) {
+      value = Optional.of(link.value());
+      valueVar = Optional.of(VALUE + depth);
+      leafValue = new VarRef(valueVar.get(), AtomicType.STRING, origin);
+    } else {
+      value = link.field().valueType().isPresent() ? Optional.empty() : Optional.of(link.value());
+      valueVar = Optional.empty();
+      leafValue = link.value();
+    }
     return new TargetRepeat(
         Math.max(1, link.field().occurrence().min()),
         new VarRef(parentSlot(depth), AtomicType.INTEGER, origin),
         SLOT + depth,
         value,
-        constructor(path, chain, link, link.value(), links),
+        valueVar,
+        constructor(path, chain, link, leafValue, links),
         origin);
   }
 
