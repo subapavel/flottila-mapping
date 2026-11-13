@@ -865,6 +865,34 @@ class LoweringTest {
   }
 
   /**
+   * A box refused for a generating input gives no value, so the box that reads it is not lowered
+   * and reports nothing of its own, though it reads the block as well.
+   */
+  @Test
+  void aBoxRefusedForAGeneratingInputGivesNoValueToTheBoxThatReadsIt() {
+    Object[] copy = copyValueBoxes("f1", "1");
+    assertThat(
+            refused(
+                lowerTagged(
+                    CODE,
+                    targetFieldMapping(
+                        "t1",
+                        "f3",
+                        boxes(
+                            copy[0],
+                            copy[1],
+                            copy[2],
+                            copy[3],
+                            "f2",
+                            function("trim", inputs("f1"), noParams()),
+                            "f3",
+                            function("concat", inputs("f2", "f1"), noParams()))),
+                    FLAG,
+                    fromOrders("t0", "/Orders/Order/Id", "/Orders"))))
+        .containsExactly(errorAtId("unsupported-generating-input", "f2"));
+  }
+
+  /**
    * An element with a value and attributes is a leaf (GLOSSARY "Leaf field"): its content is its
    * attribute items, under its slot number, then its text (ADR-0006 since #102).
    */
