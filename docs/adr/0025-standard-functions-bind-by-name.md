@@ -90,7 +90,9 @@ Status: accepted (2026-11-02, #50 design, spec #48); amended by F-48 (#219): use
 - A context function's data error is one code, `po:<CATALOGUE NAME UPPERCASED>`, the same name
   in the runtime and the export; the message says which count failed (#52). It costs a
   `RuntimeErrors` constant and an error corpus case. xdm throws `QueueDataException` for data
-  errors only; the binding rethrows it with the code at the box. useOneAsMany refuses unless
+  errors only; the binding rethrows it with the code at the box. A single-value cast error of a
+  context function, such as `ifWithoutElse`, raises `err:FORG0001` and not `po:<NAME>` (F-44).
+  useOneAsMany refuses unless
   input 1 has as many contexts as input 2 and one value, SUPPRESS included, in each, and then
   unless input 3 has as many values as input 2 (observed on PO 7.5 and CPI, F-48:
   `fn/useOneAsMany/003` to `009`; it replaces #34's assumed one value of input 1 per context of

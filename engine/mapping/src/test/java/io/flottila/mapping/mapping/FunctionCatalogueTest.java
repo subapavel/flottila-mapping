@@ -265,7 +265,8 @@ class FunctionCatalogueTest {
    * The replaceValue entry is re-pinned by #216 (F-45): an observed rule changes replaceValue's
    * execution kind, to {@code context}, and its fidelity follows its cases, now {@code exact}. #219
    * re-pins the fidelity of exists, mapWithDefault and useOneAsMany, to {@code exact}, alone: their
-   * last assumed cases are observed (F-48). The assertions below are #69's, unchanged.
+   * last assumed cases are observed (F-48). #214 re-pins formatByExample and removeContexts, and
+   * #221 re-pins createIf, to {@code exact}, alone each. The assertions below are #69's, unchanged.
    */
   static final String MAIN_CATALOGUE =
       "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";
