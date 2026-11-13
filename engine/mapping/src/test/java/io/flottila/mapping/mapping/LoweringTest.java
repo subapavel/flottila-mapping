@@ -52,6 +52,7 @@ import io.flottila.mapping.structure.Structure;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -679,6 +680,71 @@ class LoweringTest {
                 List.of(ORDERS_NAME, ORDER_ELEMENT, LINE, new Name("", "Sku")), 2, id("s" + box)),
             new Literal(position, id(box))),
         id(box));
+  }
+
+  /**
+   * A generating block is a generating {@code TargetRepeat} over it: the block as its value and
+   * value{@code <d>} as its value variable, which a leaf's text and an attribute's value read, and
+   * {@code max(1, minOccurs)} copies, as for a generating single value (ADR-0006). A structure
+   * field holds its children only. The default position is the catalogue's {@code 0}.
+   */
+  @Test
+  void copyValueOnALeafAttributeAndStructureFieldIsAGeneratingRepeatOverItsBlock() {
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                CODE,
+                copyValue("t1", "f1", "1"),
+                FLAG,
+                fromOrders("t0", "/Orders/Order/Id", "/Orders"),
+                ITEM,
+                copyValue("t2", "f2", null),
+                ITEM + "/Name",
+                copyValue("t3", "f3", "2")));
+
+    assertThat(document.content())
+        .containsExactly(
+            new TargetRepeat(
+                1,
+                integer("root", "t1"),
+                "slot2",
+                Optional.of(copyValueBlock("f1", "1")),
+                Optional.of("value2"),
+                new AttributeConstructor(
+                    "",
+                    new Name("", "code"),
+                    new VarRef("value2", AtomicType.STRING, id("t1")),
+                    id("t1")),
+                id("t1")),
+            rootAttribute("ns0", new Name("urn:b", "flag"), orderIds("st0"), 1, "t0"),
+            new TargetRepeat(
+                1,
+                integer("root", "t2"),
+                "slot2",
+                Optional.of(copyValueBlock("f2", "0")),
+                Optional.of("value2"),
+                new ElementConstructor(
+                    "",
+                    ITEM_NAME,
+                    List.of(
+                        new TargetRepeat(
+                            1,
+                            integer("slot2", "t3"),
+                            "slot3",
+                            Optional.of(copyValueBlock("f3", "2")),
+                            Optional.of("value3"),
+                            new ElementConstructor(
+                                "",
+                                new Name("", "Name"),
+                                List.of(
+                                    new TextConstructor(
+                                        new VarRef("value3", AtomicType.STRING, id("t3")),
+                                        id("t3"))),
+                                id("t3")),
+                            id("t3"))),
+                    id("t2")),
+                id("t2")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
   }
 
   /** At a context function's input the block is the queue it is: count reads one context. */

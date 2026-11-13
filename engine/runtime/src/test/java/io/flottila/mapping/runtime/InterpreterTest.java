@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -559,6 +560,202 @@ class InterpreterTest {
         DECLARATION + ROOT_OPEN + "<Name>x1</Name><Name>x2</Name><Name>y</Name>" + ROOT_CLOSE;
     assertThat(new String(traced, UTF_8)).isEqualTo(all);
     assertThat(untraced).isEqualTo(traced);
+  }
+
+  // --- a generating block (#217, F-46): copyValue's result goes into every copy of every parent
+
+  private static final QueueType QUEUE = new QueueType();
+
+  /** A field of the source Orders/Order/Line, in context {@code depth}, at {@code box}. */
+  private static SourceQueue line(String field, int depth, String box) {
+    return new SourceQueue(
+        List.of(local("Orders"), local("Order"), local("Line"), local(field)), depth, id(box));
+  }
+
+  private static FunCall copyValue(Expr values, String position, String box) {
+    return new FunCall(
+        new FunctionRef("copyValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+        List.of(values, new Literal(position, id(box))),
+        id(box));
+  }
+
+  /** {@code copies} of {@code <V>} per Item, each its block's value: T2. */
+  private static TargetRepeat generatedV(long copies, FunCall block) {
+    AuthoringId t2 = id("T2");
+    return new TargetRepeat(
+        copies,
+        new VarRef("slot2", AtomicType.INTEGER, t2),
+        "slot3",
+        Optional.of(block),
+        Optional.of("value3"),
+        new ElementConstructor(
+            "",
+            local("V"),
+            List.of(new TextConstructor(new VarRef("value3", AtomicType.STRING, t2), t2)),
+            t2),
+        t2);
+  }
+
+  /** {@code <Out>} with one {@code <Item>} per Order (T1), holding {@code content}. */
+  private static TargetDocument items(Expr... content) {
+    AuthoringId t1 = id("T1");
+    return new TargetDocument(
+        "",
+        local("Out"),
+        ROOT_SLOT,
+        List.of(
+            new TargetSlots(
+                new SourceQueue(List.of(local("Orders"), local("Order")), 1, true, id("S1")),
+                new VarRef(ROOT_SLOT, AtomicType.INTEGER, t1),
+                0,
+                UNBOUNDED,
+                "slot2",
+                "value2",
+                new ElementConstructor("", local("Item"), List.of(content), t1),
+                t1)));
+  }
+
+  /** fn/copyValue/001's Orders: Sku a, b, c | d | e, f, Qty 1 to 6. */
+  private static final String SKUS =
+      "<Orders><Order><Line><Sku>a</Sku><Qty>1</Qty></Line><Line><Sku>b</Sku><Qty>2</Qty></Line>"
+          + "<Line><Sku>c</Sku><Qty>3</Qty></Line></Order>"
+          + "<Order><Line><Sku>d</Sku><Qty>4</Qty></Line></Order>"
+          + "<Order><Line><Sku>e</Sku><Qty>5</Qty></Line><Line><Sku>f</Sku><Qty>6</Qty></Line>"
+          + "</Order></Orders>";
+
+  /**
+   * fn/copyValue/001–003: the block's one value goes into every copy under every Item, an
+   * attribute's and a structure field's too, whose copies keep their slot numbers {@code (p - 1) *
+   * copies + j}: Gen's k-th copy reads Line k's Qty.
+   */
+  @Test
+  void aGeneratingBlockWritesItsFirstSlotIntoEveryCopyOfEveryParent() throws Exception {
+    AuthoringId t3 = id("T3");
+    AuthoringId t4 = id("T4");
+    AuthoringId t5 = id("T5");
+    TargetRepeat at =
+        new TargetRepeat(
+            1,
+            new VarRef("slot2", AtomicType.INTEGER, t3),
+            "slot3",
+            Optional.of(copyValue(line("Sku", 2, "S3"), "3", "F3")),
+            Optional.of("value3"),
+            new AttributeConstructor(
+                "", local("at"), new VarRef("value3", AtomicType.STRING, t3), t3),
+            t3);
+    TargetSlots qty =
+        new TargetSlots(
+            line("Qty", 3, "S5"),
+            new VarRef("slot3", AtomicType.INTEGER, t5),
+            0,
+            UNBOUNDED,
+            "slot4",
+            "value4",
+            new ElementConstructor(
+                "",
+                local("Qty"),
+                List.of(new TextConstructor(new VarRef("value4", AtomicType.STRING, t5), t5)),
+                t5),
+            t5);
+    TargetRepeat gen =
+        new TargetRepeat(
+            2,
+            new VarRef("slot2", AtomicType.INTEGER, t4),
+            "slot3",
+            Optional.of(copyValue(line("Sku", 2, "S4"), "0", "F4")),
+            Optional.of("value3"),
+            new ElementConstructor("", local("Gen"), List.of(qty), t4),
+            t4);
+    TargetDocument document =
+        items(at, generatedV(2, copyValue(line("Sku", 2, "S2"), "1", "F1")), gen);
+    IrVerifier.verify(document);
+
+    byte[] untraced = run(document, false, utf8(SKUS), new Tracer());
+    byte[] traced = run(document, true, utf8(SKUS), new Tracer());
+
+    String item =
+        "<Item at=\"d\"><V>b</V><V>b</V><Gen><Qty>%s</Qty></Gen><Gen><Qty>%s</Qty></Gen></Item>";
+    assertThat(new String(untraced, UTF_8))
+        .isEqualTo(
+            DECLARATION
+                + "<Out>"
+                + item.formatted("1", "2")
+                + item.formatted("3", "4")
+                + item.formatted("5", "6")
+                + "</Out>");
+    assertThat(traced).isEqualTo(untraced);
+  }
+
+  /** fn/copyValue/004 and the edge past the last slot: no copy writes, under any Item. */
+  @Test
+  void aSuppressedOrMissingFirstSlotWritesNoCopy() throws Exception {
+    FunCall tags =
+        new FunCall(
+            new FunctionRef("createIf", List.of(QUEUE), QUEUE),
+            List.of(
+                new SourceQueue(
+                    List.of(local("Orders"), local("Order"), local("Tag")), 2, id("S2"))),
+            id("C1"));
+    String input =
+        "<Orders><Order><Tag>true</Tag><Tag>false</Tag><Tag>true</Tag></Order>"
+            + "<Order><Tag>false</Tag><Tag>true</Tag></Order><Order/></Orders>";
+    String empty = DECLARATION + "<Out><Item/><Item/><Item/></Out>";
+
+    // createIf(Tag) is "", SUPPRESS, "" | SUPPRESS, "" | (empty): slot 1 is SUPPRESS
+    TargetDocument suppressed = items(generatedV(2, copyValue(tags, "1", "F1")));
+    Tracer tracer = new Tracer();
+    assertThat(new String(run(suppressed, true, utf8(input), tracer), UTF_8)).isEqualTo(empty);
+    assertThat(tracer.reports())
+        .filteredOn(Tracer.Repeat.class::isInstance)
+        .containsExactly(
+            new Tracer.Repeat(id("T2"), 1, 2, true),
+            new Tracer.Repeat(id("T2"), 2, 2, true),
+            new Tracer.Repeat(id("T2"), 3, 2, true));
+    // witness: slot 0 is "", a value, written into every copy
+    assertThat(run(items(generatedV(2, copyValue(tags, "0", "F1"))), input))
+        .isEqualTo(DECLARATION + "<Out>" + "<Item><V/><V/></Item>".repeat(3) + "</Out>");
+
+    // past the last slot of the queue, and a queue without slots: one empty context
+    assertThat(run(items(generatedV(2, copyValue(line("Sku", 2, "S2"), "6", "F1"))), SKUS))
+        .isEqualTo(DECLARATION + "<Out>" + "<Item/>".repeat(3) + "</Out>");
+    assertThat(run(items(generatedV(2, copyValue(line("Sku", 2, "S2"), "5", "F1"))), SKUS))
+        .as("witness: slot 5 is the last one")
+        .isEqualTo(DECLARATION + "<Out>" + "<Item><V>f</V><V>f</V></Item>".repeat(3) + "</Out>");
+    assertThat(
+            run(
+                items(generatedV(2, copyValue(line("Sku", 2, "S2"), "0", "F1"))),
+                "<Orders><Order/><Order/></Orders>"))
+        .isEqualTo(DECLARATION + "<Out><Item/><Item/></Out>");
+  }
+
+  /**
+   * The block is read once per run, on the first copy's read: its box is traced once with its one
+   * context, and a run without a parent occurrence never reads it, so a malformed position raises
+   * only when a copy reads the block.
+   */
+  @Test
+  void aGeneratingBlockIsReadOncePerRunAndNeverWithoutAParent() throws Exception {
+    TargetDocument document = items(generatedV(2, copyValue(line("Sku", 2, "S2"), "1", "F1")));
+    Tracer tracer = new Tracer();
+    run(document, true, utf8(SKUS), tracer);
+    assertThat(tracedOnce(tracer, "F1")).containsExactly(List.of("b"));
+    assertThat(tracedOnce(tracer, "S2"))
+        .containsExactly(List.of("a", "b", "c"), List.of("d"), List.of("e", "f"));
+
+    Tracer none = new Tracer();
+    assertThat(new String(run(document, true, utf8("<Orders/>"), none), UTF_8))
+        .isEqualTo(DECLARATION + "<Out/>");
+    assertThat(none.values()).extracting(Map.Entry::getKey).containsExactly(id("S1"));
+
+    TargetDocument malformed = items(generatedV(2, copyValue(line("Sku", 2, "S2"), "-1", "F1")));
+    assertThat(run(malformed, "<Orders/>")).isEqualTo(DECLARATION + "<Out/>");
+    assertThatThrownBy(() -> run(malformed, "<Orders><Order/></Orders>"))
+        .isInstanceOfSatisfying(
+            MappingRunException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo(RuntimeErrors.FORG0001);
+              assertThat(e.authoringId()).isEqualTo(id("F1"));
+            });
   }
 
   @Test

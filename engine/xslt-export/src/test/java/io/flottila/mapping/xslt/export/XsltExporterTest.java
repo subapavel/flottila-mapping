@@ -1051,6 +1051,163 @@ class XsltExporterTest {
     assertThat(XsltExporter.export(unvalued)).doesNotContain("substring(");
   }
 
+  // --- a generating block (#217, F-46): copyValue's result, one value for every parent
+
+  /** {@code po:copyValue} at {@code box} over Note directly under the root. */
+  private static FunCall copyValue(String position, String box, String sourceBox) {
+    return new FunCall(
+        new FunctionRef("copyValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+        List.of(underRoot(ORDER, new Name("", "Note"), sourceBox), new Literal(position, id(box))),
+        id(box));
+  }
+
+  /**
+   * A generating block's {@code TargetRepeat}: the block is bound once as a queue variable at the
+   * top of the template, under the root too, since a copy reads it; inside each copy an {@code
+   * xsl:for-each} over {@code po:generated} of it binds the value variable, so a SUPPRESS or
+   * missing first slot writes nothing for that copy, whose slot number stays {@code (p - 1) *
+   * copies + j}.
+   */
+  @Test
+  void aGeneratingBlockIsBoundOnceAndReadThroughPoGenerated() {
+    AuthoringId t1 = id("t1");
+    TargetDocument underTheRoot =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    1,
+                    new VarRef(ROOT, AtomicType.INTEGER, t1),
+                    SLOT,
+                    Optional.of(copyValue("1", "f1", "a1")),
+                    Optional.of(VALUE),
+                    new ElementConstructor(
+                        "",
+                        ORDER_ID,
+                        List.of(new TextConstructor(new VarRef(VALUE, AtomicType.STRING, t1), t1)),
+                        t1),
+                    t1)));
+    IrVerifier.verify(underTheRoot);
+
+    assertThat(XsltExporter.export(underTheRoot))
+        .isEqualTo(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" \
+            xmlns:xs="http://www.w3.org/2001/XMLSchema" \
+            xmlns:array="http://www.w3.org/2005/xpath-functions/array" \
+            xmlns:po="urn:flottila:mapping:po" xmlns:s0="urn:flottila:corpus:skeleton" \
+            xmlns:ns0="urn:flottila:corpus:skeleton" exclude-result-prefixes="#all">
+              <xsl:import href="po-runtime.xsl"/>
+              <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="no" \
+            omit-xml-declaration="no"/>
+              <xsl:template match="/">
+                <xsl:variable name="root" as="xs:integer" select="1"/>
+                <xsl:variable name="po:queue1" as="array(item()*)" \
+            select="po:copyValue(po:source-queue(array:join(/s0:Order ! [Note ! string()])), '1', 'f1')"/>
+                <ns0:Order>
+                  <xsl:for-each select="1 to 1">
+                    <xsl:variable name="slot2" as="xs:integer" select="($root - 1) * 1 + ."/>
+                    <xsl:for-each select="po:generated($po:queue1)">
+                      <xsl:variable name="value2" as="xs:string" select="."/>
+                      <OrderId><xsl:value-of select="$value2"/></OrderId>
+                    </xsl:for-each>
+                  </xsl:for-each>
+                </ns0:Order>
+              </xsl:template>
+            </xsl:stylesheet>
+            """);
+
+    // under an occurrence of Item: two copies of Name per Item, each its own slot number
+    Name item = new Name("", "Item");
+    AuthoringId t3 = id("t3");
+    TargetRepeat names =
+        new TargetRepeat(
+            2,
+            new VarRef(SLOT, AtomicType.INTEGER, t3),
+            "slot3",
+            Optional.of(copyValue("0", "f3", "a3")),
+            Optional.of("value3"),
+            new ElementConstructor(
+                "",
+                new Name("", "Name"),
+                List.of(new TextConstructor(new VarRef("value3", AtomicType.STRING, t3), t3)),
+                t3),
+            t3);
+    TargetDocument underAnOccurrence =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                nested(
+                    new SourceQueue(List.of(ORDER, item), 1, true, id("a1")),
+                    ROOT,
+                    2,
+                    item,
+                    List.of(names))));
+    IrVerifier.verify(underAnOccurrence);
+
+    assertThat(XsltExporter.export(underAnOccurrence))
+        .isEqualTo(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <xsl:stylesheet version="3.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" \
+            xmlns:xs="http://www.w3.org/2001/XMLSchema" \
+            xmlns:array="http://www.w3.org/2005/xpath-functions/array" \
+            xmlns:po="urn:flottila:mapping:po" xmlns:s0="urn:flottila:corpus:skeleton" \
+            xmlns:ns0="urn:flottila:corpus:skeleton" exclude-result-prefixes="#all">
+              <xsl:import href="po-runtime.xsl"/>
+              <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="no" \
+            omit-xml-declaration="no"/>
+              <xsl:template match="/">
+                <xsl:variable name="root" as="xs:integer" select="1"/>
+                <xsl:variable name="po:queue1" as="array(item()*)" \
+            select="po:copyValue(po:source-queue(array:join(/s0:Order ! [Note ! string()])), '0', 'f3')"/>
+                <ns0:Order>
+                  <xsl:for-each select="po:slots(po:source-queue(array:join(/s0:Order ! [Item ! ''])), $root, ())">
+                    <xsl:variable name="slot2" as="xs:integer" select="?1"/>
+                    <xsl:variable name="value2" as="xs:string" select="?2"/>
+                    <Item>
+                      <xsl:for-each select="1 to 2">
+                        <xsl:variable name="slot3" as="xs:integer" select="($slot2 - 1) * 2 + ."/>
+                        <xsl:for-each select="po:generated($po:queue1)">
+                          <xsl:variable name="value3" as="xs:string" select="."/>
+                          <Name><xsl:value-of select="$value3"/></Name>
+                        </xsl:for-each>
+                      </xsl:for-each>
+                    </Item>
+                  </xsl:for-each>
+                </ns0:Order>
+              </xsl:template>
+            </xsl:stylesheet>
+            """);
+    assertThat(helperParamNames("po:generated")).containsExactly("block");
+
+    // witness: a single STRING value, a constant's, is no block and is read without po:generated
+    FunCall constant =
+        new FunCall(
+            new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING),
+            List.of(new Literal("x", id("c1"))),
+            id("c1"));
+    TargetDocument single =
+        new TargetDocument(
+            "ns0",
+            ORDER,
+            ROOT,
+            List.of(
+                new TargetRepeat(
+                    1,
+                    new VarRef(ROOT, AtomicType.INTEGER, t1),
+                    SLOT,
+                    new ElementConstructor(
+                        "", ORDER_ID, List.of(new TextConstructor(constant, t1)), t1),
+                    t1)));
+    assertThat(XsltExporter.export(single)).doesNotContain("po:generated", "po:queue1");
+  }
+
   /**
    * The exporter reads the helper module's signatures (ADR-0026), so a FunCall whose function the
    * helper does not declare is a compiler bug, as the runtime's binding treats it.

@@ -382,4 +382,66 @@ class FunctionCatalogueTest {
     Fixtures.assertBytes(
         Fixtures.strictUtf8(main), Fixtures.utf8(stringify(new Obj(context), "") + "\n"));
   }
+
+  // --- generating functions (#217, F-46): a queue function whose result is one value that goes
+  // into every parent occurrence, as a constant's does
+
+  /**
+   * What is wrong with each function's {@code generating}: anything but {@code true}, or {@code
+   * true} on a function whose execution kind is not {@code queue}.
+   */
+  static List<String> generatingProblems(JsonTree catalogue) {
+    List<String> problems = new ArrayList<>();
+    functions(catalogue, "the catalogue")
+        .forEach(
+            (name, entry) -> {
+              Map<String, JsonTree> members = members(entry, name);
+              JsonTree generating = members.get("generating");
+              if (generating == null) {
+                return;
+              }
+              if (!generating.equals(new Bool(true))) {
+                problems.add(name + ": generating is not true");
+              }
+              if (!new Str("queue").equals(members.get("executionKind"))) {
+                problems.add(name + ": generating, but no queue function");
+              }
+            });
+    return problems;
+  }
+
+  @Test
+  void onlyAQueueFunctionIsGenerating() throws Exception {
+    // witness: the check reports each defect in a catalogue that has them
+    JsonTree broken =
+        JsonTree.parse(
+            """
+            {"f": {"executionKind": "context", "generating": true},
+             "g": {"executionKind": "queue", "generating": false},
+             "h": {"executionKind": "queue", "generating": true},
+             "k": {"executionKind": "queue"}}
+            """);
+    assertThat(generatingProblems(broken))
+        .containsExactlyInAnyOrder(
+            "f: generating, but no queue function", "g: generating is not true");
+
+    Map<String, JsonTree> packed =
+        functions(JsonTree.parse(Fixtures.strictUtf8(catalogue())), "the packed catalogue");
+    assertThat(generatingProblems(new Obj(packed))).isEmpty();
+    // copyValue's result is generating (F-46)
+    assertThat(members(packed.get("copyValue"), "copyValue"))
+        .containsEntry("executionKind", new Str("queue"))
+        .containsEntry("generating", new Bool(true));
+
+    // lowering reads it as the catalogue holds it; constant's single value is no generating block
+    for (Map.Entry<String, JsonTree> function : packed.entrySet()) {
+      boolean generating =
+          new Bool(true).equals(members(function.getValue(), function.getKey()).get("generating"));
+      assertThat(FunctionCatalogue.entry(function.getKey()).orElseThrow().generating())
+          .as(function.getKey())
+          .isEqualTo(generating);
+    }
+    assertThat(FunctionCatalogue.entry("copyValue").orElseThrow().generating()).isTrue();
+    assertThat(FunctionCatalogue.entry("constant").orElseThrow().generating()).isFalse();
+  }
 }
