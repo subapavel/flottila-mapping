@@ -886,10 +886,10 @@
     "portable": true
   },
   "replaceValue": {
-    "executionKind": "single",
+    "executionKind": "context",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {

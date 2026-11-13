@@ -1313,7 +1313,9 @@ class XsltExporterTest {
    * declarations that raise a data error (formatByExample, sort, sortByKey, sort-contexts,
    * useOneAsMany) gain {@code box} as their last param and raise through it, and the header names
    * the box; every other byte is main's. #133 re-pins po:createIf alone (ADR-0006 as amended,
-   * F-37): it casts as PO does and gains {@code box}. The assertions below are #69's, unchanged.
+   * F-37): it casts as PO does and gains {@code box}. #216 re-pins po:replaceValue alone (F-45): an
+   * observed rule changes replaceValue's execution kind, so it takes and gives a queue. The
+   * assertions below are #69's, unchanged.
    */
   private static final String MAIN_HELPER_MODULE =
       "engine/xslt-export/src/test/resources/pinned-71/po-runtime.xsl";
