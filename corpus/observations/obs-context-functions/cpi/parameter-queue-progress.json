@@ -49,14 +49,14 @@
       "set": "obs-constant",
       "artifact": "api_constant_concat_constants",
       "parameterEvidence": "cpi/parameter-audit/api_constant_concat_constants.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/constant/006",
       "set": "obs-constant",
       "artifact": "api_constant_count",
       "parameterEvidence": "cpi/parameter-audit/api_constant_count.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/copyValue/001",

@@ -642,6 +642,45 @@
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13",
       "verificationNotes": "C1/F1 queues verify empty strings map to E and SUPPRESS passes unchanged without exception; context/end marker flags distinguish displayed duplicate text. Temporary layout discarded."
+    },
+    {
+      "mapping": "constant-count",
+      "input": "constant-001.xml",
+      "case": "fn/constant/006",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_constant_count",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-006-constant-count-check.txt",
+      "cpiOutput": "cpi/constant-006-constant-count.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_constant_count.json",
+      "additionalEvidence": [
+        "cpi/constant-006-C1-queue.json",
+        "cpi/constant-006-N1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "C1 displayed generator x; count queue contains a single ordinary output value 1 and end marker, matching previous V1 in only first Item while Ww repeats. Temporary layout discarded."
+    },
+    {
+      "mapping": "constant-concat-constants",
+      "input": "constant-001.xml",
+      "case": "fn/constant/005",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_constant_concat_constants",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-005-constant-concat-constants-check.txt",
+      "cpiOutput": "cpi/constant-005-constant-concat-constants.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_constant_concat_constants.json",
+      "additionalEvidence": [
+        "cpi/constant-005-F1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Native concat queue shows generator inputs a,b and generator output ab with end marker. Matches prior ab per Item and root All. Temporary layout discarded."
     }
   ]
 }
