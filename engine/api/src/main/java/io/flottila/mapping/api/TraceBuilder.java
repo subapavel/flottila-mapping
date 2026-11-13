@@ -121,7 +121,8 @@ final class TraceBuilder {
   /**
    * The slots of {@code report}: of a {@code TargetSlots}, those of context p of its queue, a
    * context the queue lacks counting as empty (ADR-0006); of a {@code TargetRepeat}, its copies,
-   * numbered {@code (p - 1) * copies + j} and none SUPPRESS (#83).
+   * numbered {@code (p - 1) * copies + j} (#83), each SUPPRESS when its generating block's first
+   * slot is SUPPRESS or missing, and none otherwise (#217, F-46).
    */
   private static Slots slots(Tracer.FieldReport report) {
     return switch (report) {
@@ -141,7 +142,7 @@ final class TraceBuilder {
               r.parentSlot(),
               (r.parentSlot() - 1) * r.copies(),
               r.parentSlot() * r.copies(),
-              slot -> false);
+              slot -> r.suppressed());
     };
   }
 

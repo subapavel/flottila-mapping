@@ -23,7 +23,10 @@ final class Frame {
   /** The {@code STRING} variables (slot values) by slot. */
   final String[] strings;
 
-  /** The block of each {@code TargetSlots}' queue once it is evaluated, else null (ADR-0006). */
+  /**
+   * The block of each {@code TargetSlots}' queue and of each generating block (#217) once it is
+   * evaluated, else null (ADR-0006).
+   */
   final QueueBlock[] targetQueues;
 
   /**

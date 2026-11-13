@@ -63,6 +63,15 @@
         else $slots"/>
   </xsl:function>
 
+  <!-- The value each copy of a generating block's TargetRepeat writes (#217, F-46), as the
+       runtime's Node.Repeat reads it: the block's first slot, counted across its contexts, when it
+       is a value, or () when it is SUPPRESS or the block has no slot, so the copy writes nothing
+       and keeps its slot number. -->
+  <xsl:function name="po:generated" as="xs:string?">
+    <xsl:param name="block" as="array(item()*)"/>
+    <xsl:sequence select="($block?*)[1][. instance of xs:string]"/>
+  </xsl:function>
+
   <!-- Lift (ADR-0006): $body once per slot, getting each queue's value there in queue order, as
        the runtime's Lifting.lift does. Context i pairs context i of every queue, and the result has
        as many as the queue with the most; an empty or missing context gives an empty one; else

@@ -13,11 +13,11 @@
     xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
-  <!-- copyValue: per context of $values, one context holding its slot at $position, counted from
-       0, SUPPRESS included, or an empty context when the context is shorter, as the runtime's
-       ConstantFunctions.copyValue does (assumed readings of #79). Unless $position is an
-       xs:nonNegativeInteger, XML whitespace around it ignored, it raises err:FORG0001 at $box
-       before it reads $values, as the runtime's binding does. -->
+  <!-- copyValue: a generating block (#217, F-46), one context holding the slot of $values at
+       $position, counted from 0 across all its contexts, SUPPRESS included, or one empty context
+       when $values has fewer slots, as the runtime's ConstantFunctions.copyValue does. Unless
+       $position is an xs:nonNegativeInteger, XML whitespace around it ignored, it raises
+       err:FORG0001 at $box before it reads $values, as the runtime's binding does. -->
   <xsl:function name="po:copyValue" as="array(item()*)">
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="position" as="xs:string"/>
@@ -28,8 +28,7 @@
                            'copyValue: the position &quot;' || $position
                            || '&quot; is no xs:nonNegativeInteger')
         else let $at := xs:integer(xs:nonNegativeInteger($position)) + 1
-             return array:join(for $c in 1 to array:size($values)
-                               return [$values($c)[$at]])"/>
+             return [($values?*)[$at]]"/>
   </xsl:function>
 
   <!-- constant: its value, a generating function (ADR-0006 since #83), as the runtime's

@@ -24,8 +24,10 @@ import java.util.Set;
  *   <li>a {@link TargetSlots}' {@code min} is at most its {@code max}, its queue is a queue and its
  *       parent slot an {@code INTEGER};
  *   <li>a {@link TargetRepeat} has at least one copy and an {@code INTEGER} parent slot, and binds
- *       its slot number ({@code INTEGER}) only in its body (#63); its value, when present, is a
- *       {@code STRING} in the parent's scope, so it cannot read its own slot number (#83);
+ *       its slot number ({@code INTEGER}) only in its body (#63); its value, when present, is in
+ *       the parent's scope, so it cannot read its own slot number or value variable, and is a
+ *       {@code STRING} (#83) or a {@code QUEUE}, a generating block, which alone has a value
+ *       variable ({@code STRING}), bound only in its body (#217);
  *   <li>a {@link FunCall} has one argument per parameter type of its {@link FunctionRef}, each of
  *       that type; a context function's (one whose result is a queue) atomic argument is a param,
  *       and a param is a {@link Literal} (ADR-0025);
@@ -132,17 +134,40 @@ public final class IrVerifier {
   }
 
   /**
-   * Checks {@code r}'s copies, parent slot and value in {@code scope}; the scope of its body, which
-   * adds its slot number.
+   * Checks {@code r}'s copies, parent slot, value and value variable in {@code scope}; the scope of
+   * its body, which adds its slot number and, for a generating block, its value variable.
    */
   private static Map<String, AtomicType> body(TargetRepeat r, Map<String, AtomicType> scope) {
     if (r.copies() < 1) {
       throw refused(r, "it has " + r.copies() + " copies, not at least 1");
     }
     value(r, r.parentSlot(), AtomicType.INTEGER, scope, "its parent slot");
-    r.value().ifPresent(v -> value(r, v, AtomicType.STRING, scope, "its value"));
     Map<String, AtomicType> body = new HashMap<>(scope);
     body.put(r.slotVar(), AtomicType.INTEGER);
+    if (r.value().isEmpty()) {
+      if (r.valueVar().isPresent()) {
+        throw refused(r, "it binds the value variable " + r.valueVar().get() + " without a value");
+      }
+      return body;
+    }
+    Expr value = r.value().get();
+    Optional<IrType> type = check(value, scope);
+    if (type.equals(Optional.of(QUEUE))) {
+      // a generating block (#217): its first slot is bound in the body only
+      String valueVar =
+          r.valueVar()
+              .orElseThrow(
+                  () ->
+                      refused(
+                          r,
+                          "its value is no STRING but a QUEUE, which needs a value variable: "
+                              + value));
+      body.put(valueVar, AtomicType.STRING);
+    } else if (!type.equals(Optional.of(AtomicType.STRING))) {
+      throw refused(r, "its value is no STRING and no QUEUE: " + value);
+    } else if (r.valueVar().isPresent()) {
+      throw refused(r, "its value is a STRING, which binds no value variable");
+    }
     return body;
   }
 
