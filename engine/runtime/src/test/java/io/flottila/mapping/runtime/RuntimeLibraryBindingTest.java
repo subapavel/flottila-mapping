@@ -442,4 +442,20 @@ class RuntimeLibraryBindingTest {
     assertThat(run(removeContexts(mapWithDefault), NAMES))
         .isEqualTo(notesOf("x1", "x2", "none", "y"));
   }
+
+  /**
+   * replaceValue is a queue function since #216 (F-45): its param binds as the replacement at every
+   * slot, and the empty Item's context stays empty, so it adds no Note.
+   */
+  @Test
+  void replaceValueIsBoundByNameWithItsReplacement() throws Exception {
+    AuthoringId box = new AuthoringId("f1");
+    FunCall replaceValue =
+        new FunCall(
+            new FunctionRef("replaceValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+            List.of(source(2, "a1", "Item", "Name"), new Literal("r", box)),
+            box);
+
+    assertThat(run(removeContexts(replaceValue), NAMES)).isEqualTo(notesOf("r", "r", "r"));
+  }
 }
