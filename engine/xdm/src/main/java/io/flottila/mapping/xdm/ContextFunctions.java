@@ -3,7 +3,6 @@ package io.flottila.mapping.xdm;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.IntFunction;
@@ -39,11 +38,11 @@ public final class ContextFunctions {
 
   /**
    * {@code createIf}: per slot of {@code condition}, its value cast as PO's {@code Bool.toBoolean}
-   * does (ADR-0006, amended with #133, F-37): {@code ""} where it is {@code 1} or {@code true} in
-   * any case, SUPPRESS where it is {@code 0} or {@code false} in any case, and SUPPRESS where the
-   * slot is SUPPRESS. White space is part of a value, and the case is folded for ASCII letters
-   * only, as the export's {@code lower-case} folds them. The result keeps the slots and shares the
-   * context starts of {@code condition} (ADR-0004).
+   * does ({@link BooleanFunctions#truth}, ADR-0006, amended with #133, F-37): {@code ""} where it
+   * is {@code 1} or {@code true} in any case, SUPPRESS where it is {@code 0} or {@code false} in
+   * any case, and SUPPRESS where the slot is SUPPRESS. White space is part of a value, and the case
+   * is folded for ASCII letters only, as the export's {@code lower-case} folds them. The result
+   * keeps the slots and shares the context starts of {@code condition} (ADR-0004).
    *
    * @throws QueueDataException at the first slot, in order, whose value is none of those, {@code
    *     ""} included: {@code Cannot cast '<value>' to boolean}, PO's text
@@ -58,29 +57,10 @@ public final class ContextFunctions {
       // a SUPPRESS slot's value is null: it stays SUPPRESS, uncast
       String value = condition.value(i);
       if (value != null) {
-        values[i] = truth(value) ? "" : null;
+        values[i] = BooleanFunctions.truth(value) ? "" : null;
       }
     }
     return condition.withValues(values);
-  }
-
-  /**
-   * {@code value} cast to a boolean as {@link #createIf} casts it. Like the export's {@code
-   * lower-case}, {@code toLowerCase(Locale.ROOT)} maps no character but an ASCII capital to a
-   * letter of {@code true} or {@code false}; {@code equalsIgnoreCase} would also take U+017F, the
-   * long s, for {@code s}, which {@code lower-case} keeps.
-   *
-   * @throws QueueDataException when {@code value} is no boolean
-   */
-  private static boolean truth(String value) {
-    String folded = value.toLowerCase(Locale.ROOT);
-    if (value.equals("1") || folded.equals("true")) {
-      return true;
-    }
-    if (value.equals("0") || folded.equals("false")) {
-      return false;
-    }
-    throw new QueueDataException("Cannot cast '" + value + "' to boolean");
   }
 
   /**

@@ -2,7 +2,7 @@
   "and": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -17,7 +17,7 @@
   "equals": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -32,7 +32,7 @@
   "if": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -50,7 +50,7 @@
   "ifWithoutElse": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -88,7 +88,7 @@
   "not": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -100,7 +100,7 @@
   "notEquals": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -115,7 +115,7 @@
   "or": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {

@@ -104,7 +104,7 @@ class FidelityAgreesWithTheCasesTest {
     List<CorpusCase> corpus = CaseFiles.all();
     // witness: the corpus holds assumed cases of a function the catalogue publishes
     assertThat(
-            Stream.of("useOneAsMany", "removeContexts")
+            Stream.of("useOneAsMany", "collapseContexts")
                 .filter(
                     name ->
                         corpus.stream()
@@ -112,7 +112,7 @@ class FidelityAgreesWithTheCasesTest {
                                 c ->
                                     c.id().startsWith("fn/" + name + "/")
                                         && c.provenance().equals("assumed"))))
-        .containsExactly("useOneAsMany", "removeContexts");
+        .containsExactly("useOneAsMany", "collapseContexts");
 
     assertThat(disagreements(published, corpus))
         .as("functions with an assumed case that are not assumed")
