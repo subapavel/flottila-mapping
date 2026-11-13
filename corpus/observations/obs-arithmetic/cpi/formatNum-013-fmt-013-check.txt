@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/formatNum/013
+Artifact: api_fmt_013
+Input: original formatNum-013.xml uploaded through simulator.
+Visible graph verified: Qty context /Orders -> formatNumber -> /Out/All.
+Simulation completed. All values: EUR 1,234.50; -EUR 3.00. Downloaded XML preserved unchanged.
+Live pattern dialog not independently inspected. JVM locale and arithmetic mode not exposed/verified. Output observed; parameter verification pending.

@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/formatNum/012
+Artifact: api_fmt_012
+Input: original formatNum-012.xml uploaded through simulator.
+Visible graph verified: Qty context /Orders -> formatNumber -> /Out/All.
+Simulation completed. All values: (1,234.50); 1,234.50; (0.00). Downloaded XML preserved unchanged.
+Live pattern dialog not independently inspected. JVM locale and arithmetic mode not exposed/verified. Output observed; parameter verification pending.
