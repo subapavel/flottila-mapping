@@ -971,7 +971,7 @@
     "family": "context",
     "fidelity": {
       "level": "deviation",
-      "text": "Orders keys case-insensitively by Unicode character (code point), as `sort` does. SAP PO puts 😀 before ﬀ and Ａ there, so keys with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
+      "text": "Orders keys as `sort` does, case-insensitively by code point. SAP PO puts 😀 before ﬀ and Ａ, so keys with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
     },
     "inputs": [
       {
