@@ -337,6 +337,28 @@
       "reading": "current-environment-output-confirmed-requested-zone-unmet",
       "cpiEvidence": "cpi/compareDates-004-compare-dates-004-check.txt",
       "cpiOutput": "cpi/compareDates-004-compare-dates-004.xml"
+    },
+    {
+      "mapping": "current-date",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/001",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_current_date",
+      "reading": "output-confirmed-default-and-monitor-time-unverified",
+      "cpiEvidence": "cpi/currentDate-001-current-date-check.txt",
+      "cpiOutput": "cpi/currentDate-001-current-date.xml"
+    },
+    {
+      "mapping": "current-date-time",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/002",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_current_date_time",
+      "reading": "output-confirmed-parameter-and-monitor-time-unverified",
+      "cpiEvidence": "cpi/currentDate-001-current-date-time-check.txt",
+      "cpiOutput": "cpi/currentDate-001-current-date-time.xml"
     }
   ]
 }
