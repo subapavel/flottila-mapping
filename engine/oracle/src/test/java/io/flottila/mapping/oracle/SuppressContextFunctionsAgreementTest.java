@@ -149,12 +149,12 @@ class SuppressContextFunctionsAgreementTest {
   private static TargetDocument document(String comparison, String order, String mode) {
     boolean numeric = comparison.equals("numeric");
     List<Expr> leaves = new ArrayList<>();
-    // sort: SUPPRESS the smallest value; A shows the order of the values, B each context's first
+    // sort: SUPPRESS the greatest value; A shows the order of the values, B each context's first
     Expr sorted =
         call("sort", "s1", List.of(mixed("m1"), param(comparison, "s1"), param(order, "s1")));
     leaves.add(leaf("A", call("removeContexts", "r1", List.of(sorted))));
     leaves.add(leaf("B", call("collapseContexts", "k1", List.of(sorted))));
-    // sortByKey: a SUPPRESS key is the smallest, except as a numeric key; a SUPPRESS value moves
+    // sortByKey: a SUPPRESS key is the greatest, except as a numeric key; a SUPPRESS value moves
     Expr skus = source(2, "q1", "Line", "Sku");
     List<Expr> byKey =
         numeric
@@ -168,7 +168,7 @@ class SuppressContextFunctionsAgreementTest {
     Expr splitConditions = call("splitByValue", "p2", List.of(conditions, param(mode, "p2")));
     leaves.add(leaf("E", call("collapseContexts", "k3", List.of(splitConditions))));
     leaves.add(leaf("F", call("removeContexts", "r3", List.of(splitMixed))));
-    // collapseContexts: a SUPPRESS first slot is ""
+    // collapseContexts: a SUPPRESS first slot stays SUPPRESS
     Expr perOrder = call("createIf", "c2", List.of(source(2, "a2", "Tag")));
     leaves.add(leaf("G", call("collapseContexts", "k4", List.of(perOrder))));
     // useOneAsMany: a SUPPRESS value repeated, a SUPPRESS occurrence counted
@@ -308,9 +308,9 @@ class SuppressContextFunctionsAgreementTest {
                             skus,
                             param("numeric", "y1"),
                             param("ascending", "y1"))))));
-    // witness: as strings the SUPPRESS key comes first on both sides
+    // witness: as strings the SUPPRESS key comes last on both sides (F-47)
     byte[] ours = ours(lexicographic, input);
-    assertThat(new String(ours, UTF_8)).contains("<Out><C>1</C><C>2</C></Out>");
+    assertThat(new String(ours, UTF_8)).contains("<Out><C>2</C><C>1</C></Out>");
     SaxonRunner.assertAgree(saxon(lexicographic, input, "lexicographic"), ours, "lexicographic");
 
     // since #52 the run stops with sortByKey's one code at its box (ADR-0025)

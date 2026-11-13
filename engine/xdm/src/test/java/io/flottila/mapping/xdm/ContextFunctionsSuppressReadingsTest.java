@@ -23,23 +23,25 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The context functions of #55 and #56 over queues that hold SUPPRESS (#51, ADR-0004). Every
- * reading here is assumed until an observed case confirms it (#61):
+ * The context functions of #55 and #56 over queues that hold SUPPRESS (#51, ADR-0004). A reading
+ * marked observed is PO 7.50's and CPI's (F-47); the others are assumed until an observed case
+ * confirms them (#61):
  *
  * <ul>
  *   <li>{@code splitByValue} keeps each SUPPRESS as a slot in every mode; in mode valueChange a
  *       SUPPRESS equals another SUPPRESS and no value, as SAP's SUPPRESS string would compare, and
- *       in mode emptyValue a SUPPRESS is no {@code ""};
- *   <li>{@code collapseContexts} takes a SUPPRESS first slot for {@code ""}, as SAP is documented
- *       to (#2 §7.4, obs-context-functions ctx-6b);
+ *       in mode emptyValue a SUPPRESS is no {@code ""} (observed, fn/splitByValue/019 to 021);
+ *   <li>{@code collapseContexts} keeps a SUPPRESS first slot as SUPPRESS (observed,
+ *       obs-context-functions ctx-6b);
  *   <li>{@code useOneAsMany} repeats a SUPPRESS value as SUPPRESS, counts a SUPPRESS occurrence as
  *       one, and takes only the boundaries of its third input;
  *   <li>{@code formatByExample} keeps a SUPPRESS of its values at its slot and counts a SUPPRESS of
  *       its example as a value;
- *   <li>{@code sort} and {@code sortByKey} take a SUPPRESS key for the smallest key in every
- *       comparison, so it comes first ascending and last descending, and a numeric sort does not
- *       parse it; a SUPPRESS value moves with its key and stays SUPPRESS. A numeric sortByKey key
- *       must not be SUPPRESS (#2 §3, documented).
+ *   <li>{@code sort} and {@code sortByKey} take a SUPPRESS key for the greatest key in every
+ *       comparison, so it comes last ascending and first descending (observed for a case-sensitive
+ *       sort and an ascending sortByKey, fn/sort/012, fn/sort/013, fn/sortByKey/006), and a numeric
+ *       sort does not parse it; a SUPPRESS value moves with its key and stays SUPPRESS. A numeric
+ *       sortByKey key must not be SUPPRESS (#2 §3, documented).
  * </ul>
  *
  * Worked examples first, then property tests (ADR-0018) over the edges and 200 seeded queues of
@@ -146,25 +148,34 @@ class ContextFunctionsSuppressReadingsTest {
 
   // --- collapseContexts
 
-  /** obs-context-functions ctx-6b: {@code 5 | SUPPRESS | 7} collapses to {@code 5, "", 7}. */
+  /**
+   * obs-context-functions ctx-6b, observed on PO 7.50 and CPI (F-47): {@code 5 | SUPPRESS | 7}
+   * collapses to {@code 5, SUPPRESS, 7}.
+   */
   @Test
-  void collapseContextsTakesASuppressFirstSlotForAnEmptyValue() {
+  void collapseContextsKeepsASuppressFirstSlotAsSuppress() {
     Queue ctx6b = queue("ctx-6b", context("5"), context(S), context("7"));
-    // the first slot decides, whatever follows it
+    // the first slot decides, whatever follows it; an empty context among others is ""
     Queue firsts = queue("firsts", context(S, "x"), context("y", S), context());
 
     assertThat(read(ContextFunctions.collapseContexts(ctx6b.block())))
-        .containsExactly(context("5", "", "7"));
+        .containsExactly(context("5", S, "7"));
     assertThat(read(ContextFunctions.collapseContexts(firsts.block())))
-        .containsExactly(context("", "y", ""));
+        .containsExactly(context(S, "y", ""));
   }
 
+  /**
+   * Each context's first slot, SUPPRESS as SUPPRESS, and {@code ""} for an empty context, except
+   * that a queue whose one context is empty, or that has none, gives no slot (F-47).
+   */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void collapseContextsGivesNoSuppress(String name, Queue queue) {
+  void collapseContextsKeepsEachFirstSlotSuppressIncluded(String name, Queue queue) {
     List<String> expected = new ArrayList<>();
-    for (List<String> context : queue.contexts()) {
-      expected.add(context.isEmpty() || context.getFirst() == null ? "" : context.getFirst());
+    if (!queue.flat().isEmpty() || queue.contexts().size() > 1) {
+      for (List<String> context : queue.contexts()) {
+        expected.add(context.isEmpty() ? "" : context.getFirst());
+      }
     }
 
     assertThat(read(ContextFunctions.collapseContexts(queue.block()))).containsExactly(expected);
@@ -306,30 +317,35 @@ class ContextFunctionsSuppressReadingsTest {
 
   // --- sort and sortByKey
 
+  /**
+   * fn/sort/012 and fn/sort/013, observed (F-47): SUPPRESS after {@code ""} ascending, before it
+   * descending.
+   */
   @Test
-  void sortTakesSuppressForTheSmallestValueInEveryComparison() {
+  void sortTakesSuppressForTheGreatestValueInEveryComparison() {
     QueueBlock words = queue("words", context("b", S, "A", "", S, "a"), context(S)).block();
     QueueBlock numbers = queue("numbers", context("10", S, " 2 ", S, "-1")).block();
 
     assertThat(read(ContextFunctions.sort(words, Comparison.LEXICOGRAPHIC, false)))
-        .containsExactly(context(S, S, "", "A", "a", "b"), context(S));
+        .containsExactly(context("", "A", "a", "b", S, S), context(S));
     assertThat(read(ContextFunctions.sort(words, Comparison.LEXICOGRAPHIC, true)))
-        .containsExactly(context("b", "a", "A", "", S, S), context(S));
+        .containsExactly(context(S, S, "b", "a", "A", ""), context(S));
     // "A" and "a" are equal keys here, so they keep their input order either way
     assertThat(read(ContextFunctions.sort(words, Comparison.CASE_INSENSITIVE, false)))
-        .containsExactly(context(S, S, "", "A", "a", "b"), context(S));
+        .containsExactly(context("", "A", "a", "b", S, S), context(S));
     assertThat(read(ContextFunctions.sort(words, Comparison.CASE_INSENSITIVE, true)))
-        .containsExactly(context("b", "A", "a", "", S, S), context(S));
+        .containsExactly(context(S, S, "b", "A", "a", ""), context(S));
     // a SUPPRESS is not parsed, so the numeric sort does not stop at it
     assertThat(read(ContextFunctions.sort(numbers, Comparison.NUMERIC, false)))
-        .containsExactly(context(S, S, "-1", " 2 ", "10"));
+        .containsExactly(context("-1", " 2 ", "10", S, S));
     assertThat(read(ContextFunctions.sort(numbers, Comparison.NUMERIC, true)))
-        .containsExactly(context("10", " 2 ", "-1", S, S));
+        .containsExactly(context(S, S, "10", " 2 ", "-1"));
   }
 
   /**
    * Keys {@code 2, SUPPRESS, 1, SUPPRESS} over values {@code w, x, SUPPRESS, z}: compared as
-   * strings a SUPPRESS key is the smallest, and a SUPPRESS value moves with its key.
+   * strings a SUPPRESS key is the greatest (fn/sortByKey/006, observed, F-47), equal SUPPRESS keys
+   * keep their input order, and a SUPPRESS value moves with its key.
    */
   @Test
   void sortByKeyMovesSuppressValuesWithTheirKeys() {
@@ -337,14 +353,14 @@ class ContextFunctionsSuppressReadingsTest {
     QueueBlock values = queue("values", context("w", "x", S, "z")).block();
 
     assertThat(read(ContextFunctions.sortByKey(keys, values, Comparison.LEXICOGRAPHIC, false)))
-        .containsExactly(context("x", "z", S, "w"));
+        .containsExactly(context(S, "w", "x", "z"));
     assertThat(read(ContextFunctions.sortByKey(keys, values, Comparison.CASE_INSENSITIVE, true)))
-        .containsExactly(context("w", S, "x", "z"));
+        .containsExactly(context("x", "z", "w", S));
   }
 
   /**
    * #2 §3: "numeric keys must not be equal to the constant ResultList.SUPPRESS". A numeric
-   * sortByKey over a SUPPRESS key stops, where a numeric sort takes it for the smallest value.
+   * sortByKey over a SUPPRESS key stops, where a numeric sort takes it for the greatest value.
    */
   @Test
   void aNumericSortByKeyOverASuppressKeyStops() {
@@ -355,7 +371,7 @@ class ContextFunctionsSuppressReadingsTest {
     assertThat(read(ContextFunctions.sortByKey(numbers, values, Comparison.NUMERIC, false)))
         .containsExactly(context("z", "w", S));
     assertThat(read(ContextFunctions.sort(keys, Comparison.NUMERIC, false)))
-        .containsExactly(context(S, "1", "2"));
+        .containsExactly(context("1", "2", S));
 
     assertThatThrownBy(() -> ContextFunctions.sortByKey(keys, values, Comparison.NUMERIC, false))
         .isInstanceOf(IllegalArgumentException.class)
@@ -364,12 +380,12 @@ class ContextFunctionsSuppressReadingsTest {
   }
 
   /**
-   * {@code context} stably sorted by {@code keys} under {@code order}, a null key first, reversed
+   * {@code context} stably sorted by {@code keys} under {@code order}, a null key last, reversed
    * when {@code descending}: the reference of a sort.
    */
   private static <K> List<String> sortedBy(
       List<K> keys, List<String> context, Comparator<K> order, boolean descending) {
-    Comparator<Integer> byKey = Comparator.comparing(keys::get, Comparator.nullsFirst(order));
+    Comparator<Integer> byKey = Comparator.comparing(keys::get, Comparator.nullsLast(order));
     List<Integer> slots = new ArrayList<>();
     for (int i = 0; i < context.size(); i++) {
       slots.add(i);
@@ -380,7 +396,7 @@ class ContextFunctionsSuppressReadingsTest {
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void sortOrdersSuppressFirstAscendingAndLastDescending(String name, Queue queue) {
+  void sortOrdersSuppressLastAscendingAndFirstDescending(String name, Queue queue) {
     for (boolean descending : new boolean[] {false, true}) {
       List<List<String>> lexicographic = new ArrayList<>();
       List<List<String>> caseInsensitive = new ArrayList<>();
