@@ -4,3 +4,5 @@ Input: original compareDates-001.xml uploaded through simulator.
 Visible graph: Sku and Qty context /Orders -> compareDates -> /Out/All.
 VERIFIED_PASS: simulation completed; All values -1, 0, 1. Original downloaded XML preserved.
 Live format parameters not independently inspected; parameter verification pending. No environment settings changed.
+
+Parameter audit 2026-11-13 — VERIFIED_PASS: Fresh live API export verifies configured input/output patterns against request.md. Calendar binding le=true is explicitly stored (lenient enabled), fd=1 and md=1. This is configuration evidence, not a new invalid-date runtime probe. Exact JVM zone ID and message-monitor start times remain unverified. Requested non-UTC environment preconditions remain unmet; no settings changed. Evidence: cpi/parameter-audit/api_compare_dates_001.json

@@ -4,3 +4,5 @@ Input: original dateTrans-012.xml uploaded through simulator.
 Visible graph verified: Sku context /Orders -> dateTrans -> /Out/All.
 VERIFIED_PASS: simulation produced All values 04.11.2026 08:00 Z; 03.11.2026 23:30 Z; 04.11.2026 15:30 Z. Original downloaded XML preserved.
 Output offset Z is observed; exact JVM zone ID and live format parameters remain unverified. No environment settings changed.
+
+Parameter audit 2026-11-13 — VERIFIED_PASS: Fresh live API export verifies configured input/output patterns against request.md. Calendar binding le=true is explicitly stored (lenient enabled), fd=1 and md=1. This is configuration evidence, not a new invalid-date runtime probe. Exact JVM zone ID and message-monitor start times remain unverified. Requested non-UTC environment preconditions remain unmet; no settings changed. Evidence: cpi/parameter-audit/api_date_trans_012.json
