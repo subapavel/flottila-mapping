@@ -622,9 +622,10 @@ class ContextFunctionsTest {
   // --- interruption (ADR-0021): every loop over contexts or slots checks for it
 
   /**
-   * Calls whose own loop is the only one that runs: building a block from starts other than {@code
-   * {0}} loops over them and checks too, so useOneAsMany's third input has no context, and the
-   * second one empty context its loop crosses.
+   * Calls whose own loop checks first, so the exception names the function: building a block from
+   * starts other than {@code {0}} loops over them and checks too, so useOneAsMany's third input has
+   * no context, and the second one empty context its loop crosses; collapseContexts builds its
+   * result from its values, which checks too, after its own loop.
    */
   static Stream<Arguments> interruptible() {
     QueueBlock queue = new Queue("", List.of(List.of("a"), List.of())).block();
@@ -649,7 +650,9 @@ class ContextFunctionsTest {
 
     Thread.currentThread().interrupt();
     try {
-      assertThatThrownBy(call::get).isInstanceOf(CancellationException.class);
+      assertThatThrownBy(call::get)
+          .isInstanceOf(CancellationException.class)
+          .hasMessageContaining(function + " was running");
     } finally {
       Thread.interrupted();
     }
