@@ -359,6 +359,28 @@
       "reading": "output-confirmed-parameter-and-monitor-time-unverified",
       "cpiEvidence": "cpi/currentDate-001-current-date-time-check.txt",
       "cpiOutput": "cpi/currentDate-001-current-date-time.xml"
+    },
+    {
+      "mapping": "current-date-item",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/003",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_current_date_item",
+      "reading": "output-confirmed-parameter-and-monitor-time-unverified",
+      "cpiEvidence": "cpi/currentDate-001-current-date-item-check.txt",
+      "cpiOutput": "cpi/currentDate-001-current-date-item.xml"
+    },
+    {
+      "mapping": "current-date-concat",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/004",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_current_date_concat",
+      "reading": "output-confirmed-parameter-and-monitor-time-unverified",
+      "cpiEvidence": "cpi/currentDate-001-current-date-concat-check.txt",
+      "cpiOutput": "cpi/currentDate-001-current-date-concat.xml"
     }
   ]
 }

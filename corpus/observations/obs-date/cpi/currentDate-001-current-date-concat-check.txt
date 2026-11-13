@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/currentDate/004
+Artifact: api_current_date_concat
+Input: original currentDate-001.xml uploaded through simulator.
+Visible graph: Order context /Orders -> /Out/Item; Sku context /Orders/Order and currentDate -> concat -> /Out/Item/V.
+VERIFIED_PASS for execution: V values a@01:50:49.159, b@01:50:49.159 | empty Item | c@01:50:49.159. All three timestamps equal in this run. Original downloaded XML preserved.
+External UTC observation bracket: 2026-11-13 01:50:32 before Test; 01:51:07 after observed result. This is not a message-monitor start timestamp. Exact JVM zone ID and live format parameters remain unverified. No environment settings changed.
