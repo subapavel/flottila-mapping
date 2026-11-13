@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/suppress-split-change-collapse.mapping.json",
-  "provenance": "assumed",
-  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): in splitByValue valueChange, SUPPRESS equals only SUPPRESS; the SUPPRESS comes from createIf, true for 1 or true and SUPPRESS for 0 or false, in any case, and anything else ends the run with po:CREATEIF (ADR-0006 amended, F-37; fn/createIf/002); observation #61",
+  "provenance": "observed",
+  "ref": "obs-context-functions (#33, spec-2 part), mapping spec2-suppress-split-change-collapse, input splitByValue-020.xml, 2026-11-12: corpus/observations/obs-context-functions/po75/splitByValue-020-spec2-suppress-split-change-collapse.xml and cpi/splitByValue-020-spec2-suppress-split-change-collapse.xml, PO display queue in po75/splitByValue-020-spec2-suppress-split-change-collapse-check.txt; PO 7.50 and CPI 6.84.77 agree on the output: in valueChange SUPPRESS equals only SUPPRESS, and collapseContexts keeps a SUPPRESS first slot as SUPPRESS; F-47, ADR-0006 Consequences",
   "expect": "output",
-  "note": "createIf gives \"\", SUPPRESS, SUPPRESS, \"\", \"\" in one context. valueChange cuts where SUPPRESS meets \"\": \"\" | SUPPRESS, SUPPRESS | \"\", \"\", and collapseContexts gives three empty All. SUPPRESS equal to \"\" gives one; SUPPRESS unequal to SUPPRESS gives four."
+  "note": "createIf gives \"\", SUPPRESS, SUPPRESS, \"\", \"\" in one context. valueChange cuts where SUPPRESS meets \"\": \"\" | SUPPRESS, SUPPRESS | \"\", \"\" (PO queue). collapseContexts keeps each first slot, SUPPRESS as SUPPRESS: \"\", SUPPRESS, \"\", so two empty All. SUPPRESS taken for \"\", the reading before F-47, gives three."
 }
