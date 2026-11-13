@@ -9,7 +9,9 @@
     "releaseVerification": "ESR About read during obs-target-creation-2 in this observation session."
   },
   "divergence": [],
-  "notes": ["PO first per owner instruction; CPI has not been run for this family."],
+  "notes": [
+    "PO first per owner instruction; CPI has not been run for this family."
+  ],
   "runs": [
     {
       "mapping": "fix-values-suppress",
@@ -409,6 +411,101 @@
       "reading": "confirmed-after-empty-binding-repair",
       "cpiEvidence": "cpi/constant-001-constant-empty-check.txt",
       "cpiOutput": "cpi/constant-001-constant-empty.xml"
+    },
+    {
+      "mapping": "fix-values-key",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/002",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_key",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-002-fix-values-key-check.txt",
+      "cpiOutput": "cpi/fixValues-002-fix-values-key.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_key.json",
+      "nativeOptionsEvidence": "cpi/native-options-fixValues.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "fix-values-default",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/003",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_default",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-003-fix-values-default-check.txt",
+      "cpiOutput": "cpi/fixValues-003-fix-values-default.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_default.json",
+      "nativeOptionsEvidence": "cpi/native-options-fixValues.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "fix-values-exception",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/004",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_exception",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/fixValues-004-fix-values-exception-error.txt",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_exception.json",
+      "nativeOptionsEvidence": "cpi/native-options-fixValues.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "fix-values-default-empty",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/005",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_default_empty",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-005-fix-values-default-empty-check.txt",
+      "cpiOutput": "cpi/fixValues-005-fix-values-default-empty.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_default_empty.json",
+      "nativeOptionsEvidence": "cpi/native-options-fixValues.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "fix-values-exact",
+      "input": "fixValues-008.xml",
+      "case": "fn/fixValues/008",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_fix_values_exact",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-008-fix-values-exact-check.txt",
+      "cpiOutput": "cpi/fixValues-008-fix-values-exact.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_exact.json",
+      "nativeOptionsEvidence": "cpi/native-options-fixValues.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "constant-item",
+      "input": "constant-001.xml",
+      "case": "fn/constant/003",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_constant_item",
+      "reading": "confirmed",
+      "cpiEvidence": "cpi/constant-003-constant-item-check.txt",
+      "cpiOutput": "cpi/constant-003-constant-item.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_constant_item.json",
+      "queueEvidence": "cpi/constant-003-C1-queue.json",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
     }
   ]
 }

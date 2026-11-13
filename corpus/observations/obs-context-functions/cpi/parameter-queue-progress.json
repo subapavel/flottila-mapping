@@ -35,7 +35,7 @@
       "set": "obs-constant",
       "artifact": "api_constant_item",
       "parameterEvidence": "cpi/parameter-audit/api_constant_item.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/constant/004",
@@ -182,28 +182,28 @@
       "set": "obs-constant",
       "artifact": "api_fix_values_key",
       "parameterEvidence": "cpi/parameter-audit/api_fix_values_key.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/fixValues/003",
       "set": "obs-constant",
       "artifact": "api_fix_values_default",
       "parameterEvidence": "cpi/parameter-audit/api_fix_values_default.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/fixValues/004",
       "set": "obs-constant",
       "artifact": "api_fix_values_exception",
       "parameterEvidence": "cpi/parameter-audit/api_fix_values_exception.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/fixValues/005",
       "set": "obs-constant",
       "artifact": "api_fix_values_default_empty",
       "parameterEvidence": "cpi/parameter-audit/api_fix_values_default_empty.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/fixValues/006",
@@ -224,7 +224,7 @@
       "set": "obs-constant",
       "artifact": "api_fix_values_exact",
       "parameterEvidence": "cpi/parameter-audit/api_fix_values_exact.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/formatNum/001",
