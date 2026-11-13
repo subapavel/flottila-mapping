@@ -32,7 +32,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -372,7 +372,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -534,7 +534,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -785,7 +785,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -798,7 +798,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -814,7 +814,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
