@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/dateTrans/012
+Artifact: api_date_trans_012
+Input: original dateTrans-012.xml uploaded through simulator.
+Visible graph verified: Sku context /Orders -> dateTrans -> /Out/All.
+VERIFIED_PASS: simulation produced All values 04.11.2026 08:00 Z; 03.11.2026 23:30 Z; 04.11.2026 15:30 Z. Original downloaded XML preserved.
+Output offset Z is observed; exact JVM zone ID and live format parameters remain unverified. No environment settings changed.
