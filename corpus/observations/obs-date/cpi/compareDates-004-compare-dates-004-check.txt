@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/compareDates/004
+Artifact: api_compare_dates_004
+Input: original compareDates-004.xml uploaded through simulator.
+Visible graph: Sku and Qty context /Orders -> compareDates -> /Out/All.
+VERIFIED_PASS for execution: simulation completed; All values 1, 1. Original downloaded XML preserved.
+PARTIAL: requested +01:00 environment precondition not established. Values are consistent with UTC interpretation, not the requested -1, 0 in +01:00. Exact JVM zone ID and live format parameters remain unverified. No environment settings changed. This is a completed execution, not a complete requested-zone observation.
