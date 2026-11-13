@@ -13,9 +13,11 @@ import org.junit.jupiter.api.Test;
 /**
  * The catalogue entries #51 adds (ADR-0025, #51 design), read from the packed {@code
  * function-catalogue.json} with the tests' own strict reader: {@code createIf} is a context
- * function with the input {@code condition}; {@code replaceValue} a single-value function with the
- * input {@code value} and the string param {@code replacement}, default {@code ""}. Both are
- * portable.
+ * function with the input {@code condition}; {@code replaceValue} a context function with the input
+ * {@code value} and the string param {@code replacement}, default {@code ""}. Both are portable.
+ * {@code replaceValue} was a single-value function until #216: PO 7.50 and CPI replace a SUPPRESS
+ * slot too (F-45, fn/replaceValue/002), so it reads SUPPRESS, which a single-value function never
+ * sees (ADR-0006).
  */
 class SuppressCatalogueEntriesTest {
 
@@ -39,10 +41,10 @@ class SuppressCatalogueEntriesTest {
   }
 
   @Test
-  void replaceValueIsAPortableSingleValueFunctionWithAStringParam() throws Exception {
+  void replaceValueIsAPortableContextFunctionWithAStringParam() throws Exception {
     Map<String, JsonTree> replaceValue = entry("replaceValue");
 
-    assertThat(replaceValue.get("executionKind")).isEqualTo(new Str("single"));
+    assertThat(replaceValue.get("executionKind")).isEqualTo(new Str("context"));
     assertThat(replaceValue.get("inputs"))
         .isEqualTo(new Arr(List.of(new Obj(Map.of("name", new Str("value"))))));
     assertThat(replaceValue.get("params"))
