@@ -103,10 +103,9 @@ class FidelityAgreesWithTheCasesTest {
     String published = new String(new EngineFacade().catalogue(), UTF_8);
     List<CorpusCase> corpus = CaseFiles.all();
     // witness: the corpus holds assumed cases of a function the catalogue publishes
-    // (collapseContexts
-    // has none since #218, F-47; createIf/002 waits for its CPI reading)
+    // (collapseContexts has none since #218, F-47, createIf none since #221)
     assertThat(
-            Stream.of("useOneAsMany", "createIf")
+            Stream.of("useOneAsMany", "mapWithDefault")
                 .filter(
                     name ->
                         corpus.stream()
@@ -114,7 +113,7 @@ class FidelityAgreesWithTheCasesTest {
                                 c ->
                                     c.id().startsWith("fn/" + name + "/")
                                         && c.provenance().equals("assumed"))))
-        .containsExactly("useOneAsMany", "createIf");
+        .containsExactly("useOneAsMany", "mapWithDefault");
 
     assertThat(disagreements(published, corpus))
         .as("functions with an assumed case that are not assumed")

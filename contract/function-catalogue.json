@@ -32,7 +32,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -223,7 +223,7 @@
     "executionKind": "context",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -236,7 +236,7 @@
     "executionKind": "single",
     "family": "date",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "params": [
       {
@@ -340,7 +340,7 @@
     "family": "arithmetic",
     "fidelity": {
       "level": "deviation",
-      "text": "Divides with decimal precision (scale as in XPath). SAP PO divides in float or BigDecimal mode."
+      "text": "Divides with a fixed number of decimal places (as in XPath), so a very small quotient can become 0. SAP PO keeps 17 significant digits."
     },
     "inputs": [
       {
@@ -372,7 +372,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -498,7 +498,8 @@
     "executionKind": "single",
     "family": "arithmetic",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Closes a negative pattern with its suffix, as SAP Cloud Integration does: (1,234.50). SAP PO leaves the closing parenthesis out."
     },
     "inputs": [
       {
@@ -535,7 +536,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -554,7 +555,7 @@
     "executionKind": "context",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -632,7 +633,8 @@
     "executionKind": "single",
     "family": "arithmetic",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Keeps a fixed number of decimal places (as in XPath). SAP PO keeps 17 significant digits."
     },
     "inputs": [
       {
@@ -645,7 +647,8 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Treats an empty element as nil. SAP PO treats only an element marked xsi:nil as nil."
     },
     "inputs": [
       {
@@ -786,7 +789,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -799,7 +802,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -815,7 +818,7 @@
     "executionKind": "single",
     "family": "boolean",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -1154,7 +1157,7 @@
     "executionKind": "single",
     "family": "text",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {

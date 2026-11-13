@@ -1,6 +1,6 @@
 # Oracles run in one test-only module over a file-based golden corpus; observed cases come from the owner
 
-Status: accepted (2026-10-30, grilling #14); corpus layout gains `udfs/` (ADR-0020) and `bench/`; fifth variant timed (ADR-0021)
+Status: accepted (2026-10-30, grilling #14); divergence rule amended 2026-11-13 (F-43); corpus layout gains `udfs/` (ADR-0020) and `bench/`; fifth variant timed (ADR-0021)
 
 FOUNDING §10 names three oracles: the golden corpus, the differential run against Saxon-HE and
 the W3C suites. ADR-0002 adds observed cases from SAP PO 7.5 and SAP Cloud Integration. This
@@ -65,9 +65,9 @@ corpus/
    observed one. An observation that contradicts an assumed reading is a finding: the ADR is
    corrected, the case turns red, and a fix ticket makes it green.
 
-When PO 7.5 and CPI agree, that is the expected output. When they differ, PO 7.5 wins, because
-it is the migration source. `meta.json` records the `divergence`, and the function catalogue
-gets a deviation. There is no CPI flavour in milestone 1. It is reopened with the `.mmap`
+When PO 7.5 and CPI agree, that is the expected output. Where PO 7.5 and CPI disagree, Flottila
+follows CPI and the PO difference is a catalogue deviation (owner, 2026-11-13, #212; F-43).
+`meta.json` records the `divergence`, and the function catalogue gets a deviation. There is no CPI flavour in milestone 1. It is reopened with the `.mmap`
 importer.
 
 The first observation requests cover every assumed reading in ADR-0004, ADR-0006 and ADR-0008,
@@ -145,8 +145,8 @@ explicit regression case. They do not generate mappings.
   results of every ticket.
 - **`differential` as a provenance**: rejected. It is a second oracle over the same cases, not a
   source of an expected output.
-- **CPI wins on a divergence, or a CPI flavour per mapping**: rejected for milestone 1. PO 7.5 is
-  the migration source.
+- **PO 7.5 wins on a divergence**: the original rule, replaced on 2026-11-13 (F-43): CPI wins.
+- **A CPI flavour per mapping**: rejected for milestone 1.
 - **jqwik generators of random mappings**: rejected for milestone 1. A generator of valid
   mappings over a structure is a project of its own; the metamorphic variants over the corpus
   grow with it for free.

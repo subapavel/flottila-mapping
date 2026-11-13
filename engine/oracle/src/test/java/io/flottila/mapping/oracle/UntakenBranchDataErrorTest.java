@@ -26,7 +26,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * at its box, in the runtime and in Saxon-HE. On tgt-list's All, {@code if(Sku, Qty, divide(1, 0))}
  * with every Sku {@code true}, {@code and(Sku, divide(1, 0))} with every Sku {@code false} and
  * {@code or(Sku, divide(1, 0))} with every Sku {@code true} raise err:FOAR0001 at the divide box
- * D1. Witness: with {@code divide(1, 2)} both back ends run and agree. The model is no corpus case
+ * D1. Witness: with {@code divide(1, 1)} both back ends run and agree; its 1 casts to true, as
+ * every boolean input does since F-44 (0.5 would raise the cast error). The model is no corpus case
  * and needs no observation row; this class is no corpus or differential class, so the ratchet does
  * not read its test as a case id (scripts/ratchet.java).
  */
@@ -97,21 +98,21 @@ class UntakenBranchDataErrorTest {
 
   /**
    * Per function: its inputs, the Skus under which the result does not need D1, and the witness
-   * output of {@code divide(1, 2)} over the Skus true and false: 0.5 is not {@code true}.
+   * output of {@code divide(1, 1)} over the Skus true and false: 1 is true.
    */
   static Stream<Arguments> calls() {
     return Stream.of(
-        Arguments.of("if", "[\"S1\", \"S2\", \"D1\"]", "true", "4", "0.5"),
-        Arguments.of("and", "[\"S1\", \"D1\"]", "false", "false", "false"),
-        Arguments.of("or", "[\"S1\", \"D1\"]", "true", "true", "false"));
+        Arguments.of("if", "[\"S1\", \"S2\", \"D1\"]", "true", "4", "1"),
+        Arguments.of("and", "[\"S1\", \"D1\"]", "false", "true", "false"),
+        Arguments.of("or", "[\"S1\", \"D1\"]", "true", "true", "true"));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("calls")
   void theUnneededInputsDataErrorIsRaisedAtItsBoxOnBothBackEnds(
       String fn, String inputs, String unneeded, String first, String second) throws Exception {
-    String fine = fn + " over divide(1, 2) on All";
-    byte[] runs = model(fn, inputs, "2");
+    String fine = fn + " over divide(1, 1) on All";
+    byte[] runs = model(fn, inputs, "1");
     ExportResult.Exported witness = SaxonRunner.exported(facade.export(runs, structures()), fine);
     byte[] mixed = input("true", "false");
     for (CompileOptions options :

@@ -14,7 +14,7 @@
   "createIf": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
