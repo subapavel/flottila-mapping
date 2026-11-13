@@ -301,6 +301,17 @@
       "reading": "confirmed-after-native-function-identifier-repair",
       "cpiEvidence": "cpi/endsWith-001-text-endsWith-native-check.txt",
       "cpiOutput": "cpi/endsWith-001-text-endsWith-native.xml"
+    },
+    {
+      "mapping": "text-replaceString-empty-search",
+      "input": "replaceString-003.xml",
+      "case": "fn/replaceString/003",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_replaceString_empty_search",
+      "reading": "confirmed-after-empty-binding-repair",
+      "cpiEvidence": "cpi/replaceString-003-text-replaceString-empty-search-check.txt",
+      "cpiOutput": "cpi/replaceString-003-text-replaceString-empty-search.xml"
     }
   ]
 }
