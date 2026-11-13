@@ -9,3 +9,5 @@ Output agrees with the assumed result. The Keep SUPPRESS parameter was not indep
 Editor inspection was cancelled and unsaved changes discarded. No mapping change saved or deployed.
 No display queue requested for this case. Screenshots inspected but not retained.
 Tooling note: the text snapshot included an inactive nested Mapping test is in progress dialog before execution. Screenshot and successful upload showed the simulator was ready; this was not evidence of a hung test.
+
+2026-11-13 VERIFIED_PASS parameter/queue audit: Live export confirms keepss=true where configured and no keepss binding for default variants. Direct expanded editor inspection of api_boolean_ifWithoutElse_item shows Keep SUPPRESS unchecked, establishing the default used by absent bindings. No mapping or setting change saved. Evidence: cpi/parameter-audit/api_boolean_ifWithoutElse_item_keep.json

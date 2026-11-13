@@ -229,6 +229,37 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/index-004-stat-index-suppress-check.txt",
       "cpiOutput": "cpi/index-004-stat-index-suppress.xml"
+    },
+    {
+      "mapping": "stat-average-suppress",
+      "input": "average-004.xml",
+      "case": "fn/average/004",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_average_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/average-004-stat-average-suppress-check.txt",
+      "cpiOutput": "cpi/average-004-stat-average-suppress.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_stat_average_suppress.json",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "stat-index-default",
+      "input": "index-003.xml",
+      "case": "fn/index/003",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_index_default",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/index-003-stat-index-default-check.txt",
+      "cpiOutput": "cpi/index-003-stat-index-default.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_stat_index_default.json",
+      "nativeDefaultEvidence": "cpi/native-default-index-003.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
     }
   ]
 }

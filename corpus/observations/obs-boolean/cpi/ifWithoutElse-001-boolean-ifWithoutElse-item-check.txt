@@ -9,3 +9,5 @@ After simulation, entered Edit solely to inspect the existing function: checkbox
 Contradicts the request's assumed a, b, c output with the parameter unset/off.
 The requested X1 display queue was not captured: both Enter on the queue file input and a retry via its upload button timed out waiting for a file chooser. This is a tooling limitation, not a mapping error. Do not infer the intermediate queue from the XML output.
 The default of a freshly inserted function was not independently verified.
+
+2026-11-13 VERIFIED_PASS parameter/queue audit: Live export confirms keepss=true where configured and no keepss binding for default variants. Direct expanded editor inspection of api_boolean_ifWithoutElse_item shows Keep SUPPRESS unchecked, establishing the default used by absent bindings. No mapping or setting change saved. Live Function Message Queue with original input: output a,SUPPRESS,c,d in the root context. Leading context-change row and trailing end row are markers, not values. Raw DOM cells and marker flags saved in cpi/ifWithoutElse-001-queue.json. Evidence: cpi/parameter-audit/api_boolean_ifWithoutElse_item.json

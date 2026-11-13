@@ -593,6 +593,38 @@
       "parameterEvidence": "cpi/parameter-audit/api_date_trans_012.json",
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "current-date",
+      "input": "currentDate-001.xml",
+      "case": "fn/currentDate/001",
+      "cpi": "observed-output-runtime-provenance-unverified",
+      "date": "2026-11-13",
+      "artifact": "api_current_date",
+      "reading": "output-confirmed-default-and-monitor-time-unverified",
+      "cpiEvidence": "cpi/currentDate-001-current-date-check.txt",
+      "cpiOutput": "cpi/currentDate-001-current-date.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_current_date.json",
+      "nativeDefaultEvidence": "cpi/native-default-currentDate-001.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "date-trans-006",
+      "input": "dateTrans-006.xml",
+      "case": "fn/dateTrans/006",
+      "cpi": "observed-output-runtime-provenance-unverified",
+      "date": "2026-11-13",
+      "artifact": "api_date_trans_006",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/dateTrans-006-date-trans-006-check.txt",
+      "cpiOutput": "cpi/dateTrans-006-date-trans-006.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_date_trans_006.json",
+      "nativeDefaultEvidence": "cpi/native-default-dateTrans-006.txt",
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13"
     }
   ]
 }

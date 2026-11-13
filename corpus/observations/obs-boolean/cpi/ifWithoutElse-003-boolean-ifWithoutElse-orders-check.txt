@@ -8,3 +8,5 @@ Exact downloaded output copied byte-for-byte to ifWithoutElse-003-boolean-ifWith
 Contradicts the assumed empty second Item: the uppercase TRUE condition passes the value d in both branches.
 Keep SUPPRESS settings were not independently inspected in the live editor for this run; V/W are the API-prepared default/keep variants. No intermediate queue inferred from output.
 No mapping changed or deployed. No queue requested. Screenshots not retained.
+
+2026-11-13 VERIFIED_PASS parameter/queue audit: Live export confirms keepss=true where configured and no keepss binding for default variants. Direct expanded editor inspection of api_boolean_ifWithoutElse_item shows Keep SUPPRESS unchecked, establishing the default used by absent bindings. No mapping or setting change saved. Evidence: cpi/parameter-audit/api_boolean_ifWithoutElse_orders.json

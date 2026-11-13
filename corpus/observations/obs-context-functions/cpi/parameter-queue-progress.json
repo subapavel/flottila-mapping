@@ -7,7 +7,7 @@
       "set": "obs-statistic",
       "artifact": "api_stat_average_suppress",
       "parameterEvidence": "cpi/parameter-audit/api_stat_average_suppress.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/compareDates/001",
@@ -91,7 +91,7 @@
       "set": "obs-date",
       "artifact": "api_current_date",
       "parameterEvidence": "cpi/parameter-audit/api_current_date.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/currentDate/002",
@@ -168,7 +168,7 @@
       "set": "obs-date",
       "artifact": "api_date_trans_006",
       "parameterEvidence": "cpi/parameter-audit/api_date_trans_006.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/dateTrans/012",
@@ -336,35 +336,35 @@
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_item",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_item.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/002",
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_item_keep",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_item_keep.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/003",
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_orders",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_orders.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/004",
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_tags",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_tags.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/005",
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_suppress",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_suppress.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/007",
@@ -385,21 +385,21 @@
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_collapse",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_collapse.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/010",
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_collapse_tags",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_collapse_tags.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/index/003",
       "set": "obs-statistic",
       "artifact": "api_stat_index_default",
       "parameterEvidence": "cpi/parameter-audit/api_stat_index_default.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/index/004",
