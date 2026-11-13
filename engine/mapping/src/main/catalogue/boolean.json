@@ -76,7 +76,8 @@
   "isNil": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Treats an empty element as nil. SAP PO treats only an element marked xsi:nil as nil."
     },
     "inputs": [
       {
