@@ -411,7 +411,7 @@ describe('the functions drilldown (#157)', () => {
 
 describe("a function's deviation as a neutral note, its fidelity level otherwise internal (GLOSSARY: Fidelity, ADR-0026, #207)", () => {
   /** The deviation note of `divide`, the function the ticket names: plain behaviour first, the SAP PO difference last. */
-  const DIVIDE = 'Divides with decimal precision (scale as in XPath). SAP PO divides in float or BigDecimal mode.';
+  const DIVIDE = 'Divides with a fixed number of decimal places (as in XPath), so a very small quotient can become 0. SAP PO keeps 17 significant digits.';
 
   test('the served catalogue carries the reworded note of divide', async () => {
     expect((await fakeApiClient().getCatalogue()).divide!.fidelity).toEqual({ level: 'deviation', text: DIVIDE });

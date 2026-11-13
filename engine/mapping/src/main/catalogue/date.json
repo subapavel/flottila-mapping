@@ -31,7 +31,7 @@
   "currentDate": {
     "executionKind": "single",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "params": [
       {
