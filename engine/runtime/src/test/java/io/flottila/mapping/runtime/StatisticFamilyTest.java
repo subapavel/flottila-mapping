@@ -11,10 +11,11 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The statistic family's bindings (#75), called through {@link QueueLibrary} as the interpreter
- * calls them: the algebra's data error becomes {@code err:FORG0001} at the function box, and the
- * numeric params of {@code index} and {@code counter} are parsed once, a malformed one raising
- * {@code err:FORG0001} at the box on every run. The corpus cases {@code fn/sum} to {@code
- * fn/counter} pin the same through the facade and against Saxon-HE.
+ * calls them: the algebra's data error becomes {@code err:FORG0001} at the function box, and {@code
+ * average}'s division undefined {@code err:FOAR0001} (F-45); the numeric params of {@code index}
+ * and {@code counter} are parsed once, a malformed one raising {@code err:FORG0001} at the box on
+ * every run. The corpus cases {@code fn/sum} to {@code fn/counter} pin the same through the facade
+ * and against Saxon-HE.
  */
 class StatisticFamilyTest {
 
@@ -59,11 +60,15 @@ class StatisticFamilyTest {
   }
 
   private static void assertDataError(Runnable call, String message) {
+    assertDataError(call, "err:FORG0001", message);
+  }
+
+  private static void assertDataError(Runnable call, String code, String message) {
     assertThatThrownBy(call::run)
         .isInstanceOfSatisfying(
             MappingRunException.class,
             e -> {
-              assertThat(e.code()).isEqualTo(RuntimeErrors.FORG0001).isEqualTo("err:FORG0001");
+              assertThat(e.code()).isEqualTo(code);
               assertThat(e.authoringId()).isEqualTo(BOX);
               assertThat(e.getMessage()).isEqualTo("the function box F1: " + message);
             });
@@ -75,10 +80,20 @@ class StatisticFamilyTest {
 
     assertThat(read(call("sum", values)))
         .containsExactly(List.of("3"), List.of("0"), List.of("10"));
-    assertThat(read(call("average", values)))
-        .containsExactly(List.of("1.5"), List.of(), List.of("10"));
+    assertThat(read(call("average", queue(c("1", null, "2"), c("10")))))
+        .containsExactly(List.of("1.5"), List.of("10"));
     assertThat(read(call("count", values)))
         .containsExactly(List.of("2"), List.of("0"), List.of("1"));
+  }
+
+  /** PO's "Division undefined" (fn/average/003, F-45) is ADR-0005's division error at the box. */
+  @Test
+  void averageOfAContextWithoutAValueIsFoar0001AtTheBox() {
+    assertDataError(
+        () -> call("average", queue(c("1"), c((String) null))),
+        RuntimeErrors.FOAR0001,
+        "average: context 2 holds no value, division undefined");
+    assertThat(RuntimeErrors.FOAR0001).isEqualTo("err:FOAR0001");
   }
 
   @Test
@@ -91,14 +106,15 @@ class StatisticFamilyTest {
     assertThat(read(call("count", values))).containsExactly(List.of("2"));
   }
 
+  /** index numbers SUPPRESS as a value (fn/index/004, F-45). */
   @Test
   void indexResetsAtEachContextOrNever() {
     QueueBlock values = queue(c("a", null, "b"), c("c"));
 
     assertThat(read(call("index", values, "1", "1", "eachContext")))
-        .containsExactly(List.of("1", "S", "2"), List.of("1"));
+        .containsExactly(List.of("1", "2", "3"), List.of("1"));
     assertThat(read(call("index", values, "10", "-3", "never")))
-        .containsExactly(List.of("10", "S", "7"), List.of("4"));
+        .containsExactly(List.of("10", "7", "4"), List.of("1"));
   }
 
   @Test

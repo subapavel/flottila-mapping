@@ -188,11 +188,14 @@
     <xsl:sequence select="[$queue?*]"/>
   </xsl:function>
 
-  <!-- replaceValue, a single-value function: $replacement, whatever $value is. -->
-  <xsl:function name="po:replaceValue" as="xs:string">
-    <xsl:param name="value" as="xs:string"/>
+  <!-- replaceValue: $replacement at every slot of $value, SUPPRESS included (F-45), as the runtime's
+       ContextFunctions.replaceValue does; the contexts stay, an empty one stays empty, and a queue
+       with no context at all gives none. -->
+  <xsl:function name="po:replaceValue" as="array(item()*)">
+    <xsl:param name="value" as="array(item()*)"/>
     <xsl:param name="replacement" as="xs:string"/>
-    <xsl:sequence select="$replacement"/>
+    <xsl:sequence select="array:join(for $c in 1 to array:size($value)
+                                     return [$value($c) ! $replacement])"/>
   </xsl:function>
 
   <!-- Whether the queue values $a and $b are equal, as the runtime's Objects.equals compares them:

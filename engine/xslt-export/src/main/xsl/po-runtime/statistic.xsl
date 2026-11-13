@@ -4,7 +4,8 @@
      through po:data-error (ADR-0026), as the runtime's StatisticFamily does. A number is read by
      core's po:decimal, the xs:decimal lexical form with XML whitespace around it ignored, anything
      else is err:FORG0001 at the box; a result is written in the XPath canonical form. SUPPRESS is
-     no value: no function reads, counts or numbers it (an assumed reading). The build joins
+     no value to sum, average, count and counter: they do not read, count or number it (observed
+     for count, an assumed reading for the others); index numbers it as a value (F-45). The build joins
      core.xsl and the family modules, the families by id, into the helper module po-runtime.xsl,
      of which this comment is no part. A family module uses what core.xsl declares and nothing of another family, and holds
      core.xsl's root start tag, byte for byte. -->
@@ -32,15 +33,18 @@
 
   <!-- average: per context of $values, one context holding the sum of its values divided by their
        count, by Saxon-HE's decimal division (ADR-0005), as the runtime's
-       StatisticFunctions.average divides; a context without a value gives an empty context (an
-       assumed reading). -->
+       StatisticFunctions.average divides; a context without a value, of SUPPRESS only too, is
+       err:FOAR0001 at $box, PO's "Division undefined" (F-45). -->
   <xsl:function name="po:average" as="array(item()*)">
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="box" as="xs:string"/>
     <xsl:sequence select="array:join(for $c in 1 to array:size($values)
         return let $numbers := $values($c)[. instance of xs:string]
                                ! po:statistic-number('average', ., $box)
-               return [if (empty($numbers)) then ()
+               return [if (empty($numbers))
+                       then po:data-error(xs:QName('err:FOAR0001'), $box,
+                                          'average: context ' || $c
+                                          || ' holds no value, division undefined')
                        else string(sum($numbers) div count($numbers))])"/>
   </xsl:function>
 
@@ -53,18 +57,20 @@
   </xsl:function>
 
   <!-- counter: the values of the whole of $values numbered from $initial by $increment, as
-       po:index without a reset. -->
+       po:index without a reset, but each SUPPRESS kept at its slot without a number (decided,
+       F-43). -->
   <xsl:function name="po:counter" as="array(item()*)">
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="initial" as="xs:string"/>
     <xsl:param name="increment" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:sequence
-        select="po:statistic-numbers('counter', $values, $initial, $increment, false(), $box)"/>
+    <xsl:sequence select="po:statistic-numbers('counter', $values, $initial, $increment, false(),
+                                               false(), $box)"/>
   </xsl:function>
 
-  <!-- index: the values of each context of $values numbered from $initial by $increment, or those
-       of the whole queue when $reset is never. -->
+  <!-- index: the slots of each context of $values numbered from $initial by $increment, or those
+       of the whole queue when $reset is never; a SUPPRESS slot is numbered as a value is
+       (observed, F-45). -->
   <xsl:function name="po:index" as="array(item()*)">
     <xsl:param name="values" as="array(item()*)"/>
     <xsl:param name="initial" as="xs:string"/>
@@ -72,12 +78,13 @@
     <xsl:param name="reset" as="xs:string"/>
     <xsl:param name="box" as="xs:string"/>
     <xsl:sequence select="po:statistic-numbers('index', $values, $initial, $increment,
-                                               $reset eq 'eachContext', $box)"/>
+                                               $reset eq 'eachContext', true(), $box)"/>
   </xsl:function>
 
-  <!-- The numbering of po:index and po:counter, as the runtime's StatisticFunctions.index does:
-       the k-th value of a context, counting from 0, or of the whole queue unless $reset, becomes
-       $initial + k * $increment, and each SUPPRESS stays at its slot without a number. Unless
+  <!-- The numbering of po:index and po:counter, as the runtime's StatisticFunctions.index and
+       StatisticFunctions.counter do: the k-th slot of a context, counting from 0, or of the whole
+       queue unless $reset, becomes $initial + k * $increment. A SUPPRESS slot is numbered too when
+       $suppress, else it stays at its slot without a number and k does not count it. Unless
        $initial and $increment are both xs:decimal, it raises err:FORG0001 at $box before it reads
        $values, as the runtime's binding does. po:decimal reads both. -->
   <xsl:function name="po:statistic-numbers" as="array(item()*)">
@@ -86,6 +93,7 @@
     <xsl:param name="initial" as="xs:string"/>
     <xsl:param name="increment" as="xs:string"/>
     <xsl:param name="reset" as="xs:boolean"/>
+    <xsl:param name="suppress" as="xs:boolean"/>
     <xsl:param name="box" as="xs:string"/>
     <xsl:variable name="first" as="xs:decimal?" select="po:decimal($initial)"/>
     <xsl:variable name="step" as="xs:decimal?" select="po:decimal($increment)"/>
@@ -106,7 +114,7 @@
             <xsl:iterate select="$context">
               <xsl:param name="k" as="xs:integer" select="$before"/>
               <xsl:choose>
-                <xsl:when test=". instance of xs:string">
+                <xsl:when test="$suppress or . instance of xs:string">
                   <xsl:sequence select="string($first + $k * $step)"/>
                   <xsl:next-iteration>
                     <xsl:with-param name="k" select="$k + 1"/>
@@ -120,7 +128,7 @@
           </xsl:variable>
           <xsl:next-iteration>
             <xsl:with-param name="numbered"
-                select="$before + count($context[. instance of xs:string])"/>
+                select="$before + count($context[$suppress or . instance of xs:string])"/>
             <xsl:with-param name="result" select="array:append($result, $slots)"/>
           </xsl:next-iteration>
         </xsl:iterate>

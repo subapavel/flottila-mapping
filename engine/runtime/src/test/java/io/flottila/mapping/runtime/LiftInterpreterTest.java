@@ -52,9 +52,13 @@ class LiftInterpreterTest {
   private static final FunctionRef REMOVE_CONTEXTS =
       new FunctionRef("removeContexts", List.of(QUEUE), QUEUE);
   private static final FunctionRef CREATE_IF = new FunctionRef("createIf", List.of(QUEUE), QUEUE);
-  private static final FunctionRef REPLACE_VALUE =
+  // the sample single-value function with params; replaceValue was it until #216 made it a
+  // context function (F-45)
+  private static final FunctionRef REPLACE_STRING =
       new FunctionRef(
-          "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);
+          "replaceString",
+          List.of(AtomicType.STRING, AtomicType.STRING, AtomicType.STRING),
+          AtomicType.STRING);
 
   private static AuthoringId id(String value) {
     return new AuthoringId(value);
@@ -184,7 +188,10 @@ class LiftInterpreterTest {
             List.of(underRoot("Note", "a1")),
             List.of("in1"),
             new FunCall(
-                REPLACE_VALUE, List.of(slotVar("in1", "l1"), new Literal("X", id("l1"))), id("l1")),
+                REPLACE_STRING,
+                List.of(
+                    slotVar("in1", "l1"), new Literal("a", id("l1")), new Literal("X", id("l1"))),
+                id("l1")),
             id("l1"));
     TargetDocument document = leaf(lift, UNBOUNDED);
     String notes = "<Note>a</Note><Note></Note><Note>c</Note>";
@@ -193,12 +200,12 @@ class LiftInterpreterTest {
     String traced = run(document, true, notes, tracer);
     String untraced = run(document, false, notes, new Tracer());
 
-    assertThat(traced).isEqualTo(DECLARATION + ROOT_OPEN + "<V>X</V><V>X</V><V>X</V>" + ROOT_CLOSE);
+    assertThat(traced).isEqualTo(DECLARATION + ROOT_OPEN + "<V>X</V><V/><V>c</V>" + ROOT_CLOSE);
     assertThat(untraced).isEqualTo(traced);
     assertThat(tracer.values())
         .extracting(Map.Entry::getKey)
         .containsExactlyInAnyOrder(id("a1"), id("l1"));
-    assertThat(tracedOnce(tracer, "l1")).containsExactly(List.of("X", "X", "X"));
+    assertThat(tracedOnce(tracer, "l1")).containsExactly(List.of("X", "", "c"));
     assertThat(tracedOnce(tracer, "a1")).containsExactly(List.of("a", "", "c"));
   }
 

@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/index-suppress.mapping.json",
-  "provenance": "assumed",
-  "ref": "#2 §5 Statistics: index takes an initial value, an increment, and whether to reset \"at the beginning of every new context\" [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm] [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; assumed reading of #75: SUPPRESS is no value (as for exists and mapWithDefault, #57), so it keeps its slot and takes no number; obs-statistic decides it",
+  "provenance": "observed",
+  "ref": "obs-statistic (#212, #216, F-45), run 2026-11-12 to 2026-11-13: PO 7.50 and CPI both number SUPPRESS as a value: corpus/observations/obs-statistic/po75/index-004-stat-index-suppress.xml and corpus/observations/obs-statistic/cpi/index-004-stat-index-suppress.xml, display queues po75/index-004-stat-index-suppress-queue.txt and cpi/index-004-F1-queue.json; before #216: #2 §5 Statistics: index takes an initial value, an increment, and whether to reset \"at the beginning of every new context\" [SAP✓ https://help.sap.com/saphelp_nwpi711/helpdata/en/43/c4cdfc334824478090739c04c4a249/content.htm] [SAP✓ https://help.sap.com/docs/SAP_NETWEAVER_750/0b9668e854374d8fa3fc8ec327ff3693/4bfbd16f66d33de4e10000000a42189e.html]; assumed reading of #75: SUPPRESS is no value, so it keeps its slot and takes no number (contradicted)",
   "expect": "output",
-  "note": "createIf(Tag) is \"\", SUPPRESS, \"\" | SUPPRESS, \"\" | (empty). index numbers the values only: 1, SUPPRESS, 2 | SUPPRESS, 1 | (empty), so V is 1, 2 | 1 | none. Numbering SUPPRESS too would give 1, 3 | 2."
+  "note": "createIf(Tag) is \"\", SUPPRESS, \"\" | SUPPRESS, \"\" | (empty). index numbers every slot, SUPPRESS included, and gives a number there: 1, 2, 3 | 1, 2 | (empty), so V is 1, 2, 3 | 1, 2 | none. The assumed reading gave 1, 2 | 1."
 }

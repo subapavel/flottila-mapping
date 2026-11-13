@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SplittableRandom;
 import java.util.concurrent.CancellationException;
@@ -20,7 +21,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * The context functions of the runtime library over queue blocks (ADR-0025, ADR-0004), at {@code
  * ContextFunctions}. Property tests (ADR-0018): each runs over hand-picked edge queues and over 200
  * seeded random queues, the seed in the case name, against a list-of-contexts reference written
- * here. No SUPPRESS yet (#51).
+ * here. No SUPPRESS yet (#51), except for {@code replaceValue} (#216, F-45), which reads SUPPRESS
+ * and so is a context function; its tests use the SUPPRESS queues of {@link SuppressQueues}.
  *
  * <p>{@code splitByValue} (#55, owner decision Q3 of #48) splits each context of its input on its
  * own and keeps the existing context boundaries; an empty context stays one empty context. Its
@@ -643,6 +645,69 @@ class ContextFunctionsTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("useOneAsMany")
         .hasMessageContaining(count);
+  }
+
+  // --- replaceValue (#216, F-45): the replacement at every slot, SUPPRESS included
+
+  /**
+   * The observed example: the display queue of R1, replaceValue with 5 over createIf(Tag), in
+   * obs-statistic sum-003 (po75/sum-003-stat-sum-suppress-queue.txt, PO 7.50 and CPI agree) shows
+   * {@code ["", SUPPRESS, ""] [SUPPRESS] [] [""]} become {@code [5, 5, 5] [5] [] [5]}: each slot
+   * the replacement, a SUPPRESS slot without its bit, and the contexts as they were, the empty one
+   * empty. A queue with no context at all, {@code {0}}, stays one.
+   */
+  @Test
+  void replaceValueReplacesEverySlotSuppressIncluded() {
+    SuppressQueues.Queue observed =
+        SuppressQueues.queue(
+            "sum-003 R1",
+            SuppressQueues.context("", SuppressQueues.S, ""),
+            SuppressQueues.context(SuppressQueues.S),
+            SuppressQueues.context(),
+            SuppressQueues.context(""));
+    QueueBlock input = observed.block();
+
+    QueueBlock result = ContextFunctions.replaceValue(input, "5");
+
+    assertThat(SuppressQueues.read(result))
+        .containsExactly(List.of("5", "5", "5"), List.of("5"), List.of(), List.of("5"));
+    assertThat(SuppressQueues.suppressedSlots(result))
+        .containsExactly(false, false, false, false, false);
+    // a block is immutable: the call leaves its input as it was
+    assertThat(SuppressQueues.read(input)).isEqualTo(observed.contexts());
+
+    QueueBlock none =
+        ContextFunctions.replaceValue(SuppressQueues.queue("no context").block(), "5");
+
+    assertThat(none.contexts()).isZero();
+    assertThat(none.slots()).isZero();
+  }
+
+  static Stream<Arguments> suppressQueues() {
+    return SuppressQueues.queues().map(q -> Arguments.of(q.name(), q));
+  }
+
+  /**
+   * Over the SUPPRESS edges, SUPPRESS on both sides of a word of the bitset among them, and 200
+   * seeded queues: as many contexts as the input, each with as many slots, each slot the
+   * replacement and none SUPPRESS; the input reads as before.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("suppressQueues")
+  void replaceValueKeepsEveryContextAndReplacesEachOfItsSlots(
+      String name, SuppressQueues.Queue queue) {
+    String replacement = "O'Brien & <Co>";
+    QueueBlock input = queue.block();
+
+    QueueBlock result = ContextFunctions.replaceValue(input, replacement);
+
+    List<List<String>> replaced = new ArrayList<>();
+    for (List<String> context : queue.contexts()) {
+      replaced.add(Collections.nCopies(context.size(), replacement));
+    }
+    assertThat(SuppressQueues.read(result)).isEqualTo(replaced);
+    assertThat(SuppressQueues.suppressedSlots(result)).doesNotContain(true);
+    assertThat(SuppressQueues.read(input)).isEqualTo(queue.contexts());
   }
 
   // --- interruption (ADR-0021): every loop over contexts or slots checks for it

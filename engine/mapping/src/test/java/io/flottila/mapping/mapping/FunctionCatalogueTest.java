@@ -262,8 +262,10 @@ class FunctionCatalogueTest {
    * byte is main's. #218 re-pins the fidelity of collapseContexts and splitByValue, to {@code
    * exact}, and of sort and sortByKey, to the deviation of F-43 as F-47 corrects its text, alone:
    * their last assumed cases are observed (F-47), and ADR-0026 sets the level of such a function.
-   * #219 re-pins the fidelity of exists, mapWithDefault and useOneAsMany, to {@code exact}, alone:
-   * their last assumed cases are observed (F-48). The assertions below are #69's, unchanged.
+   * The replaceValue entry is re-pinned by #216 (F-45): an observed rule changes replaceValue's
+   * execution kind, to {@code context}, and its fidelity follows its cases, now {@code exact}. #219
+   * re-pins the fidelity of exists, mapWithDefault and useOneAsMany, to {@code exact}, alone: their
+   * last assumed cases are observed (F-48). The assertions below are #69's, unchanged.
    */
   static final String MAIN_CATALOGUE =
       "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";
