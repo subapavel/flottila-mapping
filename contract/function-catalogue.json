@@ -932,7 +932,8 @@
     "executionKind": "context",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Compares text by Unicode character (code point). SAP PO puts 😀 before ﬀ and Ａ, so text with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
     },
     "inputs": [
       {
@@ -966,7 +967,8 @@
     "executionKind": "context",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Orders keys as `sort` does, and case-insensitively by Unicode character. SAP PO puts 😀 before ﬀ and Ａ and can order keys differently."
     },
     "inputs": [
       {
@@ -1003,7 +1005,7 @@
     "executionKind": "context",
     "family": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
