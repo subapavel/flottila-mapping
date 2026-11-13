@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/dateTrans/006
+Artifact: api_date_trans_006
+Input: original dateTrans-006.xml uploaded through simulator.
+Visible graph verified: Sku context /Orders -> dateTrans -> /Out/All.
+Simulation completed. All values: 2026/11/04; 1999/12/31. Downloaded XML preserved unchanged.
+Live format dialog and fresh editor defaults not independently inspected. Output from API-prepared mapping does not establish the editor default or empty-field acceptance. No environment settings changed. Output observed; parameter/default verification pending.
