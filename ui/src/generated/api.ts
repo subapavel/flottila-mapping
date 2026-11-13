@@ -879,6 +879,11 @@ export interface components {
             family: components["schemas"]["id"];
             /** @enum {unknown} */
             executionKind: "single" | "context" | "queue";
+            /**
+             * @description Present on a queue function whose result is a generating block, one value that every occurrence of the target field under every parent occurrence takes, as a constant's (ADR-0006, F-46); absent on every other function.
+             * @constant
+             */
+            generating?: true;
             inputs?: components["schemas"]["catalogueInput"][];
             params?: components["schemas"]["catalogueParam"][];
             /** @description Whether the function's export runs on any conforming XSLT 3.0 processor. */
@@ -901,6 +906,11 @@ export interface components {
                     family: components["schemas"]["id"];
                     /** @enum {unknown} */
                     executionKind: "single" | "context" | "queue";
+                    /**
+                     * @description Present on a queue function whose result is a generating block, one value that every occurrence of the target field under every parent occurrence takes, as a constant's (ADR-0006, F-46); absent on every other function.
+                     * @constant
+                     */
+                    generating?: true;
                     inputs?: components["schemas"]["catalogueInput"][];
                     params?: components["schemas"]["catalogueParam"][];
                     /** @description Whether the function's export runs on any conforming XSLT 3.0 processor. */
