@@ -622,6 +622,26 @@
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13",
       "verificationNotes": "Empty table accepted by editor Save and verified in fresh Draft export; default - and strategy1 preserved."
+    },
+    {
+      "mapping": "fix-values-suppress",
+      "input": "copyValue-004.xml",
+      "case": "fn/fixValues/007",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-007-fix-values-suppress-check.txt",
+      "cpiOutput": "cpi/fixValues-007-fix-values-suppress.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_suppress.json",
+      "additionalEvidence": [
+        "cpi/fixValues-007-C1-queue.json",
+        "cpi/fixValues-007-F1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "C1/F1 queues verify empty strings map to E and SUPPRESS passes unchanged without exception; context/end marker flags distinguish displayed duplicate text. Temporary layout discarded."
     }
   ]
 }

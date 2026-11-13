@@ -260,6 +260,44 @@
       "nativeDefaultEvidence": "cpi/native-default-index-003.txt",
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "stat-sum-suppress",
+      "input": "sum-003.xml",
+      "case": "fn/sum/003",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_sum_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/sum-003-stat-sum-suppress-check.txt",
+      "cpiOutput": "cpi/sum-003-stat-sum-suppress.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_stat_sum_suppress.json",
+      "additionalEvidence": [
+        "cpi/sum-003-R1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "replaceValue transforms both empty and SUPPRESS into numeric 5. R1 queue is 5,5,5 | 5 | empty | 5. Therefore previous sum output 15,5,0,5 does not test sum receiving SUPPRESS; the upstream replacement consumes it. Temporary layout discarded."
+    },
+    {
+      "mapping": "stat-index-suppress",
+      "input": "index-004.xml",
+      "case": "fn/index/004",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_stat_index_suppress",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/index-004-stat-index-suppress-check.txt",
+      "cpiOutput": "cpi/index-004-stat-index-suppress.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_stat_index_suppress.json",
+      "additionalEvidence": [
+        "cpi/index-004-F1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Index converts SUPPRESS to ordinary sequence numbers: empty,SUPPRESS,empty -> 1,2,3; SUPPRESS,empty -> 1,2; empty context stays empty. Initial1/increment1/reset0 verified in live parameters. Temporary layout discarded."
     }
   ]
 }

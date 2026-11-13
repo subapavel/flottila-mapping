@@ -217,7 +217,7 @@
       "set": "obs-constant",
       "artifact": "api_fix_values_suppress",
       "parameterEvidence": "cpi/parameter-audit/api_fix_values_suppress.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/fixValues/008",
@@ -406,14 +406,14 @@
       "set": "obs-statistic",
       "artifact": "api_stat_index_suppress",
       "parameterEvidence": "cpi/parameter-audit/api_stat_index_suppress.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/sum/003",
       "set": "obs-statistic",
       "artifact": "api_stat_sum_suppress",
       "parameterEvidence": "cpi/parameter-audit/api_stat_sum_suppress.json",
-      "status": "pending"
+      "status": "complete"
     }
   ]
 }
