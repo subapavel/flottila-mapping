@@ -1827,8 +1827,8 @@ class EngineFacadeTest {
   /**
    * #2 §3 (documented): "numeric keys must not be equal to the constant ResultList.SUPPRESS". A
    * numeric sortByKey over a SUPPRESS key stops the run with {@code po:SORTBYKEY} at the box k1
-   * (#52); compared as strings the same key is the smallest (ADR-0006 since #51). The export raises
-   * po:SORTBYKEY for the same inputs.
+   * (#52); compared as strings the same key is the greatest (ADR-0006 as amended, F-47). The export
+   * raises po:SORTBYKEY for the same inputs.
    */
   @Test
   void aNumericSortByKeyOverASuppressKeyIsARuntimeErrorAtItsBox() throws Exception {
@@ -1841,13 +1841,13 @@ class EngineFacadeTest {
         compiled(
             facade.compile(
                 sortByCreatedKeys("{\"comparison\": \"numeric\"}"), observations, DEPLOY));
-    // witness: without SUPPRESS the numeric keys sort, and as strings the SUPPRESS key comes first
+    // witness: without SUPPRESS the numeric keys sort, and as strings the SUPPRESS key comes last
     assertThat(
             new String(
                 facade.run(numeric, utf8("<Orders><Order><Tag>1</Tag></Order></Orders>")), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>1</All></Out>");
     assertThat(new String(facade.run(lexicographic, input), UTF_8))
-        .isEqualTo(DECLARATION + "<Out><All>false</All><All>1</All></Out>");
+        .isEqualTo(DECLARATION + "<Out><All>1</All><All>false</All></Out>");
 
     assertRunThrows(facade, numeric, input, "po:SORTBYKEY", "k1");
     assertThatThrownBy(() -> facade.run(numeric, input))

@@ -356,9 +356,15 @@ class ContextFunctionsTest {
 
   // --- collapseContexts (#56): the first value of each context, "" for an empty one
 
-  /** The reference: one context, holding each context's first value, or "" when it has none. */
+  /**
+   * The reference: one context, holding each context's first value, or "" when it has none; none at
+   * all when the queue holds no value and at most one context (F-47).
+   */
   private static List<String> firstOfEach(Queue queue) {
     List<String> firsts = new ArrayList<>();
+    if (queue.flat().isEmpty() && queue.contexts().size() <= 1) {
+      return firsts;
+    }
     for (List<String> context : queue.contexts()) {
       firsts.add(context.isEmpty() ? "" : context.getFirst());
     }
@@ -367,7 +373,9 @@ class ContextFunctionsTest {
 
   /**
    * One context with one slot per input context: its first value, and {@code ""} for an empty
-   * context. A queue with no context at all gives one empty context, as removeContexts does.
+   * context. A queue whose one context is empty, or that has no context at all, gives one empty
+   * context: PO holds such a queue as nothing, and its collapseContexts writes no value for it
+   * (fn/collapseContexts/003, observed, F-47).
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
@@ -614,9 +622,10 @@ class ContextFunctionsTest {
   // --- interruption (ADR-0021): every loop over contexts or slots checks for it
 
   /**
-   * Calls whose own loop is the only one that runs: building a block from starts other than {@code
-   * {0}} loops over them and checks too, so useOneAsMany's third input has no context, and the
-   * second one empty context its loop crosses.
+   * Calls whose own loop checks first, so the exception names the function: building a block from
+   * starts other than {@code {0}} loops over them and checks too, so useOneAsMany's third input has
+   * no context, and the second one empty context its loop crosses; collapseContexts builds its
+   * result from its values, which checks too, after its own loop.
    */
   static Stream<Arguments> interruptible() {
     QueueBlock queue = new Queue("", List.of(List.of("a"), List.of())).block();
@@ -641,7 +650,9 @@ class ContextFunctionsTest {
 
     Thread.currentThread().interrupt();
     try {
-      assertThatThrownBy(call::get).isInstanceOf(CancellationException.class);
+      assertThatThrownBy(call::get)
+          .isInstanceOf(CancellationException.class)
+          .hasMessageContaining(function + " was running");
     } finally {
       Thread.interrupted();
     }

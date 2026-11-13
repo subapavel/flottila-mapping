@@ -13,15 +13,15 @@
     xmlns:err="http://www.w3.org/2005/xqt-errors"
     exclude-result-prefixes="#all">
 
-  <!-- collapseContexts: the first value of each context of $queue, '' for an empty context, all in
-       one context. A first value that is SUPPRESS gives '' too, as the runtime's
-       ContextFunctions.collapseContexts does (an assumed reading). A queue with no context at all
-       gives one empty context. -->
+  <!-- collapseContexts: the first value of each context of $queue, SUPPRESS kept as SUPPRESS, and
+       '' for an empty context, all in one context, as the runtime's
+       ContextFunctions.collapseContexts does (observed, F-47). A queue with no value and at most
+       one context, one empty context or none, gives one empty context: PO writes no value for it
+       (observed, F-47). -->
   <xsl:function name="po:collapseContexts" as="array(item()*)">
     <xsl:param name="queue" as="array(item()*)"/>
-    <xsl:sequence select="[for $c in 1 to array:size($queue)
-                           return (let $first := $queue($c)[1]
-                                   return if ($first instance of xs:string) then $first else '')]"/>
+    <xsl:sequence select="if (empty($queue?*) and array:size($queue) le 1) then [()]
+                          else [for $c in 1 to array:size($queue) return ($queue($c)[1], '')[1]]"/>
   </xsl:function>
 
   <!-- createIf: per value of $queue, cast as PO's Bool.toBoolean does (ADR-0006, amended with
@@ -151,7 +151,7 @@
        by context for a context with more or fewer keys than values, or, in a numeric sort, for a
        key that is no xs:decimal, even alone in its context. A SUPPRESS counts as a key or a value,
        and a SUPPRESS key is never cast; in a numeric sortByKey it is a data error too (#2 §3:
-       numeric keys must not be ResultList.SUPPRESS), in a numeric sort the smallest key. -->
+       numeric keys must not be ResultList.SUPPRESS), in a numeric sort the greatest key. -->
   <xsl:function name="po:sort-contexts" as="array(item()*)">
     <xsl:param name="function" as="xs:string"/>
     <xsl:param name="keys" as="array(item()*)"/>
@@ -182,8 +182,8 @@
 
   <!-- One context of sortByKey. fn:sort is stable; descending sorts the reversed positions and
        reverses the result, so that equal keys keep their input order either way. A SUPPRESS key
-       is the smallest key, as in the runtime's ContextFunctions (an assumed reading): its sort
-       key is 0, and every other key's is 1 followed by po:sort-key. -->
+       is the greatest key, as in the runtime's ContextFunctions (observed, F-47): its sort key is
+       2, and every other key's is 1 followed by po:sort-key. -->
   <xsl:function name="po:sortByKey-context" as="item()*">
     <xsl:param name="keys" as="item()*"/>
     <xsl:param name="values" as="item()*"/>
@@ -192,7 +192,7 @@
     <xsl:variable name="key" as="function(xs:integer) as xs:anyAtomicType*"
         select="function($i as xs:integer) as xs:anyAtomicType* {
                   if ($keys[$i] instance of xs:string) then (1, po:sort-key($keys[$i], $comparison))
-                  else 0 }"/>
+                  else 2 }"/>
     <xsl:variable name="positions" as="xs:integer*" select="
         if ($order eq 'descending') then reverse(sort(reverse(1 to count($keys)), (), $key))
         else sort(1 to count($keys), (), $key)"/>

@@ -259,7 +259,10 @@ class FunctionCatalogueTest {
   /**
    * The packed catalogue of main at 9c6fd1a, before the split, re-pinned once by #71 (ADR-0026
    * Consequences): each of the eleven entries gains {@code fidelity: {level: assumed}}, every other
-   * byte is main's. The assertions below are #69's, unchanged.
+   * byte is main's. #218 re-pins the fidelity of collapseContexts and splitByValue, to {@code
+   * exact}, and of sort and sortByKey, to the deviation of F-43 as F-47 corrects its text, alone:
+   * their last assumed cases are observed (F-47), and ADR-0026 sets the level of such a function.
+   * The assertions below are #69's, unchanged.
    */
   static final String MAIN_CATALOGUE =
       "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";

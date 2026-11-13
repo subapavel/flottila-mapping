@@ -1470,7 +1470,10 @@ class XsltExporterTest {
    * declarations that raise a data error (formatByExample, sort, sortByKey, sort-contexts,
    * useOneAsMany) gain {@code box} as their last param and raise through it, and the header names
    * the box; every other byte is main's. #133 re-pins po:createIf alone (ADR-0006 as amended,
-   * F-37): it casts as PO does and gains {@code box}. The assertions below are #69's, unchanged.
+   * F-37): it casts as PO does and gains {@code box}. #218 re-pins po:collapseContexts,
+   * po:sort-contexts and po:sortByKey-context alone (ADR-0006 as amended, F-47): collapseContexts
+   * keeps a SUPPRESS first slot and gives no value for an empty queue, and a SUPPRESS key is the
+   * greatest, as PO 7.50 and CPI do. The assertions below are #69's, unchanged.
    */
   private static final String MAIN_HELPER_MODULE =
       "engine/xslt-export/src/test/resources/pinned-71/po-runtime.xsl";

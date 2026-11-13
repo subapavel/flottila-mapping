@@ -201,14 +201,6 @@ public final class QueueBlock {
   }
 
   /**
-   * A block of one context that holds every slot of {@code values}, none of them null. The starts
-   * {@code {0, n}} are valid for any {@code n}, so unlike {@link #of} it checks nothing.
-   */
-  static QueueBlock ofOneContext(String[] values) {
-    return new QueueBlock(values, new int[] {0, values.length}, NO_SUPPRESS);
-  }
-
-  /**
    * Builds a block context by context: {@link #newContext()} opens a context, {@link
    * #append(String)} and {@link #appendSuppress()} add a slot to it. Without a {@code newContext()}
    * the block has no context.

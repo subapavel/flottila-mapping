@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/suppress-sort-descending-format.mapping.json",
-  "provenance": "assumed",
-  "ref": "ADR-0006 Consequences, SUPPRESS through the context functions since #51 (assumed): sort orders a SUPPRESS value as the smallest, last descending; the SUPPRESS comes from createIf, true for 1 or true and SUPPRESS for 0 or false, in any case, and anything else ends the run with po:CREATEIF (ADR-0006 amended, F-37; fn/createIf/002); observation #61",
+  "provenance": "observed",
+  "ref": "obs-context-functions (#33, spec-2 part), mapping spec2-suppress-sort-descending-format, input sort-013.xml, 2026-11-11: corpus/observations/obs-context-functions/po75/spec2-suppress-sort-descending-format-013.xml and cpi/sort-013-spec2-suppress-sort-descending-format.xml, display queues po75/spec2-suppress-sort-descending-format-013-queue.txt and cpi/sort-013-spec2-suppress-sort-descending-format-queue.txt; PO 7.50 and CPI 6.84.77 agree: descending puts SUPPRESS before the empty values; F-47, ADR-0006 Consequences (sort and sortByKey order a SUPPRESS as the greatest value or key)",
   "expect": "output",
-  "note": "createIf over Tag in context Orders gives SUPPRESS, \"\", SUPPRESS, \"\". Descending puts SUPPRESS last: \"\", \"\", SUPPRESS, SUPPRESS. formatByExample cuts after three slots, so the first context holds two \"\": two empty All. Unsorted or SUPPRESS first gives one."
+  "note": "createIf over Tag in context Orders gives SUPPRESS, \"\", SUPPRESS, \"\". Descending puts SUPPRESS first: SUPPRESS, SUPPRESS, \"\", \"\" (both queues). formatByExample cuts after three slots, so the first context holds SUPPRESS, SUPPRESS, \"\": one empty All. SUPPRESS last, the reading before F-47, gives two."
 }

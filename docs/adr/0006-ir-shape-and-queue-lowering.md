@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134); amended by F-44 (#215): the boolean family casts as `createIf` does, `err:FORG0001`, and `ifWithoutElse` follows the observed SUPPRESS and context model; refined by #217 (F-46): generating blocks, `TargetRepeat(copies, parentSlot, slotVar, value, valueVar, body, origin)`
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134); amended by F-44 (#215): the boolean family casts as `createIf` does, `err:FORG0001`, and `ifWithoutElse` follows the observed SUPPRESS and context model; refined by #217 (F-46): generating blocks, `TargetRepeat(copies, parentSlot, slotVar, value, valueVar, body, origin)`; amended by F-47 (#218): SUPPRESS is the greatest `sort` / `sortByKey` key, `collapseContexts` keeps a SUPPRESS first slot and gives no value for an empty queue
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -250,12 +250,21 @@ for-each over the source context".
   corpus case with #52:
   - `removeContexts`, `splitByValue`, `useOneAsMany`, `formatByExample`, `sort` keep SUPPRESS
     as a slot with its bit. In `splitByValue` valueChange, SUPPRESS equals only SUPPRESS; in
-    emptyValue, SUPPRESS is not `""`. `useOneAsMany` repeats and counts SUPPRESS like a value.
-    `formatByExample` counts a SUPPRESS slot toward its equal-count rule.
-  - `collapseContexts` takes a SUPPRESS first slot as `""` (#2 §3 [SAP✓ STD]: "Empty contexts
-    (= ResultList.SUPPRESS) are replaced by empty strings"; documented).
-  - `sort` and `sortByKey` order a SUPPRESS value or key as the smallest in every comparison,
-    so it comes first ascending and last descending, except that a numeric `sortByKey` key
-    must not be SUPPRESS: it raises `po:SORTBYKEY` (#2 §3 [SAP✓ STD]; documented).
+    emptyValue, SUPPRESS is not `""`; each SUPPRESS of eachValue is a context of its own
+    (`splitByValue` observed on PO 7.5 and CPI in all three modes, F-47: `fn/splitByValue/019` to
+    `021`). `useOneAsMany` repeats and counts SUPPRESS like a value. `formatByExample` counts a
+    SUPPRESS slot toward its equal-count rule.
+  - `collapseContexts` keeps a SUPPRESS first slot as SUPPRESS and gives `""` for an empty
+    context; a queue with no slot and at most one context (one empty context, which PO's queue
+    holds as nothing at all, or none) gives one empty context, no value (observed on PO 7.5 and
+    CPI, F-47: obs-context-functions ctx-6b, `fn/collapseContexts/003`, `fn/splitByValue/019` to
+    `021`; it replaces the documented #2 §3 reading "Empty contexts (= ResultList.SUPPRESS) are
+    replaced by empty strings" for SUPPRESS).
+  - `sort` and `sortByKey` order a SUPPRESS value or key as the greatest in every comparison,
+    so it comes last ascending and first descending (observed on PO 7.5 and CPI for a
+    case-sensitive `sort` in both orders and an ascending case-sensitive `sortByKey`, F-47:
+    `fn/sort/012`, `013`, `fn/sortByKey/006`; assumed for the other comparisons and a descending
+    `sortByKey`), except that a numeric `sortByKey` key must not be SUPPRESS: it raises
+    `po:SORTBYKEY` (#2 §3 [SAP✓ STD]; documented).
   - `exists` and `mapWithDefault` (#57): SUPPRESS is not a value, so a context holding only
     SUPPRESS counts as empty; `""` is a value; a queue with no context gives no context.

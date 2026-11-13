@@ -2,7 +2,7 @@
   "collapseContexts": {
     "executionKind": "queue",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -103,7 +103,8 @@
   "sort": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Sorts case-insensitively by Unicode character (code point). SAP PO puts 😀 before ﬀ and Ａ there, so text with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
     },
     "inputs": [
       {
@@ -136,7 +137,8 @@
   "sortByKey": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "deviation",
+      "text": "Orders keys as `sort` does, case-insensitively by code point. SAP PO puts 😀 before ﬀ and Ａ, so keys with an emoji or another character beyond the Basic Multilingual Plane can sort differently."
     },
     "inputs": [
       {
@@ -172,7 +174,7 @@
   "splitByValue": {
     "executionKind": "context",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
