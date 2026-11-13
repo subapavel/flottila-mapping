@@ -1620,7 +1620,7 @@ class EngineFacadeTest {
     }
   }
 
-  // --- useOneAsMany's error conditions (#56): an assumed reading (#2 §7.10, #34)
+  // --- useOneAsMany's error conditions (#56): observed on PO 7.50 and CPI (F-48, obs-useoneasmany)
 
   /** obs-useoneasmany uoam-1 with its result on {@code Out/All}: Id, Sku in context Order, Tag. */
   private static final byte[] USE_ONE_AS_MANY =

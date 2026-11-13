@@ -406,16 +406,19 @@ class ContextFunctionsTest {
     }
   }
 
-  // --- useOneAsMany (#56): value k of the first queue, once per slot of context k of the second,
-  // in the contexts of the third
+  // --- useOneAsMany (#56): the one value of context k of the first queue, once per slot of context
+  // k of the second, in the contexts of the third (F-48)
 
   /**
-   * Three queues useOneAsMany pairs: {@code value}'s slots, as many as {@code occurrences} has
-   * contexts, and {@code contexts} with as many slots as {@code occurrences}.
+   * Three queues useOneAsMany pairs: {@code value} with as many contexts as {@code occurrences},
+   * one value in each, and {@code contexts} with as many slots as {@code occurrences}.
    */
   record Triple(String name, Queue value, Queue occurrences, Queue contexts) {
 
-    /** The reference: value k repeated once per slot of context k of occurrences, in order. */
+    /**
+     * The reference: the value of context k repeated once per slot of context k of occurrences, in
+     * order.
+     */
     List<String> repeated() {
       List<String> values = value.flat();
       List<String> all = new ArrayList<>();
@@ -472,18 +475,12 @@ class ContextFunctionsTest {
             queue("", List.of(List.of("a"), List.of("b"))),
             queue("", List.of(List.of(), List.of("x"))),
             queue("", List.of(List.of("y")))),
-        // fn/useOneAsMany/003: the first queue's values in one context meet the second's contexts
+        // obs-useoneasmany uoam-1 on u1.xml: A | B over s1, s2, s3 | s4 in t1, t2, t3 | t4
         new Triple(
-            "the values in one context",
-            queue("", List.of(List.of("A", "B"))),
+            "uoam-1 on u1",
+            queue("", List.of(List.of("A"), List.of("B"))),
             queue("", List.of(List.of("s1", "s2", "s3"), List.of("s4"))),
-            queue("", List.of(List.of("t"), List.of("t"), List.of("t"), List.of("t")))),
-        // empty contexts of the first queue hold no value, so they meet no context of the second
-        new Triple(
-            "empty contexts in the first",
-            queue("", List.of(List.of(), List.of("a"), List.of())),
-            queue("", List.of(List.of("x", "y"))),
-            queue("", List.of(List.of(), List.of("y", "y"), List.of()))));
+            queue("", List.of(List.of("t1", "t2", "t3"), List.of("t4")))));
   }
 
   /** A random partition of {@code values} into contexts, empty contexts included. */
@@ -504,19 +501,19 @@ class ContextFunctionsTest {
   }
 
   /**
-   * A seeded random triple: the second queue is a seeded queue, the first holds one random value
-   * per context of it in a random partition, and the third re-partitions its slots.
+   * A seeded random triple: the second queue is a seeded queue, the first holds one random value in
+   * a context of its own per context of it, and the third re-partitions its slots.
    */
   private static Triple seededTriple(long seed) {
     RandomGenerator random = new SplittableRandom(seed);
     Queue occurrences = seeded(seed);
-    List<String> values = new ArrayList<>();
+    List<List<String>> values = new ArrayList<>();
     for (int k = 0; k < occurrences.contexts().size(); k++) {
-      values.add(SAMPLE[random.nextInt(SAMPLE.length)]);
+      values.add(List.of(SAMPLE[random.nextInt(SAMPLE.length)]));
     }
     return new Triple(
         "seed " + seed,
-        queue("", partition(random, values)),
+        queue("", values),
         occurrences,
         queue("", partition(random, occurrences.flat())));
   }
@@ -564,37 +561,66 @@ class ContextFunctionsTest {
 
   static Stream<Arguments> mismatches() {
     List<List<String>> two = List.of(List.of("x"), List.of("y", "z"));
+    List<List<String>> fitted = List.of(List.of("a"), List.of("b"));
+    List<List<String>> three = List.of(List.of("1", "2", "3"));
     return Stream.of(
-        // the assumed reading of the error conditions (#2 §7.10, #34)
+        // the error conditions PO 7.50 and CPI share (F-48)
         Arguments.of(
-            "fewer values than contexts of the second",
-            queue("", List.of(List.of("a"))),
+            "fewer contexts in the first than in the second (fn/useOneAsMany/003)",
+            queue("", List.of(List.of("a", "b"))),
             queue("", two),
-            queue("", List.of(List.of("1", "2", "3"))),
-            "1 value"),
+            queue("", three),
+            "the first has 1 contexts, the second 2"),
         Arguments.of(
-            "more values than contexts of the second",
-            queue("", List.of(List.of("a", "b"), List.of("c"))),
+            "more contexts in the first than in the second",
+            queue("", List.of(List.of("a"), List.of("b"), List.of("c"))),
             queue("", two),
-            queue("", List.of(List.of("1", "2", "3"))),
-            "3 values"),
+            queue("", three),
+            "the first has 3 contexts, the second 2"),
+        Arguments.of(
+            "two values in a context of the first",
+            queue("", List.of(List.of("a"), List.of("b", "c"))),
+            queue("", two),
+            queue("", three),
+            "its context 2 has 2 values"),
+        Arguments.of(
+            "an empty context in the first (fn/useOneAsMany/008)",
+            queue("", List.of(List.of("a"), List.of())),
+            queue("", two),
+            queue("", three),
+            "its context 2 has 0 values"),
+        Arguments.of(
+            "an empty first context before a second of two values",
+            queue("", List.of(List.of(), List.of("b", "c"))),
+            queue("", two),
+            queue("", three),
+            "its context 1 has 0 values"),
         Arguments.of(
             "fewer slots in the third than in the second",
-            queue("", List.of(List.of("a", "b"))),
+            queue("", fitted),
             queue("", two),
             queue("", List.of(List.of("1", "2"))),
             "2 slots"),
         Arguments.of(
             "more slots in the third than in the second",
-            queue("", List.of(List.of("a", "b"))),
+            queue("", fitted),
             queue("", two),
             queue("", List.of(List.of("1", "2"), List.of("3", "4"))),
-            "4 slots"));
+            "4 slots"),
+        // the first input is checked before the third, as PO's message on the probe without
+        // u4.xml's Order A names the first queue while the third is off too
+        Arguments.of(
+            "an empty context in the first and fewer slots in the third",
+            queue("", List.of(List.of("a"), List.of())),
+            queue("", two),
+            queue("", List.of(List.of("1"))),
+            "its context 2 has 0 values"));
   }
 
   /**
-   * The assumed error conditions (#2 §7.10, #34): the first queue needs one value per context of
-   * the second, and the third as many slots as the second. The message names the count that is off.
+   * The error conditions PO 7.50 and CPI share (F-48): the first queue needs as many contexts as
+   * the second and one value in each, and the third as many slots as the second, checked in this
+   * order. The message names the count that is off.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("mismatches")
@@ -604,7 +630,7 @@ class ContextFunctionsTest {
     Triple fitted =
         new Triple(
             why,
-            queue("", List.of(List.of("a", "b"))),
+            queue("", List.of(List.of("a"), List.of("b"))),
             occurrences,
             queue("", List.of(occurrences.flat())));
     assertThat(

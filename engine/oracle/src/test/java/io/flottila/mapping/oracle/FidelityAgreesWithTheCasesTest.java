@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -52,6 +51,23 @@ class FidelityAgreesWithTheCasesTest {
           }
         });
     return wrong;
+  }
+
+  /** The functions {@code catalogue} marks {@code assumed}. */
+  private static List<String> assumedIn(String catalogue) {
+    if (!(new CaseFiles.Json(catalogue).document() instanceof Map<?, ?> functions)) {
+      throw new AssertionError("the catalogue is no JSON object");
+    }
+    List<String> assumed = new ArrayList<>();
+    functions.forEach(
+        (name, entry) -> {
+          if (entry instanceof Map<?, ?> members
+              && members.get("fidelity") instanceof Map<?, ?> f
+              && "assumed".equals(f.get("level"))) {
+            assumed.add((String) name);
+          }
+        });
+    return assumed;
   }
 
   /** {@code case.json} of a case with {@code provenance} under {@code cases/<id>}. */
@@ -101,20 +117,19 @@ class FidelityAgreesWithTheCasesTest {
             "g is assumed, but none of its cases is", "k is assumed, but none of its cases is");
 
     String published = new String(new EngineFacade().catalogue(), UTF_8);
-    List<CorpusCase> corpus = CaseFiles.all();
-    // witness: the corpus holds assumed cases of a function the catalogue publishes
-    // (collapseContexts has none since #218, F-47, createIf none since #221)
-    assertThat(
-            Stream.of("useOneAsMany", "mapWithDefault")
-                .filter(
-                    name ->
-                        corpus.stream()
-                            .anyMatch(
-                                c ->
-                                    c.id().startsWith("fn/" + name + "/")
-                                        && c.provenance().equals("assumed"))))
-        .containsExactly("useOneAsMany", "mapWithDefault");
+    // witness on the published catalogue, over test-only cases rather than the live corpus, which
+    // holds no assumed case of a shipped function since #216 and #219: an assumed case of the
+    // exact useOneAsMany (F-48) is refused, and one of each function the catalogue marks assumed,
+    // if any, is accepted
+    List<CorpusCase> fixture = new ArrayList<>();
+    fixture.add(write(cases, "fn/useOneAsMany/900", "assumed"));
+    for (String name : assumedIn(published)) {
+      fixture.add(write(cases, "fn/" + name + "/900", "assumed"));
+    }
+    assertThat(disagreements(published, fixture))
+        .containsExactly("useOneAsMany is exact, but fn/useOneAsMany/900 is assumed");
 
+    List<CorpusCase> corpus = CaseFiles.all();
     assertThat(disagreements(published, corpus))
         .as("functions with an assumed case that are not assumed")
         .isEmpty();

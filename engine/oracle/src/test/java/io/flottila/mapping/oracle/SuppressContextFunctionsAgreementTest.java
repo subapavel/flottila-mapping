@@ -171,8 +171,9 @@ class SuppressContextFunctionsAgreementTest {
     // collapseContexts: a SUPPRESS first slot stays SUPPRESS
     Expr perOrder = call("createIf", "c2", List.of(source(2, "a2", "Tag")));
     leaves.add(leaf("G", call("collapseContexts", "k4", List.of(perOrder))));
-    // useOneAsMany: a SUPPRESS value repeated, a SUPPRESS occurrence counted
-    Expr ids = call("createIf", "c3", List.of(source(1, "a3", "Id")));
+    // useOneAsMany: a SUPPRESS value repeated, a SUPPRESS occurrence counted; Id in Order's
+    // context has the one value per context of the Lift's that useOneAsMany needs (F-48)
+    Expr ids = call("createIf", "c3", List.of(source(2, "a3", "Id")));
     Expr repeated =
         call("useOneAsMany", "u1", List.of(ids, mixed("m4"), source(1, "a4", "Line", "Sku")));
     leaves.add(leaf("H", call("removeContexts", "r4", List.of(repeated))));
@@ -183,7 +184,7 @@ class SuppressContextFunctionsAgreementTest {
     Expr cut = call("formatByExample", "f2", List.of(conditions, source(2, "a5", "Line", "Sku")));
     leaves.add(leaf("J", call("removeContexts", "r6", List.of(cut))));
     leaves.add(leaf("K", call("collapseContexts", "k6", List.of(cut))));
-    // exists and mapWithDefault (#57): a SUPPRESS-only context holds no value, "" is a value
+    // exists and mapWithDefault (#57): a SUPPRESS slot counts like a value, "" is a value (F-48)
     leaves.add(
         leaf(
             "L",

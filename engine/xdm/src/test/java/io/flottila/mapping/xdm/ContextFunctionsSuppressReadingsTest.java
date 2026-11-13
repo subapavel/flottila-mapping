@@ -33,8 +33,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  *       in mode emptyValue a SUPPRESS is no {@code ""} (observed, fn/splitByValue/019 to 021);
  *   <li>{@code collapseContexts} keeps a SUPPRESS first slot as SUPPRESS (observed,
  *       obs-context-functions ctx-6b);
- *   <li>{@code useOneAsMany} repeats a SUPPRESS value as SUPPRESS, counts a SUPPRESS occurrence as
- *       one, and takes only the boundaries of its third input;
+ *   <li>{@code useOneAsMany} repeats a SUPPRESS value as SUPPRESS and counts a SUPPRESS occurrence
+ *       as one (observed, the probes of obs-useoneasmany, F-48), and takes only the boundaries of
+ *       its third input;
  *   <li>{@code formatByExample} keeps a SUPPRESS of its values at its slot and counts a SUPPRESS of
  *       its example as a value;
  *   <li>{@code sort} and {@code sortByKey} take a SUPPRESS key for the greatest key in every
@@ -184,12 +185,12 @@ class ContextFunctionsSuppressReadingsTest {
   // --- useOneAsMany
 
   /**
-   * Value {@code a, SUPPRESS} over occurrences {@code x, y | SUPPRESS} in contexts {@code SUPPRESS,
-   * 1 | 2}: {@code a} twice and SUPPRESS once, cut as the third input is.
+   * Value {@code a | SUPPRESS} over occurrences {@code x, y | SUPPRESS} in contexts {@code
+   * SUPPRESS, 1 | 2}: {@code a} twice and SUPPRESS once, cut as the third input is.
    */
   @Test
   void useOneAsManyRepeatsASuppressValueAsSuppress() {
-    QueueBlock value = queue("value", context("a", S)).block();
+    QueueBlock value = queue("value", context("a"), context(S)).block();
     QueueBlock occurrences = queue("occurrences", context("x", "y"), context(S)).block();
     QueueBlock contexts = queue("contexts", context(S, "1"), context("2")).block();
 
@@ -201,7 +202,10 @@ class ContextFunctionsSuppressReadingsTest {
   /** The inputs of one useOneAsMany whose counts agree. */
   record Triple(String name, Queue value, Queue occurrences, Queue contexts) {
 
-    /** Value k once per slot of occurrence context k, cut at the context sizes of the third. */
+    /**
+     * The one value of context k once per slot of occurrence context k, cut at the context sizes of
+     * the third.
+     */
     List<List<String>> expected() {
       List<String> values = value.flat();
       List<String> repeated = new ArrayList<>();
@@ -241,15 +245,16 @@ class ContextFunctionsSuppressReadingsTest {
   }
 
   /**
-   * A seeded triple over a seeded occurrences queue: one value per context of it, SUPPRESS among
-   * them, and a third input of as many slots, SUPPRESS among them too, cut its own way.
+   * A seeded triple over a seeded occurrences queue: one value in a context of its own per context
+   * of it, SUPPRESS among them (F-48), and a third input of as many slots, SUPPRESS among them too,
+   * cut its own way.
    */
   private static Triple triple(long seed) {
     RandomGenerator random = new SplittableRandom(seed);
     Queue occurrences = SuppressQueues.seeded("seed " + seed + " occurrences", random);
-    List<String> values = new ArrayList<>();
+    List<List<String>> values = new ArrayList<>();
     for (int k = 0; k < occurrences.contexts().size(); k++) {
-      values.add(random.nextInt(3) == 0 ? S : "v" + k);
+      values.add(context(random.nextInt(3) == 0 ? S : "v" + k));
     }
     List<String> thirds = new ArrayList<>();
     for (int i = 0; i < occurrences.flat().size(); i++) {
@@ -257,7 +262,7 @@ class ContextFunctionsSuppressReadingsTest {
     }
     return new Triple(
         "seed " + seed,
-        new Queue("value", cut(values, random)),
+        new Queue("value", values),
         occurrences,
         new Queue("contexts", cut(thirds, random)));
   }

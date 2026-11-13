@@ -129,14 +129,13 @@
                                    else $po:SUPPRESS)])"/>
   </xsl:function>
 
-  <!-- exists: per context of $queue, one context holding 'true' if it holds a value, '' included,
-       and 'false' if it holds none, as the runtime's ContextFunctions.exists does; SUPPRESS is no
-       value (an assumed reading). A queue with no context at all gives none. -->
+  <!-- exists: per context of $queue, one context holding 'true' for each of its values, SUPPRESS
+       and '' included, or 'false' once if it is empty, as the runtime's ContextFunctions.exists
+       does (observed, F-48). A queue with no context at all gives none. -->
   <xsl:function name="po:exists" as="array(item()*)">
     <xsl:param name="queue" as="array(item()*)"/>
     <xsl:sequence select="array:join(for $c in 1 to array:size($queue)
-        return [if (some $v in $queue($c) satisfies $v instance of xs:string) then 'true'
-                else 'false'])"/>
+        return [if (empty($queue($c))) then 'false' else $queue($c) ! 'true'])"/>
   </xsl:function>
 
   <!-- formatByExample: every value of $values, in order, cut into the contexts of $example, empty
@@ -170,16 +169,15 @@
     </xsl:choose>
   </xsl:function>
 
-  <!-- mapWithDefault: every context of $queue that holds no value replaced by one holding $default,
-       every other context kept, SUPPRESS included, as the runtime's ContextFunctions.mapWithDefault
-       does; a context of SUPPRESS only holds no value (an assumed reading), '' is a value. A queue
-       with no context at all gives none. -->
+  <!-- mapWithDefault: every empty context of $queue replaced by one holding $default, every other
+       context kept, as the runtime's ContextFunctions.mapWithDefault does; a context of SUPPRESS
+       only is not empty (observed, F-48), '' is a value. A queue with no context at all gives
+       none. -->
   <xsl:function name="po:mapWithDefault" as="array(item()*)">
     <xsl:param name="queue" as="array(item()*)"/>
     <xsl:param name="default" as="xs:string"/>
     <xsl:sequence select="array:join(for $c in 1 to array:size($queue)
-        return [if (some $v in $queue($c) satisfies $v instance of xs:string) then $queue($c)
-                else $default])"/>
+        return [if (empty($queue($c))) then $default else $queue($c)])"/>
   </xsl:function>
 
   <!-- removeContexts: every value of $queue, in order, in one context, SUPPRESS kept at its slot.
@@ -356,35 +354,43 @@
     </xsl:choose>
   </xsl:function>
 
-  <!-- useOneAsMany: value k of $value, counted across its contexts, once per value of context k of
+  <!-- useOneAsMany: the one value of context k of $value once per value of context k of
        $occurrences, in order, cut into the contexts of $contexts, as the runtime's
        ContextFunctions.useOneAsMany does; a SUPPRESS value is repeated as SUPPRESS, and a SUPPRESS
-       of $occurrences counts as an occurrence. Unless $value has one value per context of
-       $occurrences and $contexts as many values as $occurrences, it raises po:USEONEASMANY, where
-       the runtime refuses the same inputs (an assumed reading, #2 §7.10), checked in the same
-       order and said in the same words, with the count that failed (ADR-0025). -->
+       of $occurrences counts as an occurrence. Unless $value has as many contexts as $occurrences,
+       each holding one value, SUPPRESS included, and $contexts as many values as $occurrences, it
+       raises po:USEONEASMANY, where the runtime refuses the same inputs (observed, F-48), checked
+       in the same order and said in the same words, with the count that failed (ADR-0025). -->
   <xsl:function name="po:useOneAsMany" as="array(item()*)">
     <xsl:param name="value" as="array(item()*)"/>
     <xsl:param name="occurrences" as="array(item()*)"/>
     <xsl:param name="contexts" as="array(item()*)"/>
     <xsl:param name="box" as="xs:string"/>
-    <xsl:variable name="values" as="item()*" select="$value?*"/>
-    <xsl:variable name="repeated" as="item()*"
-        select="for $k in 1 to array:size($occurrences) return $occurrences($k) ! $values[$k]"/>
+    <xsl:variable name="wrong" as="xs:integer?"
+        select="(1 to array:size($value))[count($value(.)) ne 1][1]"/>
     <xsl:sequence select="
-        if (count($values) ne array:size($occurrences))
+        if (array:size($value) ne array:size($occurrences))
         then po:data-error(xs:QName('po:USEONEASMANY'), $box,
-                   'useOneAsMany needs one value of its first input per context of its second: the'
-                   || ' first has ' || count($values) || ' values, the second '
-                   || array:size($occurrences) || ' contexts')
-        else if (count($repeated) ne count($contexts?*))
+                   'useOneAsMany needs as many contexts in its first input as in its second: the'
+                   || ' first has ' || array:size($value) || ' contexts, the second '
+                   || array:size($occurrences))
+        else if (exists($wrong))
         then po:data-error(xs:QName('po:USEONEASMANY'), $box,
-                   'useOneAsMany needs as many slots in its third input as in its second: the third'
-                   || ' has ' || count($contexts?*) || ' slots, the second ' || count($repeated))
-        else array:join(
-          for $c in 1 to array:size($contexts)
-          return [subsequence($repeated,
-                              sum(for $j in 1 to $c - 1 return count($contexts($j))) + 1,
-                              count($contexts($c)))])"/>
+                   'useOneAsMany needs one value in each context of its first input: its context '
+                   || $wrong || ' has ' || count($value($wrong)) || ' values')
+        else
+          let $repeated := for $k in 1 to array:size($occurrences)
+                           return $occurrences($k) ! $value($k)
+          return
+            if (count($repeated) ne count($contexts?*))
+            then po:data-error(xs:QName('po:USEONEASMANY'), $box,
+                     'useOneAsMany needs as many slots in its third input as in its second: the'
+                     || ' third has ' || count($contexts?*) || ' slots, the second '
+                     || count($repeated))
+            else array:join(
+              for $c in 1 to array:size($contexts)
+              return [subsequence($repeated,
+                                  sum(for $j in 1 to $c - 1 return count($contexts($j))) + 1,
+                                  count($contexts($c)))])"/>
   </xsl:function>
 </xsl:stylesheet>
