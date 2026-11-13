@@ -1,6 +1,6 @@
 # Oracles run in one test-only module over a file-based golden corpus; observed cases come from the owner
 
-Status: accepted (2026-10-30, grilling #14); divergence rule amended 2026-11-13 (F-43); corpus layout gains `udfs/` (ADR-0020) and `bench/`; fifth variant timed (ADR-0021)
+Status: accepted (2026-10-30, grilling #14); divergence rule amended 2026-11-13 (F-43); `decided` provenance widened 2026-11-13 (F-53); corpus layout gains `udfs/` (ADR-0020) and `bench/`; fifth variant timed (ADR-0021)
 
 FOUNDING §10 names three oracles: the golden corpus, the differential run against Saxon-HE and
 the W3C suites. ADR-0002 adds observed cases from SAP PO 7.5 and SAP Cloud Integration. This
@@ -42,8 +42,10 @@ corpus/
   - `observed`: the owner's run on PO 7.5 and CPI, `ref` = obs-id;
   - `documented`: the SAP documentation, `ref` = a `SAP✓` claim of #2;
   - `assumed`: an assumed reading, `ref` = the ADR and its bullet;
-  - `decided`: our own rule or a catalogue deviation (decimal division, canonical number form,
-    ADR-0005), `ref` = the ADR.
+  - `decided`: our own rule, a catalogue deviation (decimal division, canonical number form,
+    ADR-0005), or an owner decision for a case PO and CPI cannot settle (F-43, F-53). This
+    includes an expected output derived from observed rules for an input that was never run.
+    `ref` is the ADR or the finding.
 - GATE check 4 is mechanical: no case of a function milestone 1 ships has `provenance: assumed`.
 - Every case also runs in four **metamorphic variants**: optimised and unoptimised IR, each with
   and without a tracer. All four outputs must be byte-identical. A case passes only when all
@@ -68,7 +70,8 @@ corpus/
 When PO 7.5 and CPI agree, that is the expected output. Where PO 7.5 and CPI disagree, Flottila
 follows CPI and the PO difference is a catalogue deviation (owner, 2026-11-13, #212; F-43).
 `meta.json` records the `divergence`, and the function catalogue gets a deviation. There is no CPI flavour in milestone 1. It is reopened with the `.mmap`
-importer.
+importer. A CPI result that is an artefact of its simulator input is not a divergence; the case
+follows PO (F-43 addendum, fn/trim/001).
 
 The first observation requests cover every assumed reading in ADR-0004, ADR-0006 and ADR-0008,
 the open ambiguities 2, 3, 4, 6, 7, 10, 11, 15 and 16 of #2 §7, whether PO evaluates a box shared
