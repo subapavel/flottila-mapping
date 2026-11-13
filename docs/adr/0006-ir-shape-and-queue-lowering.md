@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134)
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134); refined by #217 (F-46): generating blocks, `TargetRepeat(copies, parentSlot, slotVar, value, valueVar, body, origin)`
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -58,6 +58,12 @@ only through `Lift` and `AtomicToQueue`.
   runtime library, bound by their name in the function catalogue. Box parameters are `Literal`
   arguments. Context operations have no IR records of their own; the optimiser matches by name.
   `createIf` and `ifWithoutElse` are context functions, because they produce SUPPRESS.
+- Since #217 (F-46) a queue function the catalogue marks `generating` (ADR-0026), today only
+  `copyValue`, gives a **generating block**: a queue of one context whose first slot is one value
+  for every occurrence of a target field under every parent occurrence, as a constant's value is.
+  At a context or queue function's input it is the queue it is. At a single-value function's
+  input, of a `Lift` or of an atomic call, lowering refuses it with `unsupported-generating-input`
+  at the consuming box; SAP PO accepts that graph, so it is `copyValue`'s deviation.
 
 ## Target fields
 
@@ -102,13 +108,17 @@ for-each over the source context".
     `min > 0`. Its third argument, the target field mapping's id, names the field in the
     `po:MINOCCURS` message, as the runtime does (spec-2 review).
 - A **generating function** (a function graph with no source field whose result is a single
-  value; one that yields a queue, such as `count` of a constant, maps as a queue, F-21) on a target becomes
+  value; one that yields a queue, such as `count` of a constant, maps as a queue, F-21; since #217
+  also a graph whose result is a generating block, F-46) on a target becomes
   `TargetRepeat(max(1, minOccurs))` per parent slot. Its children are numbered
   `(p − 1) · copies + j`.
   - Since #83 a box lowers to a queue or a single value. A single-value function whose inputs are all single values (or that has none, as `constant`) is an atomic `FunCall`, and its params are `Literal`s. Every input of a single-value call is evaluated before the call, as PO computes every input queue of a box, so `if` has no untaken branch: a data error in either branch is raised at its box in both back ends (F-22).
   - Inside a `Lift` body a single value applies to every slot of every context. At a context or queue input it is `AtomicToQueue(value, origin)`: one context with one value (ADR-0004). It is typed `QUEUE` over a `STRING` value, it is not traced, and it exports as `[(value)]`.
-  - On a target, the `TargetRepeat`'s `origin` is the target field mapping's authoring id, and its value is computed once per copy.
-  - The trace records a generating field's occurrences per parent slot (all created, the count `copies`) and the value of each box in the graph, as for any other target field (GLOSSARY "Trace").
+  - On a target, the `TargetRepeat`'s `origin` is the target field mapping's authoring id, and its single value is computed once per copy; a generating block is read once per run (below).
+  - The trace records a generating field's occurrences per parent slot (all created, the count `copies`; all suppressed when a generating block's first slot is SUPPRESS or missing, #217) and the value of each box in the graph, as for any other target field (GLOSSARY "Trace").
+  - Since #217 (F-46) a generating block on a target is the `TargetRepeat`'s `value`, a `QUEUE` in the parent's scope, with `valueVar`, a `STRING` bound only in the body, on a leaf, an attribute and a structure field alike; a leaf's text and an attribute's value read `valueVar` (`value<d>`), and a structure field's element holds its children only. `valueVar` is present exactly when `value` is a `QUEUE`; a `STRING` value keeps the rule of the structure field below. `IrVerifier` checks both.
+  - Each back end reads the block at most once per run, on first read, as a `TargetSlots` queue, so a run without a parent occurrence never reads it. Per copy, a value as the block's first slot (counted across its contexts) goes into `valueVar` and the body is written; a SUPPRESS first slot, or a block without a slot, writes nothing, and the copy keeps its slot number `(p − 1) · copies + j`. The trace marks those copies suppressed (`Tracer.Repeat.suppressed`); the block's box shows its one context (`[["b"]]`, `[[null]]` or `[[]]`), and the wire is unchanged.
+  - The export binds the block as a `po:queue<n>` variable at the top of the template, under the root too, and writes each copy's body inside `<xsl:for-each select="po:generated($po:queue<n>)">`, which binds `valueVar` to its item. `po:generated` (`core.xsl`) gives the block's first slot when it is an `xs:string`, else `()`.
   - On a structure field the value stays on its `TargetRepeat`: `value` is an optional `STRING` in the parent's scope (it cannot read its own `slotVar`, as `TargetSlots.queue`). Each copy evaluates it before its body and never writes it, in every compile, traced or not, so the trace holds its boxes and a data error in it is raised at its box (ADR-0018 l.48–49, l.124–127). A leaf's value stays in its text; an unmapped field has none. The export writes `<xsl:value-of select="substring(value, 1, 0)"/>` before the body, a zero-length text node. That Saxon-HE 12.5 evaluates it is observed, not required by XSLT 3.0, and a differential error test in `engine/oracle` pins it (#83).
   - Documented (SAP PI 7.11): the counts. Assumed (`obs-constant`): the repeat per parent occurrence, `concat` of constants, and `AtomicToQueue`'s shape.
 - An unmapped structure field with `minOccurs = maxOccurs = n > 0` is created n times. An
@@ -197,6 +207,19 @@ for-each over the source context".
   - an unmapped target leaf with `minOccurs > 0` is a design-time error.
 - Assumed readings since #51, until observed cases confirm them (ADR-0002, #61): a shorter input
   whose last value is SUPPRESS gives SUPPRESS when reused (#32 lift-3).
+- `copyValue` gives a generating block (observed on PO 7.5 and CPI, F-46, #217; it replaces the
+  assumed reading of #79, one context per input context): its position counts from 0 across the
+  whole input queue, context boundaries ignored; a SUPPRESS slot counts as a position and is
+  copied, so no occurrence is written; the selected value goes into every occurrence of the target
+  field under every parent occurrence, as a constant's does (`fn/copyValue/001`–`004`). Assumed,
+  pinned by unit tests only, until the observation request F-46 names after milestone 1 answers:
+  - a position past the last slot, and an empty queue, give one empty context, so no copy is
+    written;
+  - at a context or queue function's input the block is that queue, so `count(copyValue)` gives
+    one context and a V in the first Item only, as `constant-006` does for `count` of a constant;
+  - a missing first slot traces like SUPPRESS: every copy suppressed;
+  - a SUPPRESS or missing first slot on a field with `minOccurs > 0` writes no copy and raises no
+    `po:MINOCCURS`: a `TargetRepeat` has no min check.
 - `createIf` casts each value as PO's `Bool.toBoolean` does (observed, #31 spec-2 part, F-37;
   amended with #133, replacing the assumed reading of #51): `true` in any case and `1` give `""`,
   `false` and `0` give SUPPRESS; any other value, `""` included, raises `po:CREATEIF` at the
