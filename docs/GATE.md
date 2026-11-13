@@ -36,7 +36,8 @@ the command and the evidence it needs. A change to a check after this point is a
    Evidence (ADR-0018): every corpus case of these functions is in `ratchet/oracle/corpus.txt`
    on the gate commit, passing in all metamorphic variants, and none has `provenance: assumed`.
    The observation requests for the assumed readings of ADR-0004, ADR-0006, ADR-0008 and #2 §7
-   are answered, and their cases are `observed`.
+   are answered, and their cases are `observed`. Requests opened after spec #212 (#222) are
+   deferred past milestone 1 by the owner (F-53).
 5. **Export.** Every corpus mapping whose functions are all portable exports to XSLT 3.0
    (portable profile); the differential run (our runtime vs
    Saxon-HE 12.5 on the exported XSLT, XMLUnit identical) agrees on every corpus input: every
