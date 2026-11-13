@@ -257,6 +257,17 @@
       "reading": "confirmed",
       "cpiEvidence": "cpi/toLowerCase-001-text-toLowerCase-check.txt",
       "cpiOutput": "cpi/toLowerCase-001-text-toLowerCase.xml"
+    },
+    {
+      "mapping": "text-trim",
+      "input": "trim-001.xml",
+      "case": "fn/trim/001",
+      "cpi": "observed-output-input-normalization-unverified",
+      "date": "2026-11-13",
+      "artifact": "api_text_trim",
+      "reading": "output-confirmed-input-normalization-unverified",
+      "cpiEvidence": "cpi/trim-001-text-trim-check.txt",
+      "cpiOutput": "cpi/trim-001-text-trim.xml"
     }
   ]
 }
