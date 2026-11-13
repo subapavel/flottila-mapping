@@ -26,11 +26,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The queue algebra of the function family constant (#79, ADR-0025 "Families"): {@code copyValue}
- * copies the slot at a position of each context, counted from 0, and a context too short for it
- * gives an empty context; a SUPPRESS slot counts as a position and is copied as SUPPRESS (assumed
- * readings of #79). A position is an {@code xs:nonNegativeInteger}. The property test (ADR-0018) is
- * a seeded loop, without jqwik: it runs the edges and 200 seeded queues against a reference written
- * here.
+ * gives a generating block, one context holding the slot at a position of the whole queue, counted
+ * from 0 with context boundaries ignored; a SUPPRESS slot counts as a position and is copied as
+ * SUPPRESS; a position past the last slot, an empty queue's included, gives one empty context
+ * (observed on PO 7.5 and CPI, F-46, #217; the edge past the last slot is the design's). A position
+ * is an {@code xs:nonNegativeInteger}. The property test (ADR-0018) is a seeded loop, without
+ * jqwik: it runs the edges and 200 seeded queues against a reference written here.
  */
 class ConstantFunctionsTest {
 
@@ -66,18 +67,23 @@ class ConstantFunctionsTest {
   // --- property test ---
 
   /**
-   * copyValue: one context per context, holding the slot at the position when the context has it,
-   * SUPPRESS as SUPPRESS, and nothing otherwise; the input is unchanged.
+   * copyValue: one context, holding the slot at the position of the whole queue, context after
+   * context, when the queue has it, SUPPRESS as SUPPRESS, and nothing otherwise; the input is
+   * unchanged. The positions cross the last slot and the one past it.
    */
   @ParameterizedTest(name = "{0}")
   @MethodSource("queues")
-  void copyValueCopiesTheSlotAtThePositionOfEachContext(String name, Queue queue) {
+  void copyValueIgnoresContextBoundaries(String name, Queue queue) {
     QueueBlock input = queue.block();
-    for (int position : new int[] {0, 1, 2, 3, 69, Integer.MAX_VALUE}) {
-      List<List<String>> expected = new ArrayList<>();
-      for (List<String> context : queue.contexts()) {
-        expected.add(position < context.size() ? context(context.get(position)) : context());
-      }
+    List<String> flat = queue.flat();
+    List<Integer> positions = new ArrayList<>(List.of(0, 1, 2, 3, 69, Integer.MAX_VALUE));
+    positions.add(flat.size());
+    if (!flat.isEmpty()) {
+      positions.add(flat.size() - 1);
+    }
+    for (int position : positions) {
+      List<List<String>> expected =
+          List.of(position < flat.size() ? context(flat.get(position)) : context());
 
       QueueBlock result = ConstantFunctions.copyValue(input, position);
 
@@ -86,15 +92,67 @@ class ConstantFunctionsTest {
     assertThat(read(input)).as("the input").isEqualTo(queue.contexts());
   }
 
+  /** fn/copyValue/001–003: Sku in context Order is a, b, c | d | e, f (F-46). */
   @Test
-  void copyValueCopiesAValueAtAContextsLastSlotAndNothingBeyondIt() {
-    QueueBlock input = queue("three contexts", context("a", "b"), context("c"), context()).block();
+  void copyValueSelectsThePositionAcrossTheWholeQueue() {
+    QueueBlock skus = queue("Sku", context("a", "b", "c"), context("d"), context("e", "f")).block();
 
-    assertThat(read(ConstantFunctions.copyValue(input, 1)))
-        .isEqualTo(List.of(context("b"), context(), context()));
-    // witness: position 0 is within every context that has a slot
-    assertThat(read(ConstantFunctions.copyValue(input, 0)))
-        .isEqualTo(List.of(context("a"), context("c"), context()));
+    assertThat(read(ConstantFunctions.copyValue(skus, 1))).isEqualTo(List.of(context("b")));
+    assertThat(read(ConstantFunctions.copyValue(skus, 0))).isEqualTo(List.of(context("a")));
+    // o2's context has no slot 3, the queue has: d
+    assertThat(read(ConstantFunctions.copyValue(skus, 3))).isEqualTo(List.of(context("d")));
+    // the last slot of the queue
+    assertThat(read(ConstantFunctions.copyValue(skus, 5))).isEqualTo(List.of(context("f")));
+
+    // a position past a context's last slot reads on in the next context, past an empty one too
+    QueueBlock three = queue("three contexts", context("a", "b"), context("c"), context()).block();
+    assertThat(read(ConstantFunctions.copyValue(three, 1))).isEqualTo(List.of(context("b")));
+    assertThat(read(ConstantFunctions.copyValue(three, 2))).isEqualTo(List.of(context("c")));
+  }
+
+  /**
+   * fn/copyValue/004: createIf(Tag) is "", SUPPRESS, "" | SUPPRESS, "" | (empty); Index 1 selects
+   * SUPPRESS and copies it (F-46).
+   */
+  @Test
+  void copyValueCopiesASuppressSlot() {
+    QueueBlock tags = queue("createIf(Tag)", context("", S, ""), context(S, ""), context()).block();
+
+    QueueBlock first = ConstantFunctions.copyValue(tags, 1);
+    assertThat(read(first)).isEqualTo(List.of(context(S)));
+    assertThat(SuppressQueues.suppressedSlots(first)).containsExactly(true);
+    // the SUPPRESS slot of the second context, counted across the queue
+    assertThat(read(ConstantFunctions.copyValue(tags, 3))).isEqualTo(List.of(context(S)));
+    // witnesses: the values on both sides of them are copied as values
+    QueueBlock value = ConstantFunctions.copyValue(tags, 0);
+    assertThat(read(value)).isEqualTo(List.of(context("")));
+    assertThat(SuppressQueues.suppressedSlots(value)).containsExactly(false);
+    assertThat(read(ConstantFunctions.copyValue(tags, 4))).isEqualTo(List.of(context("")));
+  }
+
+  /** Not observed (F-46): the design's edge, one empty context, as a too-short context gave. */
+  @Test
+  void copyValuePastTheLastSlotOrOfAnEmptyQueueIsOneEmptyContext() {
+    QueueBlock skus = queue("Sku", context("a", "b", "c"), context("d"), context("e", "f")).block();
+    // witness: slot 5 is the last one
+    assertThat(read(ConstantFunctions.copyValue(skus, 5))).isEqualTo(List.of(context("f")));
+    for (int position : new int[] {6, 7, 69, Integer.MAX_VALUE}) {
+      assertThat(read(ConstantFunctions.copyValue(skus, position)))
+          .as("position %d", position)
+          .isEqualTo(List.of(context()));
+    }
+
+    for (Queue empty :
+        List.of(
+            queue("no context"),
+            queue("one empty context", context()),
+            queue("two empty contexts", context(), context()))) {
+      for (int position : new int[] {0, 1}) {
+        assertThat(read(ConstantFunctions.copyValue(empty.block(), position)))
+            .as("%s, position %d", empty.name(), position)
+            .isEqualTo(List.of(context()));
+      }
+    }
   }
 
   // --- the position ---

@@ -40,6 +40,7 @@ import io.flottila.mapping.ir.FunctionRef;
 import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
+import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
 import io.flottila.mapping.ir.TargetDocument;
 import io.flottila.mapping.ir.TargetRepeat;
@@ -640,6 +641,161 @@ class LoweringTest {
                     new FunCall(constant, List.of(new Literal("y", id("c2"))), id("c2")),
                     id("t2")),
                 id("t2")));
+  }
+
+  // --- a generating block (#217, F-46): copyValue's result, one value for every parent
+
+  private static final FunctionRef COPY_VALUE =
+      new FunctionRef("copyValue", List.of(new QueueType(), AtomicType.STRING), new QueueType());
+
+  private static final String SKU = "/Orders/Order/Line/Sku";
+
+  /** The boxes of copyValue at {@code box} over Sku in context Order, at box s{@code box}. */
+  private static Object[] copyValueBoxes(String box, String positionOrNull) {
+    return new Object[] {
+      "s" + box,
+      source(SKU, "/Orders/Order"),
+      box,
+      function(
+          "copyValue",
+          inputs("s" + box),
+          positionOrNull == null
+              ? noParams()
+              : Models.params("position", Models.text(positionOrNull)))
+    };
+  }
+
+  /** The target field mapping {@code id} whose result is copyValue at {@code box}. */
+  private static TargetFieldMapping copyValue(String id, String box, String positionOrNull) {
+    return targetFieldMapping(id, box, boxes(copyValueBoxes(box, positionOrNull)));
+  }
+
+  /** The block copyValue at {@code box} gives over Sku in context Order, at s{@code box}. */
+  private static FunCall copyValueBlock(String box, String position) {
+    return new FunCall(
+        COPY_VALUE,
+        List.of(
+            new SourceQueue(
+                List.of(ORDERS_NAME, ORDER_ELEMENT, LINE, new Name("", "Sku")), 2, id("s" + box)),
+            new Literal(position, id(box))),
+        id(box));
+  }
+
+  /** At a context function's input the block is the queue it is: count reads one context. */
+  @Test
+  void copyValueAtAContextInputIsItsBlock() {
+    Object[] copy = copyValueBoxes("f1", "1");
+    TargetDocument document =
+        lowered(
+            lowerTagged(
+                CODE,
+                targetFieldMapping(
+                    "t1",
+                    "f2",
+                    boxes(
+                        copy[0],
+                        copy[1],
+                        copy[2],
+                        copy[3],
+                        "f2",
+                        function("count", inputs("f1"), noParams()))),
+                FLAG,
+                copyValue("t0", "f0", "1")));
+
+    FunctionRef count = new FunctionRef("count", List.of(new QueueType()), new QueueType());
+    assertThat(document.content().getFirst())
+        .isEqualTo(
+            rootAttribute(
+                "",
+                new Name("", "code"),
+                new FunCall(count, List.of(copyValueBlock("f1", "1")), id("f2")),
+                0,
+                "t1"));
+    // witness: the same block at the target field, not at an input, is a generating repeat
+    assertThat(document.content().getLast()).isInstanceOf(TargetRepeat.class);
+  }
+
+  /**
+   * A box that takes a single value cannot read a generating block (the deviation F-46 records):
+   * {@code unsupported-generating-input} at the consuming box, whichever input reads it.
+   */
+  @Test
+  void copyValueAtASingleValueInputIsRefused() {
+    Object[] copy = copyValueBoxes("f1", "1");
+    Map<String, Map<AuthoringId, Box>> graphs =
+        Map.of(
+            "trim(copyValue)",
+            boxes(
+                copy[0],
+                copy[1],
+                copy[2],
+                copy[3],
+                "f2",
+                function("trim", inputs("f1"), noParams())),
+            "concat(copyValue, constant)",
+            boxes(
+                copy[0],
+                copy[1],
+                copy[2],
+                copy[3],
+                "c1",
+                function("constant", inputs(), Models.params("value", Models.text("x"))),
+                "f2",
+                function("concat", inputs("f1", "c1"), noParams())),
+            "concat(source, copyValue)",
+            boxes(
+                copy[0],
+                copy[1],
+                copy[2],
+                copy[3],
+                "s2",
+                source("/Orders/Order/Id", "/Orders"),
+                "f2",
+                function("concat", inputs("s2", "f1"), noParams())));
+    for (Map.Entry<String, Map<AuthoringId, Box>> graph : graphs.entrySet()) {
+      assertThat(
+              refused(
+                  lowerTagged(
+                      CODE,
+                      targetFieldMapping("t1", "f2", graph.getValue()),
+                      FLAG,
+                      fromOrders("t0", "/Orders/Order/Id", "/Orders"))))
+          .as(graph.getKey())
+          .containsExactly(errorAtId("unsupported-generating-input", "f2"));
+    }
+
+    // witnesses: the same graphs with Sku itself where copyValue was lower
+    for (String input : List.of("trim", "concat-constant", "concat-source")) {
+      Map<AuthoringId, Box> boxes =
+          switch (input) {
+            case "trim" ->
+                boxes(copy[0], copy[1], "f2", function("trim", inputs("sf1"), noParams()));
+            case "concat-constant" ->
+                boxes(
+                    copy[0],
+                    copy[1],
+                    "c1",
+                    function("constant", inputs(), Models.params("value", Models.text("x"))),
+                    "f2",
+                    function("concat", inputs("sf1", "c1"), noParams()));
+            default ->
+                boxes(
+                    copy[0],
+                    copy[1],
+                    "s2",
+                    source("/Orders/Order/Id", "/Orders"),
+                    "f2",
+                    function("concat", inputs("s2", "sf1"), noParams()));
+          };
+      assertThat(
+              lowerTagged(
+                  CODE,
+                  targetFieldMapping("t1", "f2", boxes),
+                  FLAG,
+                  fromOrders("t0", "/Orders/Order/Id", "/Orders")))
+          .as(input)
+          .isInstanceOf(Lowered.class);
+    }
   }
 
   /**

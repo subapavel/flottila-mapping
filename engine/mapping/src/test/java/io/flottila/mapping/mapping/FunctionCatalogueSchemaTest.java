@@ -215,6 +215,37 @@ class FunctionCatalogueSchemaTest {
         refused(
             "an execution kind that is none",
             catalogue("sortLike", "\"executionKind\": \"node\"", FAMILY, EXACT, INPUTS, PORTABLE)),
+        // a generating function, whose queue result is one value for every parent (#217, F-46)
+        accepted(
+            "a generating queue function",
+            catalogue(
+                "copyLike",
+                "\"executionKind\": \"queue\"",
+                "\"family\": \"constant\"",
+                EXACT,
+                INPUTS,
+                "\"generating\": true",
+                PORTABLE)),
+        refused(
+            "\"generating\": false",
+            catalogue(
+                "copyLike",
+                "\"executionKind\": \"queue\"",
+                "\"family\": \"constant\"",
+                EXACT,
+                INPUTS,
+                "\"generating\": false",
+                PORTABLE)),
+        refused(
+            "\"generating\": \"true\"",
+            catalogue(
+                "copyLike",
+                "\"executionKind\": \"queue\"",
+                "\"family\": \"constant\"",
+                EXACT,
+                INPUTS,
+                "\"generating\": \"true\"",
+                PORTABLE)),
         refused("no portable", catalogue("sortLike", KIND, FAMILY, EXACT, INPUTS)),
         refused(
             "inputs: []", catalogue("sortLike", KIND, FAMILY, EXACT, "\"inputs\": []", PORTABLE)),

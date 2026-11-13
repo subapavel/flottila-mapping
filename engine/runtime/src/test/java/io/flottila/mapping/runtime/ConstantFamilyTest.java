@@ -57,14 +57,15 @@ class ConstantFamilyTest {
     return QueueLibrary.bind("copyValue", BOX, List.of(input), List.of(position));
   }
 
+  /** One context with the slot of the whole queue at the position (F-46, #217). */
   @Test
-  void copyValueCopiesThePositionOfEachContext() {
+  void copyValueCopiesThePositionAcrossTheWholeQueue() {
     QueueBlock values = queue(c("a", null, "b"), c("c"), c());
 
-    assertThat(read(bind(frame -> values, "1").eval(null)))
-        .containsExactly(List.of("S"), List.of(), List.of());
-    assertThat(read(bind(frame -> values, " 2 ").eval(null)))
-        .containsExactly(List.of("b"), List.of(), List.of());
+    assertThat(read(bind(frame -> values, "1").eval(null))).containsExactly(List.of("S"));
+    assertThat(read(bind(frame -> values, " 2 ").eval(null))).containsExactly(List.of("b"));
+    // the first context has no slot 3, the queue has: c
+    assertThat(read(bind(frame -> values, "3").eval(null))).containsExactly(List.of("c"));
   }
 
   /** A malformed position raises on every run, whatever the input holds, as the export does. */
