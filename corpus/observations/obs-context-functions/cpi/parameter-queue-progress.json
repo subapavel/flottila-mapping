@@ -371,14 +371,14 @@
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_suppress_condition",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_suppress_condition.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/008",
       "set": "obs-boolean",
       "artifact": "api_boolean_ifWithoutElse_empty_keep",
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_empty_keep.json",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "case": "fn/ifWithoutElse/009",

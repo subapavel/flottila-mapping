@@ -484,6 +484,45 @@
       "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_collapse_tags.json",
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13"
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-empty-keep",
+      "input": "ifWithoutElse-008.xml",
+      "case": "fn/ifWithoutElse/008",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_empty_keep",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-008-boolean-ifWithoutElse-empty-keep-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-008-boolean-ifWithoutElse-empty-keep.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_empty_keep.json",
+      "additionalEvidence": [
+        "cpi/ifWithoutElse-008-X1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Captured full native X1 queue including context/end markers and SUPPRESS flags. KeepSUPPRESS=true confirmed in stored parameters. UI renders first output context as [ ], second SUPPRESS, third x/SUPPRESS; preserve raw display without inferring whether the [ ] presentation denotes an empty context or empty-string value. Existing simulation produces one Item with V c."
+    },
+    {
+      "mapping": "boolean-ifWithoutElse-suppress-condition",
+      "input": "ifWithoutElse-007.xml",
+      "case": "fn/ifWithoutElse/007",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_boolean_ifWithoutElse_suppress_condition",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition-check.txt",
+      "cpiOutput": "cpi/ifWithoutElse-007-boolean-ifWithoutElse-suppress-condition.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_boolean_ifWithoutElse_suppress_condition.json",
+      "additionalEvidence": [
+        "cpi/ifWithoutElse-007-X1-queue.json",
+        "cpi/ifWithoutElse-007-X2-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Native display X1 true,SUPPRESS,false,true; X2 true,SUPPRESS,SUPPRESS,true. Both suppress-condition and false-condition positions appear as SUPPRESS in displayed X2. Stored X1 KeepSUPPRESS=true, X2 unspecified/default unchecked verified. Preserve display behavior separately from target serialization, which produced V true,true. Temporary layout discarded."
     }
   ]
 }
