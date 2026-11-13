@@ -765,6 +765,7 @@ class IrVerifierTest {
   void aGeneratingBlockBindsItsValueVariableInItsBodyOnly() {
     Optional<Expr> block = Optional.of(block());
     Optional<String> v = Optional.of("v");
+    ElementConstructor empty = new ElementConstructor("", NOTE, List.of(), T3);
     // a leaf reads it; a 1-copy attribute reads it; a structure field's child reads it
     assertAccepted(document(generating(rootSlot(), block, v, note(string("v")))));
     assertAccepted(
@@ -824,17 +825,18 @@ class IrVerifierTest {
                         F1)),
                 v,
                 note(string("v")))));
-    assertRefused(
-        document(
-            generating(
-                rootSlot(),
-                Optional.of(
-                    new FunCall(
-                        COPY_VALUE,
-                        List.of(orderIds(), new VarRef("g", AtomicType.STRING, F1)),
-                        F1)),
-                v,
-                note(string("v")))));
+    // witness: a block of the same shape that reads the root's slot number, which is in its scope
+    assertAccepted(document(generating(rootSlot(), slotText(rootSlot()), v, empty)));
+    assertRefused(document(generating(rootSlot(), slotText(integer("g", F1)), v, empty)));
+  }
+
+  /** A function of one INTEGER; the verifier checks a FunctionRef's types only. */
+  private static final FunctionRef SLOT_TEXT =
+      new FunctionRef("slotText", List.of(AtomicType.INTEGER), AtomicType.STRING);
+
+  /** A block that reads {@code slot}: {@code slotText(slot)} as a queue. */
+  private static Optional<Expr> slotText(VarRef slot) {
+    return Optional.of(new AtomicToQueue(new FunCall(SLOT_TEXT, List.of(slot), F1), Q1));
   }
 
   @Test
@@ -851,15 +853,13 @@ class IrVerifierTest {
 
     // a block without a value variable
     assertRefused(document(generating(rootSlot(), Optional.of(block()), Optional.empty(), empty)));
-    // a STRING value, a Literal or a call, with one
+    // a STRING value, a Literal or a call, with one; the body does not read it, so only the value
+    // variable itself is refused
+    assertRefused(document(generating(rootSlot(), Optional.of(literal("x")), v, empty)));
     assertRefused(
-        document(generating(rootSlot(), Optional.of(literal("x")), v, note(string("v")))));
-    assertRefused(
-        document(
-            generating(
-                rootSlot(), Optional.of(call(CONSTANT, literal("x"))), v, note(string("v")))));
-    // a value variable without a value
-    assertRefused(document(generating(rootSlot(), Optional.empty(), v, note(string("v")))));
+        document(generating(rootSlot(), Optional.of(call(CONSTANT, literal("x"))), v, empty)));
+    // a value variable without a value, which the body does not read either
+    assertRefused(document(generating(rootSlot(), Optional.empty(), v, empty)));
     // an INTEGER value
     assertRefused(document(generating(rootSlot(), Optional.of(rootSlot()), v, empty)));
   }
