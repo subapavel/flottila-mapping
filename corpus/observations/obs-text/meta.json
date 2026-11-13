@@ -268,6 +268,17 @@
       "reading": "output-confirmed-input-normalization-unverified",
       "cpiEvidence": "cpi/trim-001-text-trim-check.txt",
       "cpiOutput": "cpi/trim-001-text-trim.xml"
+    },
+    {
+      "mapping": "text-equalsS",
+      "input": "equalsS-001.xml",
+      "case": "fn/equalsS/001",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_text_equalsS_native",
+      "reading": "confirmed-after-native-function-identifier-repair",
+      "cpiEvidence": "cpi/equalsS-001-text-equalsS-native-check.txt",
+      "cpiOutput": "cpi/equalsS-001-text-equalsS-native.xml"
     }
   ]
 }

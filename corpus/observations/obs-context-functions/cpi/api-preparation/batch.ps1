@@ -60,7 +60,10 @@ foreach($fn in @('sum','average','count')){
  $case=if($fn -eq 'average'){'004'}else{'003'}
  Add 'obs-statistic' ('stat-'+$fn+'-suppress') ($parent+(D '/Out/Item/V' (F $fn @($src)))) @('fn/'+$fn+'/'+$case)
 }
-foreach($fn in @('concat','equalsS','startsWith','endsWith')){Add 'obs-text' ('text-'+$fn) (D '/Out/All' (F $fn @($sku,$qty))) @('fn/'+$fn+'/001')}
+foreach($fn in @('concat','equalsS','startsWith','endsWith')){
+ $native=if($fn -eq 'equalsS'){'stringEquals'}else{$fn}
+ Add 'obs-text' ('text-'+$fn) (D '/Out/All' (F $native @($sku,$qty))) @('fn/'+$fn+'/001')
+}
 foreach($fn in @('toUpperCase','toLowerCase','trim')){Add 'obs-text' ('text-'+$fn) (D '/Out/All' (F $fn @($sku))) @('fn/'+$fn+'/001')}
 Add 'obs-arithmetic' 'arith-inv' (D '/Out/All' (F 'inv' @($qty))) @('fn/inv/001')
 Add 'obs-lift-reuse' 'lift-1' ($parent+(D '/Out/Item/V' (F 'concat' @($tagO,$skuO)))) @('lift-1/l1.xml')
