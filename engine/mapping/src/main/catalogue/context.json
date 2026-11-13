@@ -38,7 +38,7 @@
   "formatByExample": {
     "executionKind": "queue",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
@@ -72,7 +72,7 @@
   "removeContexts": {
     "executionKind": "queue",
     "fidelity": {
-      "level": "assumed"
+      "level": "exact"
     },
     "inputs": [
       {
