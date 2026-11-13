@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/formatNum/009
+Artifact: api_fmt_009
+Input: original formatNum-009.xml uploaded through simulator.
+Visible graph verified: Qty context /Orders -> formatNumber -> /Out/All.
+Simulation completed. All values: 1,234,567; 12. Grouping comma. Downloaded XML preserved unchanged.
+Live pattern dialog not independently inspected. JVM locale and arithmetic mode not exposed/verified. Output observed; parameter verification pending.
