@@ -398,6 +398,17 @@
       "reading": "output-confirmed-parameter-unverified",
       "cpiEvidence": "cpi/fixValues-008-fix-values-exact-check.txt",
       "cpiOutput": "cpi/fixValues-008-fix-values-exact.xml"
+    },
+    {
+      "mapping": "constant-empty",
+      "input": "constant-001.xml",
+      "case": "fn/constant/008",
+      "cpi": "observed",
+      "date": "2026-11-13",
+      "artifact": "api_constant_empty",
+      "reading": "confirmed-after-empty-binding-repair",
+      "cpiEvidence": "cpi/constant-001-constant-empty-check.txt",
+      "cpiOutput": "cpi/constant-001-constant-empty.xml"
     }
   ]
 }

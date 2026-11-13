@@ -368,6 +368,16 @@
       "reading": "contradicted",
       "cpiEvidence": "cpi/ifWithoutElse-010-boolean-ifWithoutElse-collapse-tags-check.txt",
       "cpiOutput": "cpi/ifWithoutElse-010-boolean-ifWithoutElse-collapse-tags.xml"
+    },
+    {
+      "mapping": "boolean-if",
+      "input": "if-001.xml",
+      "case": "fn/if/001",
+      "cpi": "observed-error",
+      "date": "2026-11-13",
+      "artifact": "api_boolean_if_native",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/if-001-boolean-if-native-error.txt"
     }
   ]
 }
