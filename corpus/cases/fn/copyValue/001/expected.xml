@@ -3,8 +3,10 @@
   <Item>
     <V>b</V>
   </Item>
-  <Item/>
   <Item>
-    <V>f</V>
+    <V>b</V>
+  </Item>
+  <Item>
+    <V>b</V>
   </Item>
 </Out>
