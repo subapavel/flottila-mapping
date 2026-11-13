@@ -1,0 +1,6 @@
+CPI observation 2026-11-13: fn/dateTrans/001
+Artifact: api_date_trans_001
+Input: original dateTrans-001.xml uploaded through simulator.
+Visible graph verified: Sku context /Orders -> dateTrans -> /Out/All.
+Simulation completed. All values: 04.11.2026; 29.02.2024; 31.12.1999; 01.01.0001. Downloaded XML preserved unchanged.
+Live source/target format dialog not independently inspected. JVM default zone and leniency not established by this valid-date input. No environment settings changed. Output observed; parameter verification pending.

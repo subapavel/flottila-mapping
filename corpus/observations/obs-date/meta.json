@@ -205,6 +205,28 @@
       "summary": "Item values [a@20:43:10.237,b@20:43:10.237] | [] | [c@20:43:10.237]; identical nonzero milliseconds across values and Order contexts.",
       "po75Result": "po75/currentDate-004-current-date-concat.xml",
       "po75Evidence": "po75/currentDate-004-current-date-concat-check.txt"
+    },
+    {
+      "mapping": "date-trans-001",
+      "input": "dateTrans-001.xml",
+      "case": "fn/dateTrans/001",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_date_trans_001",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/dateTrans-001-date-trans-001-check.txt",
+      "cpiOutput": "cpi/dateTrans-001-date-trans-001.xml"
+    },
+    {
+      "mapping": "date-trans-002",
+      "input": "dateTrans-002.xml",
+      "case": "fn/dateTrans/002",
+      "cpi": "observed-output-parameter-verification-pending",
+      "date": "2026-11-13",
+      "artifact": "api_date_trans_002",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/dateTrans-002-date-trans-002-check.txt",
+      "cpiOutput": "cpi/dateTrans-002-date-trans-002.xml"
     }
   ]
 }
