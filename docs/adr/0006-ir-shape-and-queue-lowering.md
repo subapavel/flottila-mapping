@@ -1,6 +1,6 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134); amended by F-44 (#215): the boolean family casts as `createIf` does, `err:FORG0001`, and `ifWithoutElse` follows the observed SUPPRESS and context model
+Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134); amended by F-44 (#215): the boolean family casts as `createIf` does, `err:FORG0001`, and `ifWithoutElse` follows the observed SUPPRESS and context model; amended by F-45 (#216): `replaceValue` is a context function, because it reads SUPPRESS, and SUPPRESS passes a `Lift` as observed for `toUpperCase` and `concat`
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -58,6 +58,8 @@ only through `Lift` and `AtomicToQueue`.
   runtime library, bound by their name in the function catalogue. Box parameters are `Literal`
   arguments. Context operations have no IR records of their own; the optimiser matches by name.
   `createIf` and `ifWithoutElse` are context functions, because they produce SUPPRESS.
+  `replaceValue` is a context function, because it reads SUPPRESS: a `Lift` would pass a SUPPRESS
+  slot on without calling it, and PO replaces that slot too (F-45, amended with #216).
 
 ## Target fields
 
@@ -188,8 +190,10 @@ for-each over the source context".
   box a stable id that survives editing and diffs.
 - Assumed readings until observed cases confirm them (ADR-0002, #14):
   - an empty or missing context in a `Lift` input gives an empty result context;
-  - SUPPRESS in a `Lift` input gives SUPPRESS and consumes the other inputs, for every
-    single-value function and UDF;
+  - SUPPRESS in a `Lift` input gives SUPPRESS and consumes the other inputs: observed for
+    `toUpperCase` and `concat` (`obs-lift-reuse` lift-2, PO 7.50 and CPI, F-45), assumed for every
+    other single-value function and UDF. `replaceValue` replaces a SUPPRESS, so it is a context
+    function since #216 (below);
   - SUPPRESS does not count toward `minOccurs` / `maxOccurs`; truncated slots keep their
     numbers;
   - a constant-only graph through a function (`concat(const, const)`) on a target is a
@@ -221,6 +225,15 @@ for-each over the source context".
   raises `err:FORG0001` at the box; a `then` context beyond the condition's last is empty rather
   than one SUPPRESS per value (`fn/ifWithoutElse/009` tells them apart only once
   `collapseContexts` keeps SUPPRESS, as `obs-context-functions` ctx-6b shows).
+- `replaceValue` is a context function (observed, `obs-lift-reuse` replaceValue-002 and the
+  display queue of `obs-statistic` sum-003, PO 7.50 and CPI, F-45; amended with #216, replacing
+  the single-value reading of spec 2): it gives its replacement at every slot, SUPPRESS included,
+  so its result holds no SUPPRESS; its contexts stay as they are, an empty context stays empty,
+  and a queue with no context gives none. A single-value input enters it as `AtomicToQueue`, so
+  `replaceValue` of a constant is a queue of one context with one value and maps as a queue
+  (F-21). *Assumed*: under a repeated parent that queue gives its value in the first parent
+  occurrence only (V in Item 1 only, as `count` of a constant does); F-45 lists it for the
+  observation request after milestone 1.
 - SUPPRESS through the context functions since #51 (`assumed` unless marked). The seeded
   agreement test `SuppressContextFunctionsAgreementTest` pins each reading on both back ends;
   corpus cases cover those a root-level target can show, and the numeric-key error gets its

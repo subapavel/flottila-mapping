@@ -294,13 +294,15 @@ _Avoid_: sandbox, security manager
 
 **Execution kind**:
 What one call of a standard function or UDF sees: _single value_ (one value at a time),
-_context_ (all values of one context) or _queue_ (all values of the queue).
+_context_ (all values of one context) or _queue_ (all values of the queue). A single-value
+function never sees SUPPRESS: its `Lift` passes a SUPPRESS slot on without a call (F-45).
 _Avoid_: function type, UDF type, cache (SAP PO's UI word)
 
 **Context function**:
-A standard function of execution kind _context_ or _queue_: it sees whole contexts and may change
-their boundaries or the number of values (removeContexts, splitByValue, sort, sum …). SAP PO
-files most of them under "Node functions".
+A standard function of execution kind _context_ or _queue_: one that sees whole contexts and may
+change their boundaries or the number of values (removeContexts, splitByValue, sort, sum …), or
+one that reads or produces SUPPRESS (createIf, replaceValue, F-45). SAP PO files most of them
+under "Node functions".
 _Avoid_: node function
 
 **Function catalogue**:
