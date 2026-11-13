@@ -185,16 +185,30 @@ interface Node {
    * {@code TargetRepeat} (ADR-0006 "Target fields"; #63): the body {@code copies} times per parent
    * occurrence, the j-th with the slot number {@code (p - 1) * copies + j} in its frame slot, where
    * {@code p} is the parent's slot number.
+   *
+   * <p>With a generating block (#217, F-46) the copies are gated by the block's first slot. The
+   * block is evaluated at most once per run, on the first parent occurrence's read, and kept in the
+   * frame, as a {@link Slots}' queue is, so a run without a parent occurrence never reads it. When
+   * the first slot is a value, it goes into its frame slot and every copy is written; when it is
+   * SUPPRESS or the block has no slot, no copy is, and the copies keep their slot numbers.
    */
   final class Repeat implements OfContent {
 
     private final long copies;
     private final OfInteger parentSlot;
     private final int slotNumberIndex;
+
+    /** The generating block, or null when every copy is written. */
+    private final OfQueue block;
+
+    private final int queueIndex;
+    private final int valueIndex;
     private final OfContent body;
     private final AuthoringId origin;
 
     /**
+     * A repeat whose copies are all written: an unmapped field's, or a generating single value's.
+     *
      * @param slotNumberIndex the index of the {@code INTEGER} frame slot that holds the slot number
      * @param origin the target field mapping of a generating function, or an unmapped field's path
      */
@@ -204,29 +218,78 @@ interface Node {
         int slotNumberIndex,
         OfContent body,
         AuthoringId origin) {
+      this(copies, parentSlot, slotNumberIndex, null, 0, 0, body, origin);
+    }
+
+    /**
+     * A generating block's repeat (#217).
+     *
+     * @param slotNumberIndex the index of the {@code INTEGER} frame slot that holds the slot number
+     * @param queueIndex where the frame keeps the block once it is evaluated
+     * @param valueIndex the index of the {@code STRING} frame slot that holds its first slot
+     * @param origin the target field mapping
+     */
+    Repeat(
+        long copies,
+        OfInteger parentSlot,
+        int slotNumberIndex,
+        OfQueue block,
+        int queueIndex,
+        int valueIndex,
+        OfContent body,
+        AuthoringId origin) {
       this.copies = copies;
       this.parentSlot = parentSlot;
       this.slotNumberIndex = slotNumberIndex;
+      this.block = block;
+      this.queueIndex = queueIndex;
+      this.valueIndex = valueIndex;
       this.body = body;
       this.origin = origin;
     }
 
     @Override
     public void write(Frame frame) throws IOException {
-      write(frame, parentSlot.eval(frame));
+      long parent = parentSlot.eval(frame);
+      if (generates(frame)) {
+        write(frame, parent);
+      }
     }
 
     /**
      * This node in a traced compile (#83): under each parent slot it reports its origin, the parent
-     * slot and its copies to the run's tracer before it writes them. The untraced node itself holds
-     * no hook.
+     * slot, its copies and whether they write nothing (#217) to the run's tracer before it writes
+     * them. The untraced node itself holds no hook.
      */
     OfContent traced() {
       return frame -> {
         long parent = parentSlot.eval(frame);
-        frame.tracer.repeat(origin, parent, copies);
-        write(frame, parent);
+        boolean generates = generates(frame);
+        frame.tracer.repeat(origin, parent, copies, !generates);
+        if (generates) {
+          write(frame, parent);
+        }
       };
+    }
+
+    /**
+     * Whether the copies under a parent occurrence are written: always without a generating block;
+     * with one, when its first slot is a value, which this puts into its frame slot.
+     */
+    private boolean generates(Frame frame) {
+      if (block == null) {
+        return true;
+      }
+      QueueBlock generated = frame.targetQueues[queueIndex];
+      if (generated == null) {
+        generated = block.eval(frame);
+        frame.targetQueues[queueIndex] = generated;
+      }
+      if (generated.slots() == 0 || generated.suppressed(0)) {
+        return false;
+      }
+      frame.strings[valueIndex] = generated.value(0);
+      return true;
     }
 
     /** The copies under the parent slot {@code parent}. */

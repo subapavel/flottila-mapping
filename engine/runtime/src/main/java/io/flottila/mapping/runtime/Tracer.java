@@ -68,14 +68,18 @@ public final class Tracer {
 
   /**
    * A traced {@code TargetRepeat} under one parent slot (#83), reported before it writes: its
-   * {@code copies} occurrences, numbered {@code (parentSlot - 1) * copies + j}, are all created. An
+   * {@code copies} occurrences, numbered {@code (parentSlot - 1) * copies + j}, are all created,
+   * unless its generating block's first slot is SUPPRESS or missing, when none is (#217, F-46). An
    * unmapped field's repeat reports its field path as its origin (ADR-0006).
    *
    * @param field the target field mapping of a generating function, or the unmapped field's path
    * @param parentSlot the parent slot it repeats under
    * @param copies the occurrences per parent slot
+   * @param suppressed whether its copies write nothing: its generating block's first slot is
+   *     SUPPRESS, or the block has no slot
    */
-  public record Repeat(AuthoringId field, long parentSlot, long copies) implements FieldReport {}
+  public record Repeat(AuthoringId field, long parentSlot, long copies, boolean suppressed)
+      implements FieldReport {}
 
   private final Object lock = new Object();
 
@@ -97,8 +101,8 @@ public final class Tracer {
     report(new Occurrences(field, parentSlot, queue, min, max));
   }
 
-  void repeat(AuthoringId field, long parentSlot, long copies) {
-    report(new Repeat(field, parentSlot, copies));
+  void repeat(AuthoringId field, long parentSlot, long copies, boolean suppressed) {
+    report(new Repeat(field, parentSlot, copies, suppressed));
   }
 
   private void report(Report report) {

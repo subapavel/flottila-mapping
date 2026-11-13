@@ -153,6 +153,14 @@ public final class MappingDiagnostics {
   /** A function box param whose string is none of its catalogue entry's values, at the box. */
   public static final String INVALID_PARAMETER_VALUE = "invalid-parameter-value";
 
+  /**
+   * A single-value function box with an input that a generating block feeds, such as {@code concat}
+   * over {@code copyValue}, at the consuming box (ADR-0006, F-46): the block is one value for every
+   * parent occurrence, which no single-value input can take. SAP PO accepts that graph, so it is
+   * the function's deviation.
+   */
+  public static final String UNSUPPORTED_GENERATING_INPUT = "unsupported-generating-input";
+
   // a warning, never an error (ADR-0011, ADR-0013, ADR-0027)
 
   /**

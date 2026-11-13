@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -730,5 +731,136 @@ class IrVerifierTest {
   static void assertRefused(TargetDocument document) {
     assertThatThrownBy(() -> IrVerifier.verify(document))
         .isInstanceOfAny(IllegalArgumentException.class, IllegalStateException.class);
+  }
+
+  // --- a generating block (#217, F-46): a TargetRepeat whose value is a QUEUE, the block, read in
+  // the parent's scope, binds its value variable, a STRING, in its body only
+
+  private static final AuthoringId F1 = new AuthoringId("f1");
+
+  private static final FunctionRef COPY_VALUE =
+      new FunctionRef("copyValue", List.of(QUEUE, AtomicType.STRING), QUEUE);
+
+  /** copyValue of OrderId at position 1, at f1. */
+  private static FunCall block() {
+    return new FunCall(COPY_VALUE, List.of(orderIds(), new Literal("1", F1)), F1);
+  }
+
+  /** A generating repeat of 2 copies under {@code parentSlot}: {@code value} as its value. */
+  private static TargetRepeat generating(
+      Expr parentSlot, Optional<Expr> value, Optional<String> valueVar, Expr body) {
+    return new TargetRepeat(2, parentSlot, "g", value, valueVar, body, T3);
+  }
+
+  /** {@code Note} holding {@code text}. */
+  private static ElementConstructor note(Expr text) {
+    return new ElementConstructor("", NOTE, List.of(new TextConstructor(text, T3)), T3);
+  }
+
+  private static VarRef string(String name) {
+    return new VarRef(name, AtomicType.STRING, T3);
+  }
+
+  @Test
+  void aGeneratingBlockBindsItsValueVariableInItsBodyOnly() {
+    Optional<Expr> block = Optional.of(block());
+    Optional<String> v = Optional.of("v");
+    ElementConstructor empty = new ElementConstructor("", NOTE, List.of(), T3);
+    // a leaf reads it; a 1-copy attribute reads it; a structure field's child reads it
+    assertAccepted(document(generating(rootSlot(), block, v, note(string("v")))));
+    assertAccepted(
+        document(
+            new TargetRepeat(
+                1,
+                rootSlot(),
+                "g",
+                block,
+                v,
+                new AttributeConstructor("", CODE, string("v"), T3),
+                T3),
+            orderIdLink()));
+    assertAccepted(
+        document(
+            generating(
+                rootSlot(),
+                block,
+                v,
+                new ElementConstructor(
+                    "", ITEM, List.of(names(integer("g", T2), string("v"))), T3))));
+    // the block reads the parent's scope: Item's value, inside Item
+    assertAccepted(
+        document(
+            items(
+                rootSlot(),
+                generating(
+                    integer("itemSlot", T3),
+                    Optional.of(
+                        new FunCall(
+                            COPY_VALUE,
+                            List.of(new AtomicToQueue(string("item"), Q1), new Literal("0", F1)),
+                            F1)),
+                    v,
+                    note(string("v"))))));
+
+    // a sibling reads it out of the body
+    assertRefused(document(generating(rootSlot(), block, v, note(string("v"))), note(string("v"))));
+    // it is a STRING, so no child's parent slot
+    assertRefused(
+        document(
+            generating(
+                rootSlot(),
+                block,
+                v,
+                new ElementConstructor(
+                    "", ITEM, List.of(names(integer("v", T2), string("v"))), T3))));
+    // the block reads its own value variable, and its own slot number: neither is in its scope
+    assertRefused(
+        document(
+            generating(
+                rootSlot(),
+                Optional.of(
+                    new FunCall(
+                        COPY_VALUE,
+                        List.of(new AtomicToQueue(string("v"), Q1), new Literal("0", F1)),
+                        F1)),
+                v,
+                note(string("v")))));
+    // witness: a block of the same shape that reads the root's slot number, which is in its scope
+    assertAccepted(document(generating(rootSlot(), slotText(rootSlot()), v, empty)));
+    assertRefused(document(generating(rootSlot(), slotText(integer("g", F1)), v, empty)));
+  }
+
+  /** A function of one INTEGER; the verifier checks a FunctionRef's types only. */
+  private static final FunctionRef SLOT_TEXT =
+      new FunctionRef("slotText", List.of(AtomicType.INTEGER), AtomicType.STRING);
+
+  /** A block that reads {@code slot}: {@code slotText(slot)} as a queue. */
+  private static Optional<Expr> slotText(VarRef slot) {
+    return Optional.of(new AtomicToQueue(new FunCall(SLOT_TEXT, List.of(slot), F1), Q1));
+  }
+
+  @Test
+  void aQueueValueNeedsAValueVariableAndAStringValueHasNone() {
+    Optional<String> v = Optional.of("v");
+    ElementConstructor empty = new ElementConstructor("", NOTE, List.of(), T3);
+    // witnesses: a block with its variable, a STRING value without one, and neither
+    assertAccepted(document(generating(rootSlot(), Optional.of(block()), v, note(string("v")))));
+    assertAccepted(
+        document(
+            generating(
+                rootSlot(), Optional.of(call(CONSTANT, literal("x"))), Optional.empty(), empty)));
+    assertAccepted(document(generating(rootSlot(), Optional.empty(), Optional.empty(), empty)));
+
+    // a block without a value variable
+    assertRefused(document(generating(rootSlot(), Optional.of(block()), Optional.empty(), empty)));
+    // a STRING value, a Literal or a call, with one; the body does not read it, so only the value
+    // variable itself is refused
+    assertRefused(document(generating(rootSlot(), Optional.of(literal("x")), v, empty)));
+    assertRefused(
+        document(generating(rootSlot(), Optional.of(call(CONSTANT, literal("x"))), v, empty)));
+    // a value variable without a value, which the body does not read either
+    assertRefused(document(generating(rootSlot(), Optional.empty(), v, empty)));
+    // an INTEGER value
+    assertRefused(document(generating(rootSlot(), Optional.of(rootSlot()), v, empty)));
   }
 }

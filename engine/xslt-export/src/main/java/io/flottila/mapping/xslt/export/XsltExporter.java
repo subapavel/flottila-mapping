@@ -49,9 +49,12 @@ import java.util.stream.Collectors;
  *       to its slot-number and value variables.
  *   <li>{@code TargetRepeat} is an {@code xsl:for-each} over {@code 1 to} its copies, which binds
  *       its slot-number variable to {@code ($p - 1) * copies + .}, where {@code $p} is its parent's
- *       slot number (ADR-0006; #63). A generating structure field's value follows as {@code
+ *       slot number (ADR-0006; #63). A generating structure field's single value follows as {@code
  *       <xsl:value-of select="substring(value, 1, 0)"/>}, a zero-length text that evaluates it
- *       before the body (ADR-0006 as amended by #83).
+ *       before the body (ADR-0006 as amended by #83). A generating block, a value with a value
+ *       variable, follows instead as an {@code xsl:for-each} over {@code po:generated} of its queue
+ *       variable, which binds the value variable to its item around the body, so a copy whose
+ *       block's first slot is SUPPRESS or missing writes nothing (#217, F-46).
  *   <li>An {@code AttributeConstructor} is {@code <xsl:attribute name="name" select="value"/>}, its
  *       name under the IR's output prefix (ADR-0022), inside its item's {@code xsl:for-each}
  *       (ADR-0006 since #102).
@@ -60,7 +63,8 @@ import java.util.stream.Collectors;
  *       xsl:for-each}, so its {@code po:slots} reads its queue in place. Inside an occurrence,
  *       where the {@code xsl:for-each} runs once per occurrence of the parent, the queue is bound
  *       once instead, as {@code po:queue1}, {@code po:queue2} … in IR walk order at the top of the
- *       template, and {@code po:slots} reads the variable.
+ *       template, and {@code po:slots} reads the variable. A generating block is always bound so,
+ *       under the root too, as each of its copies reads it (#217).
  *   <li>A queue is an {@code array(item()*)} with one member per context, each value an {@code
  *       xs:string} or {@code $po:SUPPRESS}. A {@code SourceQueue} reads the source document as
  *       {@code /}, the template's focus wherever a queue is written, and has at least one context
@@ -220,6 +224,17 @@ public final class XsltExporter {
       <xsl:variable name="%s" as="xs:integer" select="(%s - 1) * %d + ."/>""";
 
   /**
+   * The value a copy of a generating block writes, its queue variable's first slot, or none when
+   * that slot is SUPPRESS or missing, so the copy writes nothing (#217, F-46).
+   */
+  private static final String GENERATED = "po:generated(%s)";
+
+  /** The value variable of a generating block's copy, the item {@link #GENERATED} gives. */
+  private static final String GENERATED_VARIABLE =
+      """
+      <xsl:variable name="%s" as="xs:string" select="."/>""";
+
+  /**
    * A {@code Lift} (ADR-0025): {@code po:lift} over its queues, and over the inline function that
    * binds the slot variables and returns the body.
    */
@@ -277,7 +292,10 @@ public final class XsltExporter {
   /** The declarations of the IR's output prefixes. */
   private final StringBuilder outputDeclarations = new StringBuilder();
 
-  /** The queue variables, one per {@code TargetSlots} inside an occurrence, in IR walk order. */
+  /**
+   * The queue variables, one per {@code TargetSlots} inside an occurrence and per generating block,
+   * in IR walk order.
+   */
   private final StringBuilder queueVariables = new StringBuilder();
 
   /** The number of queue variables so far. */
@@ -392,14 +410,28 @@ public final class XsltExporter {
             depth + 1,
             REPEAT_SLOT_VARIABLE.formatted(
                 r.slotVar(), attribute(expression(r.parentSlot())), r.copies()));
-        r.value()
-            .ifPresent(
-                value ->
-                    line(
-                        out,
-                        depth + 1,
-                        VALUE_OF.formatted(attribute(REPEAT_VALUE.formatted(expression(value))))));
-        instruction(r.body(), depth + 1, true, out);
+        if (r.valueVar().isPresent()) {
+          // a generating block (#217): bound once, under the root too, as every copy reads it
+          String name = QUEUE_NAME.formatted(++queueCount);
+          line(
+              queueVariables,
+              TEMPLATE_DEPTH,
+              QUEUE_VARIABLE.formatted(name, attribute(expression(r.value().orElseThrow()))));
+          line(out, depth + 1, FOR_EACH.formatted(GENERATED.formatted("$" + name)));
+          line(out, depth + 2, GENERATED_VARIABLE.formatted(r.valueVar().get()));
+          instruction(r.body(), depth + 2, true, out);
+          line(out, depth + 1, END_FOR_EACH);
+        } else {
+          r.value()
+              .ifPresent(
+                  value ->
+                      line(
+                          out,
+                          depth + 1,
+                          VALUE_OF.formatted(
+                              attribute(REPEAT_VALUE.formatted(expression(value))))));
+          instruction(r.body(), depth + 1, true, out);
+        }
         line(out, depth, END_FOR_EACH);
       }
       case ElementConstructor e -> {
