@@ -135,7 +135,7 @@ class LiftAgreementTest {
             new VarRef("in2", AtomicType.STRING, new AuthoringId("l1")),
             new AuthoringId("l1"));
     byte[] input =
-        ("<Orders><Order><Tag>false</Tag><Tag>1</Tag><Tag>no</Tag><Tag>TRUE</Tag><Tag>true</Tag>"
+        ("<Orders><Order><Tag>false</Tag><Tag>1</Tag><Tag>0</Tag><Tag>TRUE</Tag><Tag>true</Tag>"
                 + "<Line><Sku>a</Sku></Line><Line><Sku>b</Sku></Line><Line><Sku>c</Sku></Line>"
                 + "<Line><Sku>d</Sku></Line><Line><Sku>e</Sku></Line></Order></Orders>")
             .getBytes(UTF_8);
@@ -157,9 +157,13 @@ class LiftAgreementTest {
 
   // --- generated lifts (ADR-0018: a seeded generator, the seed in the case name, no shrinking)
 
-  /** Conditions createIf meets: true for 1 and true in any case only (#51 design). */
+  /**
+   * Conditions createIf meets: true for 1 and true in any case, false for 0 and false in any case
+   * (ADR-0006 as amended with #133). Before #133 the last three were yes, "" and " true", which
+   * createIf now refuses (F-37); the list keeps its size, so each seed draws as it did.
+   */
   private static final List<String> CONDITIONS =
-      List.of("true", "false", "1", "0", "TRUE", "yes", "", " true");
+      List.of("true", "false", "1", "0", "TRUE", "FALSE", "False", "tRuE");
 
   /** One Order of the input: its Tags, and per Line its Sku, null for a Line without one. */
   private record Order(List<String> tags, List<String> lines) {}
@@ -186,7 +190,7 @@ class LiftAgreementTest {
     for (Order order : orders) {
       xml.append("<Order>");
       for (String tag : order.tags()) {
-        xml.append(tag.isEmpty() ? "<Tag/>" : "<Tag>" + tag + "</Tag>");
+        xml.append("<Tag>").append(tag).append("</Tag>");
       }
       for (String sku : order.lines()) {
         xml.append(
@@ -200,7 +204,7 @@ class LiftAgreementTest {
   /**
    * The reference, ADR-0006 read off the queues: Tag in context Order, Sku in context Order or
    * Line; context i pairs both inputs' context i, empty if either is empty or missing; the longer
-   * sets the count and the shorter reuses its last value; a condition that is not 1 or true in any
+   * sets the count and the shorter reuses its last value; a condition that is 0 or false in any
    * case gives SUPPRESS, which removeContexts keeps and the target skips without counting it.
    */
   private static List<String> expected(List<Order> orders, boolean skuPerLine, long max) {

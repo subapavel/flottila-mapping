@@ -199,13 +199,14 @@ target field mapping, the palette, quick insert and the inspector.
 _Avoid_: data-flow editor
 
 **Inspector**:
-The panel of the function editor that shows the selected box: its catalogue documentation and
-fidelity, its box parameters, its context and its display queue.
+The panel of the function editor that shows the selected box: its catalogue documentation (with
+a deviation's note, ADR-0028), its box parameters, its context and its display queue.
 _Avoid_: properties panel
 
 **Palette**:
 The narrow list of the function editor that offers every function of the function catalogue,
-grouped by function family, with its fidelity and portability marks.
+grouped by function family, with its portability marks. Fidelity is not shown; a deviation shows
+its note in the tooltip only (ADR-0028).
 _Avoid_: toolbox, function list
 
 **Quick insert**:
@@ -329,7 +330,8 @@ _Avoid_: function registry
 **Fidelity**:
 How a standard function relates to SAP PO/CPI behaviour: _exact_, _deviation_ (a documented
 difference, with a short text) or _assumed_ (an assumed reading waiting for an observed case). A
-function is assumed while one of its corpus cases is (ADR-0026).
+function is assumed while one of its corpus cases is (ADR-0026). The studio shows no fidelity
+mark, only a deviation's note in the tooltip (ADR-0028).
 _Avoid_: compatibility level
 
 **Portable function**:

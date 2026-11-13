@@ -43,7 +43,8 @@ final class ContextFamily {
 
   static Node.OfQueue createIf(AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {
     Node.OfQueue condition = inputs.getFirst();
-    return frame -> ContextFunctions.createIf(condition.eval(frame));
+    return QueueLibrary.raising(
+        RuntimeErrors.CREATEIF, box, frame -> ContextFunctions.createIf(condition.eval(frame)));
   }
 
   static Node.OfQueue exists(AuthoringId box, List<Node.OfQueue> inputs, List<String> params) {

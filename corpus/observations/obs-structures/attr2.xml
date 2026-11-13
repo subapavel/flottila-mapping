@@ -2,6 +2,6 @@
 <Orders>
   <Order>
     <Id>X1</Id>
-    <Tag>no</Tag>
+    <Tag>false</Tag>
   </Order>
 </Orders>

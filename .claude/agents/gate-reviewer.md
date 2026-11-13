@@ -20,7 +20,8 @@ Check, one line of evidence each:
 3. every spec of the milestone has a `/code-review` and a green PR; every class-C ticket its review;
 4. every deviation has a finding and an ADR change; no test, oracle case or ratchet entry was
    weakened or removed (`git log -p` on test paths and `ratchet/`);
-5. `HANDOVER.md` matches `docs/GATE.md`.
+5. `HANDOVER.md` matches `docs/GATE.md`; check 9 is judged from the verifier's
+   `.logs/gate-9.log`, because you cannot run the start instructions (F-41).
 
 Verdict first: `gate: MET` or `gate: NOT_MET — <one line per failed condition, naming file,
 PR or commit>`, then at most 15 lines of non-blocking observations for the hand-over.

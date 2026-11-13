@@ -1,7 +1,7 @@
 {
   "mapping": "mappings/attribute-flag.mapping.json",
   "provenance": "assumed",
-  "ref": "ADR-0006 since #102: a SUPPRESS slot writes no attribute (assumed, obs-structures str-attr); createIf gives SUPPRESS for anything but 1 or true (ADR-0006 Consequences, since #51)",
+  "ref": "ADR-0006 since #102: a SUPPRESS slot writes no attribute (assumed, obs-structures str-attr); createIf gives SUPPRESS for false and 0 (ADR-0006 Consequences, amended with #133); the Tag was no before #133, on which PO's createIf ends the run (F-37, corpus/observations/obs-target-creation/po75/max-002-spec2-create-if-row.txt)",
   "expect": "output",
-  "note": "flag per createIf(Tag) in Tag's default context Order: SUPPRESS for no, so Flagged has no flag. code per Id in its default context Order: X1. V per Id in context Orders: X1. Assumed until obs-structures str-attr is observed."
+  "note": "flag per createIf(Tag) in Tag's default context Order: SUPPRESS for false, so Flagged has no flag. code per Id in its default context Order: X1. V per Id in context Orders: X1. Assumed until obs-structures str-attr is observed."
 }

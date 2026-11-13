@@ -1834,7 +1834,7 @@ class EngineFacadeTest {
   void aNumericSortByKeyOverASuppressKeyIsARuntimeErrorAtItsBox() throws Exception {
     EngineFacade facade = new EngineFacade();
     ReferenceResolver observations = observations();
-    byte[] input = utf8("<Orders><Order><Tag>1</Tag><Tag>no</Tag></Order></Orders>");
+    byte[] input = utf8("<Orders><Order><Tag>1</Tag><Tag>false</Tag></Order></Orders>");
     CompiledMapping lexicographic =
         compiled(facade.compile(sortByCreatedKeys("{}"), observations, DEPLOY));
     CompiledMapping numeric =
@@ -1847,7 +1847,7 @@ class EngineFacadeTest {
                 facade.run(numeric, utf8("<Orders><Order><Tag>1</Tag></Order></Orders>")), UTF_8))
         .isEqualTo(DECLARATION + "<Out><All>1</All></Out>");
     assertThat(new String(facade.run(lexicographic, input), UTF_8))
-        .isEqualTo(DECLARATION + "<Out><All>no</All><All>1</All></Out>");
+        .isEqualTo(DECLARATION + "<Out><All>false</All><All>1</All></Out>");
 
     assertRunThrows(facade, numeric, input, "po:SORTBYKEY", "k1");
     assertThatThrownBy(() -> facade.run(numeric, input))

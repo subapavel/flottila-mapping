@@ -56,6 +56,15 @@ The owner's prototype is the UI. It is on branch `prototype/mapping-studio`, und
   - a refused or 409 save keeps the draft.
 - Port to TypeScript strict. No new state library (Redux, Jotai) and no form library: the forms are small.
 
+## Fidelity in the studio
+
+Owner, 2026-11-11, #207. Flottila is not only for SAP PO users, so the studio shows no fidelity mark, badge or label. Exact and assumed functions look alike. A function with a deviation shows its deviation note in its tooltip only, in two places:
+
+- the Add node catalogue;
+- a placed box, in its hover hint and its accessible name.
+
+The note is written for readers who do not know SAP PO, in `engine/mapping/src/main/catalogue/`. This supersedes ADR-0012's "fidelity and deviation badge".
+
 ## Considered options
 
 - **Keep the prototype's single component with `useState`**: rejected. Undo, Save/Discard and the 409 reload need one owner of the working copy. The store already has it.

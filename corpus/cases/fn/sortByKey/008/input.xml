@@ -3,6 +3,6 @@
   <Order>
     <Id>o1</Id>
     <Tag>1</Tag>
-    <Tag>no</Tag>
+    <Tag>false</Tag>
   </Order>
 </Orders>
