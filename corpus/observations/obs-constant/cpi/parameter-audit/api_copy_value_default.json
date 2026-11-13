@@ -1,7 +1,7 @@
 {
   "case": "fn/copyValue/002",
   "artifact": "api_copy_value_default",
-  "version": "1.0.0",
+  "version": "Draft",
   "date": "2026-11-13",
   "source": "Fresh read-only public API export of live tenant artifact",
   "evidence": "VERIFIED_PASS",

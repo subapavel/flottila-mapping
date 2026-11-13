@@ -1,4 +1,4 @@
-param([string]$Only='*')
+param([string]$Only='*',[switch]$Force)
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '../../../../..')).Path
 $key=(Get-Content -Raw -LiteralPath 'C:/Users/pavol/.codex/secrets/flottila-observations-key.json'|ConvertFrom-Json).oauth
@@ -12,7 +12,7 @@ foreach($metaFile in Get-ChildItem (Join-Path $repo 'corpus/observations') -Filt
  foreach($run in $latest){
   if(!$run.cpiEvidence -or $run.artifact -notlike $Only){continue}
   $note=Get-Content -Raw (Join-Path $metaFile.Directory.FullName $run.cpiEvidence)
-  if($run.cpi -notmatch 'pending' -and $note -notmatch '(?i)parameter.*unverified|format.*unverified|not independently|not inspected'){continue}
+  if(!$Force -and $run.cpi -notmatch 'pending' -and $note -notmatch '(?i)parameter.*unverified|format.*unverified|not independently|not inspected'){continue}
   $artifact=$existing|Where-Object Id -eq $run.artifact
   if(!$artifact){throw ('Missing artifact '+$run.artifact)}
   $temp=Join-Path ([IO.Path]::GetTempPath()) ('flottila-audit-'+[guid]::NewGuid()+'.zip')

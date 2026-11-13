@@ -1,7 +1,7 @@
 {
   "case": "fn/constant/004",
   "artifact": "api_constant_concat",
-  "version": "1.0.0",
+  "version": "Draft",
   "date": "2026-11-13",
   "source": "Fresh read-only public API export of live tenant artifact",
   "evidence": "VERIFIED_PASS",
@@ -9,7 +9,7 @@
     {
       "nativeName": "concat",
       "inputCount": 2,
-      "bindings": null,
+      "bindings": "<bindings><param name=\"delimeter\"><value /></param></bindings>",
       "sourcePaths": [
         {
           "path": "/Orders/Order/Line/Sku",
@@ -26,7 +26,7 @@
     {
       "nativeName": "concat",
       "inputCount": 2,
-      "bindings": null,
+      "bindings": "<bindings><param name=\"delimeter\"><value /></param></bindings>",
       "sourcePaths": [
         {
           "path": "/Orders/Order/Line/Sku",

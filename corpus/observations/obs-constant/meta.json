@@ -564,6 +564,64 @@
       "parameterQueueChecks": "complete",
       "verificationDate": "2026-11-13",
       "verificationNotes": "Index 3 selects d across the entire input queue, ignoring context boundaries. Output queue is generator d, matching prior d in every Item."
+    },
+    {
+      "mapping": "copy-value-suppress",
+      "input": "copyValue-004.xml",
+      "case": "fn/copyValue/004",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value_suppress",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-004-copy-value-suppress-check.txt",
+      "cpiOutput": "cpi/copyValue-004-copy-value-suppress.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_copy_value_suppress.json",
+      "additionalEvidence": [
+        "cpi/copyValue-004-C1-queue.json",
+        "cpi/copyValue-004-F1-queue.json"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "C1 empty,SUPPRESS,empty | SUPPRESS,empty | empty context; F1 index1 selects SUPPRESS as generator across the entire queue, matching no V in any Item. Layout change discarded."
+    },
+    {
+      "mapping": "copy-value-default",
+      "input": "copyValue-001.xml",
+      "case": "fn/copyValue/002",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_copy_value_default",
+      "reading": "contradicted",
+      "cpiEvidence": "cpi/copyValue-002-copy-value-default-check.txt",
+      "cpiOutput": "cpi/copyValue-002-copy-value-default.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_copy_value_default.json",
+      "additionalEvidence": [
+        "cpi/native-default-copyValue-002.txt"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Native default 0. Save with blank UI field accepted and persisted nnumber 0 (verified fresh API export)."
+    },
+    {
+      "mapping": "fix-values-empty-table",
+      "input": "copyValue-001.xml",
+      "case": "fn/fixValues/006",
+      "cpi": "observed",
+      "date": "2026-11-12",
+      "artifact": "api_fix_values_empty_table",
+      "reading": "output-confirmed-parameter-unverified",
+      "cpiEvidence": "cpi/fixValues-006-fix-values-empty-table-check.txt",
+      "cpiOutput": "cpi/fixValues-006-fix-values-empty-table.xml",
+      "parameterVerification": "VERIFIED_PASS",
+      "parameterEvidence": "cpi/parameter-audit/api_fix_values_empty_table.json",
+      "additionalEvidence": [
+        "cpi/native-empty-table-fixValues-006.txt"
+      ],
+      "parameterQueueChecks": "complete",
+      "verificationDate": "2026-11-13",
+      "verificationNotes": "Empty table accepted by editor Save and verified in fresh Draft export; default - and strategy1 preserved."
     }
   ]
 }
