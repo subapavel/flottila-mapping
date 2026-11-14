@@ -92,11 +92,11 @@ class SingleValueBindingTest {
    * before the family tickets use it. What is seen here is that the widened signature still binds
    * by name: replaceString replaces its search in the value. No single-value function of #71 raises
    * a data error, so nothing here can see the box; the witness that a binding raises at its box
-   * comes with the first single-value function that raises one (#72). The method keeps its name;
-   * replaceValue was the sample until #216 made it a context function (F-45).
+   * comes with the first single-value function that raises one (#72). replaceValue was the sample
+   * until #216 made it a context function (F-45).
    */
   @Test
-  void theWidenedBindingBindsReplaceValue() {
+  void theWidenedBindingBindsReplaceStringByName() {
     Node.OfString value = frame -> "vav";
     Node.OfString search = frame -> "a";
     Node.OfString replacement = frame -> "X";

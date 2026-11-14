@@ -436,7 +436,7 @@
     "family": "conversions",
     "fidelity": {
       "level": "deviation",
-      "text": "A fresh FixValues box in SAP PO gives an empty value for a key the table lacks (\"Use default value\"). Flottila gives the key itself, as SAP Cloud Integration does."
+      "text": "Gives the key itself for a key the table lacks, as SAP Cloud Integration does. SAP PO gives an empty value for it in a fresh FixValues box (\"Use default value\")."
     },
     "inputs": [
       {
