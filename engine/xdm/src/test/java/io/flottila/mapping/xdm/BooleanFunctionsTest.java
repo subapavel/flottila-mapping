@@ -38,7 +38,9 @@ class BooleanFunctionsTest {
 
   private static final String[] VALUES = {"", "a", " b ", "true", "Grüße", "😀"};
 
-  /** The name prefix of the seeded conditions, by which the seeded pairs are told from the edges. */
+  /**
+   * The name prefix of the seeded conditions, by which the seeded pairs are told from the edges.
+   */
   private static final String SEEDED_CONDITION = "condition ";
 
   /** A seeded queue of {@code sample}: empty contexts, queues without contexts, SUPPRESS. */

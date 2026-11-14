@@ -43,7 +43,9 @@ class AverageOfSuppressErrorTest {
 
   private final EngineFacade facade = new EngineFacade();
 
-  /** All from F1, {@code average} of the box {@code input}, beside the {@code boxes} building it. */
+  /**
+   * All from F1, {@code average} of the box {@code input}, beside the {@code boxes} building it.
+   */
   private static byte[] model(String input, String boxes) {
     return """
         {"formatVersion": 1,
