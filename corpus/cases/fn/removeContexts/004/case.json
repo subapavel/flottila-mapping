@@ -1,0 +1,7 @@
+{
+  "mapping": "mappings/remove-contexts-constant.mapping.json",
+  "provenance": "observed",
+  "ref": "obs-lift-reuse (#32), mapping lift-4, input l4.xml, run 2026-11-11: PO 7.50 and CPI both match expected.xml: corpus/observations/obs-lift-reuse/po75/l4-lift-4.xml and corpus/observations/obs-lift-reuse/cpi/l4-lift-4.xml, the display queues of N1 and R1 in po75/lift-4-queues.txt and cpi/l4-lift-4-queue.txt, the run in po75/lift-4-check.txt and cpi/lift-4-check.txt (meta.json, reading contradicted); F-51, #230. Before #230: ADR-0004 (and ADR-0006 since #83): a constant into a context or queue function is one context with one value (AtomicToQueue), so W was assumed k in Item 1 only",
+  "expect": "output",
+  "note": "Three Orders, Item per Order. V is count(Constant{k}): the constant is one context with one value, so count is 1 in context 1 only and only Item 1 gets a V, as fn/constant/006. W is removeContexts(Constant{k}): PO keeps the constant form (the display queue shows k on a gray start row and a dark-gray end row, no white value row), so its result is a generating block and every Item gets W k, though V and W are siblings in one Item."
+}
