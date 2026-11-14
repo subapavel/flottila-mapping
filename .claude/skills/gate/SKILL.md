@@ -10,8 +10,8 @@ You are the architect. The gate is a `class:G` ticket; its body links `docs/GATE
    that commit; a later commit is a new gate run.
 2. For each check in `docs/GATE.md`, have the verifier run its command on that commit (output to
    `.logs/gate-<n>.log`), or point at the CI run id of that commit for CI-measured numbers.
-   Run `java scripts/ratchet.java check` after the spec gate's step 1b (the reports it reads
-   exist then; before any build every row is NOT_RUN, F-54) and before its step 3 `clean`, and run
+   Run `java scripts/ratchet.java check` after the spec gate's step 2 (ui coverage) (the reports it
+   reads, the engine's and the ui's, exist then; before any build every row is NOT_RUN, F-54) and before its step 3 `clean`, and run
    check 9 on a fresh worktree of the gate commit into `.logs/gate-9.log` (F-41).
    Numbers go to `bench/RESULTS.md` with machine, date, configuration and commit.
 3. Write `HANDOVER.md` as `docs/GATE.md` asks, from evidence only, on a branch `gate/<milestone>`.

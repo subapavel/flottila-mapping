@@ -48,9 +48,9 @@ flat() { tr '\n' ' ' < "$1" | sed 's/  */ /g'; }
 in_file() { # in_file <label> <file> <text>
   if [ -f "$2" ] && flat "$2" | grep -qF -- "$3"; then echo "ok   $1"; else echo "FAIL $1: $2 lacks '$3'"; fails=1; fi
 }
-# F-54: /gate runs the ratchet check after the spec gate's step 1b, before its step 3 clean
-in_file "gate step 2 orders ratchet check after step 1b" "$root/.claude/skills/gate/SKILL.md" \
-  'java scripts/ratchet.java check` after the spec gate'"'"'s step 1b'
+# F-54: /gate runs the ratchet check after the spec gate's step 2 (ui coverage), before its step 3 clean
+in_file "gate step 2 orders ratchet check after step 2" "$root/.claude/skills/gate/SKILL.md" \
+  'java scripts/ratchet.java check` after the spec gate'"'"'s step 2 (ui coverage)'
 in_file "gate step 2 keeps check before clean" "$root/.claude/skills/gate/SKILL.md" "and before its step 3 \`clean\`"
 # F-53 point 4: the ADR-0026 re-pin rule
 adr26=$(ls "$root"/docs/adr/0026-*.md 2>/dev/null | head -1)
