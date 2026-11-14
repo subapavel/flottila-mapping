@@ -28,6 +28,17 @@ npm ci
 npm run dev
 ```
 
+To check that the service runs, print the status code of two GETs (each gives `200`):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/mappings
+curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/catalogue
+```
+
+`/api/structures` takes POST only, so a GET gives `405`. To confirm the `127.0.0.1` bind, run
+`ss -ltn`. Where `ss` is missing, read `/proc/net/tcp`: the line `0100007F:1F90` is `127.0.0.1:8080`
+(`1F90` is 8080 in hex).
+
 Open http://localhost:5173. If port 8080 is taken, set `QUARKUS_HTTP_PORT` for both processes
 (for example `QUARKUS_HTTP_PORT=8081`) and the dev proxy follows.
 
@@ -169,22 +180,29 @@ bash scripts/test/handover-test.sh
 
 ## Open findings
 
-Findings are in `docs/findings/`. These have no change made yet, or only a proposal:
+Findings are in `docs/findings/`. On 53415fbf these are open or deferred (the others are closed,
+accepted or decided):
 
-- F-12: no reference resolver port; the service alone guards bundle paths (spec 4 carries it).
-- F-13: the ticket-gate budget is missed once the engine has code.
-- F-16: the mutation ratchet counts timed-out mutants as killed.
-- F-17: an absent source queue context should be `{0,0}`, one empty context (proposed).
-- F-18: the XSLT export's first-read rule rests on Saxon laziness.
-- F-26, F-27, F-28, F-30, F-31, F-32: wording questions for the owner on ADR-0013 and ADR-0027.
-  The 33.3 ms reading of F-26 is already in ADR-0021 (Notes of 2026-11-10).
+- F-13: the ticket-gate budget is missed once the engine has code; the profiling moved to a
+  process spec after milestone 1.
+- F-16: the mutation ratchet counts timed-out mutants as killed; deferred to the same process spec.
+- F-18: the XSLT export's first-read rule rests on Saxon laziness; deferred to the export spec.
+- F-27, F-28, F-30, F-31, F-32: wording questions for the owner on ADR-0013 and ADR-0027.
+- F-38: a mandatory target field reads a context its queue lacks; open, deferred past milestone 1
+  (#220). `target/minOccurs/004` stays `assumed`.
+- F-51: a constant fed into a context function is written into every Item (ADR-0004:65); open. The
+  fix and a corpus case come after milestone 1 (#221).
 
-F-36 (host spread beyond the 20 % tolerance) is decided: only the spec gate moves a baseline.
+The observation request #222 is deferred past milestone 1 (F-53); it does not hold the gate.
+F-53 point 4 (the re-pin rule in ADR-0026) is the next step after the gate.
 
 ## ADRs to revisit
 
 - ADR-0013 and ADR-0027: the amendments that F-27, F-28, F-30, F-31 and F-32 ask for.
-- ADR-0004: assumed reading 2 for the empty context (F-17), and the observation requests.
+- ADR-0004: the observation requests, and line 65 (a constant fed into a context function; F-51).
+- ADR-0006: the readability of its amendment list, and the assumed readings that #222 asks about.
+- ADR-0026: the re-pin rule, a pinned-71 re-pin also when fidelity or an execution kind changes
+  (F-53, point 4).
 - ADR-0021: the bytecode tier, and the optional `po-owner-local` and `is-owner-local`
   observation requests (#191). They never gate.
 - ADR-0017: the ticket-gate budget (F-13).
@@ -196,6 +214,8 @@ In this order (`docs/GATE.md`, "After milestone 1", grilling #19):
 1. JSON output: constructor records, serializer and export (ADR-0008).
 2. The bytecode tier: `engine/bytecode` and the fifth metamorphic variant (ADR-0021).
 3. `formatVersion` 2 and the PO importer (ADR-0010).
+
+The findings of #212 do not move these three specs.
 
 The XSLT front end follows them. UDFs, lookups, parameters, headers, properties, attachments and
 several messages wait for Flottila's data model (ADR-0030).

@@ -320,3 +320,42 @@ F-36: baselines are written only by the spec gate.
 | `ui/tree-20128/scroll` | 16.7 ms | < 33.3 ms |
 
 Sources: `181-bench.log`, `181-jmh.json` and `181-tree-20128.json` of the gate run, and `ratchet/bench.tsv`.
+
+## Milestone 1 gate, second run (#226)
+
+The spec gate's step 5 on commit 53415fbf, 2026-11-14, machine label `claude-cloud-4vcpu`; host Intel Xeon @ 2.30GHz,
+4 CPUs, MemTotal 16,473,776 kB. Configuration: the closure-compiled interpreter, as `gate-spec.sh` step 5 runs it:
+JMH `-f 3 -wi 3 -i 5 -w 1s -r 1s -prof gc`. The three heap forks (`contexts`, `orders`, `wide` `large/heap`, `-Xmx128m`)
+completed, and `java scripts/ratchet.java bench` printed `RATCHET BENCH OK`. The tree scenario's p95 is 16.7 ms (three
+runs: 16.7, 16.7, 16.8; the median is 16.7).
+
+| scenario (the `bench.tsv` row) | JMH value | GATE check 7 target |
+| --- | --- | --- |
+| `orders/small/latency` | 109.186 us/op (`bench.tsv` 109.6) | ≤ 500 us/op |
+| `orders/large/throughput` | 128.790 ms/op, 78.27 MB/s; heap fork completed | ≥ 20 MB/s, completed with -Xmx128m |
+| `contexts/small/latency` | 137.285 us/op (`bench.tsv` 137.4) | ≤ 500 us/op |
+| `contexts/large/throughput` | 160.825 ms/op, 61.81 MB/s; heap fork completed | ≥ 20 MB/s, completed with -Xmx128m |
+| `wide/small/latency` | 99.710 us/op (`bench.tsv` 99.86) | ≤ 500 us/op |
+| `wide/large/throughput` | 72.927 ms/op, 136.7 MB/s; heap fork completed | ≥ 20 MB/s, completed with -Xmx128m |
+| `compile/orders` | 0.816 ms/op (`bench.tsv` 0.8047) | ≤ 5 ms/op |
+| `ui/tree-20128/scroll` | p95 16.7 ms | < 33.3 ms |
+
+Allocation rows (`gc.alloc.rate.norm`; the ratchet row is the rounded value):
+
+| row | JMH value | baseline |
+| --- | --- | --- |
+| `orders/small/alloc` | 155,112.770 B/op (155,200) | 152,200 |
+| `orders/large/alloc` | 142,240,154.880 B/op (142,100,000) | 142,500,000 |
+| `contexts/small/alloc` | 203,064.968 B/op (203,100) | 203,000 |
+| `contexts/large/alloc` | 197,270,150.400 B/op (197,300,000) | 197,300,000 |
+| `wide/small/alloc` | 77,339.273 B/op (77,320) | 77,420 |
+| `wide/large/alloc` | 12,155,775.424 B/op (12,150,000) | 12,100,000 |
+
+The ratchet judged GAIN on `compile/orders` (1.228 to 0.8047 ms/op), `contexts/large/throughput` (45.66 to 61.81 MB/s),
+`contexts/small/latency` (191 to 137.4 us/op), `orders/small/latency` (166.6 to 109.6 us/op), `wide/large/throughput`
+(113.2 to 136.7 MB/s) and `wide/small/latency` (156.3 to 99.86 us/op); `orders/large/throughput` (78.27 MB/s against 65.88)
+was ok. These rises in `ratchet/bench.tsv` were measured but not committed: the ratchet is regenerated on an
+integration branch, not on the gate branch.
+
+Sources: `gate-bench.log`, `gate-jmh.log`, `gate-jmh.json` and `gate-tree-20128-{1,2,3}.log` of the gate run, and the
+uncommitted diff of `ratchet/bench.tsv`.
