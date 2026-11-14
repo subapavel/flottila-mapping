@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -39,11 +40,16 @@ public final class ModelCheck {
     this.model = model;
   }
 
-  /** The stage-2 diagnostics of {@code model}, none when it passes. */
+  /**
+   * The stage-2 diagnostics of {@code model}, none when it passes. The target field mappings are
+   * checked in the order of their paths (the canonical form's order), not in the iteration order of
+   * the model's map, which changes from one JVM to the next: the stable sort by {@link
+   * Diagnostic#ORDER} keeps this order among diagnostics with one location and one code.
+   */
   public static List<Diagnostic> check(MappingModel model) {
     ModelCheck check = new ModelCheck(model);
     check.duplicates();
-    model.targetFieldMappings().values().forEach(check::targetFieldMapping);
+    new TreeMap<>(model.targetFieldMappings()).values().forEach(check::targetFieldMapping);
     return List.copyOf(check.found);
   }
 
@@ -75,9 +81,9 @@ public final class ModelCheck {
         .forEach(
             (id, box) -> {
               List<Optional<AuthoringId>> inputs = inputs(box);
-              for (int k = 0; k < inputs.size(); k++) {
-                String what = "input " + (k + 1);
-                inputs.get(k).ifPresent(input -> reference(mapping, id, what, input));
+              for (int number = 1; number <= inputs.size(); number++) {
+                String what = "input " + number;
+                inputs.get(number - 1).ifPresent(input -> reference(mapping, id, what, input));
               }
               switch (box) {
                 case SourceFieldBox s ->
@@ -194,7 +200,7 @@ public final class ModelCheck {
 
     void report() {
       for (int box = 0; box < ids.size(); box++) {
-        if (index[box] < 0) {
+        if (index[box] == -1) {
           search(box);
         }
       }
@@ -211,7 +217,7 @@ public final class ModelCheck {
         int box = pathBox[depth - 1];
         if (pathNext[depth - 1] < reads[box].length) {
           int input = reads[box][pathNext[depth - 1]++];
-          if (index[input] < 0) {
+          if (index[input] == -1) {
             depth = enter(input, depth);
           } else if (onStack[input]) {
             low[box] = Math.min(low[box], index[input]);
