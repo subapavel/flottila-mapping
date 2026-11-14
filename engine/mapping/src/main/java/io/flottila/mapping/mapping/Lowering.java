@@ -50,16 +50,17 @@ import java.util.stream.IntStream;
  * {@code max(1, minOccurs)} copies at the target field mapping, the value in a leaf's text or, on a
  * structure field, the {@code TargetRepeat}'s value (ADR-0006 since #83). One whose {@code result}
  * gives a generating block, the queue of a function the catalogue marks generating, such as {@code
- * copyValue}, becomes that {@code TargetRepeat} with the block as its value and its value variable
- * {@code value<d>} in a leaf's text or an attribute's value (#217, F-46). An unmapped structure
- * field whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code TargetRepeat}
- * of n copies with no value, whatever is mapped below it, an unmapped optional field is left out
- * with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
- * slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value variable
- * {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or the
- * parent's {@code slot<d - 1>}. A leaf's element holds its attributes and then its value, a
- * structure field's its children in target field order, attributes first; an attribute is a leaf,
- * whose {@code AttributeConstructor} holds its value (ADR-0006 since #102).
+ * copyValue}, or of {@code removeContexts} over a single value (F-51, #230), becomes that {@code
+ * TargetRepeat} with the block as its value and its value variable {@code value<d>} in a leaf's
+ * text or an attribute's value (#217, F-46). An unmapped structure field whose effective occurrence
+ * is {@code n..n} with {@code n > 0} becomes {@code TargetRepeat} of n copies with no value,
+ * whatever is mapped below it, an unmapped optional field is left out with its subtree (ADR-0006
+ * "Target fields"; #63), and any other unmapped field is refused. The slot-number variable of a
+ * field at depth d is {@code slot<d>}, a mapped field's value variable {@code value<d>}, and a
+ * field reads its parent's slot number, the root's {@code root} or the parent's {@code slot<d -
+ * 1>}. A leaf's element holds its attributes and then its value, a structure field's its children
+ * in target field order, attributes first; an attribute is a leaf, whose {@code
+ * AttributeConstructor} holds its value (ADR-0006 since #102).
  *
  * <p>A box lowers to a queue or a single value (ADR-0006 since #83). A source-field box gives its
  * {@code SourceQueue}, of a leaf or of a structure field (ADR-0008; #63), or of an attribute, in
@@ -127,6 +128,9 @@ public final class Lowering {
 
   /** The variable, before its depth, that holds a slot's value in its {@code TargetSlots}. */
   private static final String VALUE = "value";
+
+  /** The context function whose call over a single value is a generating block (F-51, #230). */
+  private static final String REMOVE_CONTEXTS = "removeContexts";
 
   /** The depth of a field directly under the root, whose parent's slot number is the root's. */
   private static final int UNDER_ROOT = 2;
@@ -701,11 +705,16 @@ public final class Lowering {
   /**
    * Whether {@code value}, a box's lowered value, is a generating block: a {@code FunCall} whose
    * catalogue entry is generating, which only a queue function's is (ADR-0006, F-46), such as
-   * {@code copyValue}'s. Every {@code FunCall} lowering writes is of a catalogue function.
+   * {@code copyValue}'s, or a {@code removeContexts} call whose input is a single value as {@code
+   * AtomicToQueue}, which PO keeps in constant form (ADR-0004, ADR-0006; F-51, #230). Over any
+   * other input, a queue or another generating block, {@code removeContexts} gives a queue. Every
+   * {@code FunCall} lowering writes is of a catalogue function.
    */
   private static boolean generatingBlock(Expr value) {
     return value instanceof FunCall c
-        && FunctionCatalogue.entry(c.function().name()).orElseThrow().generating();
+        && (FunctionCatalogue.entry(c.function().name()).orElseThrow().generating()
+            || c.function().name().equals(REMOVE_CONTEXTS)
+                && c.args().getFirst() instanceof AtomicToQueue);
   }
 
   /**
