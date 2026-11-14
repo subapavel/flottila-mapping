@@ -72,8 +72,10 @@
   "removeContexts": {
     "executionKind": "queue",
     "fidelity": {
-      "level": "exact"
+      "level": "deviation",
+      "text": "Over a constant, its result cannot feed a box that takes a single value, such as concat. SAP PO accepts that graph."
     },
+    "generatingOverSingleValue": true,
     "inputs": [
       {
         "name": "queue"

@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
 import io.flottila.mapping.runtime.ExecutableMapping;
 import java.nio.file.Files;
@@ -426,6 +427,50 @@ class EngineFacadeTraceTest {
                 queue(List.of(context(null, null)), false, 2, 1),
                 "T1",
                 occurrences(0, UNBOUNDED, parent(1, 0, suppressed(1), suppressed(2)))));
+  }
+
+  /**
+   * The corpus mapping remove-contexts-constant (fn/removeContexts/004, obs-lift-reuse lift-4, PO
+   * 7.50 and CPI; F-51, #230): Item per Order, V from N1, count over the constant K1, and W from
+   * R1, removeContexts over the constant K2, on three Orders. R1 over a constant is a generating
+   * block (ADR-0006 since #217): its entry is its one context with the one value k, and W's
+   * occurrences are one copy created per parent slot p, numbered p (one copy, as W is
+   * 0..unbounded). N1 stays a queue, so V is created under parent slot 1 only, its contexts 2 and 3
+   * missing. K1 and K2 are atomic entries; the AtomicToQueue at each input is not traced.
+   */
+  @Test
+  void removeContextsOfConstantTracesBlockOnceAndCopiesPerParent() throws Exception {
+    CompiledMapping mapping =
+        tested(corpusMapping("remove-contexts-constant.mapping.json"), mappings());
+    String input = orders(order("o1"), order("o2"), order("o3"));
+
+    TestRunResult.Output result = output(facade.testRun(mapping, utf8(input), TIMEOUT, LIMIT));
+
+    assertThat(keys(result.trace()))
+        .containsExactlyInAnyOrder("S1", "T1", "K1", "N1", "T2", "K2", "R1", "T3");
+    // witnesses, as before F-51: three Items, and count of the constant 1 in context 1 only
+    assertThat(occurrencesOf(result.trace(), "T1"))
+        .isEqualTo(occurrences(0, UNBOUNDED, parent(1, 3, created(1), created(2), created(3))));
+    assertThat(queueOf(result.trace(), "N1")).isEqualTo(queue(List.of(context("1")), false, 1, 1));
+    assertThat(occurrencesOf(result.trace(), "T2"))
+        .isEqualTo(occurrences(0, UNBOUNDED, parent(1, 1, created(1)), parent(2, 0), parent(3, 0)));
+    assertThat(result.trace().entries().get(new AuthoringId("K2")))
+        .isEqualTo(new Trace.Atomic(AtomicType.STRING, "k"));
+    // the block: one entry, its one context with one value, and one copy per parent slot
+    assertThat(queueOf(result.trace(), "R1")).isEqualTo(queue(List.of(context("k")), false, 1, 1));
+    assertThat(occurrencesOf(result.trace(), "T3"))
+        .isEqualTo(
+            occurrences(
+                0,
+                UNBOUNDED,
+                parent(1, 1, created(1)),
+                parent(2, 1, created(2)),
+                parent(3, 1, created(3))));
+    assertThat(new String(result.output(), UTF_8))
+        .isEqualTo(
+            DECLARATION
+                + "<Out><Item><V>1</V><W>k</W></Item><Item><W>k</W></Item>"
+                + "<Item><W>k</W></Item></Out>");
   }
 
   // --- runtime errors: the trace up to the error (ADR-0015, ADR-0006 since #53)

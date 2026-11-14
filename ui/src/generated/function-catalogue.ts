@@ -35,6 +35,10 @@ export interface CatalogueEntry {
    */
   generating?: true;
   /**
+   * Present on a queue function of one input whose call over a single value, a constant's or another single-value result, is a generating block, as PO keeps that result in constant form (ADR-0006, F-51); over a queue its result is a queue. Absent on every other function, and never beside generating.
+   */
+  generatingOverSingleValue?: true;
+  /**
    * @minItems 1
    */
   inputs?: [CatalogueInput, ...CatalogueInput[]];

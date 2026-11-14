@@ -1,13 +1,14 @@
 # The published function catalogue: a closed schema, fidelity as a level with a text, the box id by the helper's signature
 
-Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pattern params; #83, table params); amended 2026-11-06 (F-39, #133: a helper that starts to raise re-pins its block); amended 2026-11-13 (F-46, #217: `generating`); amended 2026-11-14 (F-53, #229: re-pin rule). Refines ADR-0011 (catalogue members) and ADR-0025.
+Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pattern params; #83, table params); amended 2026-11-06 (F-39, #133: a helper that starts to raise re-pins its block); amended 2026-11-13 (F-46, #217: `generating`); amended 2026-11-14 (F-53, #229: re-pin rule); amended 2026-11-14 (F-51, #230, owner decision of 2026-11-14: `generatingOverSingleValue`). Refines ADR-0011 (catalogue members) and ADR-0025.
 
 ## Decision
 
 - **Schema.** `contract/function-catalogue.schema.json` is the catalogue's contract (JSON Schema 2020-12, closed as in ADR-0011).
   - The root is keyed by function id, `^[a-z][A-Za-z0-9]{0,63}$`, a subset of the model's names. Input, param and family names use the same pattern.
-  - An entry has `family`, `executionKind`, `generating?`, `inputs?`, `params?`, `portable` and `fidelity`. `inputs` and `params` have at least one item when present; `constant` has no inputs.
+  - An entry has `family`, `executionKind`, `generating?`, `generatingOverSingleValue?`, `inputs?`, `params?`, `portable` and `fidelity`. `inputs` and `params` have at least one item when present; `constant` has no inputs.
   - `generating` is `true` or absent (#217, F-46). It marks a queue function whose result is a generating block, one value for every occurrence of a target field under every parent occurrence (ADR-0006), today `copyValue`; lowering reads it, and a test in `engine/mapping` refuses it on any other execution kind. It is a contract member: the wire and `ui/src/generated` carry it.
+  - `generatingOverSingleValue` is `true` or absent (F-51, #230; owner decision of 2026-11-14). It marks a queue function of one input whose call over a single value (`AtomicToQueue`) is a generating block, as PO keeps that result in constant form (ADR-0006), today `removeContexts`; over a queue its result stays a queue. Lowering reads it as it reads `generating`. A test in `engine/mapping` refuses it on any other execution kind, on a function without exactly one input, and beside `generating`. It is a contract member, as `generating` is.
   - A param is `{name, type: "string", default, values?, syntax?}` or `{name, type: "table", default: {key: value}}`.
   - `syntax` is `"numberPattern"` (#74) or `"datePattern"` (#80). It cannot be combined with `values`.
   - Adding a member is a schema change.
@@ -47,6 +48,7 @@ Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pa
 - **Keeping the old arity beside the new one**: rejected. The generator refuses a second declaration with the same name.
 - **Lowering writes the translated picture into the IR** (#74): rejected for now. The export would receive a picture the author never wrote, and the date pictures of #80 would need a second IR shape. Spec 6 (speed) may revisit it as a cache.
 - **A list of pattern-param names in `Lowering`**: rejected. It is a central list (F-15). The catalogue already describes each param.
+- **The name `removeContexts` in `Lowering`** (#230): rejected. It is a central list (F-15), which `FamilyLocalityTest` refuses, and no other catalogue member tells removeContexts from `collapseContexts`. **`generating: true` on removeContexts**: rejected. Over a queue its result is no generating block.
 - **A `TableLiteral` with a `TableType` in the IR** (#83): rejected for now. No single-value binder takes a table, so every family's binder would widen mid-spec, and every back end gets a new record.
 - **A `Literal` per table row** (#83): rejected. It breaks ADR-0025's one positional argument per param.
 - **Validation in the generator, or an ETag**: rejected. The generator would need a JSON Schema library, and no client makes conditional requests.
@@ -54,5 +56,5 @@ Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pa
 ## Consequences
 
 - The exports, the wire and the UI types carry these shapes. Renaming `box`, a level or the message prefix is a contract change.
-- #71 re-pins the two byte fixtures of #69 once, with this ADR as the reason: the context family gains `fidelity`, and five helper declarations gain `box`. The family tickets that follow keep the new pins green. Amended by F-39 (#133): a ticket whose observed rule makes an existing helper raise re-pins that helper's block alone (it gains `box`), names the reason in the fixture's javadoc, and keeps every other byte and every assertion. Amended by F-53 (owner, 2026-11-13): a pinned-71 re-pin is also allowed when an entry's fidelity or execution kind changes (as #214, #216, #219 and #221 did). Each re-pin names its reason and its ticket in the fixture's javadoc.
-- Every context function starts as `assumed`. It becomes `exact` when its last assumed case is observed, or `deviation` when the engine still differs from PO where no case shows it: `copyValue`'s result cannot feed a single-value input, which PO accepts (F-46, #217).
+- #71 re-pins the two byte fixtures of #69 once, with this ADR as the reason: the context family gains `fidelity`, and five helper declarations gain `box`. The family tickets that follow keep the new pins green. Amended by F-39 (#133): a ticket whose observed rule makes an existing helper raise re-pins that helper's block alone (it gains `box`), names the reason in the fixture's javadoc, and keeps every other byte and every assertion. Amended by F-53 (owner, 2026-11-13): a pinned-71 re-pin is also allowed when an entry's fidelity or execution kind changes (as #214, #216, #219 and #221 did). Amended by F-51 (#230, owner decision of 2026-11-14): also when an entry gains or loses a catalogue member, as removeContexts gains `generatingOverSingleValue`. Each re-pin names its reason and its ticket in the fixture's javadoc.
+- Every context function starts as `assumed`. It becomes `exact` when its last assumed case is observed, or `deviation` when the engine still differs from PO where no case shows it: `copyValue`'s result cannot feed a single-value input, which PO accepts (F-46, #217), nor can `removeContexts`' over a single value (F-51, #230).

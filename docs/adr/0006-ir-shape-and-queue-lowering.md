@@ -27,6 +27,7 @@ line's, unchanged; where it names no finding or ticket, none was recorded.
 - 2026-11-13: amended by F-47 (#218): SUPPRESS is the greatest `sort` / `sortByKey` key, `collapseContexts` keeps a SUPPRESS first slot and gives no value for an empty queue
 - 2026-11-13: amended by F-45 (#216): `replaceValue` is a context function, because it reads SUPPRESS, and SUPPRESS passes a `Lift` as observed for `toUpperCase` and `concat`
 - 2026-11-13: amended by F-48 (#219): `exists` gives `true` per slot and counts SUPPRESS, `mapWithDefault` keeps a context of SUPPRESS only
+- 2026-11-14: `removeContexts` over a single value gives a generating block; lowering decides it from the input, so over a queue it stays a queue (F-51, #230)
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
@@ -92,6 +93,11 @@ only through `Lift` and `AtomicToQueue`.
   At a context or queue function's input it is the queue it is. At a single-value function's
   input, of a `Lift` or of an atomic call, lowering refuses it with `unsupported-generating-input`
   at the consuming box; SAP PO accepts that graph, so it is `copyValue`'s deviation.
+  `removeContexts` over a single value gives a generating block; lowering decides it from the
+  input, so over a queue it stays a queue (F-51, #230). The catalogue marks it
+  `generatingOverSingleValue` (ADR-0026): its call over `AtomicToQueue`, a constant or another
+  single value, is the block, so a single-value input cannot read it either, which is
+  `removeContexts`' deviation.
 
 ## Target fields
 
@@ -250,6 +256,16 @@ for-each over the source context".
   - a missing first slot traces like SUPPRESS: every copy suppressed;
   - a SUPPRESS or missing first slot on a field with `minOccurs > 0` writes no copy and raises no
     `po:MINOCCURS`: a `TargetRepeat` has no min check.
+- `removeContexts` over a single value gives a generating block (observed over a constant on PO
+  7.50 and CPI, `obs-lift-reuse` lift-4, F-51, #230: `fn/removeContexts/004`; assumed over another
+  single value, such as `trim` of a constant; it replaces the reading of #83, one context with one
+  value, written under the first parent occurrence only). PO holds that result in
+  constant form: its display queue shows the value on a gray start row and a dark-gray end row,
+  with no white value row, and a target field writes it under every parent occurrence. `count` of
+  a constant leaves that form, its display queue showing `<null>`, `1`, `1`, so it stays a queue
+  (`fn/constant/006`, F-21). Not observed, so kept as before #230 (#222): over `copyValue`'s block
+  or over `removeContexts` of a constant, `removeContexts` gives a queue. A single-value box cannot
+  read the block, which PO accepts: `removeContexts`' deviation in the catalogue.
 - `createIf` casts each value as PO's `Bool.toBoolean` does (observed, #31 spec-2 part, F-37;
   amended with #133, replacing the assumed reading of #51): `true` in any case and `1` give `""`,
   `false` and `0` give SUPPRESS; any other value, `""` included, raises `po:CREATEIF` at the

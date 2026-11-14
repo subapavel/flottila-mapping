@@ -20,7 +20,7 @@ class FunctionCatalogueReadTest {
 
   /** The entry of a function whose result is no generating block. */
   private static Entry entry(ExecutionKind kind, List<String> inputs, List<Param> params) {
-    return new Entry(kind, inputs, params, false);
+    return new Entry(kind, inputs, params, false, false);
   }
 
   private static final String CATALOGUE =

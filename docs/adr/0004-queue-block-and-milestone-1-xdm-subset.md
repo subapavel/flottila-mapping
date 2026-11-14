@@ -1,6 +1,6 @@
 # Queue block and the milestone-1 XDM subset
 
-Status: accepted (2026-10-30, grilling #4); refined by ADR-0006 and ADR-0008 (a structure field's queue holds `""` per occurrence); SUPPRESS bitset shape since #51
+Status: accepted (2026-10-30, grilling #4); refined by ADR-0006 and ADR-0008 (a structure field's queue holds `""` per occurrence); SUPPRESS bitset shape since #51; amended 2026-11-14 by F-51 (#230): `removeContexts` over a constant
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §3, §6 and §7.1/§7.4 for milestone 1. A queue is
 logically `array(item()*)`: one member per context, `xs:string` values, SUPPRESS a marker in the
@@ -62,8 +62,11 @@ nodes when the callee accepts a queue directly. Milestone 1 has no such callee.
 - `XSI_NIL` (#2 ambiguity 14) is not in milestone 1. Adding it later means a second bitset with
   the same invariants.
 - Assumed readings until observed cases confirm them (ADR-0002):
-  - A constant fed into a context or queue function is a queue of one context with one value.
-    Contradicted for removeContexts by obs-lift-reuse lift-4 (F-51, open, #222).
+  - A constant fed into a context or queue function is a queue of one context with one value
+    (`AtomicToQueue`), observed for `count` (`fn/constant/006`). `removeContexts` over it gives a
+    generating block (ADR-0006), written under every parent occurrence. That is observed in
+    obs-lift-reuse lift-4 (PO 7.50 and CPI; F-51, #230, `fn/removeContexts/004`). The reading is
+    assumed for every other context and queue function.
   - ~~An absent parent gives zero contexts, not one empty context.~~ Observed otherwise (#31,
     F-17): a parent absent under one occurrence adds no context, as assumed (d1), but a context
     element absent from the whole message gives one empty context (d3). Replaced by the rule above.

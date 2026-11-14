@@ -50,11 +50,12 @@ import java.util.stream.IntStream;
  * {@code max(1, minOccurs)} copies at the target field mapping, the value in a leaf's text or, on a
  * structure field, the {@code TargetRepeat}'s value (ADR-0006 since #83). One whose {@code result}
  * gives a generating block, the queue of a function the catalogue marks generating, such as {@code
- * copyValue}, becomes that {@code TargetRepeat} with the block as its value and its value variable
- * {@code value<d>} in a leaf's text or an attribute's value (#217, F-46). An unmapped structure
- * field whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code TargetRepeat}
- * of n copies with no value, whatever is mapped below it, an unmapped optional field is left out
- * with its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
+ * copyValue}, or generating over a single value, such as {@code removeContexts} (F-51, #230), over
+ * one, becomes that {@code TargetRepeat} with the block as its value and its value variable {@code
+ * value<d>} in a leaf's text or an attribute's value (#217, F-46). An unmapped structure field
+ * whose effective occurrence is {@code n..n} with {@code n > 0} becomes {@code TargetRepeat} of n
+ * copies with no value, whatever is mapped below it, an unmapped optional field is left out with
+ * its subtree (ADR-0006 "Target fields"; #63), and any other unmapped field is refused. The
  * slot-number variable of a field at depth d is {@code slot<d>}, a mapped field's value variable
  * {@code value<d>}, and a field reads its parent's slot number, the root's {@code root} or the
  * parent's {@code slot<d - 1>}. A leaf's element holds its attributes and then its value, a
@@ -701,11 +702,19 @@ public final class Lowering {
   /**
    * Whether {@code value}, a box's lowered value, is a generating block: a {@code FunCall} whose
    * catalogue entry is generating, which only a queue function's is (ADR-0006, F-46), such as
-   * {@code copyValue}'s. Every {@code FunCall} lowering writes is of a catalogue function.
+   * {@code copyValue}'s, or the call of a function the catalogue marks generating over a single
+   * value, such as {@code removeContexts}, whose one input is a single value as {@code
+   * AtomicToQueue}, which PO keeps in constant form (ADR-0004, ADR-0006, ADR-0026; F-51, #230).
+   * Over any other input, a queue or another generating block, that call gives a queue. Every
+   * {@code FunCall} lowering writes is of a catalogue function.
    */
   private static boolean generatingBlock(Expr value) {
-    return value instanceof FunCall c
-        && FunctionCatalogue.entry(c.function().name()).orElseThrow().generating();
+    if (!(value instanceof FunCall c)) {
+      return false;
+    }
+    FunctionCatalogue.Entry entry = FunctionCatalogue.entry(c.function().name()).orElseThrow();
+    return entry.generating()
+        || entry.generatingOverSingleValue() && c.args().getFirst() instanceof AtomicToQueue;
   }
 
   /**
