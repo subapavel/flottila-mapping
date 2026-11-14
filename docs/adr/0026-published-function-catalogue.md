@@ -1,6 +1,6 @@
 # The published function catalogue: a closed schema, fidelity as a level with a text, the box id by the helper's signature
 
-Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pattern params; #83, table params); amended 2026-11-06 (F-39, #133: a helper that starts to raise re-pins its block); amended 2026-11-13 (F-46, #217: `generating`). Refines ADR-0011 (catalogue members) and ADR-0025.
+Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pattern params; #83, table params); amended 2026-11-06 (F-39, #133: a helper that starts to raise re-pins its block); amended 2026-11-13 (F-46, #217: `generating`); amended 2026-11-14 (F-53, #229: re-pin rule). Refines ADR-0011 (catalogue members) and ADR-0025.
 
 ## Decision
 
@@ -54,5 +54,5 @@ Status: accepted (2026-11-03, #71 design, spec #70); amended 2026-11-04 (#74, pa
 ## Consequences
 
 - The exports, the wire and the UI types carry these shapes. Renaming `box`, a level or the message prefix is a contract change.
-- #71 re-pins the two byte fixtures of #69 once, with this ADR as the reason: the context family gains `fidelity`, and five helper declarations gain `box`. The family tickets that follow keep the new pins green. Amended by F-39 (#133): a ticket whose observed rule makes an existing helper raise re-pins that helper's block alone (it gains `box`), names the reason in the fixture's javadoc, and keeps every other byte and every assertion.
+- #71 re-pins the two byte fixtures of #69 once, with this ADR as the reason: the context family gains `fidelity`, and five helper declarations gain `box`. The family tickets that follow keep the new pins green. Amended by F-39 (#133): a ticket whose observed rule makes an existing helper raise re-pins that helper's block alone (it gains `box`), names the reason in the fixture's javadoc, and keeps every other byte and every assertion. Amended by F-53 (owner, 2026-11-13): a pinned-71 re-pin is also allowed when an entry's fidelity or execution kind changes (as #214, #216, #219 and #221 did). Each re-pin names its reason and its ticket in the fixture's javadoc.
 - Every context function starts as `assumed`. It becomes `exact` when its last assumed case is observed, or `deviation` when the engine still differs from PO where no case shows it: `copyValue`'s result cannot feed a single-value input, which PO accepts (F-46, #217).

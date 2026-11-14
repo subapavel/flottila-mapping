@@ -1,6 +1,32 @@
 # IR shape and queue lowering: sealed `Expr`, explicit `Lift`, target slots
 
-Status: accepted (2026-10-30, grilling #5); refined by ADR-0008 (unmapped rules use effective occurrence); refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin; constructors carry the prefix lowering assigns (ADR-0022); `FunCall` and its binding by name: ADR-0025; `ifWithoutElse` is built in spec 3 (#48 Q1); `SourceQueue` names its field by element steps and its context by depth; refined by #51: `Lift(queues, slotVars, body, origin)`; refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`; refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields; refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`; amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1; refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`; refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`; amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`; F-38 marks the `min` check of a missing context contradicted (#134); amended by F-44 (#215): the boolean family casts as `createIf` does, `err:FORG0001`, and `ifWithoutElse` follows the observed SUPPRESS and context model; refined by #217 (F-46): generating blocks, `TargetRepeat(copies, parentSlot, slotVar, value, valueVar, body, origin)`; amended by F-47 (#218): SUPPRESS is the greatest `sort` / `sortByKey` key, `collapseContexts` keeps a SUPPRESS first slot and gives no value for an empty queue; amended by F-45 (#216): `replaceValue` is a context function, because it reads SUPPRESS, and SUPPRESS passes a `Lift` as observed for `toUpperCase` and `concat`; amended by F-48 (#219): `exists` gives `true` per slot and counts SUPPRESS, `mapWithDefault` keeps a context of SUPPRESS only
+Status: accepted (2026-10-30, grilling #5); every later amendment is in the list below.
+
+## Amendments
+
+Dated by the commit that first carries each line in the history (#229). The wording is the former Status
+line's, unchanged; where it names no finding or ticket, none was recorded.
+
+- 2026-10-30: refined by ADR-0008 (unmapped rules use effective occurrence)
+- 2026-10-31: refined by #26: the IR entry is `TargetDocument(prefix, root, rootSlot, content)`, which creates the root once with slot number 1 and has no origin
+- 2026-10-31: constructors carry the prefix lowering assigns (ADR-0022)
+- 2026-11-02: `FunCall` and its binding by name: ADR-0025
+- 2026-11-02: `ifWithoutElse` is built in spec 3 (#48 Q1)
+- 2026-10-31: `SourceQueue` names its field by element steps and its context by depth
+- 2026-11-02: refined by #51: `Lift(queues, slotVars, body, origin)`
+- 2026-11-02: refined by #52: `TargetSlots(queue, parentSlot, min, max, slotVar, valueVar, body, origin)`
+- 2026-11-03: refined by #63: `TargetRepeat(copies, parentSlot, slotVar, body, origin)` for unmapped n..n fields
+- 2026-11-04: refined by #83: generating functions, `AtomicToQueue`, `TargetRepeat(copies, parentSlot, slotVar, value, body, origin)`
+- 2026-11-05: amended by the spec-4 grilling (2026-11-05): no `ContentType` in milestone 1
+- 2026-11-05: refined by #102: `AttributeConstructor(prefix, name, value, origin)`, `SourceQueue(field, contextDepth, structureField, attribute, origin)`
+- 2026-11-05: refined by #98: `TargetDocument(prefix, root, rootSlot, content, input)` and `SourceQueue(field, contextDepth, structureField, attribute, arrays, origin)`
+- 2026-11-06: amended by F-37 (#133): `createIf` casts its input as PO does, `po:CREATEIF`
+- 2026-11-06: F-38 marks the `min` check of a missing context contradicted (#134)
+- 2026-11-13: amended by F-44 (#215): the boolean family casts as `createIf` does, `err:FORG0001`, and `ifWithoutElse` follows the observed SUPPRESS and context model
+- 2026-11-13: refined by #217 (F-46): generating blocks, `TargetRepeat(copies, parentSlot, slotVar, value, valueVar, body, origin)`
+- 2026-11-13: amended by F-47 (#218): SUPPRESS is the greatest `sort` / `sortByKey` key, `collapseContexts` keeps a SUPPRESS first slot and gives no value for an empty queue
+- 2026-11-13: amended by F-45 (#216): `replaceValue` is a context function, because it reads SUPPRESS, and SUPPRESS passes a `Lift` as observed for `toUpperCase` and `concat`
+- 2026-11-13: amended by F-48 (#219): `exists` gives `true` per slot and counts SUPPRESS, `mapWithDefault` keeps a context of SUPPRESS only
 
 This ADR records `docs/FOUNDING-ARCHITECTURE.md` §4 and §6 for milestone 1 and fills its gaps.
 Every front end lowers to records of `sealed interface Expr`. The records are `Literal`,
