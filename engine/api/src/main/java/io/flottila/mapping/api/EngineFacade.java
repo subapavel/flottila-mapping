@@ -182,14 +182,25 @@ public final class EngineFacade {
         resolver,
         CompileResult.Refused::new,
         lowered -> {
-          TargetDocument document = lowered.document();
-          // lowering has verified the IR; the optimiser verifies it again (ADR-0006)
-          TargetDocument ir = options.optimised() ? IrOptimiser.optimise(document) : document;
+          TargetDocument ir = compiledIr(lowered.document(), options);
           return new CompileResult.Compiled(
               new CompiledMapping(
                   Interpreter.compile(ir, options.traced()),
                   Lowering.occurrences(lowered.model(), lowered.target())));
         });
+  }
+
+  /**
+   * The IR {@link #compile} gives the closure compile: {@code document} optimised when {@code
+   * options} ask for it, else {@code document} itself. Lowering has verified the IR; the optimiser
+   * verifies it again (ADR-0006). Package-private so that a test can tell the two apart with IR the
+   * verifier refuses, which lowering never gives (#233).
+   *
+   * @throws IllegalArgumentException when the optimiser runs and the verifier refuses {@code
+   *     document}
+   */
+  static TargetDocument compiledIr(TargetDocument document, CompileOptions options) {
+    return options.optimised() ? IrOptimiser.optimise(document) : document;
   }
 
   /**
