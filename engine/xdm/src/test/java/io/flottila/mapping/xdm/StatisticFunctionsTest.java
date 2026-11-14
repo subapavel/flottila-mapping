@@ -70,6 +70,33 @@ class StatisticFunctionsTest {
     return new Queue("seed " + seed, List.copyOf(contexts));
   }
 
+  /**
+   * A seeded queue of numbers in which every context holds a value and no slot is SUPPRESS: the
+   * queues {@code average} divides, not those it refuses.
+   */
+  static Queue valuesOnly(long seed) {
+    RandomGenerator random = new SplittableRandom(seed);
+    List<List<String>> contexts = new ArrayList<>();
+    int count = random.nextInt(8) == 0 ? 1 + random.nextInt(30) : 1 + random.nextInt(4);
+    for (int c = 0; c < count; c++) {
+      List<String> context = new ArrayList<>();
+      int slots = random.nextInt(8) == 0 ? 1 + random.nextInt(70) : 1 + random.nextInt(3);
+      for (int k = 0; k < slots; k++) {
+        context.add(NUMBERS[random.nextInt(NUMBERS.length)]);
+      }
+      contexts.add(Collections.unmodifiableList(context));
+    }
+    return new Queue("seed " + seed, List.copyOf(contexts));
+  }
+
+  static Stream<Arguments> valueQueues() {
+    return Stream.concat(
+            Stream.of(queue("no context"), queue("one value", context("7"))),
+            java.util.stream.LongStream.rangeClosed(1, 200)
+                .mapToObj(StatisticFunctionsTest::valuesOnly))
+        .map(q -> Arguments.of(q.name(), q));
+  }
+
   static Stream<Arguments> queues() {
     Stream<Queue> edges =
         Stream.of(
@@ -145,23 +172,15 @@ class StatisticFunctionsTest {
 
   /**
    * average: one context per context, holding one canonical number within half a unit of the 18th
-   * fractional digit of total / count (ADR-0005), checked against the total, not recomputed; a
-   * context without a value gives an empty context. The exact digits and their rounding are the
-   * literal examples of {@link #averageFollowsTheDivisionRuleOfAdr0005}. A queue with a context
-   * without a value raises division undefined instead, naming the first such context.
+   * fractional digit of total / count (ADR-0005), checked against the total, not recomputed. The
+   * exact digits and their rounding are the literal examples of {@link
+   * #averageFollowsTheDivisionRuleOfAdr0005}. A queue with a context without a value (empty, or of
+   * SUPPRESS only) raises division undefined, naming the first such context (F-45); the generator
+   * here gives only values, so that every queue it makes is checked for the division.
    */
   @ParameterizedTest(name = "{0}")
-  @MethodSource("queues")
+  @MethodSource("valueQueues")
   void averageDividesTheTotalByTheCount(String name, Queue queue) {
-    for (int c = 0; c < queue.contexts().size(); c++) {
-      if (numbers(queue.contexts().get(c)).isEmpty()) {
-        int context = c + 1;
-        assertThatThrownBy(() -> StatisticFunctions.average(queue.block()))
-            .isInstanceOf(ArithmeticException.class)
-            .hasMessage("average: context " + context + " holds no value, division undefined");
-        return;
-      }
-    }
     List<List<String>> result = read(StatisticFunctions.average(queue.block()));
 
     assertThat(result).hasSameSizeAs(queue.contexts());

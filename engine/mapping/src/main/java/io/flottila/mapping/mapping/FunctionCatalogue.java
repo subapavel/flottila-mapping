@@ -91,11 +91,6 @@ public final class FunctionCatalogue {
   record Entry(
       ExecutionKind executionKind, List<String> inputs, List<Param> params, boolean generating) {
 
-    /** The entry of a function whose result is no generating block. */
-    Entry(ExecutionKind executionKind, List<String> inputs, List<Param> params) {
-      this(executionKind, inputs, params, false);
-    }
-
     /** The param {@code name}, or empty when the function has no such one. */
     Optional<Param> param(String name) {
       return params.stream().filter(p -> p.name().equals(name)).findFirst();
