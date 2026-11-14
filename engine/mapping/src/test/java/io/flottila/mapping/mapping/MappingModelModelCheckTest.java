@@ -17,6 +17,8 @@ import static io.flottila.mapping.mapping.Models.targetFieldMappings;
 import static io.flottila.mapping.mapping.Models.text;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -360,5 +362,35 @@ class MappingModelModelCheckTest {
             errorAtId("cross-target-field-reference", "b5"),
             errorAtId("undeclared-udf", "c1"),
             errorAtId("box-cycle", "c2"));
+  }
+
+  /**
+   * Diagnostics with one location and one code tie in {@link Diagnostic#ORDER}, so the check's own
+   * order decides theirs. It must not follow the order the document lists the target field mappings
+   * in, nor the iteration order of the model's map, which changes from one JVM to the next. 32
+   * target field mappings each hold a box {@code d1} (a duplicated id) that reads a box that is not
+   * there: 32 unknown-box-reference diagnostics tie at {@code d1}.
+   */
+  @Test
+  void loadReportsTiedDiagnosticsInOneOrderWhateverTheDocumentOrder() throws Exception {
+    List<String> listed = new ArrayList<>();
+    for (int k = 0; k < 32; k++) {
+      listed.add(
+          ("\"/Invoice/F%1$02d\": {\"id\": \"t%1$02d\", \"result\": \"d1\", \"boxes\": {"
+                  + "\"d1\": {\"kind\": \"function\", \"fn\": \"concat\", \"inputs\": [\"m%1$02d\"]}}}")
+              .formatted(k));
+    }
+
+    List<Diagnostic> forward = diagnostics("{" + String.join(",\n", listed) + "}");
+    List<Diagnostic> backward = diagnostics("{" + String.join(",\n", listed.reversed()) + "}");
+
+    assertThat(forward).hasSize(33);
+    assertThat(backward).isEqualTo(forward);
+  }
+
+  private static List<Diagnostic> diagnostics(String mappings) throws Exception {
+    LoadResult result = MappingModelFormat.load(utf8(document(mappings)));
+    assertThat(result).isInstanceOf(Refused.class);
+    return ((Refused) result).diagnostics();
   }
 }
