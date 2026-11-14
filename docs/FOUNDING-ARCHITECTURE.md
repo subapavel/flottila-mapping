@@ -13,6 +13,7 @@ referenced by the Phase 0 map's tickets.
   threads, structured concurrency behind a flag while it is preview).
 - Milestone 1: **graphical mapping** in SAP PO style (queues, contexts, standard functions, Java
   UDFs), edited in a React + PatternFly UI, run compiled, exported to XSLT.
+  Refined by ADR-0030 (UDFs wait for Flottila's data model).
 - Later: **XSLT 3.0 + XPath 3.1** on the same engine (maps, arrays, `xsl:iterate`, packages,
   JSON); XQuery 3.1 is close once XPath exists; a standalone XPath API (routing conditions, value
   extraction) for Flottila.
@@ -124,6 +125,7 @@ relational model over row store, column store and index):
   signature that declares its kind.
   Settled by ADR-0020 (grilling #16): static methods over `engine/udf-api`, compiled in-process
   from the workspace, guarded in-process (class loader per library, allow-list, interruption guard).
+  Refined by ADR-0030 (UDFs wait for Flottila's data model).
 - Later: import SAP PO message mappings from ESR exports (same context semantics, near 1:1);
   UDFs ported separately.
 - Implementation order agreed: core (XDM, IR, F&O subset, interpreter) → **mapping front end
