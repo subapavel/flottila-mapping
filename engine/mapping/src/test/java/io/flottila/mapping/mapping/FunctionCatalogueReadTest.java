@@ -18,6 +18,11 @@ import org.junit.jupiter.api.Test;
  */
 class FunctionCatalogueReadTest {
 
+  /** The entry of a function whose result is no generating block. */
+  private static Entry entry(ExecutionKind kind, List<String> inputs, List<Param> params) {
+    return new Entry(kind, inputs, params, false);
+  }
+
   private static final String CATALOGUE =
       """
       {
@@ -64,14 +69,14 @@ class FunctionCatalogueReadTest {
 
     assertThat(entries.get("constant"))
         .isEqualTo(
-            new Entry(
+            entry(
                 ExecutionKind.SINGLE,
                 List.of(),
                 List.of(new Param("value", "", Optional.empty(), Optional.empty()))));
     // witness: an entry with inputs loads them, in order
     assertThat(entries.get("useOneAsMany"))
         .isEqualTo(
-            new Entry(ExecutionKind.QUEUE, List.of("value", "occurrences", "contexts"), List.of()));
+            entry(ExecutionKind.QUEUE, List.of("value", "occurrences", "contexts"), List.of()));
     assertThat(entries).hasSize(2);
   }
 
@@ -151,7 +156,7 @@ class FunctionCatalogueReadTest {
         .containsExactly(
             Map.entry(
                 "sortLike",
-                new Entry(
+                entry(
                     ExecutionKind.CONTEXT,
                     List.of("queue"),
                     List.of(

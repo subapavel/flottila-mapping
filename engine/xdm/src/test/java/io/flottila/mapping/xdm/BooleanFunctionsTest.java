@@ -38,6 +38,9 @@ class BooleanFunctionsTest {
 
   private static final String[] VALUES = {"", "a", " b ", "true", "Grüße", "😀"};
 
+  /** The name prefix of the seeded conditions, by which the seeded pairs are told from the edges. */
+  private static final String SEEDED_CONDITION = "condition ";
+
   /** A seeded queue of {@code sample}: empty contexts, queues without contexts, SUPPRESS. */
   private static Queue seeded(String name, RandomGenerator random, String[] sample) {
     List<List<String>> contexts = new ArrayList<>();
@@ -87,7 +90,7 @@ class BooleanFunctionsTest {
                 seed -> {
                   RandomGenerator random = new SplittableRandom(seed);
                   return new Queue[] {
-                    seeded("condition " + seed, random, CONDITIONS),
+                    seeded(SEEDED_CONDITION + seed, random, CONDITIONS),
                     seeded("then " + seed, random, VALUES)
                   };
                 });
@@ -196,7 +199,11 @@ class BooleanFunctionsTest {
     boolean emptyAgainstValues = false;
     boolean beyondTheCondition = false;
     boolean beyondThen = false;
-    for (Arguments arguments : pairs().skip(10).toList()) {
+    List<Arguments> seeded =
+        pairs().filter(a -> ((Queue) a.get()[1]).name().startsWith(SEEDED_CONDITION)).toList();
+    // the 200 seeds are all there, whatever the edges before them
+    assertThat(seeded).hasSize(200);
+    for (Arguments arguments : seeded) {
       Queue condition = (Queue) arguments.get()[1];
       Queue then = (Queue) arguments.get()[2];
       beyondTheCondition |= then.contexts().size() > condition.contexts().size();

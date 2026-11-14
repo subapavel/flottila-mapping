@@ -53,23 +53,6 @@ class FidelityAgreesWithTheCasesTest {
     return wrong;
   }
 
-  /** The functions {@code catalogue} marks {@code assumed}. */
-  private static List<String> assumedIn(String catalogue) {
-    if (!(new CaseFiles.Json(catalogue).document() instanceof Map<?, ?> functions)) {
-      throw new AssertionError("the catalogue is no JSON object");
-    }
-    List<String> assumed = new ArrayList<>();
-    functions.forEach(
-        (name, entry) -> {
-          if (entry instanceof Map<?, ?> members
-              && members.get("fidelity") instanceof Map<?, ?> f
-              && "assumed".equals(f.get("level"))) {
-            assumed.add((String) name);
-          }
-        });
-    return assumed;
-  }
-
   /** {@code case.json} of a case with {@code provenance} under {@code cases/<id>}. */
   private static CorpusCase write(Path cases, String id, String provenance) throws IOException {
     Path dir = Files.createDirectories(cases.resolve(id));
@@ -116,17 +99,25 @@ class FidelityAgreesWithTheCasesTest {
         .containsExactly(
             "g is assumed, but none of its cases is", "k is assumed, but none of its cases is");
 
+    // witness over a fixture catalogue and test-only cases: the live corpus holds no assumed case
+    // of a shipped function, and the published catalogue marks no function assumed, since #216 and
+    // #219. assumedFn is assumed and has an assumed case: accepted; exactFn is exact and has an
+    // assumed case: refused. Each half fails when its fixture entry is flipped.
+    String fixtureCatalogue =
+        """
+        {"assumedFn": {"fidelity": {"level": "assumed"}},
+         "exactFn": {"fidelity": {"level": "exact"}}}
+        """;
+    List<CorpusCase> fixture =
+        List.of(
+            write(cases, "fn/assumedFn/900", "assumed"), write(cases, "fn/exactFn/900", "assumed"));
+    assertThat(disagreements(fixtureCatalogue, fixture))
+        .containsExactly("exactFn is exact, but fn/exactFn/900 is assumed");
+
+    // the check reads the published catalogue's shape too: an assumed case of the exact
+    // useOneAsMany (F-48) is refused there
     String published = new String(new EngineFacade().catalogue(), UTF_8);
-    // witness on the published catalogue, over test-only cases rather than the live corpus, which
-    // holds no assumed case of a shipped function since #216 and #219: an assumed case of the
-    // exact useOneAsMany (F-48) is refused, and one of each function the catalogue marks assumed,
-    // if any, is accepted
-    List<CorpusCase> fixture = new ArrayList<>();
-    fixture.add(write(cases, "fn/useOneAsMany/900", "assumed"));
-    for (String name : assumedIn(published)) {
-      fixture.add(write(cases, "fn/" + name + "/900", "assumed"));
-    }
-    assertThat(disagreements(published, fixture))
+    assertThat(disagreements(published, List.of(write(cases, "fn/useOneAsMany/900", "assumed"))))
         .containsExactly("useOneAsMany is exact, but fn/useOneAsMany/900 is assumed");
 
     List<CorpusCase> corpus = CaseFiles.all();
