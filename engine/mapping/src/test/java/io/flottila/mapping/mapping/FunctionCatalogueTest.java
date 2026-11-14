@@ -266,7 +266,10 @@ class FunctionCatalogueTest {
    * execution kind, to {@code context}, and its fidelity follows its cases, now {@code exact}. #219
    * re-pins the fidelity of exists, mapWithDefault and useOneAsMany, to {@code exact}, alone: their
    * last assumed cases are observed (F-48). #214 re-pins formatByExample and removeContexts, and
-   * #221 re-pins createIf, to {@code exact}, alone each. The assertions below are #69's, unchanged.
+   * #221 re-pins createIf, to {@code exact}, alone each. #230 re-pins the fidelity of
+   * removeContexts alone, to the deviation of F-51 (ADR-0026 as amended by F-53): over a constant
+   * its result is a generating block, which a single-value box cannot read, and SAP PO accepts that
+   * graph. The assertions below are #69's, unchanged.
    */
   static final String MAIN_CATALOGUE =
       "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";
