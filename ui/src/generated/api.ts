@@ -884,6 +884,11 @@ export interface components {
              * @constant
              */
             generating?: true;
+            /**
+             * @description Present on a queue function of one input whose call over a single value, a constant's or another single-value result, is a generating block, as PO keeps that result in constant form (ADR-0006, F-51); over a queue its result is a queue. Absent on every other function, and never beside generating.
+             * @constant
+             */
+            generatingOverSingleValue?: true;
             inputs?: components["schemas"]["catalogueInput"][];
             params?: components["schemas"]["catalogueParam"][];
             /** @description Whether the function's export runs on any conforming XSLT 3.0 processor. */
@@ -911,6 +916,11 @@ export interface components {
                      * @constant
                      */
                     generating?: true;
+                    /**
+                     * @description Present on a queue function of one input whose call over a single value, a constant's or another single-value result, is a generating block, as PO keeps that result in constant form (ADR-0006, F-51); over a queue its result is a queue. Absent on every other function, and never beside generating.
+                     * @constant
+                     */
+                    generatingOverSingleValue?: true;
                     inputs?: components["schemas"]["catalogueInput"][];
                     params?: components["schemas"]["catalogueParam"][];
                     /** @description Whether the function's export runs on any conforming XSLT 3.0 processor. */

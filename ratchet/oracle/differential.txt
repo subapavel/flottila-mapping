@@ -173,6 +173,7 @@ fn/power/007
 fn/removeContexts/001
 fn/removeContexts/002
 fn/removeContexts/003
+fn/removeContexts/004
 fn/replaceString/001
 fn/replaceString/002
 fn/replaceString/003

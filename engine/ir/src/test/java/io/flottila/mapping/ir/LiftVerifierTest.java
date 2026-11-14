@@ -38,7 +38,11 @@ class LiftVerifierTest {
   private static final FunctionRef REMOVE_CONTEXTS =
       new FunctionRef("removeContexts", List.of(QUEUE), QUEUE);
 
-  /** replaceValue: a single-value function of a value and its param replacement. */
+  /**
+   * A STRING function of a value and its param replacement, the shape of a single-value function.
+   * The verifier reads only these types; replaceValue is a context function since #216 (F-45), the
+   * name is kept from when it was the sample.
+   */
   private static final FunctionRef REPLACE_VALUE =
       new FunctionRef(
           "replaceValue", List.of(AtomicType.STRING, AtomicType.STRING), AtomicType.STRING);

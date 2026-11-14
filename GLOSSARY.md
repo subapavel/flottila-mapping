@@ -401,17 +401,17 @@ _Avoid_: index alone
 A function graph whose result is one value for every occurrence of its target field: a graph with
 no source field whose result is a single value, such as a constant or `concat` of two constants
 (one that yields a queue, such as `count` of a constant, is a queue, F-21), or a graph whose result
-is a generating block (F-46). On a target field it gives `max(1, minOccurs)` occurrences per parent
-occurrence. A single value is computed once per occurrence; on a structure field it is traced,
-never written. A generating block is read once per run, and when its value is SUPPRESS or missing
-no occurrence is written.
+is a generating block (see **Generating block**; F-46, F-51). On a target field it gives
+`max(1, minOccurs)` occurrences per parent occurrence. A single value is computed once per
+occurrence; on a structure field it is traced, never written. A generating block is read once per
+run, and when its value is SUPPRESS or missing no occurrence is written.
 _Avoid_: constant (for the general case)
 
 **Generating block**:
-The result of a queue function the function catalogue marks `generating`, today `copyValue`: a
-queue of one context whose first slot is the value every occurrence of the target field takes,
-under every parent occurrence, as a constant's value. At a context or queue function's input it is
-that queue; a single-value function's input cannot take it (F-46, ADR-0006).
+A queue of one context whose first slot a target field writes under every parent occurrence, as it
+writes a constant. Examples are `copyValue`'s result and `removeContexts`' over a constant (F-46,
+F-51). At a context or queue function's input it is that queue; a single-value function's input
+cannot take it (ADR-0006).
 _Avoid_: generating value, constant queue
 
 **Test run**:

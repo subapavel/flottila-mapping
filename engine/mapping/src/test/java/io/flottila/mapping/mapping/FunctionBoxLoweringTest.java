@@ -20,18 +20,25 @@ import static io.flottila.mapping.mapping.TestStructures.SKELETON;
 import static io.flottila.mapping.mapping.TestStructures.order;
 import static io.flottila.mapping.mapping.TestStructures.ref;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
+import io.flottila.mapping.ir.AtomicToQueue;
 import io.flottila.mapping.ir.AtomicType;
 import io.flottila.mapping.ir.AuthoringId;
+import io.flottila.mapping.ir.ElementConstructor;
 import io.flottila.mapping.ir.Expr;
 import io.flottila.mapping.ir.FunCall;
 import io.flottila.mapping.ir.FunctionRef;
+import io.flottila.mapping.ir.IrVerifier;
 import io.flottila.mapping.ir.Lift;
 import io.flottila.mapping.ir.Literal;
 import io.flottila.mapping.ir.Name;
 import io.flottila.mapping.ir.QueueType;
 import io.flottila.mapping.ir.SourceQueue;
+import io.flottila.mapping.ir.TargetDocument;
+import io.flottila.mapping.ir.TargetRepeat;
 import io.flottila.mapping.ir.TargetSlots;
+import io.flottila.mapping.ir.TextConstructor;
 import io.flottila.mapping.ir.VarRef;
 import java.util.List;
 import java.util.Map;
@@ -339,5 +346,212 @@ class FunctionBoxLoweringTest {
         .isEqualTo(
             "the parameter sourceFormat of dateTrans: the date pattern \"hh:mm\" has no XPath"
                 + " picture: the pattern letter h");
+  }
+
+  // --- removeContexts over a single value (#230, F-51): a generating block, as copyValue's result
+  // is (ADR-0006 since #217); lowering decides it from the input, so over a queue it stays a queue,
+  // and over another queue function's result it stays as it was (owner decision 1)
+
+  private static final FunctionRef CONSTANT =
+      new FunctionRef("constant", List.of(AtomicType.STRING), AtomicType.STRING);
+  private static final FunctionRef COUNT = new FunctionRef("count", List.of(QUEUE), QUEUE);
+
+  /** A constant box with the value {@code value}. */
+  private static StandardFunctionBox constant(String value) {
+    return function("constant", inputs(), params("value", text(value)));
+  }
+
+  /** The constant {@code value} of box {@code box} at a context or queue function's input. */
+  private static AtomicToQueue constantQueue(String box, String value) {
+    return new AtomicToQueue(
+        new FunCall(CONSTANT, List.of(new Literal(value, id(box))), id(box)), id(box));
+  }
+
+  /** The item of Note, the second of the two the document holds, after OrderId's. */
+  private static Expr loweredNote(TargetDocument document) {
+    assertThat(document.content())
+        .hasSize(2)
+        .extracting(Expr::origin)
+        .containsExactly(id("t0"), id("t1"));
+    return document.content().getLast();
+  }
+
+  /**
+   * Note (0..unbounded) from removeContexts over the constant k (obs-lift-reuse lift-4, PO 7.50 and
+   * CPI): a generating {@code TargetRepeat} over the block, as for copyValue (ADR-0006 since #217).
+   * The removeContexts call is its value, with the constant as one context with one value at its
+   * input; {@code value2} is its value variable, which Note's text reads; it has {@code max(1, 0)}
+   * copies per parent occurrence. Before F-51 Note is a {@code TargetSlots} over that call, written
+   * under the first parent occurrence only. Another single value, trim of a constant, is one
+   * context with one value as well.
+   */
+  @Test
+  void removeContextsOfConstantIsGeneratingBlock() {
+    TargetDocument document = lowered(lowerNote(removeContexts(inputs("k1")), "k1", constant("k")));
+
+    assertThat(loweredNote(document))
+        .isEqualTo(
+            new TargetRepeat(
+                1,
+                new VarRef("root", AtomicType.INTEGER, id("t1")),
+                "slot2",
+                Optional.of(
+                    new FunCall(REMOVE_CONTEXTS, List.of(constantQueue("k1", "k")), id("f1"))),
+                Optional.of("value2"),
+                new ElementConstructor(
+                    "",
+                    new Name("", "Note"),
+                    List.of(
+                        new TextConstructor(
+                            new VarRef("value2", AtomicType.STRING, id("t1")), id("t1"))),
+                    id("t1")),
+                id("t1")));
+    assertThatCode(() -> IrVerifier.verify(document)).doesNotThrowAnyException();
+
+    assertThat(
+            loweredNote(
+                lowered(
+                    lowerNote(
+                        removeContexts(inputs("f2")),
+                        "f2",
+                        function("trim", inputs("k1"), noParams()),
+                        "k1",
+                        constant(" k ")))))
+        .as("removeContexts over trim(constant)")
+        .isInstanceOfSatisfying(
+            TargetRepeat.class, repeat -> assertThat(repeat.valueVar()).contains("value2"));
+  }
+
+  /**
+   * Guard: over a queue removeContexts stays a queue, so Note is a {@code TargetSlots} over its
+   * call: over Note's source queue, and over concat of Note with a constant, a {@code Lift} that
+   * applies the constant to every slot (ADR-0006).
+   */
+  @Test
+  void removeContextsOfSourceQueueStaysQueue() {
+    assertThat(loweredQueue(lowerNote(removeContexts(inputs("a1")))))
+        .isEqualTo(new FunCall(REMOVE_CONTEXTS, List.of(NOTES), id("f1")));
+
+    assertThat(
+            loweredQueue(
+                lowerNote(
+                    removeContexts(inputs("f2")),
+                    "f2",
+                    function("concat", inputs("a1", "k1"), noParams()),
+                    "k1",
+                    constant("k"))))
+        .as("removeContexts over concat(Note, constant)")
+        .isInstanceOfSatisfying(
+            FunCall.class,
+            call -> {
+              assertThat(call.function()).isEqualTo(REMOVE_CONTEXTS);
+              assertThat(call.args()).singleElement().isInstanceOf(Lift.class);
+            });
+  }
+
+  /**
+   * The deviation F-51 records (owner decision 2, #230): a box that takes a single value cannot
+   * read removeContexts over a constant, as it cannot read copyValue's block (F-46). It is {@code
+   * unsupported-generating-input} at the concat box, whichever input reads it, and its message
+   * names the removeContexts box r1; SAP PO accepts that graph. Witnesses: concat of the constant
+   * itself with Note, and of removeContexts over Note with Note, lower.
+   */
+  @Test
+  void concatOfRemoveContextsOfConstantIsRefused() {
+    for (List<Optional<AuthoringId>> order : List.of(inputs("r1", "a1"), inputs("a1", "r1"))) {
+      LowerResult result =
+          lowerNote(
+              function("concat", order, noParams()),
+              "r1",
+              removeContexts(inputs("k1")),
+              "k1",
+              constant("k"));
+
+      assertThat(refused(result))
+          .as("concat %s", order)
+          .containsExactly(errorAtId("unsupported-generating-input", "f1"));
+      assertThat(((Refused) result).diagnostics().getFirst().message())
+          .as("concat %s names the removeContexts box", order)
+          .contains("r1");
+    }
+
+    assertThat(lowerNote(function("concat", inputs("k1", "a1"), noParams()), "k1", constant("k")))
+        .as("concat(constant, Note)")
+        .isInstanceOf(Lowered.class);
+    assertThat(
+            lowerNote(
+                function("concat", inputs("r1", "a1"), noParams()),
+                "r1",
+                removeContexts(inputs("a1"))))
+        .as("concat(removeContexts(Note), Note)")
+        .isInstanceOf(Lowered.class);
+  }
+
+  /**
+   * At a context function's input the block is the queue it is (ADR-0006 since #217): count over
+   * removeContexts of a constant is count's call over that call, and Note is a {@code TargetSlots}
+   * over it, as count of the constant itself is a queue (fn/constant/006, F-21).
+   */
+  @Test
+  void countOfRemoveContextsOfConstantIsQueue() {
+    assertThat(
+            loweredQueue(
+                lowerNote(
+                    function("count", inputs("r1"), noParams()),
+                    "r1",
+                    removeContexts(inputs("k1")),
+                    "k1",
+                    constant("k"))))
+        .isEqualTo(
+            new FunCall(
+                COUNT,
+                List.of(new FunCall(REMOVE_CONTEXTS, List.of(constantQueue("k1", "k")), id("r1"))),
+                id("f1")));
+  }
+
+  /**
+   * Guard for owner decision 1 (#230): removeContexts over copyValue's generating block is not
+   * observed, so it stays as before F-51, a queue function's call over that queue, and Note is a
+   * {@code TargetSlots} over it.
+   */
+  @Test
+  void removeContextsOfCopyValueStaysAsToday() {
+    assertThat(
+            loweredQueue(
+                lowerNote(
+                    removeContexts(inputs("c1")),
+                    "c1",
+                    function("copyValue", inputs("a1"), noParams()))))
+        .isEqualTo(
+            new FunCall(
+                REMOVE_CONTEXTS,
+                List.of(
+                    new FunCall(
+                        new FunctionRef("copyValue", List.of(QUEUE, AtomicType.STRING), QUEUE),
+                        List.of(NOTES, new Literal("0", id("c1"))),
+                        id("c1"))),
+                id("f1")));
+  }
+
+  /**
+   * Guard for owner decision 1 (#230): removeContexts over removeContexts of a constant is not
+   * observed, so it stays as before F-51: the outer call reads the inner one as a queue, and Note
+   * is a {@code TargetSlots} over it.
+   */
+  @Test
+  void removeContextsOfRemoveContextsOfConstantStaysAsToday() {
+    assertThat(
+            loweredQueue(
+                lowerNote(
+                    removeContexts(inputs("r1")),
+                    "r1",
+                    removeContexts(inputs("k1")),
+                    "k1",
+                    constant("k"))))
+        .isEqualTo(
+            new FunCall(
+                REMOVE_CONTEXTS,
+                List.of(new FunCall(REMOVE_CONTEXTS, List.of(constantQueue("k1", "k")), id("r1"))),
+                id("f1")));
   }
 }

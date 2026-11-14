@@ -1,46 +1,50 @@
 # Handoff
 
-state: GATE_MET — milestone 1, gate ticket #226, on main 53415fbf (gate branch `gate/m1`). The gate-reviewer returned `gate: MET`: checks 1–9 are all MET. The previous run #198 (NOT_MET) is superseded.
-evidence:
-- CI run 43530093762 on 53415fbf: backend, ui, stack and windows all succeeded.
-- `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh gate`: all 21 steps VERIFIED_PASS.
-  - Oracles: golden corpus 618, differential 323, 0 failed.
-  - PIT floors held.
-  - `RATCHET BENCH OK`; the numbers are in `bench/RESULTS.md` ("Milestone 1 gate, second run (#226)").
-  - Check 9: `.logs/gate-9.log` on a fresh worktree. Dev mode and the `-Pui` jar both listen on 127.0.0.1:8080.
-- `HANDOVER.md` is at the repo root.
-drift: ADR-0004, 0006, 0018, 0025 and 0026 were amended in #212. Each amendment is justified by a finding (F-37 to F-53) with an owner decision. None contradicts FOUNDING §4/§6.
-non-blocking points from the gate review (they go into the cleanup ticket unless noted):
-- `/gate` step 2: run `ratchet.java check` after spec-gate step 1b, not before the spec gate. `gate-8-ratchet.log` is all NOT_RUN.
-- GATE check 8 names "the nightly run of the gate commit". Add the nightly run id to #226 when it lands, or amend check 8 through a finding.
-- PR #210 `trailers` job: the owner's exception for eight imported commits has no finding file.
-- F-51 (major, open): ADR-0004:65 is contradicted and has no corpus case. First post-gate ticket: a red case from obs-lift-reuse lift-4, then the fix.
-- F-53 point 4: the ADR-0026 re-pin rule.
-- The bench gains are uncommitted (F-40). The next spec gate's regen raises `ratchet/bench.tsv`.
-- HANDOVER drops F-12 without a closure note; check that spec 4 resolved it.
-- FOUNDING §1/§6 still list Java UDFs in milestone 1. Add "Refined by ADR-0030".
-- ui lint: 2 warnings (react-hooks/incompatible-library).
-- The HANDOFF line for the #212 review has no PASS/FAIL words.
-carried (cleanup ticket), from HANDOFF #212:
-- SingleValueBindingTest:99 name.
-- Stale comments: LiftVerifierTest:41 and StatisticFunctionsTest:148.
-- The statistic.xsl counter header says "assumed".
-- F-45:173 and F-44:59 wording.
-- averageDividesTheTotalByTheCount needs a value-only generator.
-- No export test for average raising on a SUPPRESS-only context.
-- The fixValues note order (ADR-0028).
-- ADR-0006 Status line → a dated Amendments list.
-- Node.Repeat → a sealed pair (JMH decides).
-- FidelityAgreesWithTheCasesTest witness.
-- BooleanFunctionsTest:199 skip(10).
-- The FunctionCatalogue.Entry 3-arg constructor is used by tests only.
-- engine/mapping PIT sits at its floor, and ModelCheck:79 flips between runs.
-- The carried list of #205.
-open: #222 (observation request, deferred past milestone 1), #191 (optional), #129 (ADR wording, owner).
+state: SPEC_DONE — spec #228 "Post-milestone-1 cleanup". Integration branch `spec/228-m1-cleanup` from main 1818a439 (milestone 1 gate met, #226). The PR to main is open; the owner merges it.
+done:
+- #229 re-pin rule, `/gate` step order (F-54), PR #210 trailer exception (F-55), F-12 status, FOUNDING pointers, ADR-0006 Amendments list: a61e5e83
+- #232 ModelCheck determinism; engine/mapping PIT 11 → 9: 798291f7
+- #233 engine/api optimiser mutant (added mid-spec to unblock #231): efc97491
+- #231 the #212 review carry list: d4dc2d23
+- #230 F-51, removeContexts over a constant is a generating block (class C), catalogue member `generatingOverSingleValue`: eeed4832
+- ratchet regen: a2ed91f5
+gate: `MACHINE_LABEL=claude-cloud-4vcpu scripts/gate-spec.sh 228` VERIFIED_PASS on eeed4832.
+- Oracles: corpus 620, differential 324, 0 failed.
+- PIT, survivors/floor: api 0/0, ir 0/0, mapping 9/11 (floor → 9), runtime 5/5, serializer 0/0, xdm 0/0, xslt-export 0/0.
+- `RATCHET BENCH OK`, with 7 gains:
+  - orders/large/throughput 65.88 → 82.95 MB/s;
+  - orders/small/latency 166.6 → 103.7 µs;
+  - wide/large/throughput 113.2 → 138.4 MB/s.
+review: two-axis `/code-review` of origin/main...a2ed91f5. Spec: PASS. Standards: PASS. #230 had its own two-axis review: PASS and PASS.
+owner decisions (2026-11-14):
+- F-51 covers only the observed cases. removeContexts over copyValue, and over removeContexts(Constant), stays as before; those runs are in #222.
+- `concat(removeContexts(Constant), x)` is refused, as a catalogue deviation.
+- A catalogue member `generatingOverSingleValue` is used instead of a function name in Lowering. ADR-0025 gets no exception.
+- ADR-0026: a pinned-71 re-pin is also allowed whenever an entry gains or loses a catalogue member. The owner confirmed the general rule.
+- After this spec, the mapping moves into the main project (Rail8), with the package rename, BEFORE JSON output, the jq/jqj grilling and the XSLT prototype. The move waits until the owner has renamed the main repository.
+open: #222 (observation request, deferred), #191 (optional), #129 (ADR wording, owner).
+carried (next cleanup ticket):
+- From the #230 and #228 reviews:
+  - GLOSSARY "constant form" is missing; "Generating block" and the context.json deviation say "constant" where ADR-0006 says "single value".
+  - `FunctionCatalogue.Entry`: two booleans → one enum.
+  - FunctionBoxLoweringTest: :409 `doesNotThrowAnyException`; :461 loop → parameterised; the "…StaysAsToday" names; the concat test matches "r1" in a message (ADR-0015).
+  - EngineFacadeTraceTest:436 should say "since #230".
+  - ADR-0006 Amendments: the dates are out of order and some bullets have no finding.
+  - obs-lift-reuse meta.json lift-4 has `case: null`; it should be `fn/removeContexts/004`.
+  - The ModelCheck path-order javadoc is stronger than its test.
+  - `EngineFacade.compiledIr` is a test-only seam for an equivalent mutant: write a finding.
+  - StatisticFunctionsTest `valuesOnly` duplicates `seeded`.
+  - LiftVerifierTest:46 `REPLACE_VALUE` name.
+  - handover-test.sh matches fixed sentences.
+- From #232 and #233:
+  - SchemaStage `SCHEMAS` static init cannot be reached by PIT (7 survivors).
+  - Lowering walks targetFieldMappings in hash order; check for ties.
+  - The EngineFacadeTraceTest race tests fail under PIT now and then: reproduce, then write a finding.
+- The earlier carried lists of #205 and #212 that are still open (Node.Repeat sealed pair; the F-44/F-45 remainder).
+- GATE check 8: add the nightly run id of 53415fbf to #226 when it lands.
 rule (owner, 2026-11-10): every grilling round goes through the `grilling-adviser` (Fable 5.2) before the owner (`AGENTS.md`).
 next action:
-1. Owner: merge the `gate/m1` PR.
-2. Architect: the cleanup ticket (the lists above, F-51 first as its own class-B ticket with a red case).
-3. The Rail8 rename (R8, rail8.dev): docs first; packages at embedding (ADR).
-4. Grill jq/jqj shared layers: limits/host SPI, the Class-File tier, the JSON tokenizer, tooling; and where XPath 3.1 lives.
-5. Next spec from GATE "After milestone 1": JSON output (ADR-0008), via grilling.
+1. Owner: merge the spec #228 PR.
+2. Architect, while waiting for the main repository: a read-only inventory of everything named `flottila` (packages `io.flottila`, Maven coordinates, properties such as `flottila.mapping.workspace`, docs, CI), and a draft ADR for embedding into Rail8. No move yet.
+3. Once the owner names the renamed main repository: a grilling round on the move (history, issues, process files, build), then the move spec.
+4. After the move: JSON output (ADR-0008), the jq/jqj shared-layer grilling, and the XSLT prototype (the IR sequence model).
