@@ -266,10 +266,11 @@ class FunctionCatalogueTest {
    * execution kind, to {@code context}, and its fidelity follows its cases, now {@code exact}. #219
    * re-pins the fidelity of exists, mapWithDefault and useOneAsMany, to {@code exact}, alone: their
    * last assumed cases are observed (F-48). #214 re-pins formatByExample and removeContexts, and
-   * #221 re-pins createIf, to {@code exact}, alone each. #230 re-pins the fidelity of
-   * removeContexts alone, to the deviation of F-51 (ADR-0026 as amended by F-53): over a constant
-   * its result is a generating block, which a single-value box cannot read, and SAP PO accepts that
-   * graph. The assertions below are #69's, unchanged.
+   * #221 re-pins createIf, to {@code exact}, alone each. #230 re-pins removeContexts alone
+   * (ADR-0026 as amended by F-53 and F-51): its fidelity becomes the deviation of F-51, and it
+   * gains {@code generatingOverSingleValue}, as over a constant its result is a generating block,
+   * which a single-value box cannot read, and SAP PO accepts that graph. The assertions below are
+   * #69's, unchanged.
    */
   static final String MAIN_CATALOGUE =
       "engine/mapping/src/test/resources/pinned-71/function-catalogue.json";
@@ -397,8 +398,10 @@ class FunctionCatalogueTest {
   // into every parent occurrence, as a constant's does
 
   /**
-   * What is wrong with each function's {@code generating}: anything but {@code true}, or {@code
-   * true} on a function whose execution kind is not {@code queue}.
+   * What is wrong with each function's {@code generating} and {@code generatingOverSingleValue}
+   * (#230, F-51): either member as anything but {@code true}, or on a function whose execution kind
+   * is not {@code queue}; {@code generatingOverSingleValue} on a function without exactly one
+   * input, the one whose single value lowering reads, or beside {@code generating}.
    */
   static List<String> generatingProblems(JsonTree catalogue) {
     List<String> problems = new ArrayList<>();
@@ -406,15 +409,26 @@ class FunctionCatalogueTest {
         .forEach(
             (name, entry) -> {
               Map<String, JsonTree> members = members(entry, name);
-              JsonTree generating = members.get("generating");
-              if (generating == null) {
-                return;
+              for (String member : List.of("generating", "generatingOverSingleValue")) {
+                JsonTree mark = members.get(member);
+                if (mark == null) {
+                  continue;
+                }
+                if (!mark.equals(new Bool(true))) {
+                  problems.add(name + ": " + member + " is not true");
+                }
+                if (!new Str("queue").equals(members.get("executionKind"))) {
+                  problems.add(name + ": " + member + ", but no queue function");
+                }
               }
-              if (!generating.equals(new Bool(true))) {
-                problems.add(name + ": generating is not true");
-              }
-              if (!new Str("queue").equals(members.get("executionKind"))) {
-                problems.add(name + ": generating, but no queue function");
+              if (members.containsKey("generatingOverSingleValue")) {
+                if (!(members.get("inputs") instanceof Arr(List<JsonTree> inputs)
+                    && inputs.size() == 1)) {
+                  problems.add(name + ": generatingOverSingleValue, but not one input");
+                }
+                if (members.containsKey("generating")) {
+                  problems.add(name + ": generating and generatingOverSingleValue together");
+                }
               }
             });
     return problems;
@@ -453,5 +467,60 @@ class FunctionCatalogueTest {
     }
     assertThat(FunctionCatalogue.entry("copyValue").orElseThrow().generating()).isTrue();
     assertThat(FunctionCatalogue.entry("constant").orElseThrow().generating()).isFalse();
+  }
+
+  /**
+   * removeContexts over a single value is a generating block (#230, F-51; owner decision of
+   * 2026-11-14): the catalogue marks it {@code generatingOverSingleValue}, a queue function of one
+   * input that is not {@code generating}, and lowering reads the member as the catalogue holds it.
+   */
+  @Test
+  void onlyAQueueFunctionOfOneInputIsGeneratingOverASingleValue() throws Exception {
+    // witness: the check reports each defect of the member in a catalogue that has them; n has none
+    JsonTree broken =
+        JsonTree.parse(
+            """
+            {"f": {"executionKind": "context", "inputs": [{"name": "q"}],
+                   "generatingOverSingleValue": true},
+             "g": {"executionKind": "queue", "inputs": [{"name": "q"}],
+                   "generatingOverSingleValue": false},
+             "h": {"executionKind": "queue", "inputs": [{"name": "q"}, {"name": "r"}],
+                   "generatingOverSingleValue": true},
+             "k": {"executionKind": "queue", "generatingOverSingleValue": true},
+             "m": {"executionKind": "queue", "inputs": [{"name": "q"}], "generating": true,
+                   "generatingOverSingleValue": true},
+             "n": {"executionKind": "queue", "inputs": [{"name": "q"}],
+                   "generatingOverSingleValue": true}}
+            """);
+    assertThat(generatingProblems(broken))
+        .containsExactlyInAnyOrder(
+            "f: generatingOverSingleValue, but no queue function",
+            "g: generatingOverSingleValue is not true",
+            "h: generatingOverSingleValue, but not one input",
+            "k: generatingOverSingleValue, but not one input",
+            "m: generating and generatingOverSingleValue together");
+
+    Map<String, JsonTree> packed =
+        functions(JsonTree.parse(Fixtures.strictUtf8(catalogue())), "the packed catalogue");
+    assertThat(members(packed.get("removeContexts"), "removeContexts"))
+        .containsEntry("executionKind", new Str("queue"))
+        .containsEntry("generatingOverSingleValue", new Bool(true))
+        .doesNotContainKey("generating");
+
+    // lowering reads it as the catalogue holds it
+    for (Map.Entry<String, JsonTree> function : packed.entrySet()) {
+      boolean marked =
+          new Bool(true)
+              .equals(
+                  members(function.getValue(), function.getKey()).get("generatingOverSingleValue"));
+      assertThat(
+              FunctionCatalogue.entry(function.getKey()).orElseThrow().generatingOverSingleValue())
+          .as(function.getKey())
+          .isEqualTo(marked);
+    }
+    assertThat(FunctionCatalogue.entry("removeContexts").orElseThrow().generatingOverSingleValue())
+        .isTrue();
+    assertThat(FunctionCatalogue.entry("copyValue").orElseThrow().generatingOverSingleValue())
+        .isFalse();
   }
 }

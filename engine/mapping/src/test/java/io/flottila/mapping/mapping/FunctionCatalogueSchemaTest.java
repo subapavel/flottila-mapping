@@ -246,6 +246,37 @@ class FunctionCatalogueSchemaTest {
                 INPUTS,
                 "\"generating\": \"true\"",
                 PORTABLE)),
+        // a queue function whose call over a single value is a generating block (#230, F-51)
+        accepted(
+            "a queue function generating over a single value",
+            catalogue(
+                "removeLike",
+                "\"executionKind\": \"queue\"",
+                FAMILY,
+                EXACT,
+                INPUTS,
+                "\"generatingOverSingleValue\": true",
+                PORTABLE)),
+        refused(
+            "\"generatingOverSingleValue\": false",
+            catalogue(
+                "removeLike",
+                "\"executionKind\": \"queue\"",
+                FAMILY,
+                EXACT,
+                INPUTS,
+                "\"generatingOverSingleValue\": false",
+                PORTABLE)),
+        refused(
+            "\"generatingOverSingleValue\": \"true\"",
+            catalogue(
+                "removeLike",
+                "\"executionKind\": \"queue\"",
+                FAMILY,
+                EXACT,
+                INPUTS,
+                "\"generatingOverSingleValue\": \"true\"",
+                PORTABLE)),
         refused("no portable", catalogue("sortLike", KIND, FAMILY, EXACT, INPUTS)),
         refused(
             "inputs: []", catalogue("sortLike", KIND, FAMILY, EXACT, "\"inputs\": []", PORTABLE)),

@@ -94,8 +94,9 @@ only through `Lift` and `AtomicToQueue`.
   input, of a `Lift` or of an atomic call, lowering refuses it with `unsupported-generating-input`
   at the consuming box; SAP PO accepts that graph, so it is `copyValue`'s deviation.
   `removeContexts` over a single value gives a generating block; lowering decides it from the
-  input, so over a queue it stays a queue (F-51, #230). Its call over `AtomicToQueue`, a constant
-  or another single value, is the block, so a single-value input cannot read it either, which is
+  input, so over a queue it stays a queue (F-51, #230). The catalogue marks it
+  `generatingOverSingleValue` (ADR-0026): its call over `AtomicToQueue`, a constant or another
+  single value, is the block, so a single-value input cannot read it either, which is
   `removeContexts`' deviation.
 
 ## Target fields
